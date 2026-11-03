@@ -159,7 +159,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         if (placements[i] == null || !folders.contains(placements[i])) _item(kind, i),
       if (items.isEmpty) Padding(padding: const EdgeInsets.all(16), child: Text('아직 ${_label(kind)}${kind == _Kind.paragraph ? '이' : '가'} 없어요')),
       if (kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.tag)
-        _target(kind, null, const SizedBox(height: 28, width: double.infinity),
+        _target(kind, null, const SizedBox(height: 14, width: double.infinity),
           targetId: kind == _Kind.tag ? 'drop-tag-unfiled' : 'drop-${kind.name}-outside'),
     ];
   }

@@ -26,7 +26,7 @@ void main() {
     Future<void> move(String item, String gap) async {
       final source = find.byKey(ValueKey(item));
       final target = find.byKey(ValueKey(gap));
-      expect(tester.getSize(target).height, 28);
+      expect(tester.getSize(target).height, 14);
       if (Theme.of(tester.element(source)).platform == TargetPlatform.android) {
         final drag = await tester.startGesture(tester.getCenter(source));
         await tester.pump(const Duration(milliseconds: 600));
