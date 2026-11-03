@@ -54,12 +54,15 @@ void main() {
     await tester.pumpWidget(MyApp(storage: storage));
     await tester.pumpAndSettle();
     expect(find.text('저장된 구절'), findsOneWidget);
-    await tester.ensureVisible(find.text('데이터 초기화'));
+    await tester.tap(find.byTooltip('메뉴 열기'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('데이터 초기화'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('취소'));
     await tester.pumpAndSettle();
     expect(storage.read(), isNotNull);
+    await tester.tap(find.byTooltip('메뉴 열기'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('데이터 초기화'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('모두 삭제'));

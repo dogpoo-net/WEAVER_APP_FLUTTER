@@ -27,6 +27,8 @@ class WorkspaceMenu extends StatefulWidget {
   final bool embedded;
   final ValueChanged<int>? onSelected;
   final VoidCallback? onHide, onPin;
+  static const createProject = -1000002;
+  static const resetData = -1000003;
   static const createFolder = -1000000;
   static const createTagFolder = -1000001;
   final List<String> folders, tags, projects, tagFolders;
@@ -187,10 +189,18 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       children: [
         Expanded(
           child: Text(
-            tag ? '해시태그' : '프로젝트 ${widget.projects.length}',
+            tag ? '해시태그' : '프로젝트',
             style: Theme.of(context).textTheme.labelMedium,
           ),
         ),
+        if (!tag)
+          IconButton(
+            tooltip: '프로젝트 생성',
+            visualDensity: VisualDensity.compact,
+            iconSize: 18,
+            onPressed: () => _select(WorkspaceMenu.createProject),
+            icon: const Icon(Icons.add),
+          ),
         IconButton(
           tooltip: tag ? '해시태그 폴더 만들기' : '폴더 만들기',
           visualDensity: VisualDensity.compact,
@@ -307,6 +317,13 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
               ),
             ),
           ),
+        ),
+        const Divider(indent: 16, endIndent: 16),
+        ListTile(
+          dense: true,
+          leading: const Icon(Icons.delete_outline, size: 18),
+          title: const Text('데이터 초기화'),
+          onTap: () => _select(WorkspaceMenu.resetData),
         ),
       ],
     );

@@ -431,6 +431,14 @@ class _InboxPageState extends State<InboxPage> {
     List<String> tags,
   ) async {
     if (!mounted || choice == null || choice == -1) return;
+    if (choice == WorkspaceMenu.createProject) {
+      await _createProject();
+      return;
+    }
+    if (choice == WorkspaceMenu.resetData) {
+      await _reset();
+      return;
+    }
     if (choice == WorkspaceMenu.createFolder) {
       await _createFolder();
       return;
@@ -738,16 +746,6 @@ class _InboxPageState extends State<InboxPage> {
                           ],
                         ),
                         const SizedBox(height: 20),
-                        Wrap(
-                          spacing: 8,
-                          children: [
-                            TextButton.icon(
-                              onPressed: _reset,
-                              icon: const Icon(Icons.delete_outline, size: 18),
-                              label: const Text('데이터 초기화'),
-                            ),
-                          ],
-                        ),
                         LayoutBuilder(
                           builder: (context, constraints) =>
                               constraints.maxWidth >= 760
