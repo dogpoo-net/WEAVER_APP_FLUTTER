@@ -156,6 +156,8 @@ void main() {
     expect(shown.bottom, closeTo(844, 1));
     tester.widget<TextField>(field).focusNode!.unfocus();
     await tester.pump();
+    // Focus notifications schedule the overlay update after this frame.
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(popup, findsOneWidget);
     expect(tester.getRect(popup).top, greaterThan(shown.top));
