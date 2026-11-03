@@ -29,7 +29,7 @@ void main() {
     final field = tester.widget<TextField>(find.byKey(const ValueKey('paragraph-1')));
     expect(field.focusNode!.hasFocus, isTrue);
     expect(tester.testTextInput.isVisible, isTrue);
-    final list = tester.widget<ListView>(find.byKey(const ValueKey('paragraph-scroll')));
+    final list = tester.widget<ScrollView>(find.byKey(const ValueKey('paragraph-scroll')));
     expect(list.controller!.offset, lessThanOrEqualTo(list.controller!.position.maxScrollExtent));
     expect(tester.getRect(find.byKey(const ValueKey('paragraph-1'))).top,
       closeTo(tester.getRect(find.byKey(const ValueKey('paragraph-scroll'))).top, 1));
@@ -66,7 +66,7 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('paragraph-0')));
         await tester.pumpAndSettle();
         final list = find.byKey(const ValueKey('paragraph-scroll'));
-        final controller = tester.widget<ListView>(list).controller!;
+        final controller = tester.widget<ScrollView>(list).controller!;
         if (resizeViewport) {
           tester.view.physicalSize = const Size(390, 524);
         } else {
@@ -78,7 +78,7 @@ void main() {
         expect(tester.getRect(find.byKey(const ValueKey('paragraph-0'))).top,
           closeTo(tester.getRect(list).top, 1));
         expect(controller.offset, lessThan(controller.position.maxScrollExtent));
-        expect((tester.widget<ListView>(list).padding! as EdgeInsets).bottom,
+        expect((tester.widget<SliverPadding>(find.descendant(of: list, matching: find.byType(SliverPadding)).first).padding as EdgeInsets).bottom,
           greaterThanOrEqualTo(20 + mobileAssistHeight(MediaQueryData(size: const Size(390, 524)))));
         expect(tester.getBottomRight(list).dy, closeTo(524, 1));
         final popup = tester.getRect(find.byKey(const ValueKey('assist-popup')));
@@ -246,7 +246,7 @@ void main() {
     final popupBefore = tester.getRect(
       find.byKey(const ValueKey('assist-popup')),
     );
-    await tester.drag(find.byType(ListView).first, const Offset(0, -80));
+    await tester.drag(find.byKey(const ValueKey('paragraph-scroll')), const Offset(0, -80));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('assist-popup')), findsOneWidget);
     expect(
@@ -254,7 +254,7 @@ void main() {
       popupBefore,
     );
     expect(
-      tester.getBottomRight(find.byType(ListView).first).dy,
+      tester.getBottomRight(find.byKey(const ValueKey('paragraph-scroll'))).dy,
       closeTo(544, 1),
     );
     expect(tester.takeException(), isNull);

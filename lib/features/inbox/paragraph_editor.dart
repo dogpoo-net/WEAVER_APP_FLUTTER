@@ -47,9 +47,11 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
   late final TextEditingController _tags;
   bool _syncingTags = false;
   Timer? _revealTimer;
+  bool _reordering = false;
   final _fieldKeys = <GlobalKey>[];
 
   void _scheduleReveal() {
+    if (_reordering) return;
     _revealTimer?.cancel();
     _revealTimer = Timer(const Duration(milliseconds: 240), () {
       if (!mounted || !_scroll.hasClients) return;
@@ -280,6 +282,123 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     if (mounted) Navigator.pop(context);
   }
 
+  void _reorderParagraph(int oldIndex, int newIndex) {
+    final active = _controllers[_active];
+    setState(() {
+      _controllers.insert(newIndex, _controllers.removeAt(oldIndex));
+      _roles.insert(newIndex, _roles.removeAt(oldIndex));
+      _focus.insert(newIndex, _focus.removeAt(oldIndex));
+      _fieldKeys.insert(newIndex, _fieldKeys.removeAt(oldIndex));
+      _active = _controllers.indexOf(active);
+      _dirty = true;
+    });
+  }
+
+  Widget _paragraphField(int i) =>
+                    Padding(
+                      key: ObjectKey(_controllers[i]),
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                              if (widget.projectEditing) ReorderableDragStartListener(
+                                key: ValueKey('reorder-paragraph-$i'),
+                                index: i,
+                                child: const Tooltip(message: '문장 순서 변경', child: Padding(
+                                  padding: EdgeInsets.all(12), child: Icon(Icons.drag_handle),
+                                )),
+                              ),
+                              if (widget.projectEditing) ToggleButtons(
+                                direction: Axis.horizontal,
+                                borderRadius: BorderRadius.circular(16),
+                                constraints: const BoxConstraints(
+                                  minWidth: 48,
+                                  minHeight: 28,
+                                ),
+                                textStyle: const TextStyle(fontSize: 11),
+                                isSelected: ParagraphRole.values
+                                    .map((role) => role == _roles[i])
+                                    .toList(),
+                                onPressed: (index) {
+                                  setState(() {
+                                    _roles[i] = ParagraphRole.values[index];
+                                    _active = i;
+                                    _dirty = true;
+                                  });
+                                  _focus[i].requestFocus();
+                                },
+                                children: _labels
+                                    .map(
+                                      (label) => Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                        ),
+                                        child: Text(label),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                key: ValueKey('delete-paragraph-$i'),
+                                tooltip: widget.projectEditing ? '문장 삭제' : '입력 비우기',
+                                onPressed: () => _deleteParagraph(i),
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                              ],
+                            ),
+                          ],
+                          CaretAssist(
+                            key: _fieldKeys[i],
+                            mobileViewportKey: _bodyKey,
+                            controller: _controllers[i],
+                            focus: _focus[i],
+                            words: words,
+                            onWord: (word) {
+                              _active = i;
+                              _insert(word, complete: true);
+                            },
+                            child: TextField(
+                              key: ValueKey('paragraph-$i'),
+                              controller: _controllers[i],
+                              focusNode: _focus[i],
+                              minLines: 2,
+                              maxLines: null,
+                              onTap: () => setState(() {
+                                _active = i;
+                                _scheduleReveal();
+                              }),
+                              onChanged: (_) => setState(() {
+                                _active = i;
+                                _dirty = true;
+                              }),
+                              style: TextStyle(
+                                fontSize: _roles[i] == ParagraphRole.title
+                                    ? 28
+                                    : _roles[i] == ParagraphRole.subtitle
+                                    ? 21
+                                    : 16,
+                                fontWeight: _roles[i] == ParagraphRole.body
+                                    ? FontWeight.normal
+                                    : FontWeight.w600,
+                                height: 1.5,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: i == 0
+                                    ? '단어 하나로 시작해보세요'
+                                    : '다음 생각을 이어보세요',
+                                labelText: widget.projectEditing ? '문장 ${i + 1}' : '문단',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+
   @override
   Widget build(BuildContext context) {
     final rawMedia = MediaQuery.of(context);
@@ -403,114 +522,30 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
             child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 900),
-              child: LayoutBuilder(builder: (context, constraints) => ListView(
+              child: LayoutBuilder(builder: (context, constraints) => CustomScrollView(
                 key: const ValueKey('paragraph-scroll'),
                 controller: _scroll,
-                padding: EdgeInsets.fromLTRB(20, 20, 20,
-                  assistSpace > 0 ? math.max(20 + assistSpace, constraints.maxHeight - 72) : 20),
-                children: [
+                slivers: [SliverPadding(
+                  padding: EdgeInsets.fromLTRB(20, 20, 20,
+                    assistSpace > 0 ? math.max(20 + assistSpace, constraints.maxHeight - 72) : 20),
+                  sliver: SliverMainAxisGroup(slivers: [
+                  SliverToBoxAdapter(child: Column(children: [
                   if (widget.projectCreation) TextField(key: const ValueKey('project-name'), controller: _name,
                     decoration: const InputDecoration(labelText: '프로젝트 이름', helperText: '비워두면 제목 또는 첫 문장을 사용합니다.'),
                     onChanged: (_) => setState(() => _dirty = true)),
                   if (widget.projectEditing) Align(alignment: AlignmentDirectional.centerEnd,
                     child: OutlinedButton.icon(onPressed: _loadParagraph, icon: const Icon(Icons.search), label: const Text('문단 찾기'))),
-                  for (var i = 0; i < _controllers.length; i++)
-                    Padding(
-                      key: ObjectKey(_controllers[i]),
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          ...[
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                              if (widget.projectEditing) ToggleButtons(
-                                direction: Axis.horizontal,
-                                borderRadius: BorderRadius.circular(16),
-                                constraints: const BoxConstraints(
-                                  minWidth: 48,
-                                  minHeight: 28,
-                                ),
-                                textStyle: const TextStyle(fontSize: 11),
-                                isSelected: ParagraphRole.values
-                                    .map((role) => role == _roles[i])
-                                    .toList(),
-                                onPressed: (index) {
-                                  setState(() {
-                                    _roles[i] = ParagraphRole.values[index];
-                                    _active = i;
-                                    _dirty = true;
-                                  });
-                                  _focus[i].requestFocus();
-                                },
-                                children: _labels
-                                    .map(
-                                      (label) => Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                        ),
-                                        child: Text(label),
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                              const Spacer(),
-                              IconButton(
-                                key: ValueKey('delete-paragraph-$i'),
-                                tooltip: widget.projectEditing ? '문장 삭제' : '입력 비우기',
-                                onPressed: () => _deleteParagraph(i),
-                                icon: const Icon(Icons.delete_outline),
-                              ),
-                              ],
-                            ),
-                          ],
-                          CaretAssist(
-                            key: _fieldKeys[i],
-                            mobileViewportKey: _bodyKey,
-                            controller: _controllers[i],
-                            focus: _focus[i],
-                            words: words,
-                            onWord: (word) {
-                              _active = i;
-                              _insert(word, complete: true);
-                            },
-                            child: TextField(
-                              key: ValueKey('paragraph-$i'),
-                              controller: _controllers[i],
-                              focusNode: _focus[i],
-                              minLines: 2,
-                              maxLines: null,
-                              onTap: () => setState(() {
-                                _active = i;
-                                _scheduleReveal();
-                              }),
-                              onChanged: (_) => setState(() {
-                                _active = i;
-                                _dirty = true;
-                              }),
-                              style: TextStyle(
-                                fontSize: _roles[i] == ParagraphRole.title
-                                    ? 28
-                                    : _roles[i] == ParagraphRole.subtitle
-                                    ? 21
-                                    : 16,
-                                fontWeight: _roles[i] == ParagraphRole.body
-                                    ? FontWeight.normal
-                                    : FontWeight.w600,
-                                height: 1.5,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: i == 0
-                                    ? '단어 하나로 시작해보세요'
-                                    : '다음 생각을 이어보세요',
-                                labelText: widget.projectEditing ? '문장 ${i + 1}' : '문단',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  ])),
+                  if (widget.projectEditing) SliverReorderableList(
+                    itemCount: _controllers.length,
+                    itemBuilder: (context, index) => _paragraphField(index),
+                    onReorderItem: _reorderParagraph,
+                    onReorderStart: (_) { _revealTimer?.cancel(); _reordering = true; },
+                    onReorderEnd: (_) { _reordering = false; },
+                    proxyDecorator: (child, index, animation) => Material(elevation: 6, child: child),
+                  ) else SliverList(delegate: SliverChildBuilderDelegate(
+                    (context, index) => _paragraphField(index), childCount: _controllers.length)),
+                  SliverToBoxAdapter(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   if (!widget.projectEditing) TextField(
                     key: const ValueKey('paragraph-tags'), controller: _tags,
                     inputFormatters: const [HashtagInputFormatter()],
@@ -537,7 +572,9 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                     '저장을 누르면 문단이 보관됩니다.',
                     style: TextStyle(color: colors.onSurfaceVariant),
                   ),
-                ],
+                  ])),
+                  ]),
+                )],
               )),
             ),
           ),

@@ -25,8 +25,11 @@ Color wordBackgroundColor(BuildContext context, String word) {
   ).toColor();
 }
 
+String badgeLabel(String word) => word.replaceAll(RegExp(r'[\r\n\u2028\u2029]+'), ' ');
+
 Widget elementBadge(BuildContext context, String word) => Chip(
-  label: Text(word, style: TextStyle(color: wordColor(context, word))),
+  label: Text(badgeLabel(word), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis,
+    semanticsLabel: word, style: TextStyle(color: wordColor(context, word))),
   backgroundColor: wordBackgroundColor(context, word),
   shape: const StadiumBorder(),
   side: BorderSide.none,
@@ -88,7 +91,7 @@ class WordBadge extends StatelessWidget {
         ),
         textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
       ),
-      child: Text(word),
+      child: Text(badgeLabel(word), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, semanticsLabel: word),
     );
   }
 }

@@ -135,7 +135,7 @@ class _ProjectPageState extends State<ProjectPage> {
                   Wrap(
                     spacing: 8,
                     children: [
-                      for (final entry in ['미리보기', '원소', '문장'].asMap().entries)
+                      for (final entry in ['미리보기', '문장', '원소'].asMap().entries)
                         ChoiceChip(
                           label: Text(entry.value),
                           selected: _tab == entry.key,
@@ -169,7 +169,7 @@ class _ProjectPageState extends State<ProjectPage> {
                         ),
                       ),
                   ],
-                  if (_tab == 1) ...[
+                  if (_tab == 2) ...[
                     const Text('이 프로젝트에서 사용한 원소'),
                     const SizedBox(height: 12),
                     Wrap(
@@ -215,7 +215,7 @@ class _ProjectPageState extends State<ProjectPage> {
                       child: const Text('글로벌 원소 저장'),
                     ),
                   ],
-                  if (_tab == 2) ...[
+                  if (_tab == 1) ...[
                     for (var i = 0; i < project.paragraphs.length; i++)
                       Card(
                         child: ListTile(
