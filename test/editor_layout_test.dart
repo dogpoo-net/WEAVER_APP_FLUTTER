@@ -1,8 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/paragraph_editor.dart';
+import 'package:weaver/features/inbox/keyboard_viewport.dart';
+import 'package:weaver/features/inbox/caret_assist.dart';
 
 void main() {
+  test('already resized browser viewport does not subtract keyboard twice', () {
+    final media = MediaQueryData(size: const Size(390, 524),
+      viewInsets: const EdgeInsets.only(bottom: 320));
+    expect(effectiveKeyboardInset(media, visibleHeight: 524), 0);
+    expect(effectiveKeyboardInset(media.copyWith(size: const Size(390, 844)),
+      visibleHeight: 524), 320);
+  });
+
+  testWidgets('adding a paragraph focuses its field and scrolls within body bounds', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpWidget(const MaterialApp(home: ParagraphEditor(words: ['기억'])));
+    await tester.tap(find.text('다음 문단'));
+    await tester.pumpAndSettle();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    await tester.pumpAndSettle();
+    final field = tester.widget<TextField>(find.byKey(const ValueKey('paragraph-1')));
+    expect(field.focusNode!.hasFocus, isTrue);
+    expect(tester.testTextInput.isVisible, isTrue);
+    final list = tester.widget<ListView>(find.byKey(const ValueKey('paragraph-scroll')));
+    expect(list.controller!.offset, closeTo(list.controller!.position.maxScrollExtent, 1));
+    final popup = tester.getRect(find.byKey(const ValueKey('assist-popup')));
+    expect(popup.bottom, closeTo(524, 1));
+    expect(tester.getRect(find.byKey(const ValueKey('paragraph-1'))).bottom,
+      lessThanOrEqualTo(popup.top));
+    expect(find.text('원소 어시스트'), findsNothing);
+    expect(find.byTooltip('후보 닫기'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final resizeViewport in [false, true]) {
     testWidgets(
       'keyboard ${resizeViewport ? "viewport resize" : "inset"} does not jump to the bottom or add assist padding',
@@ -37,7 +72,8 @@ void main() {
         await tester.pump(const Duration(seconds: 1));
         expect(controller.offset, closeTo(before, 1));
         expect(controller.offset, lessThan(controller.position.maxScrollExtent));
-        expect(tester.widget<ListView>(list).padding, const EdgeInsets.all(20));
+        expect((tester.widget<ListView>(list).padding! as EdgeInsets).bottom,
+          20 + mobileAssistHeight(MediaQueryData(size: const Size(390, 524))));
         expect(tester.getBottomRight(list).dy, closeTo(524, 1));
         final popup = tester.getRect(find.byKey(const ValueKey('assist-popup')));
         expect(popup.left, 0);
@@ -116,7 +152,7 @@ void main() {
     final shown = tester.getRect(popup);
     expect(shown.top, lessThan(halfway.top));
     expect(shown.bottom, closeTo(844, 1));
-    await tester.tap(find.byTooltip('후보 닫기'));
+    tester.widget<TextField>(field).focusNode!.unfocus();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(popup, findsOneWidget);

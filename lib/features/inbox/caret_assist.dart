@@ -21,12 +21,14 @@ class CaretAssist extends StatefulWidget {
     required this.words,
     required this.onWord,
     required this.child,
+    this.mobileViewportKey,
   });
   final TextEditingController controller;
   final FocusNode focus;
   final List<String> words;
   final ValueChanged<String> onWord;
   final Widget child;
+  final GlobalKey? mobileViewportKey;
   @override
   State<CaretAssist> createState() => _CaretAssistState();
 }
@@ -269,7 +271,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
         ),
       );
       final point = render.localToGlobal(caret.topLeft);
-      final media = MediaQueryData.fromView(View.of(context));
+      final media = MediaQuery.of(context);
       final width = (media.size.width - 24).clamp(0.0, 300.0);
       final bottom =
           media.size.height -
@@ -298,11 +300,16 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
               media.size.width - width - 12,
             )
           : (rtl ? media.size.width - width - 12 : 12.0);
+      final body = widget.mobileViewportKey?.currentContext?.findRenderObject();
+      final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+      final bodyBottom = body is RenderBox && body.hasSize
+          ? overlay.globalToLocal(body.localToGlobal(Offset(0, body.size.height))).dy
+          : overlay.size.height - media.viewInsets.bottom;
       _mobileVisible = true;
       _overlayBuilder = (_) => Positioned(
         left: _desktop ? left : 0,
         top: _desktop ? top : null,
-        bottom: _desktop ? null : media.viewInsets.bottom,
+        bottom: _desktop ? null : (overlay.size.height - bodyBottom).clamp(0.0, overlay.size.height),
         width: _desktop ? width : media.size.width,
         child: TextFieldTapRegion(
           child: _desktop
@@ -342,29 +349,6 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _desktop
-                              ? (_controlling
-                                    ? '원소 선택 · Ctrl로 입력'
-                                    : '원소 어시스트 · Ctrl로 선택')
-                              : '원소 어시스트',
-                          style: TextStyle(fontSize: 11),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: '후보 닫기',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () {
-                          _dismissed = widget.controller.text;
-                          _hide();
-                        },
-                        icon: const Icon(Icons.close, size: 16),
-                      ),
-                    ],
-                  ),
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,

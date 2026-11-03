@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'word_badge.dart';
 import 'caret_assist.dart';
 import 'element_store.dart';
+import 'keyboard_viewport.dart';
 
 enum ParagraphRole { title, subtitle, body }
 
@@ -26,7 +29,26 @@ class ParagraphEditor extends StatefulWidget {
   State<ParagraphEditor> createState() => _ParagraphEditorState();
 }
 
-class _ParagraphEditorState extends State<ParagraphEditor> {
+class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingObserver {
+  final _bodyKey = GlobalKey();
+  Timer? _revealTimer;
+  bool _revealAdded = false;
+
+  void _scheduleReveal() {
+    if (!_revealAdded) return;
+    _revealTimer?.cancel();
+    _revealTimer = Timer(const Duration(milliseconds: 240), () {
+      if (!mounted || !_scroll.hasClients) return;
+      _revealAdded = false;
+      _scroll.animateTo(_scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200), curve: Curves.easeOutCubic);
+    });
+  }
+
+  @override
+  void didChangeMetrics() {
+    _scheduleReveal();
+  }
   final List<TextEditingController> _controllers = [];
   final List<ParagraphRole> _roles = [];
   final List<FocusNode> _focus = [];
@@ -39,6 +61,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     for (final p in widget.initial) {
       _add(p);
     }
@@ -52,11 +75,15 @@ class _ParagraphEditorState extends State<ParagraphEditor> {
       }),
     );
     _roles.add(p.role);
-    _focus.add(FocusNode());
+    _focus.add(FocusNode()..addListener(() {
+      if (mounted) setState(() {});
+    }));
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _revealTimer?.cancel();
     _scroll.dispose();
     for (final c in _controllers) {
       c.dispose();
@@ -108,9 +135,18 @@ class _ParagraphEditorState extends State<ParagraphEditor> {
 
   @override
   Widget build(BuildContext context) {
+    final rawMedia = MediaQuery.of(context);
+    final media = rawMedia.copyWith(viewInsets: rawMedia.viewInsets.copyWith(
+      bottom: effectiveKeyboardInset(rawMedia),
+    ));
+    final mobile = media.size.width < 760 || media.viewInsets.bottom > 0;
+    final assistSpace = mobile && _focus.any((f) => f.hasFocus)
+        ? mobileAssistHeight(media) : 0.0;
     final colors = Theme.of(context).colorScheme;
     final hasText = _controllers.any((c) => c.text.trim().isNotEmpty);
-    return PopScope(
+    return MediaQuery(
+      data: media,
+      child: PopScope(
       canPop: !_dirty,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) _back();
@@ -205,13 +241,15 @@ class _ParagraphEditorState extends State<ParagraphEditor> {
           ],
         ),
         body: SafeArea(
-          child: Center(
+          child: Container(
+            key: _bodyKey,
+            child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 900),
               child: ListView(
                 key: const ValueKey('paragraph-scroll'),
                 controller: _scroll,
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + assistSpace),
                 children: [
                   for (var i = 0; i < _controllers.length; i++)
                     Padding(
@@ -256,6 +294,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> {
                             ),
                           ],
                           CaretAssist(
+                            mobileViewportKey: _bodyKey,
                             controller: _controllers[i],
                             focus: _focus[i],
                             words: words,
@@ -302,7 +341,13 @@ class _ParagraphEditorState extends State<ParagraphEditor> {
                         _add(const Paragraph('', ParagraphRole.body));
                         _active = _controllers.length - 1;
                       });
+                      _revealAdded = true;
                       _focus.last.requestFocus();
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        _focus.last.requestFocus();
+                        _scheduleReveal();
+                      });
                     },
                     icon: const Icon(Icons.add),
                     label: const Text('다음 문단'),
@@ -316,7 +361,9 @@ class _ParagraphEditorState extends State<ParagraphEditor> {
               ),
             ),
           ),
+          ),
         ),
+      ),
       ),
     );
   }

@@ -26,7 +26,11 @@ class _MobileElementAssistState extends State<MobileElementAssist>
   late final Animation<Offset> _offset = Tween(
     begin: const Offset(0, 1),
     end: Offset.zero,
-  ).animate(_animation);
+  ).animate(CurvedAnimation(
+    parent: _animation,
+    curve: Curves.easeOutCubic,
+    reverseCurve: Curves.easeInCubic,
+  ));
 
   void _statusChanged(AnimationStatus status) {
     if (status == AnimationStatus.dismissed && !widget.visible) {
