@@ -9,6 +9,7 @@ import 'caret_assist.dart';
 import 'element_store.dart';
 import 'keyboard_viewport.dart';
 import 'hashtags.dart';
+import 'paragraph_tag_input.dart';
 import 'project_page.dart';
 
 enum ParagraphRole { title, subtitle, body }
@@ -44,6 +45,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
   final _bodyKey = GlobalKey();
   final _name = TextEditingController();
   late final TextEditingController _tags;
+  bool _syncingTags = false;
   Timer? _revealTimer;
   final _fieldKeys = <GlobalKey>[];
 
@@ -88,12 +90,33 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     if (_controllers.isEmpty) _add(const Paragraph('', ParagraphRole.body));
   }
 
+  void _moveCompletedTags(TextEditingController controller) {
+    if (widget.projectEditing || _syncingTags) return;
+    final completed = takeCompletedParagraphTags(controller.value);
+    if (completed.tags.isEmpty) return;
+    _syncingTags = true;
+    try {
+      final all = {
+        ..._tags.text.split(RegExp(r'\s+')).map((t) => t.replaceFirst(RegExp(r'^#+'), '').toLowerCase()).where((t) => t.isNotEmpty),
+        ...completed.tags,
+      };
+      final pending = _tags.text.endsWith(' #');
+      final text = all.map((t) => '#$t').join(' ') + (pending ? ' #' : '');
+      _tags.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+      controller.value = completed.value;
+      _dirty = true;
+    } finally {
+      _syncingTags = false;
+    }
+  }
+
   void _add(Paragraph p) {
-    _controllers.add(
-      TextEditingController(text: p.text)..addListener(() {
-        if (mounted) setState(() {});
-      }),
-    );
+    final controller = TextEditingController(text: p.text);
+    _controllers.add(controller);
+    controller.addListener(() {
+      _moveCompletedTags(controller);
+      if (mounted) setState(() {});
+    });
     _roles.add(p.role);
     final focus = FocusNode();
     _fieldKeys.add(GlobalKey());
@@ -490,6 +513,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                     ),
                   if (!widget.projectEditing) TextField(
                     key: const ValueKey('paragraph-tags'), controller: _tags,
+                    inputFormatters: const [HashtagInputFormatter()],
                     decoration: const InputDecoration(labelText: '태그', hintText: '#독서 #아이디어'),
                     onChanged: (_) => setState(() => _dirty = true)),
                   if (widget.projectEditing) OutlinedButton.icon(
