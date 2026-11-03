@@ -83,6 +83,9 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     final name = _items(kind)[index];
     final label = kind == _Kind.tag ? '#$name' : name.replaceAll(RegExp(r'[\r\n]+'), ' ');
     final tile = ListTile(key: ValueKey('menu-${kind.name}-$index'),
+      dense: kind == _Kind.tag,
+      minVerticalPadding: kind == _Kind.tag ? 2 : null,
+      visualDensity: kind == _Kind.tag ? const VisualDensity(vertical: -3) : null,
       title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
         style: nested ? const TextStyle(fontSize: 13) : null),
       leading: Icon(switch (kind) { _Kind.tag => Icons.tag, _Kind.element => Icons.circle_outlined,
