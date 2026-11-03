@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:math' as math;
+import 'package:flutter/rendering.dart';
 
 import 'package:flutter/material.dart';
 
@@ -32,20 +34,21 @@ class ParagraphEditor extends StatefulWidget {
 class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingObserver {
   final _bodyKey = GlobalKey();
   Timer? _revealTimer;
-  bool _revealAdded = false;
-  double _addedAtHeight = 0;
+  final _fieldKeys = <GlobalKey>[];
 
   void _scheduleReveal() {
-    if (!_revealAdded) return;
     _revealTimer?.cancel();
     _revealTimer = Timer(const Duration(milliseconds: 240), () {
       if (!mounted || !_scroll.hasClients) return;
+      final active = _focus.indexWhere((focus) => focus.hasFocus);
+      if (active < 0) return;
       final media = MediaQuery.of(context);
-      if (media.viewInsets.bottom > 0 || media.size.width >= 760 ||
-          media.size.height < _addedAtHeight) {
-        _revealAdded = false;
-      }
-      _scroll.animateTo(_scroll.position.maxScrollExtent,
+      if (media.size.width >= 760 && media.viewInsets.bottom == 0) return;
+      final field = _fieldKeys[active].currentContext?.findRenderObject();
+      if (field == null || !field.attached) return;
+      final target = RenderAbstractViewport.of(field).getOffsetToReveal(field, 0).offset;
+      final position = _scroll.position;
+      _scroll.animateTo(target.clamp(position.minScrollExtent, position.maxScrollExtent),
         duration: const Duration(milliseconds: 200), curve: Curves.easeOutCubic);
     });
   }
@@ -80,8 +83,12 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
       }),
     );
     _roles.add(p.role);
+    final index = _focus.length;
+    _fieldKeys.add(GlobalKey());
     _focus.add(FocusNode()..addListener(() {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      setState(() { if (_focus[index].hasFocus) _active = index; });
+      _scheduleReveal();
     }));
   }
 
@@ -251,10 +258,11 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
             child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 900),
-              child: ListView(
+              child: LayoutBuilder(builder: (context, constraints) => ListView(
                 key: const ValueKey('paragraph-scroll'),
                 controller: _scroll,
-                padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + assistSpace),
+                padding: EdgeInsets.fromLTRB(20, 20, 20,
+                  assistSpace > 0 ? math.max(20 + assistSpace, constraints.maxHeight - 72) : 20),
                 children: [
                   for (var i = 0; i < _controllers.length; i++)
                     Padding(
@@ -299,6 +307,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                             ),
                           ],
                           CaretAssist(
+                            key: _fieldKeys[i],
                             mobileViewportKey: _bodyKey,
                             controller: _controllers[i],
                             focus: _focus[i],
@@ -315,10 +324,9 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                               maxLines: null,
                               onTap: () => setState(() {
                                 _active = i;
-                                _revealAdded = false;
+                                _scheduleReveal();
                               }),
                               onChanged: (_) => setState(() {
-                                _revealAdded = false;
                                 _active = i;
                                 _dirty = true;
                               }),
@@ -350,8 +358,6 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                         _add(const Paragraph('', ParagraphRole.body));
                         _active = _controllers.length - 1;
                       });
-                      _addedAtHeight = MediaQuery.sizeOf(context).height;
-                      _revealAdded = true;
                       _focus.last.requestFocus();
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         if (!mounted) return;
@@ -368,7 +374,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                     style: TextStyle(color: colors.onSurfaceVariant),
                   ),
                 ],
-              ),
+              )),
             ),
           ),
           ),

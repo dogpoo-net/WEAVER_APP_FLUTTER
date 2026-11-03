@@ -13,7 +13,7 @@ void main() {
       visibleHeight: 524), 320);
   });
 
-  testWidgets('adding a paragraph focuses its field and scrolls within body bounds', (tester) async {
+  testWidgets('adding a paragraph focuses and aligns the input at the body top', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -30,7 +30,9 @@ void main() {
     expect(field.focusNode!.hasFocus, isTrue);
     expect(tester.testTextInput.isVisible, isTrue);
     final list = tester.widget<ListView>(find.byKey(const ValueKey('paragraph-scroll')));
-    expect(list.controller!.offset, closeTo(list.controller!.position.maxScrollExtent, 1));
+    expect(list.controller!.offset, lessThanOrEqualTo(list.controller!.position.maxScrollExtent));
+    expect(tester.getRect(find.byKey(const ValueKey('paragraph-1'))).top,
+      closeTo(tester.getRect(find.byKey(const ValueKey('paragraph-scroll'))).top, 1));
     final popup = tester.getRect(find.byKey(const ValueKey('assist-popup')));
     expect(popup.bottom, closeTo(524, 1));
     expect(tester.getRect(find.byKey(const ValueKey('paragraph-1'))).bottom,
@@ -42,7 +44,7 @@ void main() {
 
   for (final resizeViewport in [false, true]) {
     testWidgets(
-      'keyboard ${resizeViewport ? "viewport resize" : "inset"} preserves the paragraph and reserves only panel height',
+      'keyboard ${resizeViewport ? "viewport resize" : "inset"} aligns the focused field at the top',
       (tester) async {
         tester.view.physicalSize = const Size(390, 844);
         tester.view.devicePixelRatio = 1;
@@ -64,18 +66,19 @@ void main() {
         await tester.pumpAndSettle();
         final list = find.byKey(const ValueKey('paragraph-scroll'));
         final controller = tester.widget<ListView>(list).controller!;
-        final before = controller.offset;
         if (resizeViewport) {
           tester.view.physicalSize = const Size(390, 524);
         } else {
           tester.view.viewInsets = const FakeViewPadding(bottom: 320);
         }
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
         await tester.pumpAndSettle();
-        await tester.pump(const Duration(seconds: 1));
-        expect(controller.offset, closeTo(before, 1));
+        expect(tester.getRect(find.byKey(const ValueKey('paragraph-0'))).top,
+          closeTo(tester.getRect(list).top, 1));
         expect(controller.offset, lessThan(controller.position.maxScrollExtent));
         expect((tester.widget<ListView>(list).padding! as EdgeInsets).bottom,
-          20 + mobileAssistHeight(MediaQueryData(size: const Size(390, 524))));
+          greaterThanOrEqualTo(20 + mobileAssistHeight(MediaQueryData(size: const Size(390, 524)))));
         expect(tester.getBottomRight(list).dy, closeTo(524, 1));
         final popup = tester.getRect(find.byKey(const ValueKey('assist-popup')));
         expect(popup.left, 0);
@@ -108,6 +111,7 @@ void main() {
     final bounds = tester.getRect(popup);
     expect(bounds.left, 0);
     expect(bounds.width, 390);
+    expect(bounds.height, 118);
     expect(bounds.bottom, closeTo(544, 1));
     expect(bounds.bottom, lessThanOrEqualTo(544));
     final scroll = find.descendant(

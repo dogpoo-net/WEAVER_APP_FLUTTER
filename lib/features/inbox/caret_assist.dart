@@ -4,14 +4,13 @@ import 'package:flutter/services.dart';
 import 'word_badge.dart';
 import 'mobile_element_assist.dart';
 
-/// Positions suggestions using the editable renderer's actual caret rectangle.
-double mobileAssistHeight(MediaQueryData media) =>
-    ((media.size.height -
-                media.viewInsets.bottom -
-                media.padding.vertical -
-                kToolbarHeight) *
-            .4)
-        .clamp(0.0, 180.0);
+/// Three badge rows (30 each), two row gaps (6 each), and panel padding (8 each).
+double mobileAssistHeight(MediaQueryData media) {
+  final rowHeight = 30.0 * media.textScaler.scale(12) / 12;
+  final available = media.size.height - media.viewInsets.bottom -
+      media.padding.vertical - kToolbarHeight;
+  return (rowHeight * 3 + 12 + 16).clamp(0.0, available.clamp(0.0, double.infinity));
+}
 
 class CaretAssist extends StatefulWidget {
   const CaretAssist({
