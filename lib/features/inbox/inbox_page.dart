@@ -50,6 +50,9 @@ class _InboxPageState extends State<InboxPage> {
     super.initState();
     _draft.addListener(_imeUpdated);
     projectFolders.clear();
+    paragraphFolders.clear();
+    elementFolders.clear();
+    hiddenSearchTags.clear();
     hashtagFolders.clear();
     hashtagFolderAssignments.clear();
     elements.addListener(_elementDeleted);
@@ -106,16 +109,20 @@ class _InboxPageState extends State<InboxPage> {
     _persist();
   }
 
-  Future<void> _createFolder({bool tag = false}) async {
+  Future<void> _createFolder({bool tag = false, String? kind}) async {
     var folderName = '';
     final name = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(tag ? '해시태그 폴더 만들기' : '폴더 만들기'),
+      builder: (context) => CallbackShortcuts(bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () => Navigator.pop(context),
+      }, child: AlertDialog(
+        title: Text(tag ? '해시태그 폴더 만들기' : kind == 'paragraph' ? '문단 폴더 만들기' : kind == 'element' ? '원소 폴더 만들기' : '폴더 만들기'),
         content: TextField(
           onChanged: (value) => folderName = value,
           autofocus: true,
           decoration: const InputDecoration(labelText: '폴더 이름'),
+          textInputAction: TextInputAction.done,
+          onSubmitted: (value) => Navigator.pop(context, value.trim()),
         ),
         actions: [
           TextButton(
@@ -127,10 +134,10 @@ class _InboxPageState extends State<InboxPage> {
             child: const Text('만들기'),
           ),
         ],
-      ),
+      )),
     );
     if (!mounted || name == null || name.isEmpty) return;
-    final folders = tag ? hashtagFolders : projectFolders;
+    final folders = tag ? hashtagFolders : kind == 'paragraph' ? paragraphFolders : kind == 'element' ? elementFolders : projectFolders;
     if (!folders.contains(name)) {
       setState(() => folders.add(name));
       await _persist();
@@ -190,6 +197,9 @@ class _InboxPageState extends State<InboxPage> {
       if (!mounted) return;
       setState(() {
         projectFolders.clear();
+      paragraphFolders.clear();
+      elementFolders.clear();
+      hiddenSearchTags.clear();
         hashtagFolders.clear();
         hashtagFolderAssignments.clear();
         elements.clear();
@@ -248,7 +258,7 @@ class _InboxPageState extends State<InboxPage> {
     }
     final keyboard = HardwareKeyboard.instance;
     if (keyboard.isShiftPressed || keyboard.isAltPressed || keyboard.isControlPressed || keyboard.isMetaPressed ||
-        (_explicitNewlineUntil != null && now.isBefore(_explicitNewlineUntil!))) return value;
+        (_explicitNewlineUntil != null && now.isBefore(_explicitNewlineUntil!))) { return value; }
     var start = 0;
     while (start < oldValue.text.length && start < value.text.length && oldValue.text[start] == value.text[start]) { start++; }
     var oldEnd = oldValue.text.length, newEnd = value.text.length;
@@ -352,7 +362,7 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   Future<void> _writeParagraphs([Note? note]) async {
-    final words = elements.words;
+    final words = elements.visibleWords;
     final result = await Navigator.push<List<Paragraph>>(
       context,
       MaterialPageRoute(
@@ -375,6 +385,16 @@ class _InboxPageState extends State<InboxPage> {
       }
     });
     await _persist();
+  }
+
+  List<Note> get _paragraphNotes => _notes.where((n) => n.project == null && n.paragraphs != null).toList();
+  void _moveParagraph(int index, String? folder) {
+    setState(() => _paragraphNotes[index].folder = folder);
+    _persist();
+  }
+  void _moveElement(int index, String? folder) {
+    setState(() => elements.records[elements.words[index]]!.folder = folder);
+    _persist();
   }
 
   List<Paragraph> get _availableParagraphs => _notes
@@ -402,7 +422,7 @@ class _InboxPageState extends State<InboxPage> {
 
   Future<void> _createProject() async {
     final available = _availableParagraphs;
-    final words = elements.words;
+    final words = elements.visibleWords;
     final project = await Navigator.push<WritingProject>(
       context,
       MaterialPageRoute(
@@ -486,6 +506,14 @@ class _InboxPageState extends State<InboxPage> {
               }
             : null,
         tags: tags,
+        paragraphs: _paragraphNotes.map((n) => n.title).toList(),
+        paragraphFolders: paragraphFolders,
+        paragraphFolderNames: _paragraphNotes.map((n) => n.folder).toList(),
+        onParagraphMoved: _moveParagraph,
+        elements: elements.words,
+        elementFolders: elementFolders,
+        elementFolderNames: elements.words.map((w) => elements.records[w]!.folder).toList(),
+        onElementMoved: _moveElement,
         tagFolders: hashtagFolders,
         tagFolderNames: hashtagFolderAssignments,
         onProjectMoved: (index, folder) =>
@@ -498,7 +526,8 @@ class _InboxPageState extends State<InboxPage> {
     await _selectMenu(choice, projects, tags);
     if (mounted &&
         (choice == WorkspaceMenu.createFolder ||
-            choice == WorkspaceMenu.createTagFolder)) {
+            choice == WorkspaceMenu.createTagFolder ||
+            choice == WorkspaceMenu.createParagraphFolder || choice == WorkspaceMenu.createElementFolder)) {
       await _menu();
     }
   }
@@ -509,6 +538,20 @@ class _InboxPageState extends State<InboxPage> {
     List<String> tags,
   ) async {
     if (!mounted || choice == null || choice == -1) return;
+    if (choice <= -3000000) {
+      final index = -3000000 - choice;
+      if (index < elements.words.length) await showElementMetadata(context, elements.words[index]);
+      return;
+    }
+    if (choice <= -2000000) {
+      final index = -2000000 - choice;
+      if (index < _paragraphNotes.length) await _showParagraph(_paragraphNotes[index]);
+      return;
+    }
+    if (choice == WorkspaceMenu.createParagraphFolder || choice == WorkspaceMenu.createElementFolder) {
+      await _createFolder(kind: choice == WorkspaceMenu.createParagraphFolder ? 'paragraph' : 'element');
+      return;
+    }
     if (choice == WorkspaceMenu.createProject) {
       await _createProject();
       return;
@@ -652,7 +695,7 @@ class _InboxPageState extends State<InboxPage> {
         Wrap(
           spacing: 6,
           runSpacing: 6,
-          children: elements.words
+          children: elements.visibleWords
               .where(
                 (word) => word.toLowerCase().contains(_query.toLowerCase()),
               )
@@ -676,12 +719,12 @@ class _InboxPageState extends State<InboxPage> {
             elevation: 0,
             clipBehavior: Clip.antiAlias,
             color: colors.surfaceContainerLow,
-            margin: const EdgeInsets.only(bottom: 10),
+            margin: const EdgeInsets.only(bottom: 6),
             child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 18,
-                vertical: 10,
-              ),
+              dense: true,
+              visualDensity: const VisualDensity(vertical: -2),
+              minVerticalPadding: 4,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
               title: Text(
                 note.title,
                 maxLines: 2,
@@ -779,7 +822,15 @@ class _InboxPageState extends State<InboxPage> {
                     .where((n) => n.project != null)
                     .map((n) => n.project!.folder)
                     .toList(),
-                tagFolders: hashtagFolders,
+                paragraphs: _paragraphNotes.map((n) => n.title).toList(),
+        paragraphFolders: paragraphFolders,
+        paragraphFolderNames: _paragraphNotes.map((n) => n.folder).toList(),
+        onParagraphMoved: _moveParagraph,
+        elements: elements.words,
+        elementFolders: elementFolders,
+        elementFolderNames: elements.words.map((w) => elements.records[w]!.folder).toList(),
+        onElementMoved: _moveElement,
+        tagFolders: hashtagFolders,
                 tagFolderNames: hashtagFolderAssignments,
                 onProjectMoved: (index, folder) => _moveProject(
                   _notes.where((n) => n.project != null).toList(),
@@ -816,11 +867,6 @@ class _InboxPageState extends State<InboxPage> {
                           runSpacing: 8,
                           children: [
                             TextButton.icon(
-                              onPressed: () => _writeParagraphs(),
-                              icon: const Icon(Icons.subject, size: 18),
-                              label: const Text('문단 쓰기'),
-                            ),
-                            TextButton.icon(
                               onPressed: _createProject,
                               icon: const Icon(
                                 Icons.create_new_folder_outlined,
@@ -828,9 +874,14 @@ class _InboxPageState extends State<InboxPage> {
                               ),
                               label: const Text('프로젝트 생성'),
                             ),
+                            TextButton.icon(
+                              onPressed: () => _writeParagraphs(),
+                              icon: const Icon(Icons.subject, size: 18),
+                              label: const Text('문단 쓰기'),
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 8),
                         LayoutBuilder(
                           builder: (context, constraints) =>
                               constraints.maxWidth >= 760
@@ -839,7 +890,7 @@ class _InboxPageState extends State<InboxPage> {
                                   children: [
                                     Expanded(
                                       child: Padding(
-                                        padding: const EdgeInsets.all(24),
+                                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                                         child: _list(),
                                       ),
                                     ),

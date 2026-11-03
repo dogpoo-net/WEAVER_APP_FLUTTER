@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'paragraph_editor.dart';
 import 'word_badge.dart';
 import 'element_store.dart';
-import 'hashtags.dart';
 
 class WritingProject {
   WritingProject(
@@ -41,7 +40,6 @@ class ProjectPage extends StatefulWidget {
 
 class _ProjectPageState extends State<ProjectPage> {
   int _tab = 0;
-  final _word = TextEditingController();
   @override
   void initState() {
     super.initState();
@@ -74,7 +72,6 @@ class _ProjectPageState extends State<ProjectPage> {
   @override
   void dispose() {
     elements.removeListener(_refresh);
-    _word.dispose();
     super.dispose();
   }
 
@@ -86,7 +83,7 @@ class _ProjectPageState extends State<ProjectPage> {
           projectEditing: true,
           available: widget.available,
           initial: widget.project.paragraphs,
-          words: elements.words,
+          words: elements.visibleWords,
         ),
       ),
     );
@@ -185,34 +182,6 @@ class _ProjectPageState extends State<ProjectPage> {
                             ),
                           )
                           .toList(),
-                    ),
-                    const SizedBox(height: 20),
-                    TextField(
-                      controller: _word,
-                      decoration: const InputDecoration(
-                        labelText: '원소단어 추가',
-                        hintText: '원소 내용 #태그',
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    OutlinedButton(
-                      onPressed: () {
-                        final word = _word.text.trim();
-                        if (parseTaggedInput(word).text.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('태그와 함께 원소 내용을 입력해주세요.'),
-                            ),
-                          );
-                          return;
-                        }
-                        setState(() {
-                          elements.add(word);
-                          _word.clear();
-                          widget.onChanged?.call();
-                        });
-                      },
-                      child: const Text('글로벌 원소 저장'),
                     ),
                   ],
                   if (_tab == 1) ...[

@@ -15,6 +15,8 @@ void main() {
     await tester.tap(find.widgetWithText(ChoiceChip, '원소'));
     await tester.pumpAndSettle();
     expect(find.text('이 프로젝트에서 사용한 원소'), findsOneWidget);
+    expect(find.text('글로벌 원소 저장'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
   });
 
   testWidgets('handle drag moves text and role together and saves the new order', (tester) async {

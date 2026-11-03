@@ -7,6 +7,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: SizedBox(width: 320, child: WorkspaceMenu(
       embedded: true, folders: ['폴더'], projects: ['폴더 안 프로젝트', '바깥 프로젝트'], projectFolderNames: ['폴더', null],
     )))));
+    expect(find.text('미분류'), findsNothing);
     await tester.tap(find.text('폴더'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
@@ -31,13 +32,13 @@ void main() {
     )))));
     final scroll = find.byKey(const ValueKey('menu-projects'));
     final controller = tester.widget<CustomScrollView>(scroll).controller!;
-    controller.jumpTo(800);
+    controller.jumpTo(1100);
     await tester.pumpAndSettle();
     final heading = find.byKey(const ValueKey('menu-tags-heading'));
     expect(tester.getRect(heading).top, closeTo(tester.getRect(scroll).top, 1));
     final item = find.byKey(const ValueKey('menu-tag-5'));
     final before = tester.getTopLeft(item).dy;
-    controller.jumpTo(850);
+    controller.jumpTo(1150);
     await tester.pumpAndSettle();
     expect(tester.getRect(heading).top, closeTo(tester.getRect(scroll).top, 1));
     expect(tester.getTopLeft(item).dy, lessThan(before));

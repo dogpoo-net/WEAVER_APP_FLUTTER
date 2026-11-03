@@ -13,6 +13,7 @@ class Note {
   Note(this.content, {DateTime? created})
     : createdAt = created ?? DateTime.now();
   String content;
+  String? folder;
   final Set<String> tags = {};
   List<Paragraph>? paragraphs;
   WritingProject? project;
@@ -28,8 +29,12 @@ class WorkspaceSnapshot {
     this.folders = const [],
     this.tagFolders = const [],
     this.tagAssignments = const {},
+    this.paragraphFolderList = const [],
+    this.elementFolderList = const [],
+    this.hiddenTagList = const [],
   ]);
   final List<String> folders;
+  final List<String> paragraphFolderList, elementFolderList, hiddenTagList;
   final List<String> tagFolders;
   final Map<String, String> tagAssignments;
   final List<Note> notes;
@@ -43,6 +48,9 @@ class WorkspaceSnapshot {
   static String encode(List<Note> notes) => jsonEncode({
     'version': 1,
     'folders': projectFolders,
+    'paragraphFolders': paragraphFolders,
+    'elementFolders': elementFolders,
+    'hiddenSearchTags': hiddenSearchTags.toList(),
     'hashtagFolders': hashtagFolders,
     'hashtagFolderAssignments': hashtagFolderAssignments,
     'elements': elements.records.values
@@ -52,6 +60,8 @@ class WorkspaceSnapshot {
             'text': r.text,
             'createdAt': r.createdAt.toIso8601String(),
             'tags': r.tags.toList(),
+            'folder': r.folder,
+            'hiddenFromSearch': r.hiddenFromSearch,
           },
         )
         .toList(),
@@ -60,6 +70,7 @@ class WorkspaceSnapshot {
         .map(
           (n) => {
             'content': n.content,
+            'folder': n.folder,
             'tags': n.tags.toList(),
             'createdAt': n.createdAt.toIso8601String(),
             'paragraphs': n.paragraphs?.map(paragraph).toList(),
@@ -98,7 +109,8 @@ class WorkspaceSnapshot {
         text,
         DateTime.parse(r['createdAt'] as String),
         tags: ((r['tags'] ?? []) as List).cast<String>(),
-      );
+      )..folder = r['folder'] as String?
+       ..hiddenFromSearch = (r['hiddenFromSearch'] as bool?) ?? false;
     }).toList();
     if (records.map((r) => r.text).toSet().length != records.length ||
         records.map((r) => r.id).toSet().length != records.length) {
@@ -109,6 +121,7 @@ class WorkspaceSnapshot {
         n['content'] as String,
         created: DateTime.parse(n['createdAt'] as String),
       );
+      note.folder = n['folder'] as String?;
       note.tags.addAll(List<String>.from(n['tags'] ?? []));
       if (n['paragraphs'] != null) {
         note.paragraphs = paragraphs(n['paragraphs']);
@@ -133,6 +146,7 @@ class WorkspaceSnapshot {
       if (note.project == null && note.paragraphs != null && note.paragraphs!.length > 1) {
         for (final p in note.paragraphs!) {
           migrated.add(Note(p.text, created: note.createdAt)
+            ..folder = note.folder
             ..paragraphs = [Paragraph(p.text, ParagraphRole.body, tags: p.tags)]
             ..tags.addAll({...note.tags, ...p.tags}));
         }
@@ -168,6 +182,14 @@ class WorkspaceSnapshot {
     for (final folder in assignments.values) {
       if (!tagFolders.contains(folder)) tagFolders.add(folder);
     }
+    final paragraphFolderNames = List<String>.from(data['paragraphFolders'] ?? []);
+    final elementFolderNames = List<String>.from(data['elementFolders'] ?? []);
+    for (final note in migrated) {
+      if (note.folder != null && !paragraphFolderNames.contains(note.folder)) paragraphFolderNames.add(note.folder!);
+    }
+    for (final record in records) {
+      if (record.folder != null && !elementFolderNames.contains(record.folder)) elementFolderNames.add(record.folder!);
+    }
     return WorkspaceSnapshot(
       migrated,
       records,
@@ -175,6 +197,9 @@ class WorkspaceSnapshot {
       folders,
       tagFolders,
       assignments,
+      paragraphFolderNames,
+      elementFolderNames,
+      List<String>.from(data['hiddenSearchTags'] ?? []),
     );
   }
 
@@ -188,7 +213,10 @@ class WorkspaceSnapshot {
     projectFolders
       ..clear()
       ..addAll(folders);
+    paragraphFolders..clear()..addAll(paragraphFolderList);
+    elementFolders..clear()..addAll(elementFolderList);
     elements.clear();
+    hiddenSearchTags.addAll(hiddenTagList);
     for (final record in records) {
       elements.records[record.text] = record;
     }

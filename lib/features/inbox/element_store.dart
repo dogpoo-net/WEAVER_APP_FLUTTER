@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'project_page.dart';
 import 'paragraph_editor.dart';
+import 'project_folders.dart';
 
 import 'word_badge.dart';
 import 'hashtags.dart';
@@ -19,6 +20,8 @@ class ElementRecord {
     this.tags.addAll(tags);
   }
   final Set<String> tags = {};
+  String? folder;
+  bool hiddenFromSearch = false;
   static int _next = 0;
   final String id;
   String text;
@@ -97,6 +100,21 @@ class ElementStore extends ChangeNotifier {
   }
 
   List<String> get words => records.keys.toList();
+  bool isSearchable(String word) {
+    final record = records[word];
+    return record == null || (!record.hiddenFromSearch && !record.tags.any(hiddenSearchTags.contains));
+  }
+  List<String> get visibleWords => words.where(isSearchable).toList();
+  void setHidden(String word, bool hidden) {
+    final record = records[word];
+    if (record == null) return;
+    record.hiddenFromSearch = hidden;
+    notifyListeners();
+  }
+  void setTagHidden(String tag, bool hidden) {
+    if (hidden) { hiddenSearchTags.add(tag); } else { hiddenSearchTags.remove(tag); }
+    notifyListeners();
+  }
   List<String> get tags =>
       records.values.expand((r) => r.tags).toSet().toList()..sort();
   List<({int start, int end, String word})> matches(String text) {
@@ -123,6 +141,7 @@ class ElementStore extends ChangeNotifier {
 
   void clear() {
     records.clear();
+    hiddenSearchTags.clear();
     sources.clear();
   }
 }
@@ -220,6 +239,13 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                 ),
                 const Divider(height: 20),
               ],
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('검색에서 숨기기'),
+                subtitle: const Text('메인과 원소 어시스트에 표시하지 않습니다.'),
+                value: element.hiddenFromSearch,
+                onChanged: (hidden) => setState(() => elements.setHidden(word, hidden)),
+              ),
               Text('생성일', style: Theme.of(context).textTheme.labelMedium),
               const SizedBox(height: 6),
               Text(element.createdAt.toLocal().toString().split('.').first),

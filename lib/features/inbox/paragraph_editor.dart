@@ -79,12 +79,15 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
   int _active = 0;
   bool _dirty = false;
   static const _labels = ['제목', '부제', '본문'];
-  List<String> get words => widget.words.isEmpty ? starterWords : widget.words;
+  List<String> get words => (widget.words.isEmpty && elements.records.isEmpty ? starterWords : widget.words)
+      .where(elements.isSearchable).toList();
+  void _refreshSearchableWords() { if (mounted) setState(() {}); }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    elements.addListener(_refreshSearchableWords);
     _tags = TextEditingController(text: widget.initialTags.map((t) => '#$t').join(' '));
     for (final p in widget.projectEditing ? widget.initial : widget.initial.take(1)) {
       _add(widget.projectEditing ? p : Paragraph(p.text, ParagraphRole.body));
@@ -187,6 +190,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    elements.removeListener(_refreshSearchableWords);
     _revealTimer?.cancel();
     _name.dispose();
     _tags.dispose();

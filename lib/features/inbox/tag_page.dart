@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'element_store.dart';
 import 'workspace_storage.dart';
 import 'word_badge.dart';
+import 'project_folders.dart';
 
 class TagPage extends StatefulWidget {
   const TagPage({
@@ -46,6 +47,11 @@ class _TagPageState extends State<TagPage> {
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
+                SwitchListTile.adaptive(contentPadding: EdgeInsets.zero,
+                  title: const Text('이 태그의 원소 검색 숨기기'),
+                  subtitle: const Text('메인과 원소 어시스트에서만 숨깁니다.'),
+                  value: hiddenSearchTags.contains(widget.tag),
+                  onChanged: (hidden) => setState(() => elements.setTagHidden(widget.tag, hidden))),
                 Text(
                   '원소 ${words.length}',
                   style: Theme.of(context).textTheme.titleMedium,

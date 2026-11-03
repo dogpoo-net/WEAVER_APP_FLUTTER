@@ -35,17 +35,15 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('menu opens and launches paragraph editor', (tester) async {
+  testWidgets('menu separates browsing categories and paragraph writing stays on main', (tester) async {
     await tester.pumpWidget(const MyApp());
     await tester.tap(find.byTooltip('메뉴 열기'));
     await tester.pumpAndSettle();
     expect(find.text('메인'), findsOneWidget);
-    await tester.tap(
-      find.descendant(
-        of: find.byType(WorkspaceMenu),
-        matching: find.text('문단 쓰기'),
-      ),
-    );
+    expect(find.descendant(of: find.byType(WorkspaceMenu), matching: find.text('문단 쓰기')), findsNothing);
+    await tester.tap(find.byTooltip('메뉴 닫기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('문단 쓰기'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('paragraph-0')), findsOneWidget);
   });

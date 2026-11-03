@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 
 import 'word_badge.dart';
 import 'mobile_element_assist.dart';
@@ -193,6 +194,12 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     _scrollObserver?.removeListener(_scrolled);
     _scrollObserver = ScrollNotificationObserver.maybeOf(context);
     _scrollObserver?.addListener(_scrolled);
+  }
+
+  @override
+  void didUpdateWidget(CaretAssist oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!listEquals(oldWidget.words, widget.words)) _update();
   }
 
   @override
