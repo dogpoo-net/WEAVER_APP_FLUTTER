@@ -8,13 +8,16 @@ import 'word_badge.dart';
 import 'caret_assist.dart';
 import 'element_store.dart';
 import 'keyboard_viewport.dart';
+import 'hashtags.dart';
+import 'project_page.dart';
 
 enum ParagraphRole { title, subtitle, body }
 
 class Paragraph {
-  const Paragraph(this.text, this.role);
+  const Paragraph(this.text, this.role, {this.tags = const {}});
   final String text;
   final ParagraphRole role;
+  final Set<String> tags;
 }
 
 class ParagraphEditor extends StatefulWidget {
@@ -22,9 +25,15 @@ class ParagraphEditor extends StatefulWidget {
     super.key,
     this.initial = const [],
     this.projectEditing = false,
+    this.projectCreation = false,
+    this.available = const [],
+    this.initialTags = const {},
     required this.words,
   });
   final bool projectEditing;
+  final bool projectCreation;
+  final List<Paragraph> available;
+  final Set<String> initialTags;
   final List<Paragraph> initial;
   final List<String> words;
   @override
@@ -33,6 +42,8 @@ class ParagraphEditor extends StatefulWidget {
 
 class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingObserver {
   final _bodyKey = GlobalKey();
+  final _name = TextEditingController();
+  late final TextEditingController _tags;
   Timer? _revealTimer;
   final _fieldKeys = <GlobalKey>[];
 
@@ -70,8 +81,9 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    for (final p in widget.initial) {
-      _add(p);
+    _tags = TextEditingController(text: widget.initialTags.map((t) => '#$t').join(' '));
+    for (final p in widget.projectEditing ? widget.initial : widget.initial.take(1)) {
+      _add(widget.projectEditing ? p : Paragraph(p.text, ParagraphRole.body));
     }
     if (_controllers.isEmpty) _add(const Paragraph('', ParagraphRole.body));
   }
@@ -96,6 +108,21 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
   }
 
   Future<void> _deleteParagraph(int index) async {
+    if (!widget.projectEditing) {
+      final clear = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+        title: const Text('입력 내용을 비울까요?'),
+        content: const Text('작성 중인 내용과 태그를 비웁니다. 저장된 문단은 삭제하지 않습니다.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('비우기')),
+        ],
+      ));
+      if (clear == true && mounted) {
+        setState(() { _controllers.single.clear(); _tags.clear(); _dirty = true; });
+        _focus.single.requestFocus();
+      }
+      return;
+    }
     final controller = _controllers[index];
     if (controller.text.trim().isNotEmpty) {
       final confirmed = await showDialog<bool>(
@@ -136,6 +163,8 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _revealTimer?.cancel();
+    _name.dispose();
+    _tags.dispose();
     _scroll.dispose();
     for (final c in _controllers) {
       c.dispose();
@@ -159,6 +188,41 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     );
     setState(() => _dirty = true);
     _focus[_active].requestFocus();
+  }
+
+  Future<void> _loadParagraph() async {
+    _focus[_active].unfocus();
+    var query = '';
+    final picked = await showDialog<Paragraph>(context: context, builder: (context) =>
+      StatefulBuilder(builder: (context, update) => AlertDialog(
+        title: const Text('문단 찾기'),
+        content: SizedBox(width: 500, height: 400, child: Column(children: [
+          TextField(autofocus: true, decoration: const InputDecoration(labelText: '내용 또는 태그 검색'),
+            onChanged: (value) => update(() => query = value.toLowerCase().replaceFirst(RegExp(r'^#'), ''))),
+          Expanded(child: ListView(children: [
+            for (final entry in widget.available.asMap().entries)
+              if (entry.value.text.toLowerCase().contains(query) || entry.value.tags.any((t) => t.contains(query)))
+                ListTile(key: ValueKey('pick-${entry.key}'), title: Text(entry.value.text),
+                  subtitle: entry.value.tags.isEmpty ? null : Text(entry.value.tags.map((t) => '#$t').join(' ')),
+                  onTap: () => Navigator.pop(context, entry.value)),
+            if (widget.available.isEmpty) const ListTile(title: Text('저장된 문단이 없어요')),
+          ])),
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],
+      )));
+    if (picked == null || !mounted) return;
+    setState(() {
+      // Copy text into this project's own sentence; no link to the saved source.
+      if (_controllers[_active].text.trim().isEmpty) {
+        _controllers[_active].text = picked.text;
+      } else {
+        _add(Paragraph(picked.text, ParagraphRole.body));
+        _active = _controllers.length - 1;
+      }
+      _dirty = true;
+    });
+    _focus[_active].requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _scheduleReveal(); });
   }
 
   Future<void> _back() async {
@@ -195,7 +259,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     final assistSpace = mobile && _focus.any((f) => f.hasFocus)
         ? mobileAssistHeight(media) : 0.0;
     final colors = Theme.of(context).colorScheme;
-    final hasText = _controllers.any((c) => c.text.trim().isNotEmpty);
+    final hasText = _controllers.any((c) => (widget.projectEditing ? c.text : parseTaggedInput(c.text).text).trim().isNotEmpty);
     return MediaQuery(
       data: media,
       child: PopScope(
@@ -210,10 +274,9 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
             icon: const Icon(Icons.arrow_back),
             tooltip: '돌아가기',
           ),
-          title: const Text('문단 쓰기'),
+          title: Text(widget.projectEditing ? (widget.projectCreation ? '프로젝트 생성' : '프로젝트 편집') : '문단 쓰기'),
           actions: [
-            if (widget.projectEditing)
-              TextButton(
+            TextButton(
                 onPressed: hasText
                     ? () {
                         _focus[_active].unfocus();
@@ -244,7 +307,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                                                 bottom: 20,
                                               ),
                                               child: ElementText(
-                                                _controllers[i].text,
+                                                widget.projectEditing ? _controllers[i].text : parseTaggedInput(_controllers[i].text).text,
                                                 style: TextStyle(
                                                   height: 1.7,
                                                   fontSize:
@@ -283,12 +346,23 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                       final result = [
                         for (var i = 0; i < _controllers.length; i++)
                           if (_controllers[i].text.trim().isNotEmpty)
-                            Paragraph(_controllers[i].text, _roles[i]),
+                            if (widget.projectEditing)
+                              Paragraph(_controllers[i].text, _roles[i])
+                            else
+                              Paragraph(parseTaggedInput(_controllers[i].text).text, ParagraphRole.body,
+                                tags: {...parseTaggedInput(_controllers[i].text).tags,
+                                  ..._tags.text.split(RegExp(r'\s+')).map((t) => t.replaceFirst(RegExp(r'^#'), '').toLowerCase()).where((t) => t.isNotEmpty)}),
                       ];
-                      Navigator.pop(context, result);
+                      if (widget.projectCreation) {
+                        final title = _name.text.trim();
+                        final fallback = result.firstWhere((p) => p.role == ParagraphRole.title, orElse: () => result.first).text.split('\n').first;
+                        Navigator.pop(context, WritingProject(result, widget.words, name: title.isEmpty ? fallback : title));
+                      } else {
+                        Navigator.pop(context, result);
+                      }
                     }
                   : null,
-              child: const Text('저장'),
+              child: Text(widget.projectCreation ? '프로젝트 만들기' : '저장'),
             ),
           ],
         ),
@@ -304,6 +378,11 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                 padding: EdgeInsets.fromLTRB(20, 20, 20,
                   assistSpace > 0 ? math.max(20 + assistSpace, constraints.maxHeight - 72) : 20),
                 children: [
+                  if (widget.projectCreation) TextField(key: const ValueKey('project-name'), controller: _name,
+                    decoration: const InputDecoration(labelText: '프로젝트 이름', helperText: '비워두면 제목 또는 첫 문장을 사용합니다.'),
+                    onChanged: (_) => setState(() => _dirty = true)),
+                  if (widget.projectEditing) Align(alignment: AlignmentDirectional.centerEnd,
+                    child: OutlinedButton.icon(onPressed: _loadParagraph, icon: const Icon(Icons.search), label: const Text('문단 찾기'))),
                   for (var i = 0; i < _controllers.length; i++)
                     Padding(
                       key: ObjectKey(_controllers[i]),
@@ -315,7 +394,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                              ToggleButtons(
+                              if (widget.projectEditing) ToggleButtons(
                                 direction: Axis.horizontal,
                                 borderRadius: BorderRadius.circular(16),
                                 constraints: const BoxConstraints(
@@ -348,7 +427,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                               const Spacer(),
                               IconButton(
                                 key: ValueKey('delete-paragraph-$i'),
-                                tooltip: '문단 삭제',
+                                tooltip: widget.projectEditing ? '문장 삭제' : '입력 비우기',
                                 onPressed: () => _deleteParagraph(i),
                                 icon: const Icon(Icons.delete_outline),
                               ),
@@ -401,7 +480,11 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                         ],
                       ),
                     ),
-                  OutlinedButton.icon(
+                  if (!widget.projectEditing) TextField(
+                    key: const ValueKey('paragraph-tags'), controller: _tags,
+                    decoration: const InputDecoration(labelText: '태그', hintText: '#독서 #아이디어'),
+                    onChanged: (_) => setState(() => _dirty = true)),
+                  if (widget.projectEditing) OutlinedButton.icon(
                     onPressed: () {
                       setState(() {
                         _add(const Paragraph('', ParagraphRole.body));

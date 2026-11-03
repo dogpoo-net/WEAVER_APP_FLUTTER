@@ -13,6 +13,7 @@ class Note {
   Note(this.content, {DateTime? created})
     : createdAt = created ?? DateTime.now();
   String content;
+  final Set<String> tags = {};
   List<Paragraph>? paragraphs;
   WritingProject? project;
   final DateTime createdAt;
@@ -37,6 +38,7 @@ class WorkspaceSnapshot {
   static Map<String, dynamic> paragraph(Paragraph p) => {
     'text': p.text,
     'role': p.role.name,
+    'tags': p.tags.toList(),
   };
   static String encode(List<Note> notes) => jsonEncode({
     'version': 1,
@@ -58,6 +60,7 @@ class WorkspaceSnapshot {
         .map(
           (n) => {
             'content': n.content,
+            'tags': n.tags.toList(),
             'createdAt': n.createdAt.toIso8601String(),
             'paragraphs': n.paragraphs?.map(paragraph).toList(),
             'project': n.project == null
@@ -83,6 +86,7 @@ class WorkspaceSnapshot {
           (p) => Paragraph(
             p['text'] as String,
             ParagraphRole.values.byName(p['role'] as String),
+            tags: Set<String>.from(p['tags'] ?? []),
           ),
         )
         .toList();
@@ -105,6 +109,7 @@ class WorkspaceSnapshot {
         n['content'] as String,
         created: DateTime.parse(n['createdAt'] as String),
       );
+      note.tags.addAll(List<String>.from(n['tags'] ?? []));
       if (n['paragraphs'] != null) {
         note.paragraphs = paragraphs(n['paragraphs']);
       }
@@ -121,6 +126,23 @@ class WorkspaceSnapshot {
       }
       return note;
     }).toList();
+    // Older snapshots could store several independent paragraphs in one note.
+    // Keep every paragraph and its original date when converting to one per note.
+    final migrated = <Note>[];
+    for (final note in notes) {
+      if (note.project == null && note.paragraphs != null && note.paragraphs!.length > 1) {
+        for (final p in note.paragraphs!) {
+          migrated.add(Note(p.text, created: note.createdAt)
+            ..paragraphs = [Paragraph(p.text, ParagraphRole.body, tags: p.tags)]
+            ..tags.addAll({...note.tags, ...p.tags}));
+        }
+      } else {
+        if (note.project == null && note.paragraphs != null) {
+          note.tags.addAll(note.paragraphs!.expand((p) => p.tags));
+        }
+        migrated.add(note);
+      }
+    }
     final colors = (data['colors'] as Map<String, dynamic>).map((key, value) {
       final hue = (value as num).toDouble();
       if (!hue.isFinite || hue < 0 || hue >= 360) {
@@ -147,7 +169,7 @@ class WorkspaceSnapshot {
       if (!tagFolders.contains(folder)) tagFolders.add(folder);
     }
     return WorkspaceSnapshot(
-      notes,
+      migrated,
       records,
       colors,
       folders,

@@ -19,7 +19,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetViewInsets);
-    await tester.pumpWidget(const MaterialApp(home: ParagraphEditor(words: ['기억'])));
+    await tester.pumpWidget(const MaterialApp(home: ParagraphEditor(projectEditing: true, words: ['기억'])));
     await tester.tap(find.text('다음 문단'));
     await tester.pumpAndSettle();
     tester.view.viewInsets = const FakeViewPadding(bottom: 320);
@@ -54,6 +54,7 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: ParagraphEditor(
+              projectEditing: true,
               words: const ['기억'],
               initial: List.generate(
                 8,
@@ -223,6 +224,7 @@ void main() {
         builder: (context, child) =>
             Directionality(textDirection: TextDirection.rtl, child: child!),
         home: const ParagraphEditor(
+          projectEditing: true,
           words: ['كتاب'],
           initial: [
             Paragraph('', ParagraphRole.body),

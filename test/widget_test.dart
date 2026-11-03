@@ -47,42 +47,34 @@ void main() {
       '오늘의 관찰',
     );
   });
-  testWidgets('paragraph roles persist after saving and reopening', (
-    tester,
-  ) async {
+  testWidgets('single paragraph opens preview with tags and can be edited or deleted', (tester) async {
     await tester.pumpWidget(const MyApp());
     await tester.tap(find.text('문단 쓰기'));
     await tester.pumpAndSettle();
-    expect(find.text('제목'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('paragraph-0')));
-    await tester.pumpAndSettle();
-    for (final word in starterWords) {
-      expect(find.byKey(ValueKey('suggestion-$word')), findsOneWidget);
-    }
-    await tester.tap(find.text('관찰'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('제목'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('다음 문단'));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const ValueKey('paragraph-1')),
-      '관찰에서 시작한 이야기',
-    );
+    expect(find.byType(ToggleButtons), findsNothing);
+    expect(find.text('다음 문단'), findsNothing);
+    await tester.enterText(find.byKey(const ValueKey('paragraph-0')), '독립된 문단');
+    await tester.enterText(find.byKey(const ValueKey('paragraph-tags')), '#문단태그');
     await tester.tap(find.text('저장'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('관찰'));
-    await tester.tap(find.text('관찰'));
+    await tester.ensureVisible(find.text('독립된 문단'));
+    await tester.tap(find.text('독립된 문단'));
     await tester.pumpAndSettle();
-    expect(
-      tester
-          .widget<TextField>(find.byKey(const ValueKey('paragraph-0')))
-          .style!
-          .fontSize,
-      28,
-    );
-    expect(find.text('관찰에서 시작한 이야기'), findsNothing);
-    expect(find.byKey(const ValueKey('paragraph-1')), findsNothing);
+    expect(find.text('사용한 원소'), findsOneWidget);
+    expect(find.text('#문단태그'), findsOneWidget);
+    expect(find.textContaining('작성일 ·'), findsOneWidget);
+    await tester.tap(find.byTooltip('문단 수정'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byKey(const ValueKey('paragraph-0'))).controller!.text, '독립된 문단');
+    await tester.enterText(find.byKey(const ValueKey('paragraph-0')), '수정된 문단');
+    await tester.tap(find.text('저장'));
+    await tester.pumpAndSettle();
+    expect(find.text('수정된 문단'), findsOneWidget);
+    await tester.tap(find.byTooltip('문단 삭제'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('삭제'));
+    await tester.pumpAndSettle();
+    expect(find.text('수정된 문단'), findsNothing);
   });
   testWidgets('theme switch retains draft and applies both palettes', (
     tester,

@@ -27,8 +27,10 @@ class ProjectPage extends StatefulWidget {
     required this.project,
     this.onChanged,
     this.initialParagraph,
+    this.available = const [],
     this.initialOffset,
   });
+  final List<Paragraph> available;
   final int? initialParagraph;
   final int? initialOffset;
   final Future<void> Function()? onChanged;
@@ -82,6 +84,7 @@ class _ProjectPageState extends State<ProjectPage> {
       MaterialPageRoute(
         builder: (_) => ParagraphEditor(
           projectEditing: true,
+          available: widget.available,
           initial: widget.project.paragraphs,
           words: elements.words,
         ),
@@ -132,7 +135,7 @@ class _ProjectPageState extends State<ProjectPage> {
                   Wrap(
                     spacing: 8,
                     children: [
-                      for (final entry in ['미리보기', '원소', '문단'].asMap().entries)
+                      for (final entry in ['미리보기', '원소', '문장'].asMap().entries)
                         ChoiceChip(
                           label: Text(entry.value),
                           selected: _tab == entry.key,

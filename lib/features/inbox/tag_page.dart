@@ -29,12 +29,12 @@ class _TagPageState extends State<TagPage> {
         .where(
           (n) =>
               n.paragraphs != null &&
-              elements
+              (n.tags.contains(widget.tag) || elements
                   .matches(
                     n.project?.paragraphs.map((p) => p.text).join('\n') ??
                         n.content,
                   )
-                  .any((hit) => words.contains(hit.word)),
+                  .any((hit) => words.contains(hit.word))),
         )
         .toList();
     return Scaffold(
@@ -81,12 +81,7 @@ class _TagPageState extends State<TagPage> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     subtitle: Text(
-                      note.project == null
-                          ? [
-                              '제목',
-                              '부제',
-                              '본문',
-                            ][note.paragraphs!.first.role.index]
+                      note.project == null ? '문단'
                           : '프로젝트',
                     ),
                     onTap: () async {

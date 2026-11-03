@@ -12,6 +12,7 @@ import 'paragraph_editor.dart';
 import 'word_badge.dart';
 import 'project_page.dart';
 import 'project_builder.dart';
+import 'paragraph_page.dart';
 import 'workspace_menu.dart';
 import 'element_store.dart';
 
@@ -305,25 +306,50 @@ class _InboxPageState extends State<InboxPage> {
       MaterialPageRoute(
         builder: (_) => ParagraphEditor(
           initial: note?.paragraphs ?? const [],
+          initialTags: note?.tags ?? const {},
           words: words,
         ),
       ),
     );
     if (result == null || !mounted) return;
+    final paragraph = result.single;
     setState(() {
-      if (note != null) _notes.remove(note);
-      for (final paragraph in result.reversed) {
-        _notes.insert(0, Note(paragraph.text)..paragraphs = [paragraph]);
+      if (note != null) {
+        note.content = paragraph.text;
+        note.paragraphs = [paragraph];
+        note.tags..clear()..addAll(paragraph.tags);
+      } else {
+        _notes.insert(0, Note(paragraph.text)..paragraphs = [paragraph]..tags.addAll(paragraph.tags));
       }
     });
     await _persist();
   }
 
+  List<Paragraph> get _availableParagraphs => _notes
+      .where((n) => n.project == null && n.paragraphs != null)
+      .map((n) => Paragraph(n.content, ParagraphRole.body, tags: Set.of(n.tags))).toList();
+
+  List<String> get _allTags => {...elements.tags,
+    ..._notes.where((n) => n.project == null && n.paragraphs != null).expand((n) => n.tags)}.toList()..sort();
+
+  Future<void> _showParagraph(Note note) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => ParagraphPage(
+      note: note,
+      onEdit: () => _writeParagraphs(note),
+      onDelete: () async {
+        setState(() => _notes.remove(note));
+        await _persist();
+      },
+      onTag: (tag) async {
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => TagPage(
+          tag: tag, notes: _notes, onOpen: _open)));
+      },
+    )));
+    if (mounted) setState(() {});
+  }
+
   Future<void> _createProject() async {
-    final available = _notes
-        .where((n) => n.project == null)
-        .expand((n) => n.paragraphs ?? <Paragraph>[])
-        .toList();
+    final available = _availableParagraphs;
     final words = elements.words;
     final project = await Navigator.push<WritingProject>(
       context,
@@ -345,7 +371,7 @@ class _InboxPageState extends State<InboxPage> {
       context,
       MaterialPageRoute(
         builder: (_) =>
-            ProjectPage(project: note.project!, onChanged: _persist),
+            ProjectPage(project: note.project!, available: _availableParagraphs, onChanged: _persist),
       ),
     );
     if (!mounted) return;
@@ -362,7 +388,7 @@ class _InboxPageState extends State<InboxPage> {
       return;
     }
     if (note.paragraphs != null) {
-      await _writeParagraphs(note);
+      await _showParagraph(note);
       return;
     }
     if (_draft.text.isNotEmpty) {
@@ -396,7 +422,7 @@ class _InboxPageState extends State<InboxPage> {
   Future<void> _menu() async {
     FocusScope.of(context).unfocus();
     final projects = _notes.where((n) => n.project != null).toList();
-    final tags = elements.tags;
+    final tags = _allTags;
     final choice = await showDialog<int>(
       context: context,
       builder: (_) => WorkspaceMenu(
@@ -524,7 +550,7 @@ class _InboxPageState extends State<InboxPage> {
 
   Widget _list() {
     final visible = _notes
-        .where((n) => n.content.toLowerCase().contains(_query.toLowerCase()))
+        .where((n) => n.content.toLowerCase().contains(_query.toLowerCase()) || n.tags.any((t) => t.contains(_query.toLowerCase().replaceFirst('#', ''))))
         .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -604,7 +630,7 @@ class _InboxPageState extends State<InboxPage> {
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
-                '${note.createdAt.month}월 ${note.createdAt.day}일 · ${note.project != null ? '프로젝트' : ['제목', '부제', '본문'][note.paragraphs!.first.role.index]}',
+                '${note.createdAt.month}월 ${note.createdAt.day}일 · ${note.project != null ? '프로젝트' : '문단'}${note.tags.isEmpty ? '' : ' · ${note.tags.map((t) => '#$t').join(' ')}'}',
                 style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
               ),
               trailing: const Icon(Icons.chevron_right, size: 20),
@@ -703,11 +729,11 @@ class _InboxPageState extends State<InboxPage> {
                 ),
                 onTagMoved: _moveTag,
                 folders: projectFolders,
-                tags: elements.tags,
+                tags: _allTags,
                 onSelected: (choice) => _selectMenu(
                   choice,
                   _notes.where((n) => n.project != null).toList(),
-                  elements.tags,
+                  _allTags,
                 ),
               ),
             ),

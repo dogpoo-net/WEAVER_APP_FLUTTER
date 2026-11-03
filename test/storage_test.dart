@@ -41,6 +41,18 @@ void main() {
     );
     expect(elements.words, ['작은 생각']);
   });
+  test('paragraph tags and original dates survive updates and legacy bundles split without loss', () {
+    final created = DateTime.utc(2024, 3, 4, 12);
+    final note = Note('첫째\n\n둘째', created: created)
+      ..paragraphs = const [Paragraph('첫째', ParagraphRole.title), Paragraph('둘째', ParagraphRole.body)]
+      ..tags.add('자료');
+    final snapshot = WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([note]));
+    expect(snapshot.notes.map((n) => n.content), ['첫째', '둘째']);
+    expect(snapshot.notes.every((n) => n.createdAt == created && n.tags.contains('자료')), isTrue);
+    expect(snapshot.notes.every((n) => n.paragraphs!.length == 1), isTrue);
+    final restored = WorkspaceSnapshot.decode(WorkspaceSnapshot.encode(snapshot.notes));
+    expect(restored.notes.map((n) => n.tags), [{'자료'}, {'자료'}]);
+  });
   testWidgets('saved notes survive a fresh app instance', (tester) async {
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
     await tester.pumpWidget(MyApp(storage: storage));
