@@ -90,7 +90,7 @@ void main() {
       await tester.tap(
         find.ancestor(
           of: find.text(entry.key),
-          matching: find.byType(CheckedPopupMenuItem<ThemeMode>),
+          matching: find.byType(CheckedPopupMenuItem<Object>),
         ),
       );
       await tester.pumpAndSettle();
