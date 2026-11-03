@@ -88,7 +88,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       minVerticalPadding: kind == _Kind.tag ? 2 : null,
       visualDensity: kind == _Kind.tag ? const VisualDensity(vertical: -3) : null,
       title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
-        style: nested ? const TextStyle(fontSize: 13) : null),
+        style: nested || kind == _Kind.project || kind == _Kind.paragraph ? const TextStyle(fontSize: 13) : null),
       leading: Icon(switch (kind) { _Kind.tag => Icons.tag, _Kind.element => Icons.circle_outlined,
         _Kind.paragraph => Icons.subject, _Kind.project => Icons.article_outlined }, size: 20),
       onTap: () => _select(switch (kind) { _Kind.project => index, _Kind.tag => -3 - index,
@@ -111,8 +111,8 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       childWhenDragging: Opacity(opacity: .35, child: tile), onDragStarted: _startDrag,
       onDragUpdate: update, onDragEnd: end, child: tile);
   }
-  Widget _target(_Kind kind, String? folder, Widget child) => DragTarget<_MenuDrag>(
-    key: ValueKey('drop-${kind.name}-${folder ?? 'unfiled'}'),
+  Widget _target(_Kind kind, String? folder, Widget child, {String? targetId}) => DragTarget<_MenuDrag>(
+    key: ValueKey(targetId ?? 'drop-${kind.name}-${folder ?? 'unfiled'}'),
     onWillAcceptWithDetails: (d) => d.data.kind == kind,
     onAcceptWithDetails: (d) {
       final index = d.data.index;
@@ -158,6 +158,9 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       for (var i = 0; i < items.length; i++)
         if (placements[i] == null || !folders.contains(placements[i])) _item(kind, i),
       if (items.isEmpty) Padding(padding: const EdgeInsets.all(16), child: Text('아직 ${_label(kind)}${kind == _Kind.paragraph ? '이' : '가'} 없어요')),
+      if (kind == _Kind.project || kind == _Kind.paragraph)
+        _target(kind, null, const SizedBox(height: 28, width: double.infinity),
+          targetId: 'drop-${kind.name}-outside'),
     ];
   }
   @override
