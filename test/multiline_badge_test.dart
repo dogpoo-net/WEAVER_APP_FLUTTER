@@ -12,7 +12,7 @@ void main() {
     await tester.pumpAndSettle();
     final badge = find.byKey(const ValueKey('suggestion-$phrase'));
     final label = tester.widget<Text>(find.descendant(of: badge, matching: find.byType(Text)));
-    expect(label.data, '첫 번째 줄 두 번째 줄');
+    expect(label.textSpan!.toPlainText(), '첫 번째 줄 두 번째 줄');
     expect(label.maxLines, 1);
     expect(label.softWrap, isFalse);
     await tester.tap(badge);

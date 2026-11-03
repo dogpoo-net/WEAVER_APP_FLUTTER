@@ -112,9 +112,9 @@ void main() {
     await tester.ensureVisible(find.text('저장'));
     await tester.tap(find.text('저장'));
     await tester.pump();
-    expect(find.text('# 생각\n연결하기'), findsOneWidget);
-    await tester.ensureVisible(find.text('# 생각\n연결하기'));
-    await tester.tap(find.text('# 생각\n연결하기'));
+    expect(find.text('# 생각 연결하기'), findsOneWidget);
+    await tester.ensureVisible(find.text('# 생각 연결하기'));
+    await tester.tap(find.text('# 생각 연결하기'));
     await tester.pumpAndSettle();
     final editor = find.byKey(const ValueKey('element-editor'));
     expect(tester.widget<TextField>(editor).controller!.text, '# 생각\n연결하기');

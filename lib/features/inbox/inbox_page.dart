@@ -605,6 +605,7 @@ class _InboxPageState extends State<InboxPage> {
                 (word) => WordBadge(
                   onLongPress: () => showElementMetadata(context, word),
                   word: word,
+                  query: _query,
                   onTap: () {
                     showElementMetadata(context, word);
                   },

@@ -46,15 +46,76 @@ Color wordColor(BuildContext context, String word) {
   ).toColor();
 }
 
+TextRange? _badgeMatch(String text, String query) {
+  if (query.trim().isEmpty) return null;
+  final normalized = StringBuffer();
+  final starts = <int>[], ends = <int>[];
+  var offset = 0;
+  for (final character in text.characters) {
+    final folded = _hangulParts(character.toLowerCase());
+    normalized.write(folded);
+    for (var i = 0; i < folded.length; i++) {
+      starts.add(offset);
+      ends.add(offset + character.length);
+    }
+    offset += character.length;
+  }
+  final needle = _hangulParts(badgeLabel(query.trim()).toLowerCase());
+  final at = normalized.toString().indexOf(needle);
+  return at < 0 ? null : TextRange(start: starts[at], end: ends[at + needle.length - 1]);
+}
+
+InlineSpan _badgeExcerpt(BuildContext context, String word, String query, double width) {
+  final text = badgeLabel(word);
+  if (text.isEmpty) return const TextSpan(text: '');
+  final match = _badgeMatch(text, query);
+  final boundaries = <int>[0];
+  for (final character in text.characters) { boundaries.add(boundaries.last + character.length); }
+  InlineSpan span(int first, int last) {
+    final start = boundaries[first], end = boundaries[last];
+    final from = match == null ? end : match.start.clamp(start, end);
+    final to = match == null ? end : match.end.clamp(from, end);
+    return TextSpan(children: [
+      if (start > 0) const TextSpan(text: '…'),
+      TextSpan(text: text.substring(start, from)),
+      if (to > from) TextSpan(text: text.substring(from, to),
+        style: const TextStyle(fontWeight: FontWeight.w700, decoration: TextDecoration.underline)),
+      TextSpan(text: text.substring(to, end)),
+      if (end < text.length) const TextSpan(text: '…'),
+    ]);
+  }
+  final style = Theme.of(context).textTheme.labelLarge!.copyWith(fontSize: 12, fontWeight: FontWeight.w500);
+  bool fits(int first, int last) {
+    final painter = TextPainter(text: TextSpan(style: style, children: [span(first, last)]),
+      textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
+    final fits = painter.width <= width;
+    painter.dispose();
+    return fits;
+  }
+  if (fits(0, boundaries.length - 1)) return span(0, boundaries.length - 1);
+  var first = match == null ? 0 : boundaries.indexOf(match.start);
+  var last = match == null ? 1 : boundaries.indexOf(match.end);
+  while (last > first + 1 && !fits(first, last)) { last--; }
+  while (true) {
+    var expanded = false;
+    if (match != null && first > 0 && fits(first - 1, last)) { first--; expanded = true; }
+    if (last < boundaries.length - 1 && fits(first, last + 1)) { last++; expanded = true; }
+    if (!expanded) break;
+  }
+  return span(first, last);
+}
+
 class WordBadge extends StatelessWidget {
   const WordBadge({
     super.key,
     required this.word,
     required this.onTap,
     this.selected = false,
+    this.query = '',
     this.onLongPress,
   });
   final String word;
+  final String query;
   final VoidCallback onTap;
   final bool selected;
   final VoidCallback? onLongPress;
@@ -62,7 +123,8 @@ class WordBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final hue = _wordHues.putIfAbsent(word, () => _random.nextDouble() * 360);
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return TextButton(
+    final maxWidth = min(280.0, (MediaQuery.sizeOf(context).width - 64).clamp(48.0, 280.0));
+    return ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: TextButton(
       onPressed: onTap,
       onLongPress: onLongPress,
       style: TextButton.styleFrom(
@@ -91,8 +153,9 @@ class WordBadge extends StatelessWidget {
         ),
         textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
       ),
-      child: Text(badgeLabel(word), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, semanticsLabel: word),
-    );
+      child: Text.rich(_badgeExcerpt(context, word, query, maxWidth - 24),
+        maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, semanticsLabel: word),
+    ));
   }
 }
 

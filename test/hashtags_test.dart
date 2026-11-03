@@ -40,7 +40,8 @@ void main() {
         ),
       ),
     );
-    expect(find.text('관련 글 2'), findsOneWidget);
+    expect(find.text('문단 1'), findsOneWidget);
+    expect(find.text('프로젝트 1'), findsOneWidget);
     expect(find.text('관계없는 글'), findsNothing);
     await tester.tap(find.text('독서 프로젝트'));
     await tester.pump();
@@ -76,6 +77,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('원소 1'), findsOneWidget);
     expect(find.text('작은 생각'), findsOneWidget);
-    expect(find.text('관련 글 0'), findsOneWidget);
+    expect(find.text('문단 0'), findsOneWidget);
+    expect(find.text('프로젝트 0'), findsOneWidget);
   });
 }

@@ -39,8 +39,11 @@ jobs:
           from pathlib import Path
           output = (Path(os.environ['RUNNER_TEMP']) / 'flutter-test.log').read_text()
           # Expose test diagnostics in the run summary as well as job logs.
-          message = output[-24000:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-          print(f'::error title=Flutter test failure::{message}')
+          blocks = output.split('══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK')
+          diagnostics = [part.split('\n', 1)[-1].split('\n════════')[0] for part in blocks[1:]] or [output[-12000:]]
+          for diagnostic in diagnostics:
+              message = diagnostic.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::error title=Flutter test failure::{message}')
           PYTHON
           fi
           exit "$result"

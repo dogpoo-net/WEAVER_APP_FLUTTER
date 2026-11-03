@@ -64,31 +64,18 @@ class _TagPageState extends State<TagPage> {
                       .toList(),
                 ),
                 const Divider(height: 32),
-                Text(
-                  '관련 글 ${related.length}',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                if (related.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Text('아직 이 원소를 사용한 글이 없어요.'),
-                  ),
-                for (final note in related)
-                  ListTile(
-                    title: Text(
-                      note.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      note.project == null ? '문단'
-                          : '프로젝트',
-                    ),
-                    onTap: () async {
-                      await widget.onOpen(note);
-                      if (mounted) setState(() {});
-                    },
-                  ),
+                for (final isProject in [false, true]) ...[
+                  Text('${isProject ? '프로젝트' : '문단'} ${related.where((n) => (n.project != null) == isProject).length}',
+                    key: ValueKey(isProject ? 'tag-projects' : 'tag-paragraphs'),
+                    style: Theme.of(context).textTheme.titleMedium),
+                  if (!related.any((n) => (n.project != null) == isProject))
+                    Padding(padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Text(isProject ? '관련 프로젝트가 없어요.' : '관련 문단이 없어요.')),
+                  for (final note in related.where((n) => (n.project != null) == isProject))
+                    ListTile(title: Text(note.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      onTap: () async { await widget.onOpen(note); if (mounted) setState(() {}); }),
+                  if (!isProject) const Divider(height: 32),
+                ],
               ],
             ),
           ),
