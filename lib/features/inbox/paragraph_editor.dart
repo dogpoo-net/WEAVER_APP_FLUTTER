@@ -33,6 +33,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
   final _bodyKey = GlobalKey();
   Timer? _revealTimer;
   bool _revealAdded = false;
+  double _addedAtHeight = 0;
 
   void _scheduleReveal() {
     if (!_revealAdded) return;
@@ -40,7 +41,8 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     _revealTimer = Timer(const Duration(milliseconds: 240), () {
       if (!mounted || !_scroll.hasClients) return;
       final media = MediaQuery.of(context);
-      if (media.viewInsets.bottom > 0 || media.size.width >= 760) {
+      if (media.viewInsets.bottom > 0 || media.size.width >= 760 ||
+          media.size.height < _addedAtHeight) {
         _revealAdded = false;
       }
       _scroll.animateTo(_scroll.position.maxScrollExtent,
@@ -348,6 +350,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                         _add(const Paragraph('', ParagraphRole.body));
                         _active = _controllers.length - 1;
                       });
+                      _addedAtHeight = MediaQuery.sizeOf(context).height;
                       _revealAdded = true;
                       _focus.last.requestFocus();
                       WidgetsBinding.instance.addPostFrameCallback((_) {

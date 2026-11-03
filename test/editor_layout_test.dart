@@ -23,6 +23,8 @@ void main() {
     await tester.tap(find.text('다음 문단'));
     await tester.pumpAndSettle();
     tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
     final field = tester.widget<TextField>(find.byKey(const ValueKey('paragraph-1')));
     expect(field.focusNode!.hasFocus, isTrue);
@@ -40,7 +42,7 @@ void main() {
 
   for (final resizeViewport in [false, true]) {
     testWidgets(
-      'keyboard ${resizeViewport ? "viewport resize" : "inset"} does not jump to the bottom or add assist padding',
+      'keyboard ${resizeViewport ? "viewport resize" : "inset"} preserves the paragraph and reserves only panel height',
       (tester) async {
         tester.view.physicalSize = const Size(390, 844);
         tester.view.devicePixelRatio = 1;
