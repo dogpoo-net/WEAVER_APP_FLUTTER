@@ -111,31 +111,28 @@ class _InboxPageState extends State<InboxPage> {
 
   Future<void> _createFolder({bool tag = false, String? kind}) async {
     var folderName = '';
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => CallbackShortcuts(bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): () => Navigator.pop(context),
+    var closed = false;
+    final name = await showDialog<String>(context: context, builder: (dialogContext) {
+      void finish(String? value) {
+        if (closed || !dialogContext.mounted) return;
+        closed = true;
+        Navigator.pop(dialogContext, value);
+      }
+      return CallbackShortcuts(bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter): () => finish(folderName.trim()),
+        const SingleActivator(LogicalKeyboardKey.numpadEnter): () => finish(folderName.trim()),
+        const SingleActivator(LogicalKeyboardKey.escape): () => finish(null),
       }, child: AlertDialog(
         title: Text(tag ? '해시태그 폴더 만들기' : kind == 'paragraph' ? '문단 폴더 만들기' : kind == 'element' ? '원소 폴더 만들기' : '폴더 만들기'),
-        content: TextField(
-          onChanged: (value) => folderName = value,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: '폴더 이름'),
-          textInputAction: TextInputAction.done,
-          onSubmitted: (value) => Navigator.pop(context, value.trim()),
-        ),
+        content: TextField(onChanged: (value) => folderName = value, autofocus: true,
+          decoration: const InputDecoration(labelText: '폴더 이름'), textInputAction: TextInputAction.done,
+          onSubmitted: (value) => finish(value.trim())),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, folderName.trim()),
-            child: const Text('만들기'),
-          ),
+          TextButton(onPressed: () => finish(null), child: const Text('취소')),
+          TextButton(onPressed: () => finish(folderName.trim()), child: const Text('만들기')),
         ],
-      )),
-    );
+      ));
+    });
     if (!mounted || name == null || name.isEmpty) return;
     final folders = tag ? hashtagFolders : kind == 'paragraph' ? paragraphFolders : kind == 'element' ? elementFolders : projectFolders;
     if (!folders.contains(name)) {

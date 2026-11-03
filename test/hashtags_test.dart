@@ -72,8 +72,10 @@ void main() {
     expect(find.text('작은 생각 #독서'), findsNothing);
     await tester.tap(find.byTooltip('메뉴 열기'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('#독서'));
-    await tester.tap(find.text('#독서'));
+    final tag = find.byKey(const ValueKey('menu-tag-0'));
+    await tester.scrollUntilVisible(tag, 100, scrollable: find.descendant(
+      of: find.byKey(const ValueKey('menu-projects')), matching: find.byType(Scrollable)));
+    await tester.tap(tag);
     await tester.pumpAndSettle();
     expect(find.text('원소 1'), findsOneWidget);
     expect(find.text('작은 생각'), findsOneWidget);

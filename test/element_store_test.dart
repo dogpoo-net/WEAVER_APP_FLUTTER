@@ -21,7 +21,7 @@ void main() {
       ]);
     },
   );
-  testWidgets('project adds global phrase but lists only used elements', (
+  testWidgets('project lists only used elements without global creation controls', (
     tester,
   ) async {
     elements.add('작은 생각');
@@ -39,11 +39,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('작은 생각'), findsOneWidget);
     expect(find.text('다른 원소'), findsNothing);
-    await tester.enterText(find.byType(TextField), '새로운 원소');
-    await tester.tap(find.text('글로벌 원소 저장'));
-    await tester.pumpAndSettle();
-    expect(elements.words, contains('새로운 원소'));
-    expect(find.text('새로운 원소'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('글로벌 원소 저장'), findsNothing);
+    expect(elements.words, ['작은 생각', '다른 원소']);
     await tester.tap(find.text('작은 생각'));
     await tester.pumpAndSettle();
     expect(find.text('사용 1회 · 1개 위치'), findsOneWidget);

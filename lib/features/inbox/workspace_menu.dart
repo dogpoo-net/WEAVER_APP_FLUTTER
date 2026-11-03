@@ -156,7 +156,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         leading: Icon(Icons.folder_open_outlined, size: 18), title: Text('미분류'))),
       for (var i = 0; i < items.length; i++)
         if (placements[i] == null || !folders.contains(placements[i])) _item(kind, i),
-      if (items.isEmpty) Padding(padding: const EdgeInsets.all(16), child: Text('아직 ${_label(kind)}가 없어요')),
+      if (items.isEmpty) Padding(padding: const EdgeInsets.all(16), child: Text('아직 ${_label(kind)}${kind == _Kind.paragraph ? '이' : '가'} 없어요')),
     ];
   }
   @override
