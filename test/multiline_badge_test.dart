@@ -21,7 +21,7 @@ void main() {
   });
 
   testWidgets('metadata chip also displays a single line', (tester) async {
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: elementBadgeTest()))));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: elementBadgeTest())));
     final text = tester.widget<Text>(find.text('첫 줄 다음 줄'));
     expect(text.maxLines, 1);
     expect(text.softWrap, isFalse);
