@@ -103,11 +103,12 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     });
   }
 
-  Widget _item(bool tag, int index) {
+  Widget _item(bool tag, int index, {bool nested = false}) {
     final label = tag ? '#${widget.tags[index]}' : widget.projects[index];
     final tile = ListTile(
       key: ValueKey('menu-${tag ? 'tag' : 'project'}-$index'),
-      title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+        style: nested && !tag ? const TextStyle(fontSize: 13) : null),
       leading: Icon(tag ? Icons.tag : Icons.article_outlined, size: 20),
       onTap: () => _select(tag ? -3 - index : index),
     );
@@ -226,9 +227,14 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
             key: PageStorageKey('${tag ? 'tag' : 'project'}-$folder'),
             leading: const Icon(Icons.folder_outlined),
             title: Text(folder),
+            childrenPadding: const EdgeInsetsDirectional.only(start: 16),
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+            collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+            expansionAnimationStyle: const AnimationStyle(duration: Duration(milliseconds: 200),
+              reverseDuration: Duration(milliseconds: 200), curve: Curves.easeInOutCubic, reverseCurve: Curves.easeInOutCubic),
             children: [
               for (var i = 0; i < count; i++)
-                if (assigned(i) == folder) _item(tag, i),
+                if (assigned(i) == folder) _item(tag, i, nested: true),
             ],
           ),
         ),
@@ -304,15 +310,15 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
             key: _viewport,
             child: Scrollbar(
               controller: _scroll,
-              child: ListView(
+              child: CustomScrollView(
                 controller: _scroll,
                 key: const ValueKey('menu-projects'),
-                padding: const EdgeInsets.only(bottom: 12),
-                children: [
-                  ..._section(false),
-                  const Divider(indent: 16, endIndent: 16),
-                  _heading(true),
-                  ..._section(true),
+                slivers: [
+                  SliverList(delegate: SliverChildListDelegate(_section(false))),
+                  SliverPersistentHeader(pinned: true,
+                    delegate: _TagHeading(child: _heading(true))),
+                  SliverPadding(padding: const EdgeInsets.only(bottom: 12),
+                    sliver: SliverList(delegate: SliverChildListDelegate(_section(true)))),
                 ],
               ),
             ),
@@ -336,4 +342,22 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       child: SizedBox(width: 320, height: 480, child: content),
     );
   }
+}
+
+
+class _TagHeading extends SliverPersistentHeaderDelegate {
+  const _TagHeading({required this.child});
+  final Widget child;
+  @override
+  double get minExtent => 48;
+  @override
+  double get maxExtent => 48;
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => Material(
+    key: const ValueKey('menu-tags-heading'),
+    color: Theme.of(context).colorScheme.surface,
+    child: child,
+  );
+  @override
+  bool shouldRebuild(_TagHeading oldDelegate) => oldDelegate.child != child;
 }

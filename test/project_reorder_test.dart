@@ -33,11 +33,13 @@ void main() {
     await tester.pumpAndSettle();
     final first = tester.widget<TextField>(find.byKey(const ValueKey('paragraph-0'))).controller!;
     final handle = find.byKey(const ValueKey('reorder-paragraph-0'));
-    final target = tester.getCenter(find.byKey(const ValueKey('reorder-paragraph-2'))) + const Offset(0, 65);
+    final target = tester.getBottomLeft(find.byKey(const ValueKey('paragraph-2'))) + const Offset(24, 80);
     final drag = await tester.startGesture(tester.getCenter(handle));
     await tester.pump();
     await drag.moveTo(target);
     await tester.pump(const Duration(milliseconds: 600));
+    await drag.moveBy(const Offset(0, 20));
+    await tester.pump(const Duration(milliseconds: 300));
     await drag.up();
     await tester.pumpAndSettle();
     expect(tester.widget<TextField>(find.byKey(const ValueKey('paragraph-2'))).controller, same(first));
