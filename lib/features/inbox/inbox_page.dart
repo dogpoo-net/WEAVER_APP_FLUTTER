@@ -37,6 +37,11 @@ class _InboxPageState extends State<InboxPage> {
   String _query = '';
   bool _menuVisible = true;
   bool _pendingImeSave = false;
+  bool _platformEnterQueued = false;
+  String? _enterEchoText;
+  DateTime? _enterEchoUntil, _explicitNewlineUntil;
+  bool get _desktopQuickMemo => defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.linux;
   Note? _editing;
   String? _storageError;
   bool _restoreBlocked = false;
@@ -216,6 +221,52 @@ class _InboxPageState extends State<InboxPage> {
     super.dispose();
   }
 
+  void _submitQuickMemo() {
+    if (_draft.text.trim().isEmpty) return;
+    _enterEchoText = _draft.text;
+    _enterEchoUntil = DateTime.now().add(const Duration(milliseconds: 250));
+    _save();
+  }
+
+  void _queuePlatformEnter() {
+    if (_platformEnterQueued) return;
+    _platformEnterQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _platformEnterQueued = false;
+      if (mounted && _focus.hasFocus) _submitQuickMemo();
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  TextEditingValue _formatQuickMemo(TextEditingValue oldValue, TextEditingValue value) {
+    if (!_desktopQuickMemo || (value.composing.isValid && !value.composing.isCollapsed)) return value;
+    final now = DateTime.now();
+    if (oldValue.text.isEmpty && _enterEchoUntil != null && now.isBefore(_enterEchoUntil!) &&
+        (value.text == '$_enterEchoText\n' || value.text == '$_enterEchoText\r\n' || value.text == '\n')) {
+      _enterEchoText = null;
+      return oldValue;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isShiftPressed || keyboard.isAltPressed || keyboard.isControlPressed || keyboard.isMetaPressed ||
+        (_explicitNewlineUntil != null && now.isBefore(_explicitNewlineUntil!))) return value;
+    var start = 0;
+    while (start < oldValue.text.length && start < value.text.length && oldValue.text[start] == value.text[start]) { start++; }
+    var oldEnd = oldValue.text.length, newEnd = value.text.length;
+    while (oldEnd > start && newEnd > start && oldValue.text[oldEnd - 1] == value.text[newEnd - 1]) { oldEnd--; newEnd--; }
+    final inserted = value.text.substring(start, newEnd);
+    if (inserted == '\n' || inserted == '\r\n') {
+      _queuePlatformEnter();
+      return oldValue.copyWith(composing: TextRange.empty);
+    }
+    if (oldValue.composing.isValid && !oldValue.composing.isCollapsed && inserted.endsWith('\n')) {
+      final length = inserted.endsWith('\r\n') ? 2 : 1;
+      final text = value.text.replaceRange(newEnd - length, newEnd, '');
+      _queuePlatformEnter();
+      return value.copyWith(text: text, selection: TextSelection.collapsed(offset: (value.selection.extentOffset - length).clamp(0, text.length)), composing: TextRange.empty);
+    }
+    return value;
+  }
+
   void _imeUpdated() {
     if (_pendingImeSave && _draft.value.composing.isCollapsed) {
       _finishImeSave();
@@ -228,24 +279,21 @@ class _InboxPageState extends State<InboxPage> {
       _pendingImeSave = false;
       if (!_focus.hasFocus) return;
       _draft.clearComposing();
-      _save();
+      _submitQuickMemo();
     });
     WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   KeyEventResult _quickMemoKey(FocusNode node, KeyEvent event) {
-    final desktop =
-        defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.linux;
-    if (!desktop ||
+    if (!_desktopQuickMemo ||
         (event.logicalKey != LogicalKeyboardKey.enter &&
             event.logicalKey != LogicalKeyboardKey.numpadEnter)) {
       return KeyEventResult.ignored;
     }
     if (event is KeyUpEvent) {
       if (_pendingImeSave) _finishImeSave();
-      return KeyEventResult.ignored;
+      return HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed
+          ? KeyEventResult.ignored : KeyEventResult.handled;
     }
     final value = _draft.value;
     final keyboard = HardwareKeyboard.instance;
@@ -253,6 +301,7 @@ class _InboxPageState extends State<InboxPage> {
       return KeyEventResult.ignored;
     }
     if (event is KeyRepeatEvent) return KeyEventResult.handled;
+    if (!keyboard.isShiftPressed && !keyboard.isAltPressed) _explicitNewlineUntil = null;
     if (value.composing.isValid && !value.composing.isCollapsed) {
       if (!keyboard.isShiftPressed && !keyboard.isAltPressed) {
         _pendingImeSave = true;
@@ -261,6 +310,7 @@ class _InboxPageState extends State<InboxPage> {
       return KeyEventResult.ignored;
     }
     if (keyboard.isShiftPressed || keyboard.isAltPressed) {
+      _explicitNewlineUntil = DateTime.now().add(const Duration(milliseconds: 250));
       final selection = value.selection;
       final start = selection.isValid ? selection.start : value.text.length;
       final end = selection.isValid ? selection.end : start;
@@ -271,7 +321,7 @@ class _InboxPageState extends State<InboxPage> {
         ),
       );
     } else if (value.text.trim().isNotEmpty) {
-      _save();
+      _submitQuickMemo();
     }
     return KeyEventResult.handled;
   }
@@ -517,6 +567,10 @@ class _InboxPageState extends State<InboxPage> {
             onKeyEvent: _quickMemoKey,
             child: TextField(
               key: const ValueKey('quick-memo'),
+              inputFormatters: [TextInputFormatter.withFunction(_formatQuickMemo)],
+              textInputAction: _desktopQuickMemo ? TextInputAction.done : TextInputAction.newline,
+              onEditingComplete: _desktopQuickMemo ? () {} : null,
+              onSubmitted: _desktopQuickMemo ? (_) => _submitQuickMemo() : null,
               controller: _draft,
               focusNode: _focus,
               minLines: 4,

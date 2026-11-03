@@ -5,6 +5,23 @@ import 'package:weaver/main.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 
 void main() {
+  testWidgets('platform newline and delayed key echo never leave a blank line', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    final field = find.byKey(const ValueKey('quick-memo'));
+    await tester.enterText(field, '플랫폼 입력');
+    tester.testTextInput.updateEditingValue(const TextEditingValue(text: '플랫폼 입력\n', selection: TextSelection.collapsed(offset: 7)));
+    await tester.pumpAndSettle();
+    expect(elements.words, ['플랫폼 입력']);
+    expect(tester.widget<TextField>(field).controller!.text, '');
+    await tester.enterText(field, '키보드 입력');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    tester.testTextInput.updateEditingValue(const TextEditingValue(text: '키보드 입력\n', selection: TextSelection.collapsed(offset: 7)));
+    await tester.pumpAndSettle();
+    expect(elements.words, ['플랫폼 입력', '키보드 입력']);
+    expect(tester.widget<TextField>(field).controller!.text, '');
+    expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+  }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
+
   testWidgets(
     'one enter commits Korean composition and saves once',
     (tester) async {
