@@ -23,14 +23,15 @@ class _MobileElementAssistState extends State<MobileElementAssist>
     vsync: this,
     duration: const Duration(milliseconds: 200),
   )..addStatusListener(_statusChanged);
-  late final Animation<Offset> _offset = Tween(
-    begin: const Offset(0, 1),
-    end: Offset.zero,
-  ).animate(CurvedAnimation(
+  late final CurvedAnimation _curve = CurvedAnimation(
     parent: _animation,
     curve: Curves.easeOutCubic,
     reverseCurve: Curves.easeInCubic,
-  ));
+  );
+  late final Animation<Offset> _offset = Tween(
+    begin: const Offset(0, 1),
+    end: Offset.zero,
+  ).animate(_curve);
 
   void _statusChanged(AnimationStatus status) {
     if (status == AnimationStatus.dismissed && !widget.visible) {
@@ -67,6 +68,7 @@ class _MobileElementAssistState extends State<MobileElementAssist>
 
   @override
   void dispose() {
+    _curve.dispose();
     _animation.dispose();
     super.dispose();
   }

@@ -39,7 +39,10 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     _revealTimer?.cancel();
     _revealTimer = Timer(const Duration(milliseconds: 240), () {
       if (!mounted || !_scroll.hasClients) return;
-      _revealAdded = false;
+      final media = MediaQuery.of(context);
+      if (media.viewInsets.bottom > 0 || media.size.width >= 760) {
+        _revealAdded = false;
+      }
       _scroll.animateTo(_scroll.position.maxScrollExtent,
         duration: const Duration(milliseconds: 200), curve: Curves.easeOutCubic);
     });
@@ -308,8 +311,12 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                               focusNode: _focus[i],
                               minLines: 2,
                               maxLines: null,
-                              onTap: () => setState(() => _active = i),
+                              onTap: () => setState(() {
+                                _active = i;
+                                _revealAdded = false;
+                              }),
                               onChanged: (_) => setState(() {
+                                _revealAdded = false;
                                 _active = i;
                                 _dirty = true;
                               }),
