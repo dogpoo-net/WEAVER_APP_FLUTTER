@@ -15,6 +15,7 @@ class AllThoughtsPage extends StatefulWidget {
 
 class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
   String? _selectedId;
+  String _query = '';
   ModalRoute<dynamic>? _route;
   void _refresh() { if (mounted) setState(() {}); }
   @override
@@ -43,7 +44,7 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
   }
   void _select(String word) => setState(() => _selectedId = elements.records[word]?.id);
   Widget _badge(String word, bool desktop) => WordBadge(
-    word: word, selected: elements.records[word]?.id == _selectedId,
+    word: word, query: _query, selected: elements.records[word]?.id == _selectedId,
     onTap: desktop ? () => _select(word) : () => showElementMetadata(context, word),
     onDoubleTap: desktop ? () { _select(word); showElementMetadata(context, word); } : null,
   );
@@ -104,16 +105,22 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
   @override
   Widget build(BuildContext context) {
     final usage = ElementUsage.fromNotes(widget.notes, elements);
-    final records = elements.records.values.toList();
+    final allRecords = elements.records.values.toList();
+    final records = allRecords.where((record) => record.text.toLowerCase().contains(_query.toLowerCase())).toList();
     final maximum = usage.counts.values.fold<int>(0, math.max);
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
     final grid = SingleChildScrollView(key: const ValueKey('all-thoughts-grid'), padding: const EdgeInsets.all(24),
       child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1000), child: Column(children: [
-        Text('원소 ${records.length}개', style: Theme.of(context).textTheme.titleMedium),
+        Text(_query.isEmpty ? '원소 ${records.length}개' : '원소 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 6),
         const Text('사용 횟수는 저장된 문단·프로젝트 문장 안의 등장 횟수입니다.', textAlign: TextAlign.center),
         const SizedBox(height: 20),
-        if (records.isEmpty) const Padding(padding: EdgeInsets.all(40), child: Text('아직 원소가 없어요.')),
+        TextField(key: const ValueKey('all-thoughts-search'),
+          onChanged: (value) => setState(() => _query = value),
+          decoration: const InputDecoration(hintText: '원소에서 찾기', prefixIcon: Icon(Icons.search), isDense: true)),
+        const SizedBox(height: 20),
+        if (records.isEmpty) Padding(padding: const EdgeInsets.all(40),
+          child: Text(allRecords.isEmpty ? '아직 원소가 없어요.' : '일치하는 원소가 없어요.')),
         Wrap(alignment: WrapAlignment.center, spacing: 12, runSpacing: 12,
           children: [for (final record in records) _tile(record, usage, maximum, desktop)]),
       ]))));

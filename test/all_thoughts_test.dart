@@ -63,6 +63,38 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('all thoughts filters case-insensitively, focuses the badge match, and preserves original metadata', (tester) async {
+    const phrase = '앞부분의 긴 글귀가 이어집니다 다른 설명도 한참 이어집니다 Dart 검색할 중간 내용 그리고 뒷부분의 긴 글귀가 계속 이어집니다';
+    elements.add(phrase);
+    elements.add('다른 원소');
+    await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: TargetPlatform.android),
+      home: const AllThoughtsPage(notes: [])));
+    final search = find.byKey(const ValueKey('all-thoughts-search'));
+    final before = tester.getRect(search);
+    await tester.enterText(search, 'DART');
+    await tester.pumpAndSettle();
+    expect(find.byType(WordBadge), findsOneWidget);
+    final badge = find.byType(WordBadge);
+    expect(tester.widget<WordBadge>(badge).word, phrase);
+    expect(tester.widget<WordBadge>(badge).query, 'DART');
+    final text = tester.widget<Text>(find.descendant(of: badge, matching: find.byType(Text)));
+    expect(text.textSpan!.toPlainText(), contains('Dart'));
+    expect(tester.getRect(search).top, closeTo(before.top, 1));
+    await tester.enterText(search, '없는 검색어');
+    await tester.pumpAndSettle();
+    expect(find.byType(WordBadge), findsNothing);
+    expect(find.text('일치하는 원소가 없어요.'), findsOneWidget);
+    await tester.enterText(search, '');
+    await tester.pumpAndSettle();
+    expect(find.byType(WordBadge), findsNWidgets(2));
+    await tester.enterText(search, 'dart');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(WordBadge));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byKey(const ValueKey('element-editor'))).controller!.text, phrase);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('mobile opens metadata on one tap', (tester) async {
     records();
     tester.view.physicalSize = const Size(390, 844);
