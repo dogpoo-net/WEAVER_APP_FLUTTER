@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'project_page.dart';
+import 'paragraph_editor.dart';
 
 import 'word_badge.dart';
 import 'hashtags.dart';
@@ -41,6 +42,7 @@ class ElementSource {
 
 class ElementStore extends ChangeNotifier {
   Future<void> Function()? onProjectChanged;
+  List<Paragraph> Function()? availableParagraphs;
   void Function(String oldText, String newText)? onRenamed;
   String? update(String oldText, String input) {
     final parsed = parseTaggedInput(input);
@@ -260,6 +262,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                                 MaterialPageRoute(
                                   builder: (_) => ProjectPage(
                                     project: use.key.project!,
+                                    available: elements.availableParagraphs?.call() ?? const [],
                                     initialParagraph: use.key.paragraphIndex,
                                     initialOffset: hit.start,
                                     onChanged: elements.onProjectChanged,
