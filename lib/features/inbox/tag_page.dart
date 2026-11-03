@@ -28,7 +28,7 @@ class _TagPageState extends State<TagPage> {
     final related = widget.notes
         .where(
           (n) =>
-              n.paragraphs != null &&
+              (n.paragraphs != null || n.project != null) &&
               (n.tags.contains(widget.tag) || elements
                   .matches(
                     n.project?.paragraphs.map((p) => p.text).join('\n') ??

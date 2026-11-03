@@ -28,7 +28,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: SizedBox(width: 320, child: WorkspaceMenu(
       embedded: true, projects: List.generate(12, (i) => '프로젝트$i'), tags: List.generate(30, (i) => '태그$i'),
-    ))))));
+    )))));
     final scroll = find.byKey(const ValueKey('menu-projects'));
     final controller = tester.widget<CustomScrollView>(scroll).controller!;
     controller.jumpTo(800);
