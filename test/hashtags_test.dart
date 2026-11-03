@@ -75,6 +75,8 @@ void main() {
     final tag = find.byKey(const ValueKey('menu-tag-0'));
     await tester.scrollUntilVisible(tag, 100, scrollable: find.descendant(
       of: find.byKey(const ValueKey('menu-projects')), matching: find.byType(Scrollable)));
+    await Scrollable.ensureVisible(tester.element(tag), alignment: .5);
+    await tester.pumpAndSettle();
     await tester.tap(tag);
     await tester.pumpAndSettle();
     expect(find.text('원소 1'), findsOneWidget);
