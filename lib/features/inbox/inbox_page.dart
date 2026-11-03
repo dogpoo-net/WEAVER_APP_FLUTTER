@@ -540,7 +540,7 @@ class _InboxPageState extends State<InboxPage> {
     if (!mounted || choice == null || choice == -1) return;
     if (choice <= -3000000) {
       final index = -3000000 - choice;
-      if (index < elements.words.length) await showElementMetadata(context, elements.words[index]);
+      if (index < elements.words.length) showElementMetadata(context, elements.words[index]);
       return;
     }
     if (choice <= -2000000) {

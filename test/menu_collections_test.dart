@@ -33,7 +33,7 @@ void main() {
   });
 
   testWidgets('hidden elements disappear from main and assist without deleting their text', (tester) async {
-    elements.add('숨긴 원소')..hiddenFromSearch = true;
+    elements.add('숨긴 원소').hiddenFromSearch = true;
     elements.add('보이는 원소');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
