@@ -6,6 +6,52 @@ import 'package:weaver/features/inbox/caret_assist.dart';
 import 'package:weaver/features/inbox/word_badge.dart';
 
 void main() {
+  testWidgets('single candidate toggles once before overlay refresh and survives IME callbacks', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(const MaterialApp(home: ParagraphEditor(
+      words: ['생각', '독서'], initial: [Paragraph('없는 후보', ParagraphRole.body)])));
+    final field = find.byKey(const ValueKey('paragraph-0'));
+    await tester.tap(field);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('assist-popup')), findsNothing);
+    final controller = tester.widget<TextField>(field).controller!;
+    bool selected(String word) => tester.widgetList<WordBadge>(find.byType(WordBadge))
+        .any((badge) => badge.word == word && badge.selected);
+    for (final entry in {'생': '생각', '독': '독서'}.entries) {
+      // No pump between input and Ctrl: the candidate overlay still has old data.
+      tester.testTextInput.updateEditingValue(TextEditingValue(text: entry.key,
+        selection: const TextSelection.collapsed(offset: 1), composing: const TextRange(start: 0, end: 1)));
+      await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(selected(entry.value), isTrue);
+      // Browsers may report composing again after Ctrl has already committed it.
+      tester.testTextInput.updateEditingValue(TextEditingValue(text: entry.key,
+        selection: const TextSelection.collapsed(offset: 1), composing: const TextRange(start: 0, end: 1)));
+      await tester.pumpAndSettle();
+      expect(selected(entry.value), isTrue);
+      expect(controller.selection.extentOffset, 1);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(controller.text, entry.value);
+      expect(controller.text, isNot(contains('\n')));
+    }
+    // Returning to previously inserted text must not keep an old dismissal alive.
+    controller.value = const TextEditingValue(text: '독서 다른 글', selection: TextSelection.collapsed(offset: 7));
+    controller.value = const TextEditingValue(text: '독서', selection: TextSelection.collapsed(offset: 2));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('suggestion-독서')), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(selected('독서'), isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(selected('독서'), isFalse);
+    expect(tester.takeException(), isNull);
+  }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
+
   testWidgets(
     'one Control toggles during Korean composition without moving caret',
     (tester) async {

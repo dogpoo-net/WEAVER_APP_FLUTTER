@@ -45,7 +45,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   String _query = '';
   bool _controlling = false;
   bool _controlAlone = false;
-  bool _pendingToggle = false;
+  TextEditingValue? _controlValue;
   final _badgeKeys = <String, GlobalKey>{};
   bool get _desktop =>
       MediaQuery.sizeOf(context).width >= 760 &&
@@ -107,11 +107,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   }
 
   bool _key(KeyEvent event) {
-    if (!mounted ||
-        !widget.focus.hasFocus ||
-        !_desktop ||
-        _entry == null ||
-        _matches.isEmpty) {
+    if (!mounted || !widget.focus.hasFocus || !_desktop) {
       return false;
     }
     final keyboard = HardwareKeyboard.instance;
@@ -129,25 +125,28 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       }
       if (event is KeyUpEvent && _controlAlone) {
         _controlAlone = false;
-        // Commit the current IME text without moving its selection. Apply the
-        // toggle after suggestions have caught up with the committed value.
-        final composing = widget.controller.value.composing;
-        if (composing.isValid && !composing.isCollapsed) {
-          widget.controller.clearComposing();
-          _pendingToggle = !_pendingToggle;
+        // Resolve against the current editing value, not last frame's overlay.
+        // Composition callbacks and layout refreshes must not invert this mode.
+        _refreshMatches(widget.controller.value);
+        if (_matches.isEmpty) {
+          _controlling = false;
+          _controlValue = null;
           _update();
-        } else {
-          _controlling = !_controlling;
-          _entry?.markNeedsBuild();
-          _revealSelection();
+          return false;
         }
+        widget.controller.clearComposing();
+        _refreshMatches(widget.controller.value);
+        _controlling = _matches.isNotEmpty && !_controlling;
+        _controlValue = _controlling ? widget.controller.value : null;
+        _entry?.markNeedsBuild();
+        _update();
+        _revealSelection();
       }
       return false;
     }
     if (event is KeyUpEvent) return false;
     _controlAlone = false;
-    final composing = widget.controller.value.composing;
-    if (composing.isValid && !composing.isCollapsed) return false;
+    if (_matches.isEmpty) return false;
     if (keyboard.isControlPressed ||
         keyboard.isMetaPressed ||
         keyboard.isAltPressed ||
@@ -155,6 +154,10 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       return false;
     }
     if (!_controlling) return false;
+    final navigation = [LogicalKeyboardKey.escape, LogicalKeyboardKey.arrowDown,
+      LogicalKeyboardKey.arrowUp, LogicalKeyboardKey.arrowLeft, LogicalKeyboardKey.arrowRight,
+      LogicalKeyboardKey.enter, LogicalKeyboardKey.space].contains(event.logicalKey);
+    if (navigation) widget.controller.clearComposing();
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       _controlling = false;
       _entry?.markNeedsBuild();
@@ -225,13 +228,30 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     _entry = null;
   }
 
+  void _refreshMatches(TextEditingValue value) {
+    final controlValue = _controlValue;
+    if (_controlling && controlValue != null &&
+        (value.text != controlValue.text ||
+         value.selection.baseOffset != controlValue.selection.baseOffset ||
+         value.selection.extentOffset != controlValue.selection.extentOffset)) {
+      _controlling = false;
+      _controlValue = null;
+    }
+    final query = completionPrefix(value, widget.words);
+    if (_query != query) _selected = 0;
+    _query = query;
+    _matches = wordSuggestions(widget.words, query);
+    if (_selected >= _matches.length) _selected = 0;
+  }
+
   void _update() {
+    if (_dismissed != null && _dismissed != widget.controller.text) _dismissed = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (!widget.focus.hasFocus || _dismissed == widget.controller.text) {
         _controlling = false;
         _controlAlone = false;
-        _pendingToggle = false;
+        _controlValue = null;
         _hide();
         return;
       }
@@ -249,24 +269,12 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
         return;
       }
       final value = widget.controller.value;
-      final query = completionPrefix(value, widget.words);
-      final matches = wordSuggestions(widget.words, query);
-      if (_query != query) {
-        _selected = 0;
+      _refreshMatches(value);
+      if (_matches.isEmpty) {
         _controlling = false;
-      }
-      _query = query;
-      _matches = matches;
-      if (_selected >= matches.length) _selected = 0;
-      if (matches.isEmpty) {
-        _pendingToggle = false;
+        _controlValue = null;
         _hide();
         return;
-      }
-      if (_pendingToggle) {
-        _pendingToggle = false;
-        _controlling = !_controlling;
-        _revealSelection();
       }
       final render = editable!.renderEditable;
       final caret = render.getLocalRectForCaret(
