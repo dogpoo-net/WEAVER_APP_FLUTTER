@@ -239,13 +239,17 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                 ),
                 const Divider(height: 20),
               ],
-              SwitchListTile.adaptive(
+              MergeSemantics(child: ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('검색에서 숨기기'),
                 subtitle: const Text('메인과 원소 어시스트에 표시하지 않습니다.'),
-                value: element.hiddenFromSearch,
-                onChanged: (hidden) => setState(() => elements.setHidden(word, hidden)),
-              ),
+                onTap: () => setState(() => elements.setHidden(word, !element.hiddenFromSearch)),
+                trailing: SizedBox(width: 48, height: 40, child: Transform.scale(
+                  scale: .85,
+                  child: Switch.adaptive(value: element.hiddenFromSearch,
+                    onChanged: (hidden) => setState(() => elements.setHidden(word, hidden))),
+                )),
+              )),
               Text('생성일', style: Theme.of(context).textTheme.labelMedium),
               const SizedBox(height: 6),
               Text(element.createdAt.toLocal().toString().split('.').first),
