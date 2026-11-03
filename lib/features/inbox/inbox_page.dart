@@ -620,6 +620,7 @@ class _InboxPageState extends State<InboxPage> {
         ),
         const SizedBox(height: 16),
         TextField(
+          key: const ValueKey('note-search'),
           onChanged: (value) => setState(() => _query = value),
           decoration: const InputDecoration(
             hintText: '메모에서 찾기',
@@ -763,6 +764,7 @@ class _InboxPageState extends State<InboxPage> {
         centerTitle: false,
       ),
       body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (MediaQuery.sizeOf(context).width >= 1000 && _menuVisible)
             SafeArea(
