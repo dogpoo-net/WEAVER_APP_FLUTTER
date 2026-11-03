@@ -1,3 +1,4 @@
+import 'tag_colors.dart';
 import 'project_folders.dart';
 
 import 'dart:convert';
@@ -32,11 +33,13 @@ class WorkspaceSnapshot {
     this.paragraphFolderList = const [],
     this.elementFolderList = const [],
     this.hiddenTagList = const [],
+    this.tagColors = const {},
   ]);
   final List<String> folders;
   final List<String> paragraphFolderList, elementFolderList, hiddenTagList;
   final List<String> tagFolders;
   final Map<String, String> tagAssignments;
+  final Map<String, int> tagColors;
   final List<Note> notes;
   final List<ElementRecord> records;
   final Map<String, double> colors;
@@ -52,6 +55,7 @@ class WorkspaceSnapshot {
     'elementFolders': elementFolders,
     'hiddenSearchTags': hiddenSearchTags.toList(),
     'hashtagFolders': hashtagFolders,
+    'hashtagColors': hashtagColors,
     'hashtagFolderAssignments': hashtagFolderAssignments,
     'elements': elements.records.values
         .map(
@@ -190,6 +194,10 @@ class WorkspaceSnapshot {
     for (final record in records) {
       if (record.folder != null && !elementFolderNames.contains(record.folder)) elementFolderNames.add(record.folder!);
     }
+    final tagColors = Map<String, int>.from(data['hashtagColors'] ?? {});
+    if (tagColors.values.any((color) => color < 0 || color > 0xFFFFFFFF)) {
+      throw const FormatException('Invalid hashtag color');
+    }
     return WorkspaceSnapshot(
       migrated,
       records,
@@ -200,10 +208,12 @@ class WorkspaceSnapshot {
       paragraphFolderNames,
       elementFolderNames,
       List<String>.from(data['hiddenSearchTags'] ?? []),
+      tagColors,
     );
   }
 
   void apply() {
+    hashtagColors..clear()..addAll(tagColors);
     hashtagFolders
       ..clear()
       ..addAll(tagFolders);

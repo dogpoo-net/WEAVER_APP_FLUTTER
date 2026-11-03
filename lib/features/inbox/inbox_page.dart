@@ -1,3 +1,4 @@
+import 'tag_colors.dart';
 import '../../app_theme.dart';
 import 'project_folders.dart';
 
@@ -61,6 +62,7 @@ class _InboxPageState extends State<InboxPage> {
     hiddenSearchTags.clear();
     hashtagFolders.clear();
     hashtagFolderAssignments.clear();
+    hashtagColors.clear();
     elements.addListener(_elementDeleted);
     elements.onProjectChanged = _persist;
     elements.availableParagraphs = () => _availableParagraphs;
@@ -205,6 +207,7 @@ class _InboxPageState extends State<InboxPage> {
       hiddenSearchTags.clear();
         hashtagFolders.clear();
         hashtagFolderAssignments.clear();
+    hashtagColors.clear();
         elements.clear();
         restoreWordColors({});
         _notes.clear();
@@ -527,6 +530,7 @@ class _InboxPageState extends State<InboxPage> {
         onProjectMoved: (index, folder) =>
             _moveProject(projects, index, folder),
         onTagMoved: _moveTag,
+        onTagColorChanged: _persist,
         folders: projectFolders,
         projectFolderNames: projects.map((n) => n.project!.folder).toList(),
       ),
@@ -856,6 +860,7 @@ class _InboxPageState extends State<InboxPage> {
                   folder,
                 ),
                 onTagMoved: _moveTag,
+        onTagColorChanged: _persist,
                 folders: projectFolders,
                 tags: _allTags,
                 onSelected: (choice) => _selectMenu(

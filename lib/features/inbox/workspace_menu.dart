@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'tag_colors.dart';
 import 'package:flutter/material.dart';
 
 enum _Kind { project, paragraph, element, tag }
@@ -15,8 +16,9 @@ class WorkspaceMenu extends StatefulWidget {
     this.projectFolderNames = const [], this.tagFolders = const [], this.tagFolderNames = const {},
     this.paragraphFolders = const [], this.elementFolders = const [],
     this.paragraphFolderNames = const [], this.elementFolderNames = const [],
-    this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
+    this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
   final bool embedded;
+  final VoidCallback? onTagColorChanged;
   final ValueChanged<int>? onSelected;
   final VoidCallback? onHide, onPin;
   static const allThoughts = -1000006, createParagraph = -2;
@@ -89,6 +91,22 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       visualDensity: kind == _Kind.tag ? const VisualDensity(vertical: -3) : null,
       title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
         style: nested || kind == _Kind.project || kind == _Kind.paragraph ? const TextStyle(fontSize: 13) : null),
+      trailing: kind == _Kind.tag ? IconButton(
+        tooltip: '#$name 색상 변경',
+        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+        padding: const EdgeInsets.all(9),
+        onPressed: () async {
+          final current = hashtagColors[name];
+          final color = await pickHashtagColor(context, name, current == null ? null : Color(current));
+          if (!mounted || color == null) return;
+          setState(() => hashtagColors[name] = color.toARGB32());
+          widget.onTagColorChanged?.call();
+        },
+        icon: Container(width: 16, height: 16, decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: hashtagColors.containsKey(name) ? Color(hashtagColors[name]!) : Theme.of(context).colorScheme.outlineVariant,
+          border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: .4)))),
+      ) : null,
       leading: Icon(switch (kind) { _Kind.tag => Icons.tag, _Kind.element => Icons.circle_outlined,
         _Kind.paragraph => Icons.subject, _Kind.project => Icons.article_outlined }, size: 20),
       onTap: () => _select(switch (kind) { _Kind.project => index, _Kind.tag => -3 - index,
