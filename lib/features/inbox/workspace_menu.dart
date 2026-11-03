@@ -19,6 +19,7 @@ class WorkspaceMenu extends StatefulWidget {
   final bool embedded;
   final ValueChanged<int>? onSelected;
   final VoidCallback? onHide, onPin;
+  static const allThoughts = -1000006, createParagraph = -2;
   static const createProject = -1000002, resetData = -1000003;
   static const createFolder = -1000000, createTagFolder = -1000001;
   static const createParagraphFolder = -1000004, createElementFolder = -1000005;
@@ -130,8 +131,8 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   Widget _heading(_Kind kind) => Padding(padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 12, 4),
     child: Row(children: [
       Expanded(child: Text(_label(kind), style: Theme.of(context).textTheme.labelMedium)),
-      if (kind == _Kind.project) IconButton(tooltip: '프로젝트 생성', visualDensity: VisualDensity.compact,
-        iconSize: 18, onPressed: () => _select(WorkspaceMenu.createProject), icon: const Icon(Icons.add)),
+      if (kind == _Kind.project || kind == _Kind.paragraph) IconButton(tooltip: kind == _Kind.project ? '프로젝트 생성' : '문단 추가', visualDensity: VisualDensity.compact,
+        iconSize: 18, onPressed: () => _select(kind == _Kind.project ? WorkspaceMenu.createProject : WorkspaceMenu.createParagraph), icon: const Icon(Icons.add)),
       IconButton(tooltip: kind == _Kind.project ? '폴더 만들기' : '${_label(kind)} 폴더 만들기',
         visualDensity: VisualDensity.compact, iconSize: 18,
         onPressed: () => _select(switch (kind) {
@@ -152,7 +153,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           reverseDuration: Duration(milliseconds: 200), curve: Curves.easeInOutCubic, reverseCurve: Curves.easeInOutCubic),
         children: [for (var i = 0; i < items.length; i++) if (placements[i] == folder) _item(kind, i, nested: true)],
       )),
-      if (folders.isNotEmpty && kind != _Kind.project) _target(kind, null, const ListTile(dense: true,
+      if (folders.isNotEmpty && kind != _Kind.project && kind != _Kind.paragraph) _target(kind, null, const ListTile(dense: true,
         leading: Icon(Icons.folder_open_outlined, size: 18), title: Text('미분류'))),
       for (var i = 0; i < items.length; i++)
         if (placements[i] == null || !folders.contains(placements[i])) _item(kind, i),
@@ -170,6 +171,8 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           onPressed: widget.embedded ? widget.onHide : () => Navigator.pop(context), icon: const Icon(Icons.close)),
       ])),
       ListTile(leading: const Icon(Icons.home_outlined), title: const Text('메인'), onTap: () => _select(-1)),
+      ListTile(leading: const Icon(Icons.bubble_chart_outlined), title: const Text('모든 생각 보기'),
+        onTap: () => _select(WorkspaceMenu.allThoughts)),
       const Divider(indent: 16, endIndent: 16),
       Expanded(child: SizedBox(key: _viewport, child: Scrollbar(controller: _scroll,
         child: CustomScrollView(controller: _scroll, key: const ValueKey('menu-projects'), slivers: [
@@ -177,7 +180,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
             SliverPersistentHeader(pinned: true, delegate: _SectionHeading(kind: kind.name,
               backgroundColor: widget.embedded ? Theme.of(context).colorScheme.surface
                   : (DialogTheme.of(context).backgroundColor ?? Theme.of(context).colorScheme.surfaceContainerHigh),
-              child: kind == _Kind.project
+              child: (kind == _Kind.project || kind == _Kind.paragraph)
               ? _target(kind, null, _heading(kind)) : _heading(kind))),
             SliverList(delegate: SliverChildListDelegate(_section(kind))),
           ]),

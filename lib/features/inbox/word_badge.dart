@@ -113,18 +113,20 @@ class WordBadge extends StatelessWidget {
     this.selected = false,
     this.query = '',
     this.onLongPress,
+    this.onDoubleTap,
   });
   final String word;
   final String query;
   final VoidCallback onTap;
   final bool selected;
   final VoidCallback? onLongPress;
+  final VoidCallback? onDoubleTap;
   @override
   Widget build(BuildContext context) {
     final hue = _wordHues.putIfAbsent(word, () => _random.nextDouble() * 360);
     final dark = Theme.of(context).brightness == Brightness.dark;
     final maxWidth = min(280.0, (MediaQuery.sizeOf(context).width - 64).clamp(48.0, 280.0));
-    return ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: TextButton(
+    final badge = ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: TextButton(
       onPressed: onTap,
       onLongPress: onLongPress,
       style: TextButton.styleFrom(
@@ -156,6 +158,7 @@ class WordBadge extends StatelessWidget {
       child: Text.rich(_badgeExcerpt(context, word, query, maxWidth - 24),
         maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, semanticsLabel: word),
     ));
+    return onDoubleTap == null ? badge : GestureDetector(onDoubleTap: onDoubleTap, child: badge);
   }
 }
 

@@ -1,3 +1,4 @@
+import 'features/inbox/workspace_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
@@ -107,6 +108,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'WEAVER',
+    navigatorObservers: [workspaceRouteObserver],
     debugShowCheckedModeBanner: false,
     theme: _theme(Brightness.light),
     darkTheme: _theme(Brightness.dark),

@@ -13,6 +13,7 @@ import 'word_badge.dart';
 import 'project_page.dart';
 import 'project_builder.dart';
 import 'paragraph_page.dart';
+import 'all_thoughts_page.dart';
 import 'workspace_menu.dart';
 import 'element_store.dart';
 
@@ -417,6 +418,11 @@ class _InboxPageState extends State<InboxPage> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _allThoughts() async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes)));
+    if (mounted) setState(() {});
+  }
+
   Future<void> _createProject() async {
     final available = _availableParagraphs;
     final words = elements.visibleWords;
@@ -535,6 +541,7 @@ class _InboxPageState extends State<InboxPage> {
     List<String> tags,
   ) async {
     if (!mounted || choice == null || choice == -1) return;
+    if (choice == WorkspaceMenu.allThoughts) { await _allThoughts(); return; }
     if (choice <= -3000000) {
       final index = -3000000 - choice;
       if (index < elements.words.length) showElementMetadata(context, elements.words[index]);
@@ -876,6 +883,8 @@ class _InboxPageState extends State<InboxPage> {
                               icon: const Icon(Icons.subject, size: 18),
                               label: const Text('문단 쓰기'),
                             ),
+                            TextButton.icon(onPressed: _allThoughts, icon: const Icon(Icons.bubble_chart_outlined),
+                              label: const Text('모든 생각 보기')),
                           ],
                         ),
                         const SizedBox(height: 8),
