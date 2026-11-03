@@ -95,6 +95,7 @@ void main() {
       await tester.pumpAndSettle();
       await move('menu-tag-0', 'drop-tag-unfiled');
       expect(tagMoves, ['태그 폴더', null]);
+      expect(find.text('미분류'), findsNothing);
       expect(tester.takeException(), isNull);
     },
     variant: TargetPlatformVariant({

@@ -153,14 +153,14 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           reverseDuration: Duration(milliseconds: 200), curve: Curves.easeInOutCubic, reverseCurve: Curves.easeInOutCubic),
         children: [for (var i = 0; i < items.length; i++) if (placements[i] == folder) _item(kind, i, nested: true)],
       )),
-      if (folders.isNotEmpty && kind != _Kind.project && kind != _Kind.paragraph) _target(kind, null, const ListTile(dense: true,
+      if (folders.isNotEmpty && kind == _Kind.element) _target(kind, null, const ListTile(dense: true,
         leading: Icon(Icons.folder_open_outlined, size: 18), title: Text('미분류'))),
       for (var i = 0; i < items.length; i++)
         if (placements[i] == null || !folders.contains(placements[i])) _item(kind, i),
       if (items.isEmpty) Padding(padding: const EdgeInsets.all(16), child: Text('아직 ${_label(kind)}${kind == _Kind.paragraph ? '이' : '가'} 없어요')),
-      if (kind == _Kind.project || kind == _Kind.paragraph)
+      if (kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.tag)
         _target(kind, null, const SizedBox(height: 28, width: double.infinity),
-          targetId: 'drop-${kind.name}-outside'),
+          targetId: kind == _Kind.tag ? 'drop-tag-unfiled' : 'drop-${kind.name}-outside'),
     ];
   }
   @override
