@@ -213,7 +213,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     if (picked == null || !mounted) return;
     setState(() {
       // Copy text into this project's own sentence; no link to the saved source.
-      if (_controllers[_active].text.trim().isEmpty) {
+      if (_controllers[_active].text.trim().isEmpty && _fieldKeys[_active].currentContext != null) {
         _controllers[_active].text = picked.text;
       } else {
         _add(Paragraph(picked.text, ParagraphRole.body));
@@ -222,7 +222,15 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
       _dirty = true;
     });
     _focus[_active].requestFocus();
-    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _scheduleReveal(); });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // A newly appended sentence can lie outside ListView's lazy cache.
+      // Build it before revealing its caret at the top of the viewport.
+      if (_fieldKeys[_active].currentContext == null && _scroll.hasClients) {
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      }
+      _scheduleReveal();
+    });
   }
 
   Future<void> _back() async {
@@ -473,7 +481,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                                 hintText: i == 0
                                     ? '단어 하나로 시작해보세요'
                                     : '다음 생각을 이어보세요',
-                                labelText: '문단 ${i + 1}',
+                                labelText: widget.projectEditing ? '문장 ${i + 1}' : '문단',
                               ),
                             ),
                           ),
