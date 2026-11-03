@@ -122,7 +122,10 @@ void main() {
     expect(popup, findsOneWidget);
     expect(tester.getRect(popup).top, greaterThan(shown.top));
     await tester.pump(const Duration(milliseconds: 100));
-    await tester.pump();
+    // Flush the frame that unmounts the overlay after animation completion.
+    // Allow one display frame for floating-point ticker boundary rounding.
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pumpAndSettle();
     expect(popup, findsNothing);
     // A new query can show the panel again after dismissal.
     await tester.enterText(field, '기');
