@@ -173,7 +173,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       const Divider(indent: 16, endIndent: 16),
       Expanded(child: SizedBox(key: _viewport, child: Scrollbar(controller: _scroll,
         child: CustomScrollView(controller: _scroll, key: const ValueKey('menu-projects'), slivers: [
-          for (final kind in _Kind.values) SliverMainAxisGroup(slivers: [
+          for (final kind in _Kind.values.where((kind) => kind != _Kind.element)) SliverMainAxisGroup(slivers: [
             SliverPersistentHeader(pinned: true, delegate: _SectionHeading(kind: kind.name, child: kind == _Kind.project
               ? _target(kind, null, _heading(kind)) : _heading(kind))),
             SliverList(delegate: SliverChildListDelegate(_section(kind))),
