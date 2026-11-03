@@ -71,8 +71,8 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
   Widget _relations(ElementUsage usage, bool desktop) {
     final selected = _selected;
     final colors = Theme.of(context).colorScheme;
-    if (selected == null) return const Center(child: Padding(padding: EdgeInsets.all(24),
-      child: Text('원소를 클릭하면\n함께 쓰인 원소를 보여줍니다.', textAlign: TextAlign.center)));
+    if (selected == null) { return const Center(child: Padding(padding: EdgeInsets.all(24),
+      child: Text('원소를 클릭하면\n함께 쓰인 원소를 보여줍니다.', textAlign: TextAlign.center))); }
     final related = (usage.together[selected.text] ?? {}).entries.toList()
       ..sort((a, b) { final frequency = b.value.compareTo(a.value); return frequency != 0 ? frequency : a.key.compareTo(b.key); });
     final maximum = related.isEmpty ? 1 : related.first.value;
@@ -119,11 +119,11 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
       ]))));
     return Scaffold(appBar: AppBar(title: const Text('모든 생각 보기')),
       body: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
-        if (desktop && constraints.maxWidth >= 760) return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (desktop && constraints.maxWidth >= 760) { return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(child: grid), const VerticalDivider(width: 1), SizedBox(width: 320, child: _relations(usage, desktop)),
-        ]);
-        if (desktop) return Column(children: [Expanded(child: grid),
-          if (_selected != null) SizedBox(height: 260, child: _relations(usage, desktop))]);
+        ]); }
+        if (desktop) { return Column(children: [Expanded(child: grid),
+          if (_selected != null) SizedBox(height: 260, child: _relations(usage, desktop))]); }
         return grid;
       })),
     );
