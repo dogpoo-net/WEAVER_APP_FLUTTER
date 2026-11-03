@@ -32,13 +32,13 @@ void main() {
     )))));
     final scroll = find.byKey(const ValueKey('menu-projects'));
     final controller = tester.widget<CustomScrollView>(scroll).controller!;
-    controller.jumpTo(1100);
+    controller.jumpTo(1000);
     await tester.pumpAndSettle();
     final heading = find.byKey(const ValueKey('menu-tags-heading'));
     expect(tester.getRect(heading).top, closeTo(tester.getRect(scroll).top, 1));
     final item = find.byKey(const ValueKey('menu-tag-5'));
     final before = tester.getTopLeft(item).dy;
-    controller.jumpTo(1150);
+    controller.jumpTo(1050);
     await tester.pumpAndSettle();
     expect(tester.getRect(heading).top, closeTo(tester.getRect(scroll).top, 1));
     expect(tester.getTopLeft(item).dy, lessThan(before));
