@@ -1,3 +1,4 @@
+import '../../app_theme.dart';
 import 'project_folders.dart';
 
 import 'package:flutter/material.dart';
@@ -22,10 +23,14 @@ class InboxPage extends StatefulWidget {
     super.key,
     this.storage,
     required this.themeMode,
+    this.lightPalette = LightPalette.neutral,
+    this.onLightPaletteChanged,
     required this.onThemeChanged,
   });
   final WorkspaceStorage? storage;
   final ThemeMode themeMode;
+  final LightPalette lightPalette;
+  final ValueChanged<LightPalette>? onLightPaletteChanged;
   final ValueChanged<ThemeMode> onThemeChanged;
   @override
   State<InboxPage> createState() => _InboxPageState();
@@ -771,17 +776,21 @@ class _InboxPageState extends State<InboxPage> {
           icon: const Icon(Icons.grid_view_rounded),
         ),
         actions: [
-          PopupMenuButton<ThemeMode>(
+          PopupMenuButton<Object>(
             tooltip: '테마 선택',
             initialValue: widget.themeMode,
-            onSelected: widget.onThemeChanged,
+            onSelected: (choice) {
+              if (choice is ThemeMode) widget.onThemeChanged(choice);
+              if (choice is LightPalette) widget.onLightPaletteChanged?.call(choice);
+            },
             icon: Icon(
               Theme.of(context).brightness == Brightness.dark
                   ? Icons.dark_mode_outlined
                   : Icons.light_mode_outlined,
             ),
             itemBuilder: (_) => [
-              CheckedPopupMenuItem(
+              const PopupMenuItem<Object>(enabled: false, height: 32, child: Text('화면 모드')),
+              CheckedPopupMenuItem<Object>(
                 value: ThemeMode.system,
                 checked: widget.themeMode == ThemeMode.system,
                 child: const Text('시스템 설정'),
@@ -789,13 +798,18 @@ class _InboxPageState extends State<InboxPage> {
               CheckedPopupMenuItem(
                 value: ThemeMode.light,
                 checked: widget.themeMode == ThemeMode.light,
-                child: const Text('라이트'),
+                child: Row(children: [const Expanded(child: Text('라이트')), PaletteSwatches(colors: widget.lightPalette.swatches)]),
               ),
               CheckedPopupMenuItem(
                 value: ThemeMode.dark,
                 checked: widget.themeMode == ThemeMode.dark,
-                child: const Text('다크'),
+                child: Row(children: [const Expanded(child: Text('다크')), PaletteSwatches(colors: [weaverDarkColors.surface, weaverDarkColors.surfaceContainerHighest, weaverDarkColors.primary])]),
               ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<Object>(enabled: false, height: 32, child: Text('라이트 컬러셋')),
+              for (final palette in LightPalette.values) CheckedPopupMenuItem<Object>(
+                value: palette, checked: widget.lightPalette == palette,
+                child: Row(children: [Expanded(child: Text(palette.label)), PaletteSwatches(colors: palette.swatches)])),
             ],
           ),
           const SizedBox(width: 12),
