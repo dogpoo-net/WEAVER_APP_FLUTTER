@@ -174,7 +174,10 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       Expanded(child: SizedBox(key: _viewport, child: Scrollbar(controller: _scroll,
         child: CustomScrollView(controller: _scroll, key: const ValueKey('menu-projects'), slivers: [
           for (final kind in _Kind.values.where((kind) => kind != _Kind.element)) SliverMainAxisGroup(slivers: [
-            SliverPersistentHeader(pinned: true, delegate: _SectionHeading(kind: kind.name, child: kind == _Kind.project
+            SliverPersistentHeader(pinned: true, delegate: _SectionHeading(kind: kind.name,
+              backgroundColor: widget.embedded ? Theme.of(context).colorScheme.surface
+                  : (DialogTheme.of(context).backgroundColor ?? Theme.of(context).colorScheme.surfaceContainerHigh),
+              child: kind == _Kind.project
               ? _target(kind, null, _heading(kind)) : _heading(kind))),
             SliverList(delegate: SliverChildListDelegate(_section(kind))),
           ]),
@@ -192,8 +195,9 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
 }
 
 class _SectionHeading extends SliverPersistentHeaderDelegate {
-  const _SectionHeading({required this.kind, required this.child});
+  const _SectionHeading({required this.kind, required this.child, required this.backgroundColor});
   final String kind;
+  final Color backgroundColor;
   final Widget child;
   @override
   double get minExtent => 56;
@@ -202,7 +206,7 @@ class _SectionHeading extends SliverPersistentHeaderDelegate {
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => SizedBox(
     height: maxExtent, child: Material(key: ValueKey('menu-${kind}s-heading'),
-      color: Theme.of(context).colorScheme.surface, child: child));
+      color: backgroundColor, child: child));
   @override
-  bool shouldRebuild(_SectionHeading oldDelegate) => oldDelegate.child != child;
+  bool shouldRebuild(_SectionHeading oldDelegate) => oldDelegate.child != child || oldDelegate.backgroundColor != backgroundColor;
 }
