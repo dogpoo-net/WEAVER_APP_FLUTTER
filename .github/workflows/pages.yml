@@ -26,7 +26,24 @@ jobs:
       - run: flutter config --no-analytics
       - run: flutter pub get --enforce-lockfile
       - run: flutter analyze --no-pub
-      - run: flutter test --no-pub
+      - name: Test and report failures
+        shell: bash
+        run: |
+          set +e
+          flutter test --no-pub --reporter expanded > "$RUNNER_TEMP/flutter-test.log" 2>&1
+          result=$?
+          cat "$RUNNER_TEMP/flutter-test.log"
+          if [ "$result" -ne 0 ]; then
+            python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+          output = (Path(os.environ['RUNNER_TEMP']) / 'flutter-test.log').read_text()
+          # Expose test diagnostics in the run summary as well as job logs.
+          message = output[-24000:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          print(f'::error title=Flutter test failure::{message}')
+          PYTHON
+          fi
+          exit "$result"
       - name: Build project Pages site
         run: flutter build web --release --no-pub --base-href /WEAVER_APP_FLUTTER/
       - uses: actions/upload-pages-artifact@v3
