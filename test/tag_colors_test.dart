@@ -32,7 +32,9 @@ void main() {
         onTagColorChanged: () => changes++,
       ))));
       final button = find.byTooltip('#생각 색상 변경');
-      await tester.ensureVisible(button);
+      await tester.scrollUntilVisible(button, 100, scrollable: find.descendant(
+        of: find.byKey(const ValueKey('menu-projects')), matching: find.byType(Scrollable)));
+      await tester.pumpAndSettle();
       await tester.tap(button);
       await tester.pumpAndSettle();
       final grid = tester.widget<GridView>(find.byKey(const ValueKey('hashtag-palette')));
