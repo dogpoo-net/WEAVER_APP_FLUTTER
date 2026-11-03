@@ -412,7 +412,6 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     final mobile = media.size.width < 760 || media.viewInsets.bottom > 0;
     final assistSpace = mobile && _focus.any((f) => f.hasFocus)
         ? mobileAssistHeight(media) : 0.0;
-    final colors = Theme.of(context).colorScheme;
     final hasText = _controllers.any((c) => (widget.projectEditing ? c.text : parseTaggedInput(c.text).text).trim().isNotEmpty);
     return MediaQuery(
       data: media,
@@ -570,11 +569,6 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                     },
                     icon: const Icon(Icons.add),
                     label: const Text('다음 문단'),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    '저장을 누르면 문단이 보관됩니다.',
-                    style: TextStyle(color: colors.onSurfaceVariant),
                   ),
                   ])),
                   ]),

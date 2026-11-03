@@ -912,17 +912,10 @@ class _InboxPageState extends State<InboxPage> {
                                   ],
                                 ),
                         ),
-                        const SizedBox(height: 24),
-                        Text(
-                          _storageError ??
-                              (widget.storage == null
-                                  ? '브라우저 저장을 사용할 수 없습니다 · 현재 화면에서만 유지됩니다'
-                                  : '이 브라우저에 자동 저장됨'),
-                          style: TextStyle(
-                            color: colors.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
-                        ),
+                        if (_storageError != null) ...[
+                          const SizedBox(height: 16),
+                          Text(_storageError!, style: TextStyle(color: colors.error, fontSize: 12)),
+                        ],
                       ],
                     ),
                   ),

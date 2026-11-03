@@ -196,11 +196,6 @@ class _ProjectPageState extends State<ProjectPage> {
                         ),
                       ),
                   ],
-                  const SizedBox(height: 24),
-                  const Text(
-                    '저장한 프로젝트는 이 기기에 보관됩니다.',
-                    style: TextStyle(fontSize: 12),
-                  ),
                 ],
               ),
             ),
