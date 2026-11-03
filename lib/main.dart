@@ -45,10 +45,32 @@ class _MyAppState extends State<MyApp> {
   }
 
   ThemeData _theme(Brightness brightness) {
-    final colors = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF536DFE),
-      brightness: brightness,
-    );
+    final colors = brightness == Brightness.dark
+        ? ColorScheme.fromSeed(seedColor: const Color(0xFF536DFE), brightness: brightness)
+        : ColorScheme.fromSeed(seedColor: const Color(0xFF876747), brightness: brightness).copyWith(
+            primary: const Color(0xFF795A39),
+            onPrimary: const Color(0xFFFFFFFF),
+            primaryContainer: const Color(0xFFEDDDC7),
+            onPrimaryContainer: const Color(0xFF30200E),
+            secondary: const Color(0xFF74644E),
+            onSecondary: const Color(0xFFFFFFFF),
+            secondaryContainer: const Color(0xFFEADFCF),
+            onSecondaryContainer: const Color(0xFF2D251B),
+            tertiary: const Color(0xFF5E6E55),
+            onTertiary: const Color(0xFFFFFFFF),
+            surface: const Color(0xFFF8F4EC),
+            surfaceDim: const Color(0xFFE4DCCD),
+            surfaceBright: const Color(0xFFFDF9F1),
+            surfaceContainerLowest: const Color(0xFFFFFBF5),
+            surfaceContainerLow: const Color(0xFFF5EEE2),
+            surfaceContainer: const Color(0xFFEFE6D8),
+            surfaceContainerHigh: const Color(0xFFE9DFD0),
+            surfaceContainerHighest: const Color(0xFFE3D7C6),
+            onSurface: const Color(0xFF302B25),
+            onSurfaceVariant: const Color(0xFF645B4D),
+            outline: const Color(0xFF8C7F6B),
+            outlineVariant: const Color(0xFFD5C8B5),
+          );
     final border = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(24),
       side: BorderSide(color: colors.outlineVariant),
