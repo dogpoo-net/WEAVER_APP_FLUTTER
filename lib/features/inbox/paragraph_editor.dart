@@ -83,13 +83,53 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
       }),
     );
     _roles.add(p.role);
-    final index = _focus.length;
+    final focus = FocusNode();
     _fieldKeys.add(GlobalKey());
-    _focus.add(FocusNode()..addListener(() {
+    _focus.add(focus);
+    focus.addListener(() {
       if (!mounted) return;
-      setState(() { if (_focus[index].hasFocus) _active = index; });
+      final index = _focus.indexOf(focus);
+      if (index < 0) return;
+      setState(() { if (focus.hasFocus) _active = index; });
       _scheduleReveal();
-    }));
+    });
+  }
+
+  Future<void> _deleteParagraph(int index) async {
+    final controller = _controllers[index];
+    if (controller.text.trim().isNotEmpty) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('문단을 삭제할까요?'),
+          content: const Text('작성한 이 문단은 삭제되며 저장할 때 반영됩니다.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('삭제')),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+    final current = _controllers.indexOf(controller);
+    if (current < 0) return;
+    final focus = _focus[current];
+    final activeController = _controllers[_active];
+    setState(() {
+      _controllers.removeAt(current);
+      _roles.removeAt(current);
+      _focus.removeAt(current);
+      _fieldKeys.removeAt(current);
+      if (_controllers.isEmpty) _add(const Paragraph('', ParagraphRole.body));
+      final retained = _controllers.indexOf(activeController);
+      _active = retained >= 0 ? retained : current.clamp(0, _controllers.length - 1);
+      _dirty = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.dispose();
+      focus.dispose();
+      if (mounted) _focus[_active].requestFocus();
+    });
   }
 
   @override
@@ -266,15 +306,16 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                 children: [
                   for (var i = 0; i < _controllers.length; i++)
                     Padding(
+                      key: ObjectKey(_controllers[i]),
                       padding: const EdgeInsets.only(bottom: 16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           ...[
                             const SizedBox(height: 6),
-                            Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: ToggleButtons(
+                            Row(
+                              children: [
+                              ToggleButtons(
                                 direction: Axis.horizontal,
                                 borderRadius: BorderRadius.circular(16),
                                 constraints: const BoxConstraints(
@@ -304,6 +345,14 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                                     )
                                     .toList(),
                               ),
+                              const Spacer(),
+                              IconButton(
+                                key: ValueKey('delete-paragraph-$i'),
+                                tooltip: '문단 삭제',
+                                onPressed: () => _deleteParagraph(i),
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                              ],
                             ),
                           ],
                           CaretAssist(

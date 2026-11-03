@@ -337,8 +337,8 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       elevation: 6,
       borderRadius: BorderRadius.circular(18),
       clipBehavior: Clip.antiAlias,
-      child: SizedBox(
-        height: height,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: height),
         child: NotificationListener<ScrollNotification>(
           onNotification: (_) => true,
           child: SingleChildScrollView(
