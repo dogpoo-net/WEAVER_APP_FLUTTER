@@ -9,8 +9,9 @@ import 'workspace_routes.dart';
 import 'workspace_storage.dart';
 
 class AllThoughtsPage extends StatefulWidget {
-  const AllThoughtsPage({super.key, required this.notes, this.onChanged});
+  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.initialBox});
   final List<Note> notes;
+  final MemoBox? initialBox;
   final VoidCallback? onChanged;
   @override
   State<AllThoughtsPage> createState() => _AllThoughtsPageState();
@@ -30,7 +31,7 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
   ModalRoute<dynamic>? _route;
   void _refresh() { if (mounted) setState(() {}); }
   @override
-  void initState() { super.initState(); elements.addListener(_refresh); }
+  void initState() { super.initState(); _filterBox = widget.initialBox; elements.addListener(_refresh); }
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -118,6 +119,28 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
         const Text('같은 문단·프로젝트 문장에서 함께 등장한 횟수입니다.', style: TextStyle(fontSize: 12)),
       ]));
   }
+  Future<void> _manageBox() async {
+    final box = _filterBox;
+    if (box == null) return;
+    final selected = {...box.elementIds};
+    var query = '';
+    final result = await showDialog<Set<String>>(context: context, builder: (context) => StatefulBuilder(
+      builder: (context, update) => AlertDialog(title: const Text('상자에 담을 메모'),
+        content: SizedBox(width: 420, height: 360, child: Column(children: [
+          TextField(decoration: const InputDecoration(hintText: '메모에서 찾기', prefixIcon: Icon(Icons.search)),
+            onChanged: (value) => update(() => query = value)),
+          Expanded(child: ListView(children: [for (final record in elements.records.values)
+            if (record.text.toLowerCase().contains(query.toLowerCase())) CheckboxListTile(
+              title: Text(record.text, maxLines: 2, overflow: TextOverflow.ellipsis), value: selected.contains(record.id),
+              onChanged: (checked) => update(() { if (checked == true) { selected.add(record.id); } else { selected.remove(record.id); } })),
+          ])),
+        ])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          FilledButton(onPressed: () => Navigator.pop(context, selected), child: const Text('담기'))],
+      )));
+    if (!mounted || result == null) return;
+    box.elementIds..clear()..addAll(result);
+    _changed();
+  }
   @override
   Widget build(BuildContext context) {
     final usage = ElementUsage.fromNotes(widget.notes, elements);
@@ -160,7 +183,9 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
               children: [for (final record in records) _tile(record, usage, maximum, desktop, width: width)]));
         }),
       ]))));
-    return Scaffold(appBar: AppBar(title: const Text('모든 생각 보기')),
+    return Scaffold(appBar: AppBar(title: const Text('모든 생각 보기'), actions: [
+      if (_filterBox != null) IconButton(tooltip: '상자에 담을 메모 선택', onPressed: _manageBox, icon: const Icon(Icons.playlist_add)),
+    ]),
       bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           SizedBox(height: 48, child: Row(children: [Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [

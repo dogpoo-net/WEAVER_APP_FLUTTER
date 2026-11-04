@@ -17,7 +17,7 @@ void main() {
       expect(tester.widget<ChoiceChip>(all).selected, isTrue);
       await tester.tap(find.byKey(const ValueKey('thought-filter-box-테스트')));
       await tester.pumpAndSettle();
-      expect(find.byType(MemoBoxPage), findsNothing);
+      expect(find.byType(Scaffold), findsOneWidget);
       expect(find.byKey(ValueKey('thought-${first.id}')), findsOneWidget);
       expect(find.byKey(ValueKey('thought-${second.id}')), findsNothing);
       await tester.tap(find.byKey(const ValueKey('thought-filter-tag-여행')));
@@ -34,7 +34,7 @@ void main() {
       final empty = find.byKey(const ValueKey('thought-filter-box-빈 상자'));
       await tester.ensureVisible(empty); await tester.tap(empty); await tester.pumpAndSettle();
       expect(find.text('이 상자에 담긴 메모가 없어요.'), findsOneWidget);
-      expect(find.byType(MemoBoxPage), findsNothing);
+      expect(find.byType(Scaffold), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

@@ -451,8 +451,8 @@ class _InboxPageState extends State<InboxPage> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _allThoughts() async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onChanged: _persist)));
+  Future<void> _allThoughts([MemoBox? box]) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onChanged: _persist, initialBox: box)));
     if (mounted) setState(() {});
   }
 
@@ -586,8 +586,7 @@ class _InboxPageState extends State<InboxPage> {
     if (choice <= -1100000 && choice > -2000000) {
       final index = -1100000 - choice;
       if (index < memoBoxes.length) {
-        await Navigator.push(context, MaterialPageRoute(builder: (_) => MemoBoxPage(box: memoBoxes[index], onChanged: _persist)));
-        if (mounted) setState(() {});
+        await _allThoughts(memoBoxes[index]);
       }
       return;
     }
