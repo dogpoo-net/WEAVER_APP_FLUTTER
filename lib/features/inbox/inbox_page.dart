@@ -1,3 +1,4 @@
+import 'memo_boxes.dart';
 import 'tag_colors.dart';
 import '../../app_theme.dart';
 import 'project_folders.dart';
@@ -63,6 +64,7 @@ class _InboxPageState extends State<InboxPage> {
     hashtagFolders.clear();
     hashtagFolderAssignments.clear();
     hashtagColors.clear();
+    memoBoxes.clear();
     elements.addListener(_elementDeleted);
     elements.onProjectChanged = _persist;
     elements.availableParagraphs = () => _availableParagraphs;
@@ -208,6 +210,7 @@ class _InboxPageState extends State<InboxPage> {
         hashtagFolders.clear();
         hashtagFolderAssignments.clear();
     hashtagColors.clear();
+    memoBoxes.clear();
         elements.clear();
         restoreWordColors({});
         _notes.clear();
@@ -427,7 +430,7 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   Future<void> _allThoughts() async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes)));
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onChanged: _persist)));
     if (mounted) setState(() {});
   }
 
@@ -531,6 +534,7 @@ class _InboxPageState extends State<InboxPage> {
             _moveProject(projects, index, folder),
         onTagMoved: _moveTag,
         onTagColorChanged: _persist,
+        onBoxChanged: _persist,
         folders: projectFolders,
         projectFolderNames: projects.map((n) => n.project!.folder).toList(),
       ),
@@ -550,6 +554,19 @@ class _InboxPageState extends State<InboxPage> {
     List<String> tags,
   ) async {
     if (!mounted || choice == null || choice == -1) return;
+    if (choice == WorkspaceMenu.createBox) {
+      final box = await createMemoBox(context);
+      if (box != null) { await _persist(); if (mounted) setState(() {}); }
+      return;
+    }
+    if (choice <= -1100000 && choice > -2000000) {
+      final index = -1100000 - choice;
+      if (index < memoBoxes.length) {
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => MemoBoxPage(box: memoBoxes[index], onChanged: _persist)));
+        if (mounted) setState(() {});
+      }
+      return;
+    }
     if (choice == WorkspaceMenu.allThoughts) { await _allThoughts(); return; }
     if (choice <= -3000000) {
       final index = -3000000 - choice;
@@ -861,6 +878,7 @@ class _InboxPageState extends State<InboxPage> {
                 ),
                 onTagMoved: _moveTag,
         onTagColorChanged: _persist,
+        onBoxChanged: _persist,
                 folders: projectFolders,
                 tags: _allTags,
                 onSelected: (choice) => _selectMenu(

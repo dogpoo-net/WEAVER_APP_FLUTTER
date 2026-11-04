@@ -111,6 +111,7 @@ class WordBadge extends StatelessWidget {
     required this.word,
     required this.onTap,
     this.selected = false,
+    this.compact = false,
     this.query = '',
     this.onLongPress,
     this.onDoubleTap,
@@ -119,6 +120,7 @@ class WordBadge extends StatelessWidget {
   final String query;
   final VoidCallback onTap;
   final bool selected;
+  final bool compact;
   final VoidCallback? onLongPress;
   final VoidCallback? onDoubleTap;
   @override
@@ -143,7 +145,7 @@ class WordBadge extends StatelessWidget {
           dark ? .9 : .23,
         ).toColor(),
         minimumSize: const Size(0, 30),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 12, vertical: compact ? 3 : 5),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         shape: StadiumBorder(
           side: selected

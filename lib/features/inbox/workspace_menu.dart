@@ -1,3 +1,4 @@
+import 'memo_boxes.dart';
 import 'dart:async';
 import 'tag_colors.dart';
 import 'package:flutter/material.dart';
@@ -16,8 +17,10 @@ class WorkspaceMenu extends StatefulWidget {
     this.projectFolderNames = const [], this.tagFolders = const [], this.tagFolderNames = const {},
     this.paragraphFolders = const [], this.elementFolders = const [],
     this.paragraphFolderNames = const [], this.elementFolderNames = const [],
-    this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
+    this.onBoxChanged, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
   final bool embedded;
+  final VoidCallback? onBoxChanged;
+  static const createBox = -1000007;
   final VoidCallback? onTagColorChanged;
   final ValueChanged<int>? onSelected;
   final VoidCallback? onHide, onPin;
@@ -181,6 +184,23 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           targetId: kind == _Kind.tag ? 'drop-tag-unfiled' : 'drop-${kind.name}-outside'),
     ];
   }
+  Widget _boxes() => Column(children: [
+    Padding(padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 12, 4), child: Row(children: [
+      Expanded(child: Text('메모상자', style: Theme.of(context).textTheme.labelMedium)),
+      IconButton(tooltip: '메모상자 만들기', iconSize: 18, icon: const Icon(Icons.add), onPressed: () => _select(WorkspaceMenu.createBox)),
+    ])),
+    for (var i = 0; i < memoBoxes.length; i++) MemoBoxTarget(box: memoBoxes[i],
+      onChanged: () { setState(() {}); widget.onBoxChanged?.call(); },
+      child: ListTile(dense: true, leading: const Icon(Icons.inventory_2_outlined, size: 20),
+        title: Text(memoBoxes[i].name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        onTap: () => _select(-1100000 - i), trailing: IconButton(tooltip: '${memoBoxes[i].name} 상자 색상 변경',
+          icon: Icon(Icons.circle, size: 16, color: Color(memoBoxes[i].color)), onPressed: () async {
+            final box = memoBoxes[i];
+            final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
+            if (!mounted || color == null) return;
+            setState(() => box.color = color.toARGB32()); widget.onBoxChanged?.call();
+          }))),
+  ]);
   @override
   Widget build(BuildContext context) {
     final content = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -198,6 +218,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       Expanded(child: SizedBox(key: _viewport, child: Scrollbar(controller: _scroll,
         child: CustomScrollView(controller: _scroll, key: const ValueKey('menu-projects'), slivers: [
           for (final kind in _Kind.values.where((kind) => kind != _Kind.element)) SliverMainAxisGroup(slivers: [
+            if (kind == _Kind.tag) SliverToBoxAdapter(child: _boxes()),
             SliverPersistentHeader(pinned: true, delegate: _SectionHeading(kind: kind.name,
               backgroundColor: widget.embedded ? Theme.of(context).colorScheme.surface
                   : (DialogTheme.of(context).backgroundColor ?? Theme.of(context).colorScheme.surfaceContainerHigh),

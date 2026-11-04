@@ -9,10 +9,10 @@ const hashtagPalette = <Color>[
   Color(0xFFA1887F), Color(0xFF90A4AE), Color(0xFFBDBDBD), Color(0xFF78909C), Color(0xFF616161),
 ];
 
-Future<Color?> pickHashtagColor(BuildContext context, String tag, Color? selected) => showDialog<Color>(
+Future<Color?> pickHashtagColor(BuildContext context, String tag, Color? selected, {String prefix = '#'}) => showDialog<Color>(
   context: context,
   builder: (context) => AlertDialog(
-    title: Text('#$tag 색상', maxLines: 2, overflow: TextOverflow.ellipsis),
+    title: Text('$prefix$tag 색상', maxLines: 2, overflow: TextOverflow.ellipsis),
     content: SizedBox(width: 240, height: 192, child: GridView.count(
       key: const ValueKey('hashtag-palette'),
       crossAxisCount: 5,

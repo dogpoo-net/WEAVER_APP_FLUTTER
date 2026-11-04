@@ -1,3 +1,4 @@
+import 'memo_boxes.dart';
 import 'tag_colors.dart';
 import 'project_folders.dart';
 
@@ -34,8 +35,10 @@ class WorkspaceSnapshot {
     this.elementFolderList = const [],
     this.hiddenTagList = const [],
     this.tagColors = const {},
+    this.boxes = const [],
   ]);
   final List<String> folders;
+  final List<MemoBox> boxes;
   final List<String> paragraphFolderList, elementFolderList, hiddenTagList;
   final List<String> tagFolders;
   final Map<String, String> tagAssignments;
@@ -50,6 +53,7 @@ class WorkspaceSnapshot {
   };
   static String encode(List<Note> notes) => jsonEncode({
     'version': 1,
+    'memoBoxes': [for (final box in memoBoxes) {'name': box.name, 'color': box.color, 'ids': box.elementIds.toList()}],
     'folders': projectFolders,
     'paragraphFolders': paragraphFolders,
     'elementFolders': elementFolders,
@@ -209,10 +213,12 @@ class WorkspaceSnapshot {
       elementFolderNames,
       List<String>.from(data['hiddenSearchTags'] ?? []),
       tagColors,
+      [for (final box in (data['memoBoxes'] ?? []) as List) MemoBox(box['name'] as String, color: box['color'] as int, ids: List<String>.from(box['ids']))],
     );
   }
 
   void apply() {
+    memoBoxes..clear()..addAll(boxes);
     hashtagColors..clear()..addAll(tagColors);
     hashtagFolders
       ..clear()

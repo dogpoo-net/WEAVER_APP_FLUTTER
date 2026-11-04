@@ -1,3 +1,4 @@
+import 'memo_boxes.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'element_store.dart';
@@ -7,8 +8,9 @@ import 'workspace_routes.dart';
 import 'workspace_storage.dart';
 
 class AllThoughtsPage extends StatefulWidget {
-  const AllThoughtsPage({super.key, required this.notes});
+  const AllThoughtsPage({super.key, required this.notes, this.onChanged});
   final List<Note> notes;
+  final VoidCallback? onChanged;
   @override
   State<AllThoughtsPage> createState() => _AllThoughtsPageState();
 }
@@ -16,6 +18,9 @@ class AllThoughtsPage extends StatefulWidget {
 class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
   String? _selectedId;
   String _query = '';
+  int _columns = 2;
+  int _scaleColumns = 2;
+  void _changed() { setState(() {}); widget.onChanged?.call(); }
   ModalRoute<dynamic>? _route;
   void _refresh() { if (mounted) setState(() {}); }
   @override
@@ -44,30 +49,35 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
   }
   void _select(String word) => setState(() => _selectedId = elements.records[word]?.id);
   Widget _badge(String word, bool desktop) => WordBadge(
-    word: word, query: _query, selected: elements.records[word]?.id == _selectedId,
+    word: word, compact: true, query: _query, selected: elements.records[word]?.id == _selectedId,
     onTap: desktop ? () => _select(word) : () => showElementMetadata(context, word),
     onDoubleTap: desktop ? () { _select(word); showElementMetadata(context, word); } : null,
   );
-  Widget _tile(ElementRecord record, ElementUsage usage, int maximum, bool desktop) {
+  Widget _tile(ElementRecord record, ElementUsage usage, int maximum, bool desktop, {double width = 280}) {
     final count = usage.counts[record.text] ?? 0;
     final colors = Theme.of(context).colorScheme;
     final selected = record.id == _selectedId;
-    return Container(key: ValueKey('thought-${record.id}'), width: 280,
-      padding: const EdgeInsets.all(10),
+    final tile = Container(key: ValueKey('thought-${record.id}'), width: width,
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(16),
         color: selected ? colors.secondaryContainer : colors.surfaceContainerLow,
         border: Border.all(color: selected ? colors.primary : colors.outlineVariant)),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Row(children: [Expanded(child: _badge(record.text, desktop)), const SizedBox(width: 8),
-          Semantics(label: '사용 $count회', child: Text('$count회', key: ValueKey('usage-${record.id}'),
+        Row(children: [Expanded(child: _badge(record.text, desktop)), const SizedBox(width: 3),
+          if (width >= 100) Semantics(label: '사용 $count회', child: Text('$count회', key: ValueKey('usage-${record.id}'),
             style: TextStyle(fontWeight: FontWeight.w700, color: colors.primary))),
-          if (!elements.isSearchable(record.text)) const Padding(padding: EdgeInsetsDirectional.only(start: 4),
+          if (width >= 100 && !elements.isSearchable(record.text)) const Padding(padding: EdgeInsetsDirectional.only(start: 4),
             child: Tooltip(message: '메인·어시스트 검색에서 숨긴 원소', child: Icon(Icons.visibility_off_outlined, size: 14))),
         ]),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         LinearProgressIndicator(value: maximum == 0 ? 0 : count / maximum, minHeight: 3,
           borderRadius: BorderRadius.circular(3), backgroundColor: colors.surfaceContainerHighest),
       ]));
+    final feedback = Material(color: Colors.transparent, child: SizedBox(width: 180, child: _badge(record.text, false)));
+    if (desktop) { return Draggable<MemoDrag>(data: MemoDrag(record.id), feedback: feedback,
+      childWhenDragging: Opacity(opacity: .4, child: tile), child: tile); }
+    return LongPressDraggable<MemoDrag>(data: MemoDrag(record.id), feedback: feedback,
+      childWhenDragging: Opacity(opacity: .4, child: tile), child: tile);
   }
   Widget _relations(ElementUsage usage, bool desktop) {
     final selected = _selected;
@@ -109,7 +119,7 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
     final records = allRecords.where((record) => record.text.toLowerCase().contains(_query.toLowerCase())).toList();
     final maximum = usage.counts.values.fold<int>(0, math.max);
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
-    final grid = SingleChildScrollView(key: const ValueKey('all-thoughts-grid'), padding: const EdgeInsets.all(24),
+    final grid = SingleChildScrollView(key: const ValueKey('all-thoughts-grid'), padding: EdgeInsets.all(desktop ? 24 : 8),
       child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1000), child: Column(children: [
         Text(_query.isEmpty ? '원소 ${records.length}개' : '원소 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 6),
@@ -118,11 +128,39 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
         TextField(key: const ValueKey('all-thoughts-search'),
           onChanged: (value) => setState(() => _query = value),
           decoration: const InputDecoration(hintText: '원소에서 찾기', prefixIcon: Icon(Icons.search), isDense: true)),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
+        Row(children: [const Text('메모상자'), const Spacer(), TextButton.icon(
+          icon: const Icon(Icons.add, size: 18), label: const Text('상자 만들기'), onPressed: () async {
+            final box = await createMemoBox(context); if (mounted && box != null) _changed();
+          })]),
+        if (memoBoxes.isNotEmpty) SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal, children: [
+          for (final box in memoBoxes) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
+            box: box, onChanged: _changed, child: ActionChip(avatar: Icon(Icons.circle, color: Color(box.color), size: 14),
+              label: Text(box.name), onPressed: () async {
+                await Navigator.push(context, MaterialPageRoute(builder: (_) => MemoBoxPage(box: box, onChanged: _changed)));
+                if (mounted) setState(() {});
+              }))),
+        ])),
+        if (!desktop) Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+          IconButton(tooltip: '확대', onPressed: _columns > 1 ? () => setState(() => _columns--) : null, icon: const Icon(Icons.zoom_in)),
+          Text('$_columns열'),
+          IconButton(tooltip: '축소', onPressed: _columns < 6 ? () => setState(() => _columns++) : null, icon: const Icon(Icons.zoom_out)),
+        ]),
         if (records.isEmpty) Padding(padding: const EdgeInsets.all(40),
           child: Text(allRecords.isEmpty ? '아직 원소가 없어요.' : '일치하는 원소가 없어요.')),
-        Wrap(alignment: WrapAlignment.center, spacing: 12, runSpacing: 12,
-          children: [for (final record in records) _tile(record, usage, maximum, desktop)]),
+        LayoutBuilder(builder: (context, constraints) {
+          final columns = desktop ? math.max(1, (constraints.maxWidth / 260).floor()) : _columns;
+          final width = (constraints.maxWidth - (columns - 1) * 6) / columns;
+          return GestureDetector(
+            onScaleStart: desktop ? null : (_) => _scaleColumns = _columns,
+            onScaleUpdate: desktop ? null : (details) {
+              if (details.pointerCount < 2) return;
+              final next = (_scaleColumns / details.scale).round().clamp(1, 6);
+              if (next != _columns) setState(() => _columns = next);
+            },
+            child: Wrap(alignment: WrapAlignment.center, spacing: 6, runSpacing: 6,
+              children: [for (final record in records) _tile(record, usage, maximum, desktop, width: width)]));
+        }),
       ]))));
     return Scaffold(appBar: AppBar(title: const Text('모든 생각 보기')),
       body: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
