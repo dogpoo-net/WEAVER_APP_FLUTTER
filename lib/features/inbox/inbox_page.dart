@@ -1,3 +1,4 @@
+import 'paragraph_tag_input.dart';
 import 'memo_boxes.dart';
 import 'tag_colors.dart';
 import '../../app_theme.dart';
@@ -40,6 +41,7 @@ class InboxPage extends StatefulWidget {
 
 class _InboxPageState extends State<InboxPage> {
   final _draft = TextEditingController();
+  final _draftTags = <String>{};
   final _focus = FocusNode();
   final List<Note> _notes = [];
   String _query = '';
@@ -114,6 +116,7 @@ class _InboxPageState extends State<InboxPage> {
       if (_editing != null && !_notes.contains(_editing)) {
         _editing = null;
         _draft.clear();
+      _draftTags.clear();
       }
     });
     _persist();
@@ -215,6 +218,7 @@ class _InboxPageState extends State<InboxPage> {
         restoreWordColors({});
         _notes.clear();
         _draft.clear();
+      _draftTags.clear();
         _editing = null;
         _storageError = null;
         _restoreBlocked = false;
@@ -353,7 +357,8 @@ class _InboxPageState extends State<InboxPage> {
           .showSnackBar(const SnackBar(content: Text('태그와 함께 원소 내용을 입력해주세요.')));
       return;
     }
-    final record = elements.add(_draft.text, replaceTags: _editing != null);
+    final input = [_draft.text, ..._draftTags.map((tag) => '#$tag')].join(' ');
+    final record = elements.add(input, replaceTags: _editing != null);
     setState(() {
       if (_editing == null) {
         _notes.insert(0, Note(record.text));
@@ -362,6 +367,7 @@ class _InboxPageState extends State<InboxPage> {
       }
       _editing = null;
       _draft.clear();
+      _draftTags.clear();
     });
     ScaffoldMessenger.of(
       context,
@@ -500,7 +506,8 @@ class _InboxPageState extends State<InboxPage> {
     setState(() {
       _editing = note;
       final tags = elements.records[note.content.trim()]?.tags ?? <String>{};
-      _draft.text = [note.content, ...tags.map((t) => '#$t')].join(' ');
+      _draftTags..clear()..addAll(tags);
+      _draft.text = note.content;
     });
     _focus.requestFocus();
   }
@@ -648,7 +655,13 @@ class _InboxPageState extends State<InboxPage> {
               focusNode: _focus,
               minLines: 4,
               maxLines: 8,
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) {
+                final completed = takeCompletedParagraphTags(_draft.value);
+                setState(() {
+                  _draftTags.addAll(completed.tags);
+                  if (completed.tags.isNotEmpty) _draft.value = completed.value;
+                });
+              },
               decoration: const InputDecoration(
                 filled: false,
                 border: InputBorder.none,
@@ -659,6 +672,13 @@ class _InboxPageState extends State<InboxPage> {
               ),
             ),
           ),
+          if (_draftTags.isNotEmpty) Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Wrap(spacing: 6, runSpacing: 4, children: [
+              for (final tag in _draftTags) InputChip(
+                label: Text('#$tag'), visualDensity: VisualDensity.compact,
+                onDeleted: () => setState(() => _draftTags.remove(tag))),
+            ])),
           const SizedBox(height: 12),
           Wrap(
             spacing: 16,
