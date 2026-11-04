@@ -37,9 +37,11 @@ class WorkspaceSnapshot {
     this.hiddenTagList = const [],
     this.tagColors = const {},
     this.boxes = const [],
+    this.boxFolders = const [],
   ]);
   final List<String> folders;
   final List<MemoBox> boxes;
+  final List<String> boxFolders;
   final List<String> paragraphFolderList, elementFolderList, hiddenTagList;
   final List<String> tagFolders;
   final Map<String, String> tagAssignments;
@@ -55,7 +57,8 @@ class WorkspaceSnapshot {
   };
   static String encode(List<Note> notes) => jsonEncode({
     'version': 1,
-    'memoBoxes': [for (final box in memoBoxes) {'name': box.name, 'color': box.color, 'ids': box.elementIds.toList()}],
+    'memoBoxFolders': memoBoxFolders,
+    'memoBoxes': [for (final box in memoBoxes) {'name': box.name, 'color': box.color, 'folder': box.folder, 'ids': box.elementIds.toList()}],
     'folders': projectFolders,
     'paragraphFolders': paragraphFolders,
     'elementFolders': elementFolders,
@@ -230,12 +233,17 @@ class WorkspaceSnapshot {
       elementFolderNames,
       List<String>.from(data['hiddenSearchTags'] ?? []),
       tagColors,
-      [for (final box in (data['memoBoxes'] ?? []) as List) MemoBox(box['name'] as String, color: box['color'] as int, ids: List<String>.from(box['ids']))],
+      [for (final box in (data['memoBoxes'] ?? []) as List) MemoBox(box['name'] as String, color: box['color'] as int, folder: box['folder'] as String?, ids: List<String>.from(box['ids']))],
+      List<String>.from(data['memoBoxFolders'] ?? []),
     );
   }
 
   void apply() {
     memoBoxes..clear()..addAll(boxes);
+    memoBoxFolders..clear()..addAll(boxFolders);
+    for (final box in boxes) {
+      if (box.folder != null && !memoBoxFolders.contains(box.folder)) memoBoxFolders.add(box.folder!);
+    }
     hashtagColors..clear()..addAll(tagColors);
     hashtagFolders
       ..clear()

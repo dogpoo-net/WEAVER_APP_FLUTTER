@@ -3,7 +3,7 @@ import 'dart:async';
 import 'tag_colors.dart';
 import 'package:flutter/material.dart';
 
-enum _Kind { project, paragraph, element, tag }
+enum _Kind { project, paragraph, element, box, tag }
 class _MenuDrag {
   const _MenuDrag(this.kind, this.index);
   final _Kind kind;
@@ -20,7 +20,7 @@ class WorkspaceMenu extends StatefulWidget {
     this.onBoxChanged, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
   final bool embedded;
   final VoidCallback? onBoxChanged;
-  static const createBox = -1000007;
+  static const createBox = -1000007, createBoxFolder = -1000008;
   final VoidCallback? onTagColorChanged;
   final ValueChanged<int>? onSelected;
   final VoidCallback? onHide, onPin;
@@ -47,20 +47,20 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   Offset? _pointer;
   List<String> _items(_Kind kind) => switch (kind) {
     _Kind.project => widget.projects, _Kind.paragraph => widget.paragraphs,
-    _Kind.element => widget.elements, _Kind.tag => widget.tags,
+    _Kind.box => memoBoxes.map((box) => box.name).toList(), _Kind.element => widget.elements, _Kind.tag => widget.tags,
   };
   List<String> _folders(_Kind kind) => switch (kind) {
     _Kind.project => widget.folders, _Kind.paragraph => widget.paragraphFolders,
-    _Kind.element => widget.elementFolders, _Kind.tag => widget.tagFolders,
+    _Kind.box => memoBoxFolders, _Kind.element => widget.elementFolders, _Kind.tag => widget.tagFolders,
   };
   String _label(_Kind kind) => switch (kind) {
-    _Kind.project => '프로젝트', _Kind.paragraph => '문단', _Kind.element => '원소', _Kind.tag => '해시태그',
+    _Kind.project => '프로젝트', _Kind.paragraph => '문단', _Kind.box => '메모상자', _Kind.element => '원소', _Kind.tag => '해시태그',
   };
   void _sync() {
     _placements = {for (final kind in _Kind.values) kind: List.generate(_items(kind).length, (i) {
       final names = switch (kind) {
         _Kind.project => widget.projectFolderNames, _Kind.paragraph => widget.paragraphFolderNames,
-        _Kind.element => widget.elementFolderNames, _Kind.tag => <String?>[],
+        _Kind.box => memoBoxes.map((box) => box.folder).toList(), _Kind.element => widget.elementFolderNames, _Kind.tag => <String?>[],
       };
       return kind == _Kind.tag ? widget.tagFolderNames[widget.tags[i]] : (i < names.length ? names[i] : null);
     })};
@@ -93,7 +93,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       minVerticalPadding: kind == _Kind.tag ? 2 : null,
       visualDensity: kind == _Kind.tag ? const VisualDensity(vertical: -3) : null,
       title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
-        style: nested || kind == _Kind.project || kind == _Kind.paragraph ? const TextStyle(fontSize: 13) : null),
+        style: nested || kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.box ? const TextStyle(fontSize: 13) : null),
       trailing: kind == _Kind.tag ? IconButton(
         tooltip: '#$name 색상 변경',
         constraints: const BoxConstraints.tightFor(width: 36, height: 36),
@@ -109,16 +109,24 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           shape: BoxShape.circle,
           color: hashtagColors.containsKey(name) ? Color(hashtagColors[name]!) : Theme.of(context).colorScheme.outlineVariant,
           border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: .4)))),
-      ) : null,
-      leading: Icon(switch (kind) { _Kind.tag => Icons.tag, _Kind.element => Icons.circle_outlined,
+      ) : kind == _Kind.box ? IconButton(tooltip: '$name 상자 색상 변경',
+        icon: Icon(Icons.circle, size: 16, color: Color(memoBoxes[index].color)), onPressed: () async {
+          final box = memoBoxes[index];
+          final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
+          if (!mounted || color == null) return;
+          setState(() => box.color = color.toARGB32()); widget.onBoxChanged?.call();
+        }) : null,
+      leading: Icon(switch (kind) { _Kind.box => Icons.inventory_2_outlined, _Kind.tag => Icons.tag, _Kind.element => Icons.circle_outlined,
         _Kind.paragraph => Icons.subject, _Kind.project => Icons.article_outlined }, size: 20),
-      onTap: () => _select(switch (kind) { _Kind.project => index, _Kind.tag => -3 - index,
+      onTap: () => _select(switch (kind) { _Kind.box => -1100000 - index, _Kind.project => index, _Kind.tag => -3 - index,
         _Kind.paragraph => WorkspaceMenu.paragraphChoice(index), _Kind.element => WorkspaceMenu.elementChoice(index) }));
     final draggable = switch (kind) {
       _Kind.project => widget.onProjectMoved != null, _Kind.paragraph => widget.onParagraphMoved != null,
-      _Kind.element => widget.onElementMoved != null, _Kind.tag => widget.onTagMoved != null,
+      _Kind.box => true, _Kind.element => widget.onElementMoved != null, _Kind.tag => widget.onTagMoved != null,
     };
     if (!draggable) return tile;
+    final child = kind == _Kind.box ? MemoBoxTarget(box: memoBoxes[index],
+      onChanged: () { setState(() {}); widget.onBoxChanged?.call(); }, child: tile) : tile;
     final data = _MenuDrag(kind, index);
     final feedback = Material(elevation: 6, borderRadius: BorderRadius.circular(16),
       child: Padding(padding: const EdgeInsets.all(12), child: Text(label)));
@@ -127,10 +135,10 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
     if (desktop) { return Draggable<_MenuDrag>(data: data, feedback: feedback, maxSimultaneousDrags: 1,
       childWhenDragging: Opacity(opacity: .35, child: tile), onDragStarted: _startDrag,
-      onDragUpdate: update, onDragEnd: end, child: tile); }
+      onDragUpdate: update, onDragEnd: end, child: child); }
     return LongPressDraggable<_MenuDrag>(data: data, feedback: feedback, maxSimultaneousDrags: 1,
       childWhenDragging: Opacity(opacity: .35, child: tile), onDragStarted: _startDrag,
-      onDragUpdate: update, onDragEnd: end, child: tile);
+      onDragUpdate: update, onDragEnd: end, child: child);
   }
   Widget _target(_Kind kind, String? folder, Widget child, {String? targetId}) => DragTarget<_MenuDrag>(
     key: ValueKey(targetId ?? 'drop-${kind.name}-${folder ?? 'unfiled'}'),
@@ -139,6 +147,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       final index = d.data.index;
       setState(() => _placements[kind]![index] = folder);
       switch (kind) {
+        case _Kind.box: memoBoxes[index].folder = folder; widget.onBoxChanged?.call();
         case _Kind.project: widget.onProjectMoved?.call(index, folder);
         case _Kind.paragraph: widget.onParagraphMoved?.call(index, folder);
         case _Kind.element: widget.onElementMoved?.call(index, folder);
@@ -152,12 +161,13 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   Widget _heading(_Kind kind) => Padding(padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 12, 4),
     child: Row(children: [
       Expanded(child: Text(_label(kind), style: Theme.of(context).textTheme.labelMedium)),
+      if (kind == _Kind.box) IconButton(tooltip: '메모상자 만들기', iconSize: 18, visualDensity: VisualDensity.compact, icon: const Icon(Icons.add), onPressed: () => _select(WorkspaceMenu.createBox)),
       if (kind == _Kind.project || kind == _Kind.paragraph) IconButton(tooltip: kind == _Kind.project ? '프로젝트 생성' : '문단 추가', visualDensity: VisualDensity.compact,
         iconSize: 18, onPressed: () => _select(kind == _Kind.project ? WorkspaceMenu.createProject : WorkspaceMenu.createParagraph), icon: const Icon(Icons.add)),
       IconButton(tooltip: kind == _Kind.project ? '폴더 만들기' : '${_label(kind)} 폴더 만들기',
         visualDensity: VisualDensity.compact, iconSize: 18,
         onPressed: () => _select(switch (kind) {
-          _Kind.project => WorkspaceMenu.createFolder, _Kind.tag => WorkspaceMenu.createTagFolder,
+          _Kind.box => WorkspaceMenu.createBoxFolder, _Kind.project => WorkspaceMenu.createFolder, _Kind.tag => WorkspaceMenu.createTagFolder,
           _Kind.paragraph => WorkspaceMenu.createParagraphFolder, _Kind.element => WorkspaceMenu.createElementFolder,
         }), icon: const Icon(Icons.create_new_folder_outlined)),
     ]));
@@ -179,28 +189,11 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       for (var i = 0; i < items.length; i++)
         if (placements[i] == null || !folders.contains(placements[i])) _item(kind, i),
       if (items.isEmpty) Padding(padding: const EdgeInsets.all(16), child: Text('아직 ${_label(kind)}${kind == _Kind.paragraph ? '이' : '가'} 없어요')),
-      if (kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.tag)
+      if (kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.box || kind == _Kind.tag)
         _target(kind, null, const SizedBox(height: 14, width: double.infinity),
           targetId: kind == _Kind.tag ? 'drop-tag-unfiled' : 'drop-${kind.name}-outside'),
     ];
   }
-  Widget _boxes() => Column(children: [
-    Padding(padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 12, 4), child: Row(children: [
-      Expanded(child: Text('메모상자', style: Theme.of(context).textTheme.labelMedium)),
-      IconButton(tooltip: '메모상자 만들기', iconSize: 18, icon: const Icon(Icons.add), onPressed: () => _select(WorkspaceMenu.createBox)),
-    ])),
-    for (var i = 0; i < memoBoxes.length; i++) MemoBoxTarget(box: memoBoxes[i],
-      onChanged: () { setState(() {}); widget.onBoxChanged?.call(); },
-      child: ListTile(dense: true, leading: const Icon(Icons.inventory_2_outlined, size: 20),
-        title: Text(memoBoxes[i].name, maxLines: 1, overflow: TextOverflow.ellipsis),
-        onTap: () => _select(-1100000 - i), trailing: IconButton(tooltip: '${memoBoxes[i].name} 상자 색상 변경',
-          icon: Icon(Icons.circle, size: 16, color: Color(memoBoxes[i].color)), onPressed: () async {
-            final box = memoBoxes[i];
-            final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
-            if (!mounted || color == null) return;
-            setState(() => box.color = color.toARGB32()); widget.onBoxChanged?.call();
-          }))),
-  ]);
   @override
   Widget build(BuildContext context) {
     final content = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -218,11 +211,13 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       Expanded(child: SizedBox(key: _viewport, child: Scrollbar(controller: _scroll,
         child: CustomScrollView(controller: _scroll, key: const ValueKey('menu-projects'), slivers: [
           for (final kind in _Kind.values.where((kind) => kind != _Kind.element)) SliverMainAxisGroup(slivers: [
-            if (kind == _Kind.tag) SliverToBoxAdapter(child: _boxes()),
+            if (kind != _Kind.project) SliverToBoxAdapter(child: Divider(
+              key: ValueKey('section-divider-${kind.name}'), height: 13, thickness: 1, indent: 20, endIndent: 20,
+              color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .45))),
             SliverPersistentHeader(pinned: true, delegate: _SectionHeading(kind: kind.name,
               backgroundColor: widget.embedded ? Theme.of(context).colorScheme.surface
                   : (DialogTheme.of(context).backgroundColor ?? Theme.of(context).colorScheme.surfaceContainerHigh),
-              child: (kind == _Kind.project || kind == _Kind.paragraph)
+              child: (kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.box)
               ? _target(kind, null, _heading(kind)) : _heading(kind))),
             SliverList(delegate: SliverChildListDelegate(_section(kind))),
           ]),

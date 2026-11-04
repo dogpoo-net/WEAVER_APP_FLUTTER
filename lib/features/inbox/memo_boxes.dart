@@ -3,12 +3,14 @@ import 'element_store.dart';
 import 'tag_colors.dart';
 
 class MemoBox {
-  MemoBox(this.name, {this.color = 0xFF90A4AE, Iterable<String> ids = const []}) : elementIds = {...ids};
+  MemoBox(this.name, {this.color = 0xFF90A4AE, this.folder, Iterable<String> ids = const []}) : elementIds = {...ids};
   final String name;
   int color;
+  String? folder;
   final Set<String> elementIds;
 }
 final memoBoxes = <MemoBox>[];
+final memoBoxFolders = <String>[];
 class MemoDrag {
   const MemoDrag(this.id);
   final String id;

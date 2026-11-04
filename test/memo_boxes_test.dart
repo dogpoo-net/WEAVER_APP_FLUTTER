@@ -6,14 +6,17 @@ import 'package:weaver/features/inbox/workspace_storage.dart';
 import 'package:weaver/features/inbox/all_thoughts_page.dart';
 
 void main() {
-  setUp(() { memoBoxes.clear(); elements.clear(); });
+  setUp(() { memoBoxes.clear(); memoBoxFolders.clear(); elements.clear(); });
   test('box membership and labels survive restore with stable element identity', () {
     final record = elements.add('보관할 메모');
-    memoBoxes.add(MemoBox('자료', color: 0xFF64B5F6, ids: [record.id]));
+    memoBoxFolders.add('분류');
+    memoBoxes.add(MemoBox('자료', color: 0xFF64B5F6, folder: '분류', ids: [record.id]));
     final data = WorkspaceSnapshot.encode([]);
     memoBoxes.clear();
     WorkspaceSnapshot.decode(data).apply();
     expect(memoBoxes.single.name, '자료');
+    expect(memoBoxes.single.folder, '분류');
+    expect(memoBoxFolders, ['분류']);
     expect(memoBoxes.single.color, 0xFF64B5F6);
     expect(memoBoxes.single.elementIds, {record.id});
   });

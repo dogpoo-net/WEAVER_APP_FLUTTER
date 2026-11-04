@@ -68,6 +68,7 @@ class _InboxPageState extends State<InboxPage> {
     hashtagFolderAssignments.clear();
     hashtagColors.clear();
     memoBoxes.clear();
+    memoBoxFolders.clear();
     elements.addListener(_elementDeleted);
     elements.onProjectChanged = _persist;
     elements.availableParagraphs = () => _availableParagraphs;
@@ -150,7 +151,7 @@ class _InboxPageState extends State<InboxPage> {
         const SingleActivator(LogicalKeyboardKey.numpadEnter): () => finish(folderName.trim()),
         const SingleActivator(LogicalKeyboardKey.escape): () => finish(null),
       }, child: AlertDialog(
-        title: Text(tag ? '해시태그 폴더 만들기' : kind == 'paragraph' ? '문단 폴더 만들기' : kind == 'element' ? '원소 폴더 만들기' : '폴더 만들기'),
+        title: Text(tag ? '해시태그 폴더 만들기' : kind == 'paragraph' ? '문단 폴더 만들기' : kind == 'box' ? '메모상자 폴더 만들기' : kind == 'element' ? '원소 폴더 만들기' : '폴더 만들기'),
         content: TextField(onChanged: (value) => folderName = value, autofocus: true,
           decoration: const InputDecoration(labelText: '폴더 이름'), textInputAction: TextInputAction.done,
           onSubmitted: (value) => finish(value.trim())),
@@ -161,7 +162,7 @@ class _InboxPageState extends State<InboxPage> {
       ));
     });
     if (!mounted || name == null || name.isEmpty) return;
-    final folders = tag ? hashtagFolders : kind == 'paragraph' ? paragraphFolders : kind == 'element' ? elementFolders : projectFolders;
+    final folders = kind == 'box' ? memoBoxFolders : tag ? hashtagFolders : kind == 'paragraph' ? paragraphFolders : kind == 'element' ? elementFolders : projectFolders;
     if (!folders.contains(name)) {
       setState(() => folders.add(name));
       await _persist();
@@ -228,6 +229,7 @@ class _InboxPageState extends State<InboxPage> {
         hashtagFolderAssignments.clear();
     hashtagColors.clear();
     memoBoxes.clear();
+    memoBoxFolders.clear();
         elements.clear();
         restoreWordColors({});
         _notes.clear();
@@ -564,7 +566,7 @@ class _InboxPageState extends State<InboxPage> {
     if (mounted &&
         (choice == WorkspaceMenu.createFolder ||
             choice == WorkspaceMenu.createTagFolder ||
-            choice == WorkspaceMenu.createParagraphFolder || choice == WorkspaceMenu.createElementFolder)) {
+            choice == WorkspaceMenu.createParagraphFolder || choice == WorkspaceMenu.createElementFolder || choice == WorkspaceMenu.createBoxFolder)) {
       await _menu();
     }
   }
@@ -575,6 +577,7 @@ class _InboxPageState extends State<InboxPage> {
     List<String> tags,
   ) async {
     if (!mounted || choice == null || choice == -1) return;
+    if (choice == WorkspaceMenu.createBoxFolder) { await _createFolder(kind: 'box'); return; }
     if (choice == WorkspaceMenu.createBox) {
       final box = await createMemoBox(context);
       if (box != null) { await _persist(); if (mounted) setState(() {}); }
