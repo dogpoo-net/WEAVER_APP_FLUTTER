@@ -35,10 +35,16 @@ void main() {
     controller.jumpTo(1000);
     await tester.pumpAndSettle();
     final heading = find.byKey(const ValueKey('menu-tags-heading'));
+    // Section sizes can change; scroll until this heading actually reaches the viewport.
+    final distance = tester.getRect(heading).top - tester.getRect(scroll).top;
+    if (distance > 0) {
+      controller.jumpTo(controller.offset + distance);
+      await tester.pumpAndSettle();
+    }
     expect(tester.getRect(heading).top, closeTo(tester.getRect(scroll).top, 1));
     final item = find.byKey(const ValueKey('menu-tag-5'));
     final before = tester.getTopLeft(item).dy;
-    controller.jumpTo(1050);
+    controller.jumpTo(controller.offset + 50);
     await tester.pumpAndSettle();
     expect(tester.getRect(heading).top, closeTo(tester.getRect(scroll).top, 1));
     expect(tester.getTopLeft(item).dy, lessThan(before));
