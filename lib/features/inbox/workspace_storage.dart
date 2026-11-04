@@ -102,13 +102,27 @@ class WorkspaceSnapshot {
     if (data['version'] != 1) {
       throw const FormatException('Unsupported version');
     }
+    List<ElementBinding> bindings(dynamic paragraph) {
+      final text = paragraph['text'] as String;
+      final result = [for (final link in (paragraph['bindings'] ?? []) as List)
+        ElementBinding(link['id'] as String, link['start'] as int, link['end'] as int)]
+        ..sort((a, b) => a.start.compareTo(b.start));
+      var end = 0;
+      for (final link in result) {
+        if (link.id.isEmpty || link.start < end || link.end <= link.start || link.end > text.length) {
+          throw const FormatException('Invalid element binding');
+        }
+        end = link.end;
+      }
+      return result;
+    }
     List<Paragraph> paragraphs(dynamic raw) => (raw as List)
         .map(
           (p) => Paragraph(
             p['text'] as String,
             ParagraphRole.values.byName(p['role'] as String),
             tags: Set<String>.from(p['tags'] ?? []),
-            bindings: [for (final link in (p['bindings'] ?? []) as List) ElementBinding(link['id'] as String, link['start'] as int, link['end'] as int)],
+            bindings: bindings(p),
           ),
         )
         .toList();

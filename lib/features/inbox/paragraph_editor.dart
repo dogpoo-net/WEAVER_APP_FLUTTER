@@ -237,8 +237,9 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     final start =
         (selection.isValid ? selection.start : c.text.length) - prefix.length;
     final end = selection.isValid ? selection.end : start;
-    if (c is BoundTextController && elements.records.containsKey(word)) {
-      c.bind(start, end, elements.records[word]!.id, word);
+    if (c is BoundTextController) {
+      final record = elements.records[word] ?? elements.add(word);
+      c.bind(start, end, record.id, word);
     } else {
       c.value = TextEditingValue(text: c.text.replaceRange(start, end, word),
         selection: TextSelection.collapsed(offset: start + word.length));
@@ -411,7 +412,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                                     if (!mounted) return;
                                     final offset = controller.selection.extentOffset;
                                     for (final link in controller.bindings) {
-                                      if (offset >= link.start && offset < link.end) {
+                                      if (offset >= link.start && offset <= link.end) {
                                         for (final record in elements.records.values) {
                                           if (record.id == link.id) { showElementMetadata(context, record.text); return; }
                                         }
