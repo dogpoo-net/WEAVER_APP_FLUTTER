@@ -133,14 +133,6 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
           icon: const Icon(Icons.add, size: 18), label: const Text('상자 만들기'), onPressed: () async {
             final box = await createMemoBox(context); if (mounted && box != null) _changed();
           })]),
-        if (memoBoxes.isNotEmpty) SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal, children: [
-          for (final box in memoBoxes) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
-            box: box, onChanged: _changed, child: ActionChip(avatar: Icon(Icons.circle, color: Color(box.color), size: 14),
-              label: Text(box.name), onPressed: () async {
-                await Navigator.push(context, MaterialPageRoute(builder: (_) => MemoBoxPage(box: box, onChanged: _changed)));
-                if (mounted) setState(() {});
-              }))),
-        ])),
         if (!desktop) Row(mainAxisAlignment: MainAxisAlignment.end, children: [
           IconButton(tooltip: '확대', onPressed: _columns > 1 ? () => setState(() => _columns--) : null, icon: const Icon(Icons.zoom_in)),
           Text('$_columns열'),
@@ -163,6 +155,14 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
         }),
       ]))));
     return Scaffold(appBar: AppBar(title: const Text('모든 생각 보기')),
+      bottomNavigationBar: memoBoxes.isEmpty ? null : SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), child: SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal, children: [
+          for (final box in memoBoxes) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
+            box: box, onChanged: _changed, child: ActionChip(avatar: Icon(Icons.circle, color: Color(box.color), size: 14),
+              label: Text(box.name), onPressed: () async {
+                await Navigator.push(context, MaterialPageRoute(builder: (_) => MemoBoxPage(box: box, onChanged: _changed)));
+                if (mounted) setState(() {});
+              }))),
+        ])))),
       body: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
         if (desktop && constraints.maxWidth >= 760) { return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(child: grid), const VerticalDivider(width: 1), SizedBox(width: 320, child: _relations(usage, desktop)),
