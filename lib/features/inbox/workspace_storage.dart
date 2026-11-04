@@ -1,3 +1,4 @@
+import 'element_binding.dart';
 import 'memo_boxes.dart';
 import 'tag_colors.dart';
 import 'project_folders.dart';
@@ -49,6 +50,7 @@ class WorkspaceSnapshot {
   static Map<String, dynamic> paragraph(Paragraph p) => {
     'text': p.text,
     'role': p.role.name,
+    'bindings': p.bindings.map((link) => link.toJson()).toList(),
     'tags': p.tags.toList(),
   };
   static String encode(List<Note> notes) => jsonEncode({
@@ -106,6 +108,7 @@ class WorkspaceSnapshot {
             p['text'] as String,
             ParagraphRole.values.byName(p['role'] as String),
             tags: Set<String>.from(p['tags'] ?? []),
+            bindings: [for (final link in (p['bindings'] ?? []) as List) ElementBinding(link['id'] as String, link['start'] as int, link['end'] as int)],
           ),
         )
         .toList();

@@ -1,3 +1,4 @@
+import 'element_binding.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/rendering.dart';
@@ -15,10 +16,11 @@ import 'project_page.dart';
 enum ParagraphRole { title, subtitle, body }
 
 class Paragraph {
-  const Paragraph(this.text, this.role, {this.tags = const {}});
+  const Paragraph(this.text, this.role, {this.tags = const {}, this.bindings = const []});
   final String text;
   final ParagraphRole role;
   final Set<String> tags;
+  final List<ElementBinding> bindings;
 }
 
 class ParagraphEditor extends StatefulWidget {
@@ -81,7 +83,12 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
   static const _labels = ['제목', '부제', '본문'];
   List<String> get words => (widget.words.isEmpty && elements.records.isEmpty ? starterWords : widget.words)
       .where(elements.isSearchable).toList();
-  void _refreshSearchableWords() { if (mounted) setState(() {}); }
+  void _refreshSearchableWords() {
+    if (!mounted) return;
+    final records = {for (final record in elements.records.values) record.id: record.text};
+    for (final controller in _controllers.whereType<BoundTextController>()) { controller.sync(records); }
+    setState(() {});
+  }
 
   @override
   void initState() {
@@ -90,7 +97,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     elements.addListener(_refreshSearchableWords);
     _tags = TextEditingController(text: widget.initialTags.map((t) => '#$t').join(' '));
     for (final p in widget.projectEditing ? widget.initial : widget.initial.take(1)) {
-      _add(widget.projectEditing ? p : Paragraph(p.text, ParagraphRole.body));
+      _add(widget.projectEditing ? p : Paragraph(p.text, ParagraphRole.body, bindings: p.bindings));
     }
     if (_controllers.isEmpty) _add(const Paragraph('', ParagraphRole.body));
   }
@@ -115,8 +122,27 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     }
   }
 
+  List<ElementBinding> _savedBindings(BoundTextController controller) {
+    final text = controller.text;
+    final pattern = RegExp(r'(^|\s)#[^\s#.,!?;:،؛؟()\[\]{}]+', multiLine: true);
+    final matches = pattern.allMatches(text).toList();
+    int offset(int position) {
+      var removed = 0;
+      for (final match in matches) {
+        final start = match.start + match.group(1)!.length;
+        removed += (position - start).clamp(0, match.end - start);
+      }
+      final stripped = text.replaceAllMapped(pattern, (m) => m.group(1)!);
+      final leading = stripped.length - stripped.trimLeft().length;
+      return position - removed - leading;
+    }
+    return [for (final link in controller.bindings)
+      if (!matches.any((m) => m.start < link.end && m.end > link.start))
+        ElementBinding(link.id, offset(link.start), offset(link.end))];
+  }
+
   void _add(Paragraph p) {
-    final controller = TextEditingController(text: p.text);
+    final controller = BoundTextController(p.text, p.bindings);
     _controllers.add(controller);
     controller.addListener(() {
       _moveCompletedTags(controller);
@@ -211,10 +237,12 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     final start =
         (selection.isValid ? selection.start : c.text.length) - prefix.length;
     final end = selection.isValid ? selection.end : start;
-    c.value = TextEditingValue(
-      text: c.text.replaceRange(start, end, word),
-      selection: TextSelection.collapsed(offset: start + word.length),
-    );
+    if (c is BoundTextController && elements.records.containsKey(word)) {
+      c.bind(start, end, elements.records[word]!.id, word);
+    } else {
+      c.value = TextEditingValue(text: c.text.replaceRange(start, end, word),
+        selection: TextSelection.collapsed(offset: start + word.length));
+    }
     setState(() => _dirty = true);
     _focus[_active].requestFocus();
   }
@@ -243,9 +271,11 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     setState(() {
       // Copy text into this project's own sentence; no link to the saved source.
       if (_controllers[_active].text.trim().isEmpty && _fieldKeys[_active].currentContext != null) {
-        _controllers[_active].text = picked.text;
+        final controller = _controllers[_active] as BoundTextController;
+        controller.text = picked.text;
+        controller.bindings = List.of(picked.bindings);
       } else {
-        _add(Paragraph(picked.text, ParagraphRole.body));
+        _add(Paragraph(picked.text, ParagraphRole.body, bindings: picked.bindings));
         _active = _controllers.length - 1;
       }
       _dirty = true;
@@ -375,6 +405,20 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                               onTap: () => setState(() {
                                 _active = i;
                                 _scheduleReveal();
+                                final controller = _controllers[i];
+                                if (controller is BoundTextController) {
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    if (!mounted) return;
+                                    final offset = controller.selection.extentOffset;
+                                    for (final link in controller.bindings) {
+                                      if (offset >= link.start && offset < link.end) {
+                                        for (final record in elements.records.values) {
+                                          if (record.id == link.id) { showElementMetadata(context, record.text); return; }
+                                        }
+                                      }
+                                    }
+                                  });
+                                }
                               }),
                               onChanged: (_) => setState(() {
                                 _active = i;
@@ -500,9 +544,10 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                         for (var i = 0; i < _controllers.length; i++)
                           if (_controllers[i].text.trim().isNotEmpty)
                             if (widget.projectEditing)
-                              Paragraph(_controllers[i].text, _roles[i])
+                              Paragraph(_controllers[i].text, _roles[i], bindings: List.of((_controllers[i] as BoundTextController).bindings))
                             else
                               Paragraph(parseTaggedInput(_controllers[i].text).text, ParagraphRole.body,
+                                bindings: _savedBindings(_controllers[i] as BoundTextController),
                                 tags: {...parseTaggedInput(_controllers[i].text).tags,
                                   ..._tags.text.split(RegExp(r'\s+')).map((t) => t.replaceFirst(RegExp(r'^#'), '').toLowerCase()).where((t) => t.isNotEmpty)}),
                       ];

@@ -1,3 +1,4 @@
+import 'element_binding.dart';
 import 'paragraph_tag_input.dart';
 import 'memo_boxes.dart';
 import 'tag_colors.dart';
@@ -86,6 +87,19 @@ class _InboxPageState extends State<InboxPage> {
 
   void _elementRenamed(String oldText, String newText) {
     for (final note in _notes) {
+      final paragraphs = note.project?.paragraphs ?? note.paragraphs;
+      if (paragraphs != null) {
+        final records = {for (final record in elements.records.values) record.id: record.text};
+        for (var i = 0; i < paragraphs.length; i++) {
+          final paragraph = paragraphs[i];
+          if (paragraph.bindings.isEmpty) continue;
+          final controller = BoundTextController(paragraph.text, paragraph.bindings)..sync(records);
+          paragraphs[i] = Paragraph(controller.text, paragraph.role, tags: paragraph.tags, bindings: List.of(controller.bindings));
+          controller.dispose();
+        }
+        note.content = paragraphs.map((p) => p.text).join('\n\n');
+        if (note.project != null) elements.indexProject(note.project!);
+      }
       if (note.project == null &&
           note.paragraphs == null &&
           note.content == oldText) {
@@ -414,7 +428,7 @@ class _InboxPageState extends State<InboxPage> {
 
   List<Paragraph> get _availableParagraphs => _notes
       .where((n) => n.project == null && n.paragraphs != null)
-      .map((n) => Paragraph(n.content, ParagraphRole.body, tags: Set.of(n.tags))).toList();
+      .map((n) => Paragraph(n.content, ParagraphRole.body, tags: Set.of(n.tags), bindings: n.paragraphs!.single.bindings)).toList();
 
   List<String> get _allTags => {...elements.tags,
     ..._notes.where((n) => n.project == null && n.paragraphs != null).expand((n) => n.tags)}.toList()..sort();
