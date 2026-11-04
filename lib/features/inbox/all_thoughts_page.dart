@@ -129,10 +129,6 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
           onChanged: (value) => setState(() => _query = value),
           decoration: const InputDecoration(hintText: '원소에서 찾기', prefixIcon: Icon(Icons.search), isDense: true)),
         const SizedBox(height: 12),
-        Row(children: [const Text('메모상자'), const Spacer(), TextButton.icon(
-          icon: const Icon(Icons.add, size: 18), label: const Text('상자 만들기'), onPressed: () async {
-            final box = await createMemoBox(context); if (mounted && box != null) _changed();
-          })]),
         if (!desktop) Row(mainAxisAlignment: MainAxisAlignment.end, children: [
           IconButton(tooltip: '확대', onPressed: _columns > 1 ? () => setState(() => _columns--) : null, icon: const Icon(Icons.zoom_in)),
           Text('$_columns열'),
@@ -155,13 +151,19 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
         }),
       ]))));
     return Scaffold(appBar: AppBar(title: const Text('모든 생각 보기')),
-      bottomNavigationBar: memoBoxes.isEmpty ? null : SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), child: SizedBox(height: 48, child: ListView(scrollDirection: Axis.horizontal, children: [
+      bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), child: SizedBox(height: 48, child: Row(children: [Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
           for (final box in memoBoxes) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
             box: box, onChanged: _changed, child: ActionChip(avatar: Icon(Icons.circle, color: Color(box.color), size: 14),
               label: Text(box.name), onPressed: () async {
                 await Navigator.push(context, MaterialPageRoute(builder: (_) => MemoBoxPage(box: box, onChanged: _changed)));
                 if (mounted) setState(() {});
               }))),
+        ])), TextButton.icon(
+          icon: const Icon(Icons.add, size: 18), label: const Text('상자 만들기'),
+          onPressed: () async {
+            final box = await createMemoBox(context);
+            if (mounted && box != null) _changed();
+          }),
         ])))),
       body: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
         if (desktop && constraints.maxWidth >= 760) { return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
