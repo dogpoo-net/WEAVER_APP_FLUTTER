@@ -54,12 +54,19 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
     for (final record in elements.records.values) { if (record.id == _selectedId) return record; }
     return null;
   }
-  void _select(String word) => setState(() => _selectedId = elements.records[word]?.id);
-  Widget _badge(String word, bool desktop) => WordBadge(
+  void _select(String word) {
+    final id = elements.records[word]?.id;
+    if (_selectedId != id) setState(() => _selectedId = id);
+  }
+  Widget _badge(String word, bool desktop) {
+    final badge = WordBadge(
     word: word, compact: true, query: _query, selected: elements.records[word]?.id == _selectedId,
     onTap: desktop ? () => _select(word) : () => showElementMetadata(context, word),
     onDoubleTap: desktop ? () { _select(word); showElementMetadata(context, word); } : null,
-  );
+    );
+    return desktop ? Listener(
+      onPointerDown: (event) { if (event.buttons == 1) _select(word); }, child: badge) : badge;
+  }
   Widget _tile(ElementRecord record, ElementUsage usage, int maximum, bool desktop, {double width = 280}) {
     final count = usage.counts[record.text] ?? 0;
     final colors = Theme.of(context).colorScheme;
@@ -188,7 +195,9 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
     ]),
       bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          SizedBox(height: 48, child: Row(children: [Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
+          SizedBox(height: 48, child: Row(children: [
+            const Padding(padding: EdgeInsetsDirectional.only(end: 8), child: Icon(Icons.inventory_2_outlined, size: 18)),
+            Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
             Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(
               key: const ValueKey('thought-filter-all'), label: const Text('전체'),
               selected: _filterBox == null && _filterTag == null, onSelected: (_) => _filter())),

@@ -48,6 +48,9 @@ void main() {
     expect(find.byKey(ValueKey('thought-$hiddenId')), findsOneWidget);
     expect(tester.widget<Text>(find.byKey(ValueKey('usage-${elements.records['관찰']!.id}'))).data, '5회');
     await tester.tap(badge);
+    await tester.pump();
+    // Relations change before the double-click timeout has elapsed.
+    expect(find.byKey(ValueKey('together-${elements.records['질문']!.id}')), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
