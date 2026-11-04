@@ -1,3 +1,4 @@
+import 'tag_colors.dart';
 import 'memo_boxes.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -18,6 +19,11 @@ class AllThoughtsPage extends StatefulWidget {
 class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
   String? _selectedId;
   String _query = '';
+  MemoBox? _filterBox;
+  String? _filterTag;
+  void _filter({MemoBox? box, String? tag}) => setState(() {
+    _filterBox = box; _filterTag = tag; _selectedId = null;
+  });
   int _columns = 2;
   int _scaleColumns = 2;
   void _changed() { setState(() {}); widget.onChanged?.call(); }
@@ -116,12 +122,16 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
   Widget build(BuildContext context) {
     final usage = ElementUsage.fromNotes(widget.notes, elements);
     final allRecords = elements.records.values.toList();
-    final records = allRecords.where((record) => record.text.toLowerCase().contains(_query.toLowerCase())).toList();
+    final tags = allRecords.expand((record) => record.tags).toSet().toList()..sort();
+    final records = allRecords.where((record) =>
+      (_filterBox == null || _filterBox!.elementIds.contains(record.id)) &&
+      (_filterTag == null || record.tags.contains(_filterTag)) &&
+      record.text.toLowerCase().contains(_query.toLowerCase())).toList();
     final maximum = usage.counts.values.fold<int>(0, math.max);
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
     final grid = SingleChildScrollView(key: const ValueKey('all-thoughts-grid'), padding: EdgeInsets.all(desktop ? 24 : 8),
       child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1000), child: Column(children: [
-        Text(_query.isEmpty ? '원소 ${records.length}개' : '원소 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.titleMedium),
+        Text(_query.isEmpty && _filterBox == null && _filterTag == null ? '원소 ${records.length}개' : '원소 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 6),
         const Text('사용 횟수는 저장된 문단·프로젝트 문장 안의 등장 횟수입니다.', textAlign: TextAlign.center),
         const SizedBox(height: 20),
@@ -135,7 +145,7 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
           IconButton(tooltip: '축소', onPressed: _columns < 6 ? () => setState(() => _columns++) : null, icon: const Icon(Icons.zoom_out)),
         ]),
         if (records.isEmpty) Padding(padding: const EdgeInsets.all(40),
-          child: Text(allRecords.isEmpty ? '아직 원소가 없어요.' : '일치하는 원소가 없어요.')),
+          child: Text(allRecords.isEmpty ? '아직 원소가 없어요.' : _filterBox != null && _query.isEmpty ? '이 상자에 담긴 메모가 없어요.' : '일치하는 원소가 없어요.')),
         LayoutBuilder(builder: (context, constraints) {
           final columns = desktop ? math.max(1, (constraints.maxWidth / 260).floor()) : _columns;
           final width = (constraints.maxWidth - (columns - 1) * 6) / columns;
@@ -151,20 +161,34 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
         }),
       ]))));
     return Scaffold(appBar: AppBar(title: const Text('모든 생각 보기')),
-      bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), child: SizedBox(height: 48, child: Row(children: [Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
-          for (final box in memoBoxes) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
-            box: box, onChanged: _changed, child: ActionChip(avatar: Icon(Icons.circle, color: Color(box.color), size: 14),
-              label: Text(box.name), onPressed: () async {
-                await Navigator.push(context, MaterialPageRoute(builder: (_) => MemoBoxPage(box: box, onChanged: _changed)));
-                if (mounted) setState(() {});
-              }))),
-        ])), TextButton.icon(
-          icon: const Icon(Icons.add, size: 18), label: const Text('상자 만들기'),
-          onPressed: () async {
-            final box = await createMemoBox(context);
-            if (mounted && box != null) _changed();
-          }),
-        ])))),
+      bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          SizedBox(height: 48, child: Row(children: [Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
+            Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(
+              key: const ValueKey('thought-filter-all'), label: const Text('전체'),
+              selected: _filterBox == null && _filterTag == null, onSelected: (_) => _filter())),
+            for (final box in memoBoxes) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
+              box: box, onChanged: _changed, child: ChoiceChip(
+                key: ValueKey('thought-filter-box-${box.name}'),
+                avatar: Icon(Icons.circle, color: Color(box.color), size: 14),
+                label: Text(box.name), selected: identical(_filterBox, box), onSelected: (_) => _filter(box: box)))),
+          ])), TextButton.icon(
+            icon: const Icon(Icons.add, size: 18), label: const Text('상자 만들기'),
+            onPressed: () async {
+              final box = await createMemoBox(context);
+              if (mounted && box != null) _changed();
+            }),
+          ])),
+          if (tags.isNotEmpty) SizedBox(height: 44, child: Row(children: [
+            const Padding(padding: EdgeInsetsDirectional.only(end: 8), child: Icon(Icons.tag, size: 18)),
+            Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
+              for (final tag in tags) Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(
+                key: ValueKey('thought-filter-tag-$tag'), label: Text('#$tag'), selected: _filterTag == tag,
+                avatar: hashtagColors.containsKey(tag) ? Icon(Icons.circle, size: 12, color: Color(hashtagColors[tag]!)) : null,
+                onSelected: (_) => _filter(tag: tag))),
+            ])),
+          ])),
+        ]))),
       body: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
         if (desktop && constraints.maxWidth >= 760) { return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(child: grid), const VerticalDivider(width: 1), SizedBox(width: 320, child: _relations(usage, desktop)),
