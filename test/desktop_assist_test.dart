@@ -21,6 +21,8 @@ void main() {
     bool selected(String word) => tester.widgetList<WordBadge>(find.byType(WordBadge))
         .any((badge) => badge.word == word && badge.selected);
     for (final entry in {'생': '생각', '독': '독서'}.entries) {
+      // Previously inserted assist text is now protected; remove it atomically.
+      controller.clear();
       // No pump between input and Ctrl: the candidate overlay still has old data.
       tester.testTextInput.updateEditingValue(TextEditingValue(text: entry.key,
         selection: const TextSelection.collapsed(offset: 1), composing: const TextRange(start: 0, end: 1)));
