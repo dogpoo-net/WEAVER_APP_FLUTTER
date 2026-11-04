@@ -18,6 +18,18 @@ class BoundTextController extends TextEditingController {
     while (start < text.length && start < next.text.length && text[start] == next.text[start]) { start++; }
     var end = text.length, nextEnd = next.text.length;
     while (end > start && nextEnd > start && text[end - 1] == next.text[nextEnd - 1]) { end--; nextEnd--; }
+    if (nextEnd == start && end > start) {
+      // A native deletion touching any part of a link removes the entire token.
+      for (final link in bindings) {
+        if (start < link.end && end > link.start) {
+          if (link.start < start) start = link.start;
+          if (link.end > end) end = link.end;
+        }
+      }
+      nextEnd = start;
+      next = TextEditingValue(text: text.replaceRange(start, end, ''),
+        selection: TextSelection.collapsed(offset: start));
+    }
     final delta = nextEnd - end;
     for (final link in bindings) {
       final overlaps = start < link.end && end > link.start || start == end && start > link.start && start < link.end;

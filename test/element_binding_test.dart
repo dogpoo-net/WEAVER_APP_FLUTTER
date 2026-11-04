@@ -18,6 +18,22 @@ void main() {
     expect(c.bindings, isEmpty);
     expect(c.text, '새 앞  뒤');
   });
+  test('backspace and forward delete remove a complete link and preserve neighbours', () {
+    for (final edited in ['앞 원 뒤', '앞 소 뒤']) {
+      final c = BoundTextController('앞 원소 뒤', [const ElementBinding('id', 2, 4)]);
+      c.value = TextEditingValue(text: edited, selection: const TextSelection.collapsed(offset: 3));
+      expect(c.text, '앞  뒤');
+      expect(c.bindings, isEmpty);
+      expect(c.selection.extentOffset, 2);
+      c.dispose();
+    }
+    final c = BoundTextController('앞 원소 뒤 연결 끝', [const ElementBinding('one', 2, 4), const ElementBinding('two', 7, 9)]);
+    c.value = const TextEditingValue(text: '앞 원 뒤 연결 끝');
+    expect(c.text, '앞  뒤 연결 끝');
+    expect(c.bindings.single.id, 'two');
+    expect(c.bindings.single.start, 5);
+    expect(c.bindings.single.end, 7);
+  });
   test('multiple links follow source updates without changing ordinary matching text', () {
     final c = BoundTextController('원소 / 원소 / 원소', [const ElementBinding('id', 0, 2), const ElementBinding('id', 5, 7)]);
     c.sync({'id': '긴 원소'});
