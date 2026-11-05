@@ -26,7 +26,7 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
         widget.onResize(next, Offset(left ? widget.size.width - next.width : 0, top ? widget.size.height - next.height : 0));
       }, onPanEnd: (_) => widget.onEnd(), child: const SizedBox.expand()));
   @override
-  Widget build(BuildContext context) => GestureDetector(
+  Widget build(BuildContext context) => GestureDetector(behavior: HitTestBehavior.opaque,
     onTap: widget.onTap, onDoubleTap: widget.onDoubleTap,
     onScaleStart: (d) { _start = widget.size; _pointer = d.focalPoint; _resized = false; },
     onScaleUpdate: (d) {

@@ -24,9 +24,11 @@ void main() {
         final a = await tester.startGesture(center - const Offset(30, 0), pointer: 1);
         final b = await tester.startGesture(center + const Offset(30, 0), pointer: 2);
         await tester.pump();
-        await a.moveTo(center - const Offset(65, 0));
-        await b.moveTo(center + const Offset(65, 0));
-        await tester.pump();
+        for (var step = 1; step <= 4; step++) {
+          await a.moveTo(center - Offset(30 + step * 12, 0));
+          await b.moveTo(center + Offset(30 + step * 12, 0));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
         await a.up(); await b.up();
       }
       await tester.pumpAndSettle();
