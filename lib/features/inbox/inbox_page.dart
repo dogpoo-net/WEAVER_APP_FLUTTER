@@ -417,6 +417,7 @@ class _InboxPageState extends State<InboxPage> {
       LogicalKeyboardKey.altLeft, LogicalKeyboardKey.altRight, LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.controlRight,
     }.contains(event.logicalKey) || event.physicalKey == PhysicalKeyboardKey.backspace ||
         event.physicalKey == PhysicalKeyboardKey.delete)) {
+      _tagCommitUntil = null;
       _newlineEchoBefore = null; _newlineEchoAfter = null; _newlineEchoUntil = null;
       _assistSubmitUntil = null; _assistInputBefore = null; _assistCompleted = null;
     }
