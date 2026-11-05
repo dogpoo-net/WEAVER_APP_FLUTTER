@@ -199,15 +199,14 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   Widget build(BuildContext context) {
     final content = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Padding(padding: const EdgeInsetsDirectional.fromSTEB(20, 12, 8, 4), child: Row(children: [
-        const Expanded(child: Text('WEAVER', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 2))),
+        Expanded(child: TextButton(onPressed: () { if (!widget.embedded) Navigator.pop(context); Navigator.of(context).popUntil((r) => r.isFirst); }, child: const Text('WEAVER', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 2)))),
         if (!widget.embedded && widget.onPin != null) IconButton(tooltip: '메뉴 고정하기', onPressed: widget.onPin,
           icon: const Icon(Icons.push_pin_outlined)),
         IconButton(tooltip: widget.embedded ? '메뉴 숨기기' : '메뉴 닫기',
           onPressed: widget.embedded ? widget.onHide : () => Navigator.pop(context), icon: const Icon(Icons.close)),
       ])),
-      ListTile(leading: const Icon(Icons.home_outlined), title: const Text('메인'), onTap: () => _select(-1)),
-      ListTile(leading: const Icon(Icons.account_tree_outlined), title: const Text('페이지'), onTap: () => _select(WorkspaceMenu.page)),
-      ListTile(leading: const Icon(Icons.bubble_chart_outlined), title: const Text('모든 생각 보기'),
+      ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), leading: const Icon(Icons.account_tree_outlined, size: 19), title: const Text('페이지', style: TextStyle(fontSize: 13)), onTap: () => _select(WorkspaceMenu.page)),
+      ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), leading: const Icon(Icons.bubble_chart_outlined, size: 19), title: const Text('모든 생각 보기', style: TextStyle(fontSize: 13)),
         onTap: () => _select(WorkspaceMenu.allThoughts)),
       const Divider(indent: 16, endIndent: 16),
       Expanded(child: SizedBox(key: _viewport, child: Scrollbar(controller: _scroll,

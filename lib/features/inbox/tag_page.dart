@@ -39,7 +39,7 @@ class _TagPageState extends State<TagPage> {
         )
         .toList();
     return Scaffold(
-      appBar: AppBar(title: Text('#${widget.tag}')),
+      appBar: AppBar(leading: TextButton(onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst), child: const Text('WEAVER', style: TextStyle(fontSize: 11))), leadingWidth: 76, title: Text('#${widget.tag}')),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(

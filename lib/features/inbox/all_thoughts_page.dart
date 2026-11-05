@@ -204,7 +204,7 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
               children: [for (final record in records) _tile(record, usage, maximum, desktop, width: width)]));
         }),
       ]))));
-    return Scaffold(appBar: AppBar(title: const Text('모든 생각 보기'), actions: [
+    return Scaffold(appBar: AppBar(leading: TextButton(onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst), child: const Text('WEAVER', style: TextStyle(fontSize: 11))), leadingWidth: 76, title: const Text('모든 생각 보기'), actions: [
       if (_filterBox != null) IconButton(tooltip: '상자에 담을 메모 선택', onPressed: _manageBox, icon: const Icon(Icons.playlist_add)),
     ]),
       bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

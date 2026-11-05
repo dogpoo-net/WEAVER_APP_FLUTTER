@@ -1070,14 +1070,14 @@ class _InboxPageState extends State<InboxPage> {
           ),
           const SizedBox(width: 12),
         ],
-        title: Text(
+        title: GestureDetector(onTap: () => Navigator.of(context).popUntil((r) => r.isFirst), child: Text(
           'WEAVER',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
             letterSpacing: 3,
-          ),
-        ),
+          )),
+        )),
         centerTitle: false,
       ),
       body: SizedBox(key: _bodyKey, child: Row(

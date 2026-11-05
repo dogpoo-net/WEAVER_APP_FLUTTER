@@ -211,7 +211,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       emptyX += 340;
     }
     final color = Theme.of(context).colorScheme;
-    return Scaffold(appBar: AppBar(title: Text(widget.box?.name ?? '페이지'), actions: [
+    return Scaffold(appBar: AppBar(leading: TextButton(onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst), child: const Text('WEAVER', style: TextStyle(fontSize: 11))), leadingWidth: 76, title: Text(widget.box?.name ?? '페이지'), actions: [
       if (widget.box != null) IconButton(tooltip: '상자에 생각 담기', onPressed: _pick, icon: const Icon(Icons.playlist_add)),
       IconButton(tooltip: '연결 모드', isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
