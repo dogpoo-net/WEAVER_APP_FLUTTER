@@ -213,6 +213,12 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     return false;
   }
 
+  FocusOnKeyEventCallback? _previousKeyHandler;
+  KeyEventResult _inputKey(FocusNode node, KeyEvent event) {
+    if (_key(event)) return KeyEventResult.handled;
+    return _previousKeyHandler?.call(node, event) ?? KeyEventResult.ignored;
+  }
+
   ScrollNotificationObserverState? _scrollObserver;
   void _scrolled(ScrollNotification notification) {
     _update();
@@ -239,6 +245,8 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _previousKeyHandler = widget.focus.onKeyEvent;
+    widget.focus.onKeyEvent = _inputKey;
     widget.controller.addListener(_update);
     widget.focus.addListener(_update);
   }
@@ -444,6 +452,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    widget.focus.onKeyEvent = _previousKeyHandler;
     _suggestionScroll.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _scrollObserver?.removeListener(_scrolled);
@@ -462,8 +471,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
         },
         child: Focus(
           canRequestFocus: false,
-          onKeyEvent: (_, event) =>
-              _key(event) ? KeyEventResult.handled : KeyEventResult.ignored,
+
           child: Container(key: _anchor, child: widget.child),
         ),
       );
