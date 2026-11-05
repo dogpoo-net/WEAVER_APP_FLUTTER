@@ -74,12 +74,16 @@ void main() {
     final c = elements.add('새 생각');
     elements.update(c.text, c.text);
     await tester.pump(const Duration(milliseconds: 64));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     final paused = saves;
     final background = Map.of(pageGraphLayout.positions);
     await tester.pump(const Duration(seconds: 2));
     expect(saves, paused);
     expect(pageGraphLayout.positions, background);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
