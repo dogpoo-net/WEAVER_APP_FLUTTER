@@ -96,6 +96,8 @@ class WorkspaceSnapshot {
                     'name': n.project!.name,
                     'folder': n.project!.folder,
                     'words': n.project!.words,
+                    'document': n.project!.document,
+                    'tags': n.project!.tags.toList(),
                     'paragraphs': n.project!.paragraphs.map(paragraph).toList(),
                   },
           },
@@ -172,8 +174,10 @@ class WorkspaceSnapshot {
           name: p['name'] as String,
           folder: p['folder'] as String?,
         );
+        note.project!.document = p['document'] as String?;
+        note.project!.tags.addAll(List<String>.from(p['tags'] ?? []));
         note.paragraphs = note.project!.paragraphs;
-        note.content = note.paragraphs!.map((p) => p.text).join('\n\n');
+        note.content = note.project!.content;
       }
       return note;
     }).toList();

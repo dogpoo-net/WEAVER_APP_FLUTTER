@@ -232,6 +232,7 @@ class _InboxPageState extends State<InboxPage> {
   Future<void> _persist() async {
     if (widget.storage == null || _restoreBlocked) return;
     try {
+      for (final note in _notes.where((n) => n.project != null)) { note.content = note.project!.content; }
       await widget.storage!.write(WorkspaceSnapshot.encode(_notes));
     } catch (_) {
       if (mounted) {
@@ -594,7 +595,7 @@ class _InboxPageState extends State<InboxPage> {
       ),
     );
     if (project == null || !mounted) return;
-    final note = Note(project.paragraphs.map((p) => p.text).join('\n\n'))
+    final note = Note(project.content)
       ..project = project
       ..paragraphs = project.paragraphs;
     setState(() => _notes.insert(0, note));

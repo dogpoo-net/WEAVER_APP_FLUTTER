@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'element_store.dart';
 import 'tag_colors.dart';
+import 'hashtags.dart';
 import 'word_badge.dart';
 
 /// A live workspace over the same thoughts, tags and reciprocal connections.
@@ -71,7 +72,7 @@ class _ThoughtPageState extends State<ThoughtPage> {
       title: const Text('생각 만들기'), content: TextField(controller: controller, autofocus: true,
         minLines: 3, maxLines: 8, decoration: const InputDecoration(hintText: '생각을 적어주세요')),
       actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-        FilledButton(onPressed: () { if (controller.text.trim().isNotEmpty) Navigator.pop(context, controller.text); }, child: const Text('만들기'))]));
+        FilledButton(onPressed: () { if (parseTaggedInput(controller.text).text.isNotEmpty) Navigator.pop(context, controller.text); }, child: const Text('만들기'))]));
     controller.dispose();
     if (text == null || !mounted) return;
     final r = elements.add(text);
@@ -130,7 +131,7 @@ class _ThoughtPageState extends State<ThoughtPage> {
                     Draggable<String>(data: record.id, feedback: Material(child: Chip(label: Text(badgeLabel(record.text), overflow: TextOverflow.ellipsis))),
                       onDragStarted: () => _dragging = true, onDragEnd: (_) => _dragging = false,
                       child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.link, size: 20))),
-                  ]))))),
+                  ])))),
             )),
         ])),
       ); })),

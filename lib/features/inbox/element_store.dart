@@ -74,6 +74,10 @@ class ElementStore extends ChangeNotifier {
   }
 
   void indexProject(WritingProject project) {
+    if (project.document != null) {
+      sources[project] = [ElementSource(project.name, project.document!, isProject: true, project: project)];
+      return;
+    }
     sources[project] = [
       for (var i = 0; i < project.paragraphs.length; i++)
         ElementSource(
