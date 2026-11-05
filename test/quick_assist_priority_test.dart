@@ -32,6 +32,17 @@ void main() {
       expect(tester.takeException(), isNull);
     }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
   }
+  testWidgets('native submit without a hardware key still accepts visible assist first', (tester) async {
+    elements.clear(); elements.add('독서');
+    SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
+    final storage = WorkspaceStorage(await SharedPreferences.getInstance());
+    await tester.pumpWidget(MyApp(storage: storage));
+    final field = find.byKey(const ValueKey('quick-memo'));
+    await tester.enterText(field, '독'); await tester.pumpAndSettle();
+    await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).controller!.text, '독서');
+    expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
+  }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
   testWidgets('mobile quick memo displays element and tag assist above the keyboard', (tester) async {
     tester.view.physicalSize = const Size(390, 844); tester.view.devicePixelRatio = 1;
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);

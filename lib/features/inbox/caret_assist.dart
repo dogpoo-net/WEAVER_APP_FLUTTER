@@ -39,10 +39,10 @@ class CaretAssist extends StatefulWidget {
   final bool showWhenEmpty;
   final bool enterSelectsVisible;
   @override
-  State<CaretAssist> createState() => _CaretAssistState();
+  State<CaretAssist> createState() => CaretAssistState();
 }
 
-class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
+class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   final _anchor = GlobalKey();
   final _suggestionScroll = ScrollController();
   OverlayEntry? _entry;
@@ -117,6 +117,17 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     _revealSelection();
   }
 
+  bool acceptVisibleCandidate() {
+    if (!mounted || !widget.focus.hasFocus || _entry == null || _dismissed == widget.controller.text) return false;
+    _refreshMatches(widget.controller.value, autoSelect: false);
+    if (_matches.isEmpty) return false;
+    widget.controller.clearComposing();
+    _refreshMatches(widget.controller.value, autoSelect: false);
+    if (_matches.isEmpty) return false;
+    _choose(_matches[_selected]);
+    return true;
+  }
+
   bool _key(KeyEvent event) {
     if (!mounted || !widget.focus.hasFocus || !_desktop) {
       return false;
@@ -137,16 +148,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     if (widget.enterSelectsVisible && enter && event is KeyDownEvent && _entry != null &&
         _dismissed != widget.controller.text && !keyboard.isControlPressed && !keyboard.isMetaPressed &&
         !keyboard.isAltPressed && !keyboard.isShiftPressed) {
-      _refreshMatches(widget.controller.value, autoSelect: false);
-      if (_matches.isNotEmpty) {
-        widget.controller.clearComposing();
-        _refreshMatches(widget.controller.value, autoSelect: false);
-        if (_matches.isNotEmpty) {
-          _acceptEnterHeld = true;
-          _choose(_matches[_selected]);
-          return true;
-        }
-      }
+      if (acceptVisibleCandidate()) { _acceptEnterHeld = true; return true; }
     }
     if (space && event is KeyUpEvent && _spaceShortcutHeld) {
       _spaceShortcutHeld = false; return true;

@@ -49,6 +49,7 @@ class _InboxPageState extends State<InboxPage> {
   final _draftTags = <String>{};
   final _focus = FocusNode();
   final _bodyKey = GlobalKey();
+  final _quickAssistKey = GlobalKey<CaretAssistState>();
   final List<Note> _notes = [];
   String _query = '';
   int _memoRows = 5, _paragraphLimit = 5, _projectLimit = 5;
@@ -294,6 +295,7 @@ class _InboxPageState extends State<InboxPage> {
 
   void _submitQuickMemo() {
     if (_assistSubmitUntil != null && DateTime.now().isBefore(_assistSubmitUntil!)) return;
+    if (_quickAssistKey.currentState?.acceptVisibleCandidate() == true) return;
     if (_pendingImeNewline || (_explicitNewlineUntil != null && DateTime.now().isBefore(_explicitNewlineUntil!))) return;
     if (_draft.text.trim().isEmpty) return;
     _enterEchoText = _draft.text;
@@ -785,7 +787,7 @@ class _InboxPageState extends State<InboxPage> {
             key: const ValueKey('quick-memo-keyboard'),
             canRequestFocus: false,
             onKeyEvent: _quickMemoKey,
-            child: CaretAssist(controller: _draft, focus: _focus, words: elements.visibleWords, showWhenEmpty: false,
+            child: CaretAssist(key: _quickAssistKey, controller: _draft, focus: _focus, words: elements.visibleWords, showWhenEmpty: false,
               mobileViewportKey: _bodyKey,
               tags: {..._allTags, ..._draftTags}.toList()..sort(), enterSelectsVisible: true,
               onTag: (tag) => _acceptQuickAssist(() => _insertQuickTag(tag)),
