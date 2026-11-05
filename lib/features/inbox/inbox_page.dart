@@ -21,7 +21,7 @@ import 'paragraph_editor.dart';
 import 'word_badge.dart';
 import 'project_page.dart';
 import 'project_builder.dart';
-import 'paragraph_page.dart';
+import 'thought_page.dart';
 import 'all_thoughts_page.dart';
 import 'workspace_menu.dart';
 import 'element_store.dart';
@@ -95,6 +95,14 @@ class _InboxPageState extends State<InboxPage> {
         final snapshot = WorkspaceSnapshot.decode(raw);
         snapshot.apply();
         _notes.addAll(snapshot.notes);
+        for (final note in _notes.where((n) => n.project == null && n.paragraphs != null)) {
+          final record = elements.add(note.content);
+          record.tags.addAll({...note.tags, ...note.paragraphs!.expand((p) => p.tags)});
+          record.folder ??= note.folder;
+          elements.connect(record.id, note.paragraphs!.expand((p) => p.bindings.map((b) => b.id)));
+          note.paragraphs = null;
+          note.bindings = [];
+        }
       }
     } catch (_) {
       _restoreBlocked = true;
@@ -549,33 +557,6 @@ class _InboxPageState extends State<InboxPage> {
     _focus.requestFocus();
   }
 
-  Future<void> _writeParagraphs([Note? note]) async {
-    final words = elements.visibleWords;
-    final result = await Navigator.push<List<Paragraph>>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ParagraphEditor(
-          initial: note?.paragraphs ?? const [],
-          initialTags: note?.tags ?? const {},
-          availableTags: _allTags,
-          words: words,
-        ),
-      ),
-    );
-    if (result == null || !mounted) return;
-    final paragraph = result.single;
-    setState(() {
-      if (note != null) {
-        note.content = paragraph.text;
-        note.paragraphs = [paragraph];
-        note.tags..clear()..addAll(paragraph.tags);
-      } else {
-        _notes.insert(0, Note(paragraph.text)..paragraphs = [paragraph]..tags.addAll(paragraph.tags));
-      }
-    });
-    await _persist();
-  }
-
   List<Note> get _paragraphNotes => _notes.where((n) => n.project == null && n.paragraphs != null).toList();
   void _moveParagraph(int index, String? folder) {
     setState(() => _paragraphNotes[index].folder = folder);
@@ -593,19 +574,8 @@ class _InboxPageState extends State<InboxPage> {
   List<String> get _allTags => {...elements.tags,
     ..._notes.where((n) => n.project == null && n.paragraphs != null).expand((n) => n.tags)}.toList()..sort();
 
-  Future<void> _showParagraph(Note note) async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => ParagraphPage(
-      note: note,
-      onEdit: () => _writeParagraphs(note),
-      onDelete: () async {
-        setState(() => _notes.remove(note));
-        await _persist();
-      },
-      onTag: (tag) async {
-        await Navigator.push(context, MaterialPageRoute(builder: (_) => TagPage(
-          tag: tag, notes: _notes, onOpen: _open)));
-      },
-    )));
+  Future<void> _page() async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => ThoughtPage(onChanged: () { _persist(); })));
     if (mounted) setState(() {});
   }
 
@@ -654,7 +624,7 @@ class _InboxPageState extends State<InboxPage> {
       return;
     }
     if (note.paragraphs != null) {
-      await _showParagraph(note);
+      showElementMetadata(context, note.content);
       return;
     }
     if (_draft.text.isNotEmpty) {
@@ -752,6 +722,7 @@ class _InboxPageState extends State<InboxPage> {
       }
       return;
     }
+    if (choice == WorkspaceMenu.page) { await _page(); return; }
     if (choice == WorkspaceMenu.allThoughts) { await _allThoughts(); return; }
     if (choice <= -3000000) {
       final index = -3000000 - choice;
@@ -760,7 +731,7 @@ class _InboxPageState extends State<InboxPage> {
     }
     if (choice <= -2000000) {
       final index = -2000000 - choice;
-      if (index < _paragraphNotes.length) await _showParagraph(_paragraphNotes[index]);
+      if (index < _paragraphNotes.length) showElementMetadata(context, _paragraphNotes[index].content);
       return;
     }
     if (choice == WorkspaceMenu.createParagraphFolder || choice == WorkspaceMenu.createElementFolder) {
@@ -792,7 +763,7 @@ class _InboxPageState extends State<InboxPage> {
         ),
       );
     } else if (choice == -2) {
-      await _writeParagraphs();
+      await _page();
     } else {
       await _showProject(projects[choice]);
     }
@@ -966,7 +937,7 @@ class _InboxPageState extends State<InboxPage> {
           TextButton(key: const ValueKey('thoughts-all'), style: moreStyle,
             onPressed: _allThoughts, child: const Text('모두보기')),
         ]),
-        for (final isProject in [false, true]) ...[
+        for (final isProject in [true]) ...[
           if ((isProject ? projects : paragraphs).isNotEmpty) ...[
             Divider(key: ValueKey(isProject ? 'main-project-divider' : 'main-paragraph-divider'),
               height: 18, thickness: 1, color: colors.outlineVariant.withValues(alpha: .45)),
@@ -1158,9 +1129,9 @@ class _InboxPageState extends State<InboxPage> {
                               label: const Text('프로젝트 생성'),
                             ),
                             TextButton.icon(
-                              onPressed: () => _writeParagraphs(),
+                              onPressed: _page,
                               icon: const Icon(Icons.subject, size: 18),
-                              label: const Text('문단 쓰기'),
+                              label: const Text('페이지'),
                             ),
                             TextButton.icon(onPressed: _allThoughts, icon: const Icon(Icons.bubble_chart_outlined),
                               label: const Text('모든 생각 보기')),

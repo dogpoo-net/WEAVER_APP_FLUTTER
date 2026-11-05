@@ -24,6 +24,7 @@ class WorkspaceMenu extends StatefulWidget {
   final VoidCallback? onTagColorChanged;
   final ValueChanged<int>? onSelected;
   final VoidCallback? onHide, onPin;
+  static const page = -1000009;
   static const allThoughts = -1000006, createParagraph = -2;
   static const createProject = -1000002, resetData = -1000003;
   static const createFolder = -1000000, createTagFolder = -1000001;
@@ -205,12 +206,13 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           onPressed: widget.embedded ? widget.onHide : () => Navigator.pop(context), icon: const Icon(Icons.close)),
       ])),
       ListTile(leading: const Icon(Icons.home_outlined), title: const Text('메인'), onTap: () => _select(-1)),
+      ListTile(leading: const Icon(Icons.account_tree_outlined), title: const Text('페이지'), onTap: () => _select(WorkspaceMenu.page)),
       ListTile(leading: const Icon(Icons.bubble_chart_outlined), title: const Text('모든 생각 보기'),
         onTap: () => _select(WorkspaceMenu.allThoughts)),
       const Divider(indent: 16, endIndent: 16),
       Expanded(child: SizedBox(key: _viewport, child: Scrollbar(controller: _scroll,
         child: CustomScrollView(controller: _scroll, key: const ValueKey('menu-projects'), slivers: [
-          for (final kind in _Kind.values.where((kind) => kind != _Kind.element)) SliverMainAxisGroup(slivers: [
+          for (final kind in _Kind.values.where((kind) => kind != _Kind.element && kind != _Kind.paragraph)) SliverMainAxisGroup(slivers: [
             if (kind != _Kind.project) SliverToBoxAdapter(child: Divider(
               key: ValueKey('section-divider-${kind.name}'), height: 13, thickness: 1, indent: 20, endIndent: 20,
               color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .45))),
