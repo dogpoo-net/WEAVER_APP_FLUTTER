@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 
 /// Each graph owns its layout; thought IDs survive text edits.
@@ -7,6 +8,14 @@ class GraphLayout {
   List<double>? viewport;
   String query = '';
   bool unlinkedOnly = false;
+
+  void copyFrom(GraphLayout other) {
+    positions..clear()..addAll(other.positions);
+    tags..clear()..addAll(other.tags);
+    viewport = other.viewport?.toList();
+    query = other.query;
+    unlinkedOnly = other.unlinkedOnly;
+  }
 
   Map<String, dynamic> toJson() => {
     'positions': {for (final e in positions.entries) e.key: [e.value.dx, e.value.dy]},
@@ -48,3 +57,20 @@ class GraphLayout {
 }
 
 GraphLayout pageGraphLayout = GraphLayout();
+
+String encodeGraphLayouts(Map<String, GraphLayout> boxes) => jsonEncode({
+  'page': pageGraphLayout.toJson(),
+  'boxes': {for (final e in boxes.entries) e.key: e.value.toJson()},
+});
+
+void restoreGraphLayouts(String raw, Map<String, GraphLayout> boxes) {
+  final data = jsonDecode(raw);
+  if (data is! Map) return;
+  if (data['page'] is Map) pageGraphLayout.copyFrom(GraphLayout.fromJson(data['page']));
+  final savedBoxes = data['boxes'];
+  if (savedBoxes is Map) {
+    for (final e in boxes.entries) {
+      if (savedBoxes[e.key] is Map) e.value.copyFrom(GraphLayout.fromJson(savedBoxes[e.key]));
+    }
+  }
+}

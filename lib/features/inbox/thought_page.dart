@@ -11,8 +11,9 @@ import 'graph_layout.dart';
 
 /// A live workspace over the same thoughts, tags and reciprocal connections.
 class ThoughtPage extends StatefulWidget {
-  const ThoughtPage({super.key, required this.onChanged, this.box});
+  const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.box});
   final VoidCallback onChanged;
+  final VoidCallback? onLayoutChanged;
   final MemoBox? box;
   @override
   State<ThoughtPage> createState() => _ThoughtPageState();
@@ -51,20 +52,23 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver {
     _sync();
   }
   void _saveLayout({bool flush = false}) {
+    if (flush) {
+      _saveTimer?.cancel(); _saveTimer = null;
+      _flushLayout();
+    } else {
+      _saveTimer ??= Timer(const Duration(milliseconds: 250), () {
+        _saveTimer = null;
+        _flushLayout();
+      });
+    }
+  }
+  void _flushLayout() {
     _layout.positions..clear()..addAll(_positions);
     _layout.tags..clear()..addAll(_tagPositions);
     _layout.viewport = _view.value.storage.toList();
     _layout.query = _query;
     _layout.unlinkedOnly = _unlinkedOnly;
-    if (flush) {
-      _saveTimer?.cancel(); _saveTimer = null;
-      widget.onChanged();
-    } else {
-      _saveTimer ??= Timer(const Duration(milliseconds: 250), () {
-        _saveTimer = null;
-        widget.onChanged();
-      });
-    }
+    (widget.onLayoutChanged ?? widget.onChanged)();
   }
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -77,7 +81,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver {
   void _sync() {
     final records = _records;
     final scope = _scopeRecords;
-    _positions.removeWhere((id, _) => !scope.any((r) => r.id == id));
+    final scopeIds = scope.map((r) => r.id).toSet();
+    _positions.removeWhere((id, _) => !scopeIds.contains(id));
     final scopeTags = scope.expand((r) => r.tags).map((tag) => 'tag:$tag').toSet();
     _tagPositions.removeWhere((tag, _) => !scopeTags.contains(tag));
     _pinned.removeWhere((id) => !_positions.containsKey(id));
@@ -94,7 +99,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver {
     }
     if (!records.any((r) => r.id == _selected)) _selected = null;
     _frames = 0;
-    _timer ??= Timer.periodic(const Duration(milliseconds: 32), (_) => _relax());
+    _timer?.cancel(); _timer = null;
+    if (records.any((r) => !_pinned.contains(r.id))) _timer ??= Timer.periodic(const Duration(milliseconds: 32), (_) => _relax());
     _saveLayout();
   }
   void _storeChanged() { if (mounted) setState(_sync); }
@@ -104,16 +110,31 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver {
     final records = _records;
     final forces = {for (final r in records) r.id: Offset.zero};
     final visibleIds = forces.keys.toSet();
-    // Repulsion stays local so large collections remain responsive.
+    // Compare only nearby cells instead of every pair in the whole graph.
+    const cellSize = 235.0;
+    final cells = <(int, int), List<int>>{};
     for (var i = 0; i < records.length; i++) {
-      for (var j = i + 1; j < records.length; j++) {
-        final a = records[i].id, b = records[j].id;
-        var delta = _positions[a]! - _positions[b]!;
-        if (delta.distanceSquared < 1) delta = const Offset(1, 1);
-        final distance = delta.distance;
-        if (distance > 235) continue;
-        final force = delta / distance * (500 / distance.clamp(20, 235));
-        forces[a] = forces[a]! + force; forces[b] = forces[b]! - force;
+      final p = _positions[records[i].id]!;
+      final cell = ((p.dx / cellSize).floor(), (p.dy / cellSize).floor());
+      (cells[cell] ??= []).add(i);
+    }
+    for (var i = 0; i < records.length; i++) {
+      final a = records[i].id;
+      final p = _positions[a]!;
+      final cx = (p.dx / cellSize).floor(), cy = (p.dy / cellSize).floor();
+      for (var x = cx - 1; x <= cx + 1; x++) {
+        for (var y = cy - 1; y <= cy + 1; y++) {
+          for (final j in cells[(x, y)] ?? const <int>[]) {
+            if (j <= i) continue;
+            final b = records[j].id;
+            var delta = p - _positions[b]!;
+            if (delta.distanceSquared < 1) delta = const Offset(1, 1);
+            final distance = delta.distance;
+            if (distance > cellSize) continue;
+            final force = delta / distance * (500 / distance.clamp(20, cellSize));
+            forces[a] = forces[a]! + force; forces[b] = forces[b]! - force;
+          }
+        }
       }
     }
     for (final r in records) {

@@ -10,10 +10,11 @@ import 'workspace_routes.dart';
 import 'workspace_storage.dart';
 
 class AllThoughtsPage extends StatefulWidget {
-  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.initialBox});
+  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox});
   final List<Note> notes;
   final MemoBox? initialBox;
   final VoidCallback? onChanged;
+  final VoidCallback? onLayoutChanged;
   @override
   State<AllThoughtsPage> createState() => _AllThoughtsPageState();
 }
@@ -218,7 +219,7 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
               box: box, onChanged: _changed, child: _filterChip(
                 key: ValueKey('thought-filter-box-${box.name}'), label: box.name,
                 color: Color(box.color), colorTooltip: '${box.name} 상자 색상 변경',
-                selected: identical(_filterBox, box), onFilter: () async { await Navigator.push(context, MaterialPageRoute(builder: (_) => ThoughtPage(box: box, onChanged: () { widget.onChanged?.call(); }))); if (mounted) setState(() {}); }, onColor: () async {
+                selected: identical(_filterBox, box), onFilter: () async { await Navigator.push(context, MaterialPageRoute(builder: (_) => ThoughtPage(box: box, onLayoutChanged: widget.onLayoutChanged, onChanged: () { widget.onChanged?.call(); }))); if (mounted) setState(() {}); }, onColor: () async {
                   final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
                   if (!mounted || color == null) return;
                   box.color = color.toARGB32(); _changed();

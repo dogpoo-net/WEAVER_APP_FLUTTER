@@ -97,6 +97,11 @@ class _InboxPageState extends State<InboxPage> {
         final snapshot = WorkspaceSnapshot.decode(raw);
         snapshot.apply();
         _notes.addAll(snapshot.notes);
+        final layouts = widget.storage?.readGraphLayouts();
+        if (layouts != null) {
+          try { restoreGraphLayouts(layouts, {for (final box in memoBoxes) box.name: box.layout}); }
+          catch (_) { /* Keep the layout included in the workspace snapshot. */ }
+        }
         for (final note in _notes.where((n) => n.project == null && n.paragraphs != null)) {
           final record = elements.add(note.content);
           record.tags.addAll({...note.tags, ...note.paragraphs!.expand((p) => p.tags)});
@@ -231,11 +236,23 @@ class _InboxPageState extends State<InboxPage> {
     _persist();
   }
 
+  Future<void> _persistLayouts() async {
+    if (widget.storage == null || _restoreBlocked) return;
+    try {
+      await widget.storage!.writeGraphLayouts(encodeGraphLayouts({for (final box in memoBoxes) box.name: box.layout}));
+    } catch (_) {
+      if (mounted) setState(() => _storageError = '화면 배치를 저장하지 못했습니다. 브라우저의 사이트 저장 공간을 확인해주세요.');
+    }
+  }
+
   Future<void> _persist() async {
     if (widget.storage == null || _restoreBlocked) return;
     try {
       for (final note in _notes.where((n) => n.project != null)) { note.content = note.project!.content; }
-      await widget.storage!.write(WorkspaceSnapshot.encode(_notes));
+      final workspaceSave = widget.storage!.write(WorkspaceSnapshot.encode(_notes));
+      final layoutSave = _persistLayouts();
+      await workspaceSave;
+      await layoutSave;
     } catch (_) {
       if (mounted) {
         setState(
@@ -579,17 +596,17 @@ class _InboxPageState extends State<InboxPage> {
     ..._notes.where((n) => n.project == null && n.paragraphs != null).expand((n) => n.tags)}.toList()..sort();
 
   Future<void> _page() async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => ThoughtPage(onChanged: () { _persist(); })));
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => ThoughtPage(onLayoutChanged: _persistLayouts, onChanged: () { _persist(); })));
     if (mounted) setState(() {});
   }
 
   Future<void> _allThoughts([MemoBox? box]) async {
     if (box != null) {
-      await Navigator.push(context, MaterialPageRoute(builder: (_) => ThoughtPage(box: box, onChanged: () { _persist(); })));
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => ThoughtPage(box: box, onLayoutChanged: _persistLayouts, onChanged: () { _persist(); })));
       if (mounted) setState(() {});
       return;
     }
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onChanged: _persist, initialBox: box)));
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onLayoutChanged: _persistLayouts, onChanged: _persist, initialBox: box)));
     if (mounted) setState(() {});
   }
 

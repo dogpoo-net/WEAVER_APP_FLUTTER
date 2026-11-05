@@ -296,6 +296,16 @@ class WorkspaceStorage {
   final SharedPreferences preferences;
   static const key = 'weaver.workspace.v1';
   static const themeKey = 'weaver.theme.v1';
+  static const graphKey = 'weaver.graph-layouts.v1';
+  String? readGraphLayouts() => preferences.getString(graphKey);
+  Future<void> writeGraphLayouts(String data) {
+    final task = _pending.catchError((Object _) {}).then((_) async {
+      if (preferences.getString(graphKey) == data) return;
+      if (!await preferences.setString(graphKey, data)) throw StateError('Graph save failed');
+    });
+    _pending = task;
+    return task;
+  }
   String? readTheme() => preferences.getString(themeKey);
   Future<void> writeTheme(String data) {
     final task = _pending.catchError((Object _) {}).then((_) async {
@@ -309,6 +319,7 @@ class WorkspaceStorage {
   Future<void> clear() {
     final task = _pending.catchError((Object _) {}).then((_) async {
       if (!await preferences.remove(key)) throw StateError('Clear failed');
+      if (!await preferences.remove(graphKey)) throw StateError('Graph clear failed');
       if (!await preferences.remove('$key.previous')) {
         throw StateError('Clear backup failed');
       }
