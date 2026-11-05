@@ -34,6 +34,14 @@ void main() {
     expect(c.bindings.single.start, 5);
     expect(c.bindings.single.end, 7);
   });
+  test('deleting ordinary prefix preserves the requested caret after a bound token', () {
+    final c = BoundTextController('오늘 작은 생각', [const ElementBinding('id', 3, 8)]);
+    c.value = const TextEditingValue(text: '작은 생각', selection: TextSelection.collapsed(offset: 5));
+    expect(c.text, '작은 생각');
+    expect(c.selection.extentOffset, 5);
+    expect(c.bindings.single.start, 0);
+    expect(c.bindings.single.end, 5);
+  });
   test('multiple links follow source updates without changing ordinary matching text', () {
     final c = BoundTextController('원소 / 원소 / 원소', [const ElementBinding('id', 0, 2), const ElementBinding('id', 5, 7)]);
     c.sync({'id': '긴 원소'});

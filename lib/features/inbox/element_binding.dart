@@ -20,6 +20,7 @@ class BoundTextController extends TextEditingController {
     while (end > start && nextEnd > start && text[end - 1] == next.text[nextEnd - 1]) { end--; nextEnd--; }
     if (nextEnd == start && end > start) {
       // A native deletion touching any part of a link removes the entire token.
+      final originalStart = start, originalEnd = end;
       for (final link in bindings) {
         if (start < link.end && end > link.start) {
           if (link.start < start) start = link.start;
@@ -27,8 +28,10 @@ class BoundTextController extends TextEditingController {
         }
       }
       nextEnd = start;
-      next = TextEditingValue(text: text.replaceRange(start, end, ''),
-        selection: TextSelection.collapsed(offset: start));
+      if (start != originalStart || end != originalEnd) {
+        next = TextEditingValue(text: text.replaceRange(start, end, ''),
+          selection: TextSelection.collapsed(offset: start));
+      }
     }
     final delta = nextEnd - end;
     for (final link in bindings) {
