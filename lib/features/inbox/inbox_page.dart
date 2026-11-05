@@ -795,6 +795,44 @@ class _InboxPageState extends State<InboxPage> {
     }
   }
 
+  Future<void> _showTheme() async {
+    final choice = await showDialog<Object>(context: context, builder: (context) => Dialog(
+      alignment: AlignmentDirectional.topEnd,
+      insetPadding: const EdgeInsets.fromLTRB(16, 64, 16, 12),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(width: 320, child: SingleChildScrollView(child: Column(
+        mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+              const PopupMenuItem<Object>(enabled: false, height: 32, child: Text('화면 모드')),
+              CheckedPopupMenuItem<Object>(
+                value: ThemeMode.system,
+                checked: widget.themeMode == ThemeMode.system,
+                child: const Text('시스템 설정'),
+              ),
+              CheckedPopupMenuItem(
+                value: ThemeMode.light,
+                checked: widget.themeMode == ThemeMode.light,
+                child: Row(children: [const Expanded(child: Text('라이트')), PaletteSwatches(colors: widget.lightPalette.swatches)]),
+              ),
+              CheckedPopupMenuItem(
+                value: ThemeMode.dark,
+                checked: widget.themeMode == ThemeMode.dark,
+                child: Row(children: [const Expanded(child: Text('다크')), PaletteSwatches(colors: [weaverDarkColors.surface, weaverDarkColors.surfaceContainerHighest, weaverDarkColors.primary])]),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<Object>(enabled: false, height: 32, child: Text('라이트 컬러셋')),
+              for (final palette in LightPalette.values) CheckedPopupMenuItem<Object>(
+                value: palette, checked: widget.lightPalette == palette,
+                child: Row(children: [Expanded(child: Text(palette.label)), PaletteSwatches(colors: palette.swatches)])),
+
+        ],
+      ))),
+    ));
+    if (!mounted) return;
+    if (choice is ThemeMode) widget.onThemeChanged(choice);
+    if (choice is LightPalette) widget.onLightPaletteChanged?.call(choice);
+  }
+
   ColorScheme get colors => Theme.of(context).colorScheme;
 
   Widget _composer(double maxHeight) => ConstrainedBox(
@@ -1032,41 +1070,11 @@ class _InboxPageState extends State<InboxPage> {
           icon: const Icon(Icons.grid_view_rounded),
         ),
         actions: [
-          PopupMenuButton<Object>(
+          IconButton(
             tooltip: '테마 선택',
-            initialValue: widget.themeMode,
-            onSelected: (choice) {
-              if (choice is ThemeMode) widget.onThemeChanged(choice);
-              if (choice is LightPalette) widget.onLightPaletteChanged?.call(choice);
-            },
-            icon: Icon(
-              Theme.of(context).brightness == Brightness.dark
-                  ? Icons.dark_mode_outlined
-                  : Icons.light_mode_outlined,
-            ),
-            itemBuilder: (_) => [
-              const PopupMenuItem<Object>(enabled: false, height: 32, child: Text('화면 모드')),
-              CheckedPopupMenuItem<Object>(
-                value: ThemeMode.system,
-                checked: widget.themeMode == ThemeMode.system,
-                child: const Text('시스템 설정'),
-              ),
-              CheckedPopupMenuItem(
-                value: ThemeMode.light,
-                checked: widget.themeMode == ThemeMode.light,
-                child: Row(children: [const Expanded(child: Text('라이트')), PaletteSwatches(colors: widget.lightPalette.swatches)]),
-              ),
-              CheckedPopupMenuItem(
-                value: ThemeMode.dark,
-                checked: widget.themeMode == ThemeMode.dark,
-                child: Row(children: [const Expanded(child: Text('다크')), PaletteSwatches(colors: [weaverDarkColors.surface, weaverDarkColors.surfaceContainerHighest, weaverDarkColors.primary])]),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem<Object>(enabled: false, height: 32, child: Text('라이트 컬러셋')),
-              for (final palette in LightPalette.values) CheckedPopupMenuItem<Object>(
-                value: palette, checked: widget.lightPalette == palette,
-                child: Row(children: [Expanded(child: Text(palette.label)), PaletteSwatches(colors: palette.swatches)])),
-            ],
+            onPressed: _showTheme,
+            icon: Icon(Theme.of(context).brightness == Brightness.dark
+              ? Icons.dark_mode_outlined : Icons.light_mode_outlined),
           ),
           const SizedBox(width: 12),
         ],
