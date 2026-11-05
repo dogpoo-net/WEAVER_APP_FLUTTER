@@ -171,6 +171,29 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     if (a == b) return;
     elements.connect(a, [b]); _linkFrom = null; _changed();
   }
+  Future<void> _disconnect() async {
+    final record = elements.records.values.where((r) => r.id == _selected).firstOrNull;
+    if (record == null) return;
+    final targets = elements.records.values.where((r) => record.connections.contains(r.id)).toList();
+    final choice = await showDialog<String>(context: context, builder: (context) => AlertDialog(
+      title: const Text('연결 끊기'),
+      content: SizedBox(width: 360, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (targets.isEmpty && record.tags.isEmpty) const Text('연결된 생각이나 태그가 없습니다.'),
+        for (final target in targets) ListTile(title: Text(badgeLabel(target.text), maxLines: 2, overflow: TextOverflow.ellipsis),
+          trailing: const Icon(Icons.link_off), onTap: () => Navigator.pop(context, target.id)),
+        for (final tag in record.tags) ListTile(title: Text('#$tag'), trailing: const Icon(Icons.link_off),
+          onTap: () => Navigator.pop(context, 'tag:$tag')),
+      ]))), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],
+    ));
+    if (choice == null || !mounted) return;
+    if (choice.startsWith('tag:')) {
+      record.tags.remove(choice.substring(4));
+    } else {
+      elements.disconnect(record.id, choice);
+    }
+    _changed();
+  }
+
   Future<void> _pick() async {
     final box = widget.box!;
     final selected = Set.of(box.elementIds);
@@ -319,10 +342,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: candidates.isEmpty ? .3 : .6)))))),
         ])),
       ); })),
-      if (_selected != null) Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+      if (_selected != null) Wrap(alignment: WrapAlignment.center, children: [
         TextButton.icon(onPressed: () { final r = records.where((r) => r.id == _selected).firstOrNull;
           if (r != null) showElementMetadata(context, r.text); }, icon: const Icon(Icons.edit_outlined), label: const Text('생각 수정')),
         TextButton.icon(onPressed: _create, icon: const Icon(Icons.add), label: const Text('연결된 생각 만들기')),
+        TextButton.icon(onPressed: _disconnect, icon: const Icon(Icons.link_off), label: const Text('연결 끊기')),
       ]),
       SizedBox(height: 54, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: [
         for (final tag in tags) Padding(padding: const EdgeInsets.only(right: 6), child: DragTarget<String>(

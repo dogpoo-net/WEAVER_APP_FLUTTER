@@ -103,6 +103,15 @@ class ElementStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  void disconnect(String id, String targetId) {
+    var changed = false;
+    for (final record in records.values) {
+      if (record.id == id) changed = record.connections.remove(targetId) || changed;
+      if (record.id == targetId) changed = record.connections.remove(id) || changed;
+    }
+    if (changed) notifyListeners();
+  }
+
   void remove(String word) {
     final removed = records.remove(word);
     if (removed == null) return;
