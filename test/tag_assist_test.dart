@@ -40,14 +40,14 @@ void main() {
     expect(find.byTooltip('#자료 태그 삭제'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
-  testWidgets('Control alone leaves Hangul composing and Control Space opens empty memo assist', (tester) async {
+  testWidgets('Control commits Hangul composing and Control Space opens empty memo assist', (tester) async {
     await tester.pumpWidget(const MyApp());
     elements.add('관찰');
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '관'); await tester.pumpAndSettle();
     tester.testTextInput.updateEditingValue(const TextEditingValue(text: '관', selection: TextSelection.collapsed(offset: 1), composing: TextRange(start: 0, end: 1)));
     await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft); await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field).controller!.value.composing.isCollapsed, isFalse);
+    expect(tester.widget<TextField>(field).controller!.value.composing.isCollapsed, isTrue);
     await tester.enterText(field, ''); await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('assist-popup')), findsNothing);
     await shortcut(tester); await tester.pumpAndSettle();
