@@ -407,10 +407,11 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   KeyEventResult _quickMemoKey(FocusNode node, KeyEvent event) {
-    if (event is KeyDownEvent && !{
+    if (event is KeyDownEvent && (!{
       LogicalKeyboardKey.process, LogicalKeyboardKey.shiftLeft, LogicalKeyboardKey.shiftRight,
       LogicalKeyboardKey.altLeft, LogicalKeyboardKey.altRight, LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.controlRight,
-    }.contains(event.logicalKey)) {
+    }.contains(event.logicalKey) || event.physicalKey == PhysicalKeyboardKey.backspace ||
+        event.physicalKey == PhysicalKeyboardKey.delete)) {
       _newlineEchoBefore = null; _newlineEchoAfter = null; _newlineEchoUntil = null;
       _assistSubmitUntil = null; _assistInputBefore = null; _assistCompleted = null;
     }
