@@ -795,6 +795,12 @@ class _InboxPageState extends State<InboxPage> {
     }
   }
 
+  Widget _themeChoice(BuildContext context, Object value, bool checked, Widget title) => ListTile(
+    dense: true, selected: checked,
+    leading: checked ? const Icon(Icons.check, size: 18) : const SizedBox(width: 18),
+    title: title, onTap: () => Navigator.pop(context, value),
+  );
+
   Future<void> _showTheme() async {
     final choice = await showDialog<Object>(context: context, builder: (context) => Dialog(
       alignment: AlignmentDirectional.topEnd,
@@ -803,27 +809,17 @@ class _InboxPageState extends State<InboxPage> {
       child: SizedBox(width: 320, child: SingleChildScrollView(child: Column(
         mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-              const PopupMenuItem<Object>(enabled: false, height: 32, child: Text('화면 모드')),
-              CheckedPopupMenuItem<Object>(
-                value: ThemeMode.system,
-                checked: widget.themeMode == ThemeMode.system,
-                child: const Text('시스템 설정'),
-              ),
-              CheckedPopupMenuItem(
-                value: ThemeMode.light,
-                checked: widget.themeMode == ThemeMode.light,
-                child: Row(children: [const Expanded(child: Text('라이트')), PaletteSwatches(colors: widget.lightPalette.swatches)]),
-              ),
-              CheckedPopupMenuItem(
-                value: ThemeMode.dark,
-                checked: widget.themeMode == ThemeMode.dark,
-                child: Row(children: [const Expanded(child: Text('다크')), PaletteSwatches(colors: [weaverDarkColors.surface, weaverDarkColors.surfaceContainerHighest, weaverDarkColors.primary])]),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem<Object>(enabled: false, height: 32, child: Text('라이트 컬러셋')),
-              for (final palette in LightPalette.values) CheckedPopupMenuItem<Object>(
-                value: palette, checked: widget.lightPalette == palette,
-                child: Row(children: [Expanded(child: Text(palette.label)), PaletteSwatches(colors: palette.swatches)])),
+          const Padding(padding: EdgeInsets.fromLTRB(16, 16, 16, 8), child: Text('화면 모드')),
+          _themeChoice(context, ThemeMode.system, widget.themeMode == ThemeMode.system, const Text('시스템 설정')),
+          _themeChoice(context, ThemeMode.light, widget.themeMode == ThemeMode.light,
+            Row(children: [const Expanded(child: Text('라이트')), PaletteSwatches(colors: widget.lightPalette.swatches)])),
+          _themeChoice(context, ThemeMode.dark, widget.themeMode == ThemeMode.dark,
+            Row(children: [const Expanded(child: Text('다크')), PaletteSwatches(colors: [weaverDarkColors.surface, weaverDarkColors.surfaceContainerHighest, weaverDarkColors.primary])])),
+          const Divider(),
+          const Padding(padding: EdgeInsets.fromLTRB(16, 8, 16, 8), child: Text('라이트 컬러셋')),
+          for (final palette in LightPalette.values) _themeChoice(context, palette, widget.lightPalette == palette,
+            Row(children: [Expanded(child: Text(palette.label)), PaletteSwatches(colors: palette.swatches)])),
+          const SizedBox(height: 8),
 
         ],
       ))),

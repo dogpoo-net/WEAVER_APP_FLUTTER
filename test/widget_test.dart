@@ -39,7 +39,7 @@ void main() {
       await tester.tap(
         find.ancestor(
           of: find.text(entry.key),
-          matching: find.byType(CheckedPopupMenuItem<Object>),
+          matching: find.byType(ListTile),
         ),
       );
       await tester.pumpAndSettle();
