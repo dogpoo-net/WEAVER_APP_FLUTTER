@@ -1,3 +1,4 @@
+import 'limited_rows_wrap.dart';
 import 'caret_assist.dart';
 import 'element_binding.dart';
 import 'paragraph_tag_input.dart';
@@ -752,8 +753,22 @@ class _InboxPageState extends State<InboxPage> {
 
   Widget _list() {
     final visible = _notes
-        .where((n) => n.content.toLowerCase().contains(_query.toLowerCase()) || n.tags.any((t) => t.contains(_query.toLowerCase().replaceFirst('#', ''))))
-        .toList();
+        .where((n) => n.content.toLowerCase().contains(_query.toLowerCase()) || n.title.toLowerCase().contains(_query.toLowerCase()) || n.tags.any((t) => t.contains(_query.toLowerCase().replaceFirst('#', ''))))
+        .toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final query = _query.toLowerCase().replaceFirst('#', '');
+    final records = elements.records.values.where((record) => elements.isSearchable(record.text) &&
+      (record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.contains(query))))
+      .toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    var paragraphs = 0, projects = 0;
+    final entries = visible.where((note) {
+      if (note.project != null) return _query.isNotEmpty || ++projects <= 5;
+      if (note.paragraphs != null) return _query.isNotEmpty || ++paragraphs <= 5;
+      return false;
+    }).toList();
+    final badges = [for (final record in records) WordBadge(
+      word: record.text, query: _query,
+      onLongPress: () => showElementMetadata(context, record.text),
+      onTap: () => showElementMetadata(context, record.text))];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -775,7 +790,7 @@ class _InboxPageState extends State<InboxPage> {
           ),
         ),
         const SizedBox(height: 20),
-        if (visible.isEmpty)
+        if (visible.isEmpty && records.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 12),
             child: Column(
@@ -795,29 +810,13 @@ class _InboxPageState extends State<InboxPage> {
               ],
             ),
           ),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: elements.visibleWords
-              .where(
-                (word) => word.toLowerCase().contains(_query.toLowerCase()),
-              )
-              .map(
-                (word) => WordBadge(
-                  onLongPress: () => showElementMetadata(context, word),
-                  word: word,
-                  query: _query,
-                  onTap: () {
-                    showElementMetadata(context, word);
-                  },
-                ),
-              )
-              .toList(),
-        ),
+        if (_query.isEmpty) ClipRect(child: LimitedRowsWrap(
+          key: const ValueKey('recent-memo-badges'), children: badges))
+        else Wrap(spacing: 6, runSpacing: 6, children: badges),
+        Align(alignment: AlignmentDirectional.centerEnd, child: TextButton(
+          key: const ValueKey('thoughts-more'), onPressed: _allThoughts, child: const Text('+더보기'))),
         const SizedBox(height: 10),
-        for (final note in visible.where(
-          (n) => n.paragraphs != null || n.project != null,
-        ))
+        for (final note in entries)
           Card(
             elevation: 0,
             clipBehavior: Clip.antiAlias,
@@ -830,7 +829,7 @@ class _InboxPageState extends State<InboxPage> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
               title: Text(
                 note.title,
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
