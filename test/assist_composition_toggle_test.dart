@@ -5,6 +5,26 @@ import 'package:weaver/features/inbox/caret_assist.dart';
 import 'package:weaver/features/inbox/word_badge.dart';
 
 void main() {
+  testWidgets('first shortcut enters an automatically highlighted exact match and re-enters after edits', (tester) async {
+    final c = TextEditingController(); final f = FocusNode();
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: CaretAssist(controller: c,
+      focus: f, words: const ['생각', '기억'], onWord: (_) {}, child: TextField(controller: c, focusNode: f)))));
+    Future<void> toggle() async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+    }
+    bool selected(String word) => tester.widgetList<WordBadge>(find.byType(WordBadge)).any((b) => b.word == word && b.selected);
+    for (final word in ['생각', '기억']) {
+      await tester.enterText(find.byType(TextField), word); await tester.pumpAndSettle();
+      expect(selected(word), isTrue);
+      await toggle(); expect(selected(word), isTrue);
+      await toggle(); expect(selected(word), isFalse);
+      await toggle(); expect(selected(word), isTrue);
+    }
+    await tester.pumpWidget(const SizedBox()); c.dispose(); f.dispose();
+  });
   for (final tag in [false, true]) {
     testWidgets('multi-character composition cannot undo selection toggle (tag=$tag)', (tester) async {
       final c = TextEditingController(); final f = FocusNode();

@@ -161,7 +161,10 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     if (space && keyboard.isControlPressed && !keyboard.isAltPressed && !keyboard.isMetaPressed && !keyboard.isShiftPressed) {
       if (event is KeyDownEvent && !_spaceShortcutHeld) {
         _spaceShortcutHeld = true;
-        final leaveSelection = _controlling;
+        // Automatic exact-match highlighting is not a shortcut entry. The first
+        // Ctrl+Space must enter control, even if an IME commit highlighted a match.
+        final leaveSelection = _controlling && _manualSelection == true &&
+            _manualValue?.text == widget.controller.text;
         _dismissed = null;
         _explicitOpenText = widget.controller.text;
         _manualValue = widget.controller.value;
