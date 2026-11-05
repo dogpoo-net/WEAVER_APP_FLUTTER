@@ -108,6 +108,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void _sync() {
     final records = _records;
     final scope = _scopeRecords;
+    final hadPositions = _positions.isNotEmpty;
     final scopeIds = scope.map((r) => r.id).toSet();
     _positions.removeWhere((id, _) => !scopeIds.contains(id));
     final scopeTags = scope.expand((r) => r.tags).map((tag) => 'tag:$tag').toSet();
@@ -120,6 +121,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     });
     arrangeGraph(thoughts: ordered.map((r) => r.id).toList(), tags: tags,
       positions: _positions, tagPositions: _tagPositions);
+    if (!hadPositions && _positions.isNotEmpty) _centered = false;
     if (!records.any((r) => r.id == _selected)) _selected = null;
     _saveLayout();
   }
