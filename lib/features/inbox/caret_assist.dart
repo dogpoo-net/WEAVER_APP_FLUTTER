@@ -158,13 +158,20 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     if (space && keyboard.isControlPressed && !keyboard.isAltPressed && !keyboard.isMetaPressed && !keyboard.isShiftPressed) {
       if (event is KeyDownEvent && !_spaceShortcutHeld) {
         _spaceShortcutHeld = true;
+        if (_controlling) {
+          _controlling = false;
+          _controlValue = null;
+          _autoCheckedValue = widget.controller.value;
+          _entry?.markNeedsBuild();
+          return true;
+        }
         _dismissed = null;
         _explicitOpenText = widget.controller.text;
         _refreshMatches(widget.controller.value, autoSelect: false);
         widget.controller.clearComposing();
         _autoCheckedValue = widget.controller.value;
         _refreshMatches(widget.controller.value, autoSelect: false);
-        // Explicit entry must not toggle off a candidate auto-selected after deletion.
+        // Re-enter selection only after the previous shortcut has been released.
         _controlling = _matches.isNotEmpty;
         _controlValue = _controlling ? widget.controller.value : null;
         _entry?.markNeedsBuild(); _update(); _revealSelection();

@@ -23,10 +23,14 @@ void main() {
         await tester.enterText(find.byType(TextField), '$prefix관찰하'); await tester.pumpAndSettle();
         tester.testTextInput.updateEditingValue(TextEditingValue(text: '$prefix관찰', selection: TextSelection.collapsed(offset: prefix.length + 2)));
         if (pumpAfterDelete) await tester.pumpAndSettle();
+        // Exact matches may already have selected a candidate; first leave that state.
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape); await tester.pumpAndSettle();
         await enterAssist(tester); await tester.pumpAndSettle();
         bool selected() => tester.widget<WordBadge>(find.byKey(ValueKey('suggestion-$prefix관찰'))).selected;
         expect(selected(), isTrue);
-        // Re-entering is idempotent even when exact-match selection was already active.
+        // The second shortcut leaves selection while keeping the popup open.
+        await enterAssist(tester); await tester.pumpAndSettle();
+        expect(selected(), isFalse);
         await enterAssist(tester); await tester.pumpAndSettle();
         expect(selected(), isTrue);
         await tester.sendKeyEvent(LogicalKeyboardKey.escape); await tester.pumpAndSettle();
