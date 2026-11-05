@@ -1,3 +1,4 @@
+import 'graph_layout.dart';
 import 'keyboard_viewport.dart';
 import 'inline_tags.dart';
 import 'limited_rows_wrap.dart';
@@ -84,6 +85,7 @@ class _InboxPageState extends State<InboxPage> {
     hashtagFolderAssignments.clear();
     hashtagColors.clear();
     memoBoxes.clear();
+    pageGraphLayout = GraphLayout();
     memoBoxFolders.clear();
     elements.addListener(_elementDeleted);
     elements.onProjectChanged = _persist;
@@ -274,6 +276,7 @@ class _InboxPageState extends State<InboxPage> {
         hashtagFolderAssignments.clear();
     hashtagColors.clear();
     memoBoxes.clear();
+    pageGraphLayout = GraphLayout();
     memoBoxFolders.clear();
         elements.clear();
         restoreWordColors({});

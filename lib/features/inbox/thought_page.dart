@@ -7,6 +7,7 @@ import 'hashtags.dart';
 import 'memo_boxes.dart';
 import 'memo_box_region.dart';
 import 'word_badge.dart';
+import 'graph_layout.dart';
 
 /// A live workspace over the same thoughts, tags and reciprocal connections.
 class ThoughtPage extends StatefulWidget {
@@ -16,26 +17,70 @@ class ThoughtPage extends StatefulWidget {
   @override
   State<ThoughtPage> createState() => _ThoughtPageState();
 }
-class _ThoughtPageState extends State<ThoughtPage> {
+class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver {
   final _positions = <String, Offset>{};
   final _tagPositions = <String, Offset>{};
   final _pinned = <String>{};
   String _query = '';
   bool _unlinkedOnly = false;
   final _view = TransformationController();
-  Timer? _timer;
+  Timer? _timer, _saveTimer;
+  late final GraphLayout _layout;
+  late final TextEditingController _search;
   String? _selected, _linkFrom;
   bool _dragging = false, _linkMode = false, _centered = false;
   int _frames = 0;
   static const _nodeSize = Size(170, 76);
   @override
-  void initState() { super.initState(); elements.addListener(_storeChanged); _sync(); }
-  List<ElementRecord> get _records => elements.records.values.where((r) => widget.box == null || widget.box!.elementIds.contains(r.id)).where((r) =>
+  void initState() {
+    super.initState();
+    _layout = widget.box?.layout ?? pageGraphLayout;
+    _positions.addAll(_layout.positions);
+    _tagPositions.addAll(_layout.tags);
+    _pinned.addAll(_positions.keys);
+    _query = _layout.query;
+    _unlinkedOnly = _layout.unlinkedOnly;
+    _search = TextEditingController(text: _query);
+    if (_layout.viewport != null) {
+      _view.value = Matrix4.fromList(_layout.viewport!);
+      _centered = true;
+    }
+    _view.addListener(_saveLayout);
+    WidgetsBinding.instance.addObserver(this);
+    elements.addListener(_storeChanged);
+    _sync();
+  }
+  void _saveLayout({bool flush = false}) {
+    _layout.positions..clear()..addAll(_positions);
+    _layout.tags..clear()..addAll(_tagPositions);
+    _layout.viewport = _view.value.storage.toList();
+    _layout.query = _query;
+    _layout.unlinkedOnly = _unlinkedOnly;
+    if (flush) {
+      _saveTimer?.cancel(); _saveTimer = null;
+      widget.onChanged();
+    } else {
+      _saveTimer ??= Timer(const Duration(milliseconds: 250), () {
+        _saveTimer = null;
+        widget.onChanged();
+      });
+    }
+  }
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _saveLayout(flush: true);
+  }
+  List<ElementRecord> get _scopeRecords => elements.records.values.where((r) => widget.box == null || widget.box!.elementIds.contains(r.id)).toList();
+  List<ElementRecord> get _records => _scopeRecords.where((r) =>
     (!_unlinkedOnly || r.connections.isEmpty) &&
     (_query.isEmpty || r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.toLowerCase().contains(_query)))).toList();
   void _sync() {
     final records = _records;
-    _positions.removeWhere((id, _) => !records.any((r) => r.id == id));
+    final scope = _scopeRecords;
+    _positions.removeWhere((id, _) => !scope.any((r) => r.id == id));
+    final scopeTags = scope.expand((r) => r.tags).map((tag) => 'tag:$tag').toSet();
+    _tagPositions.removeWhere((tag, _) => !scopeTags.contains(tag));
+    _pinned.removeWhere((id) => !_positions.containsKey(id));
     for (var i = 0; i < records.length; i++) {
       final angle = i * 2.39996;
       final radius = 65 + math.sqrt(i) * 70;
@@ -50,13 +95,15 @@ class _ThoughtPageState extends State<ThoughtPage> {
     if (!records.any((r) => r.id == _selected)) _selected = null;
     _frames = 0;
     _timer ??= Timer.periodic(const Duration(milliseconds: 32), (_) => _relax());
+    _saveLayout();
   }
   void _storeChanged() { if (mounted) setState(_sync); }
   void _relax() {
     if (!mounted || _dragging) return;
-    if (_frames++ > 120) { _timer?.cancel(); _timer = null; return; }
+    if (_frames++ > 120) { _timer?.cancel(); _timer = null; _saveLayout(flush: true); return; }
     final records = _records;
     final forces = {for (final r in records) r.id: Offset.zero};
+    final visibleIds = forces.keys.toSet();
     // Repulsion stays local so large collections remain responsive.
     for (var i = 0; i < records.length; i++) {
       for (var j = i + 1; j < records.length; j++) {
@@ -70,14 +117,14 @@ class _ThoughtPageState extends State<ThoughtPage> {
       }
     }
     for (final r in records) {
-      for (final id in r.connections.where(_positions.containsKey)) {
+      for (final id in r.connections.where(visibleIds.contains)) {
         final delta = _positions[id]! - _positions[r.id]!;
         final distance = delta.distance;
         if (distance > 1) forces[r.id] = forces[r.id]! + delta / distance * ((distance - 185) * .015);
       }
     }
     for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
-      final members = box.elementIds.where(_positions.containsKey).toList();
+      final members = box.elementIds.where(visibleIds.contains).toList();
       if (members.length < 2) continue;
       final center = members.map((id) => _positions[id]!).reduce((a, b) => a + b) / members.length.toDouble();
       for (final id in members) { forces[id] = forces[id]! + (center - _positions[id]!) * .012; }
@@ -89,6 +136,7 @@ class _ThoughtPageState extends State<ThoughtPage> {
         _positions[r.id] = Offset(p.dx.clamp(30, 2770), p.dy.clamp(30, 1970));
       }
     });
+    _saveLayout();
   }
   void _changed() { widget.onChanged(); setState(_sync); }
   Future<void> _create() async {
@@ -120,15 +168,24 @@ class _ThoughtPageState extends State<ThoughtPage> {
     if (accepted == true && mounted) { box.elementIds..clear()..addAll(selected); _changed(); }
   }
   @override
-  void dispose() { _timer?.cancel(); elements.removeListener(_storeChanged); _view.dispose(); super.dispose(); }
+  void dispose() {
+    _timer?.cancel();
+    _saveLayout(flush: true);
+    WidgetsBinding.instance.removeObserver(this);
+    elements.removeListener(_storeChanged);
+    _view.removeListener(_saveLayout);
+    _view.dispose(); _search.dispose();
+    super.dispose();
+  }
   @override
   Widget build(BuildContext context) {
     final records = _records;
+    final visiblePositions = {for (final r in records) r.id: _positions[r.id]!};
     final tags = records.expand((r) => r.tags).toSet().toList()..sort();
     final tagPositions = {for (final tag in tags) 'tag:$tag': _tagPositions['tag:$tag']!};
     final regions = <({MemoBox box, Rect bounds})>[];
     for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
-      final bounds = memoBoxCircleBounds(box.elementIds.where(_positions.containsKey).map((id) => _positions[id]!));
+      final bounds = memoBoxCircleBounds(box.elementIds.where(visiblePositions.containsKey).map((id) => visiblePositions[id]!));
       if (bounds != null) regions.add((box: box, bounds: bounds));
     }
     final color = Theme.of(context).colorScheme;
@@ -139,7 +196,7 @@ class _ThoughtPageState extends State<ThoughtPage> {
       IconButton(tooltip: '보기 초기화', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
     ]), body: Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 0), child: Row(children: [
-        Expanded(child: TextField(key: const ValueKey('graph-search'),
+        Expanded(child: TextField(key: const ValueKey('graph-search'), controller: _search,
           decoration: const InputDecoration(hintText: '생각·해시태그 찾기', prefixIcon: Icon(Icons.search), isDense: true),
           onChanged: (value) => setState(() { _query = value.trim().replaceFirst(RegExp(r'^#'), '').toLowerCase(); _centered = false; _sync(); }))),
         const SizedBox(width: 8),
@@ -154,7 +211,7 @@ class _ThoughtPageState extends State<ThoughtPage> {
           _centered = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
-            final points = [..._positions.values, ...tagPositions.values,
+            final points = [...visiblePositions.values, ...tagPositions.values,
               for (final region in regions) ...[region.bounds.topLeft, region.bounds.bottomRight]];
             if (points.isEmpty) points.add(const Offset(1400, 1000));
             final left = points.map((p) => p.dx).reduce(math.min), right = points.map((p) => p.dx).reduce(math.max) + 170;
@@ -165,12 +222,13 @@ class _ThoughtPageState extends State<ThoughtPage> {
           });
         }
         return InteractiveViewer(
+        onInteractionEnd: (_) => _saveLayout(flush: true),
         transformationController: _view, constrained: false, minScale: .15, maxScale: 2.5,
         boundaryMargin: const EdgeInsets.all(500),
         child: SizedBox(width: 3000, height: 2200, child: Stack(clipBehavior: Clip.none, children: [
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
-            {for (final entry in _positions.entries) entry.key: entry.value + const Offset(85, 38), ...tagPositions},
+            {for (final entry in visiblePositions.entries) entry.key: entry.value + const Offset(85, 38), ...tagPositions},
             {for (final r in records) r.id: {...r.connections, ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
           if (records.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
             icon: const Icon(Icons.add), label: Text(_query.isNotEmpty || _unlinkedOnly ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
@@ -182,8 +240,8 @@ class _ThoughtPageState extends State<ThoughtPage> {
                 onDoubleTap: () => showElementMetadata(context, record.text),
                 onPanStart: (_) { _dragging = true; _pinned.add(record.id); },
                 onPanUpdate: (d) => setState(() { final p = _positions[record.id]! + d.delta / _view.value.getMaxScaleOnAxis();
-                  _positions[record.id] = Offset(p.dx.clamp(0, 2830), p.dy.clamp(0, 2124)); }),
-                onPanEnd: (_) { _dragging = false; _sync(); }, onPanCancel: () => _dragging = false,
+                  _positions[record.id] = Offset(p.dx.clamp(0, 2830), p.dy.clamp(0, 2124)); _saveLayout(); }),
+                onPanEnd: (_) { _dragging = false; _sync(); _saveLayout(flush: true); }, onPanCancel: () => _dragging = false,
                 child: Card(color: wordBackgroundColor(context, record.text),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: candidates.isNotEmpty || _selected == record.id ? color.primary : Colors.transparent, width: 2)),
@@ -200,9 +258,9 @@ class _ThoughtPageState extends State<ThoughtPage> {
               onPanStart: (_) => _dragging = true,
               onPanUpdate: (d) => setState(() {
                 final p = _tagPositions['tag:$tag']! + d.delta / _view.value.getMaxScaleOnAxis();
-                _tagPositions['tag:$tag'] = Offset(p.dx.clamp(60, 2900), p.dy.clamp(20, 2160));
+                _tagPositions['tag:$tag'] = Offset(p.dx.clamp(60, 2900), p.dy.clamp(20, 2160)); _saveLayout();
               }),
-              onPanEnd: (_) => _dragging = false, onPanCancel: () => _dragging = false,
+              onPanEnd: (_) { _dragging = false; _saveLayout(flush: true); }, onPanCancel: () => _dragging = false,
               child: DragTarget<String>(onAcceptWithDetails: (d) {
               final r = records.where((r) => r.id == d.data).firstOrNull;
               if (r != null) { r.tags.add(tag); _changed(); }

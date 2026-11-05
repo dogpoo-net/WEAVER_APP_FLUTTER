@@ -1,3 +1,4 @@
+import 'graph_layout.dart';
 import 'element_binding.dart';
 import 'memo_boxes.dart';
 import 'tag_colors.dart';
@@ -39,7 +40,9 @@ class WorkspaceSnapshot {
     this.tagColors = const {},
     this.boxes = const [],
     this.boxFolders = const [],
+    this.graphLayout,
   ]);
+  final GraphLayout? graphLayout;
   final List<String> folders;
   final List<MemoBox> boxes;
   final List<String> boxFolders;
@@ -58,8 +61,9 @@ class WorkspaceSnapshot {
   };
   static String encode(List<Note> notes) => jsonEncode({
     'version': 1,
+    'graphLayout': pageGraphLayout.toJson(),
     'memoBoxFolders': memoBoxFolders,
-    'memoBoxes': [for (final box in memoBoxes) {'name': box.name, 'color': box.color, 'folder': box.folder, 'ids': box.elementIds.toList()}],
+    'memoBoxes': [for (final box in memoBoxes) {'name': box.name, 'color': box.color, 'folder': box.folder, 'ids': box.elementIds.toList(), 'layout': box.layout.toJson()}],
     'folders': projectFolders,
     'paragraphFolders': paragraphFolders,
     'elementFolders': elementFolders,
@@ -247,12 +251,14 @@ class WorkspaceSnapshot {
       elementFolderNames,
       List<String>.from(data['hiddenSearchTags'] ?? []),
       tagColors,
-      [for (final box in (data['memoBoxes'] ?? []) as List) MemoBox(box['name'] as String, color: box['color'] as int, folder: box['folder'] as String?, ids: List<String>.from(box['ids']))],
+      [for (final box in (data['memoBoxes'] ?? []) as List) MemoBox(box['name'] as String, color: box['color'] as int, folder: box['folder'] as String?, ids: List<String>.from(box['ids']), layout: GraphLayout.fromJson(box['layout']))],
       List<String>.from(data['memoBoxFolders'] ?? []),
+      GraphLayout.fromJson(data['graphLayout']),
     );
   }
 
   void apply() {
+    pageGraphLayout = graphLayout ?? GraphLayout();
     memoBoxes..clear()..addAll(boxes);
     memoBoxFolders..clear()..addAll(boxFolders);
     for (final box in boxes) {

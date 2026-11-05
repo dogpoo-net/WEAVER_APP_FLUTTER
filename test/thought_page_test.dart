@@ -3,8 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 import 'package:weaver/features/inbox/memo_boxes.dart';
+import 'package:weaver/features/inbox/graph_layout.dart';
 
 void main() {
+  setUp(() { pageGraphLayout = GraphLayout(); memoBoxes.clear(); });
   testWidgets('page connects thoughts bidirectionally and creates a thought', (tester) async {
     elements.clear(); final a = elements.add('생각 A #안쪽'); final b = elements.add('생각 B');
     elements.add('상자 밖 생각 #바깥');

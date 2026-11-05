@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'graph_layout.dart';
 
 class MemoBox {
-  MemoBox(this.name, {this.color = 0xFF90A4AE, this.folder, Iterable<String> ids = const []}) : elementIds = {...ids};
+  MemoBox(this.name, {this.color = 0xFF90A4AE, this.folder, Iterable<String> ids = const [], GraphLayout? layout}) : elementIds = {...ids}, layout = layout ?? GraphLayout();
+  final GraphLayout layout;
   final String name;
   int color;
   String? folder;
