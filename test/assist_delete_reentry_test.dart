@@ -23,8 +23,10 @@ void main() {
         await tester.enterText(find.byType(TextField), '$prefix관찰하'); await tester.pumpAndSettle();
         tester.testTextInput.updateEditingValue(TextEditingValue(text: '$prefix관찰', selection: TextSelection.collapsed(offset: prefix.length + 2)));
         if (pumpAfterDelete) await tester.pumpAndSettle();
-        // Exact matches may already have selected a candidate; first leave that state.
-        await tester.sendKeyEvent(LogicalKeyboardKey.escape); await tester.pumpAndSettle();
+        // With a settled frame, an exact match is already selected.
+        if (pumpAfterDelete) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape); await tester.pumpAndSettle();
+        }
         await enterAssist(tester); await tester.pumpAndSettle();
         bool selected() => tester.widget<WordBadge>(find.byKey(ValueKey('suggestion-$prefix관찰'))).selected;
         expect(selected(), isTrue);

@@ -158,7 +158,8 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     if (space && keyboard.isControlPressed && !keyboard.isAltPressed && !keyboard.isMetaPressed && !keyboard.isShiftPressed) {
       if (event is KeyDownEvent && !_spaceShortcutHeld) {
         _spaceShortcutHeld = true;
-        if (_controlling) {
+        if (_controlling && _entry != null && _dismissed != widget.controller.text &&
+            _controlValue?.text == widget.controller.text) {
           _controlling = false;
           _controlValue = null;
           _autoCheckedValue = widget.controller.value;
