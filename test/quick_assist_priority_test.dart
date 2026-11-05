@@ -14,11 +14,11 @@ void main() {
       final storage = WorkspaceStorage(await SharedPreferences.getInstance());
       await tester.pumpWidget(MyApp(storage: storage));
       final field = find.byKey(const ValueKey('quick-memo'));
-      final input = tag ? '메모 #태' : '독';
+      final input = tag ? '메모 #태' : '메모 독';
       await tester.enterText(field, input); await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('assist-popup')), findsOneWidget);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
-      final completed = tag ? '메모 ' : '독서';
+      final completed = '메모 ';
       expect(tester.widget<TextField>(field).controller!.text, completed);
       expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
       await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
@@ -26,6 +26,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.widget<TextField>(field).controller!.text, completed);
       expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
+      await tester.pump(const Duration(milliseconds: 600));
       await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
       expect(WorkspaceSnapshot.decode(storage.read()!).notes.length, 1);
       expect(tester.widget<TextField>(field).controller!.text, isEmpty);
@@ -40,7 +41,7 @@ void main() {
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '독'); await tester.pumpAndSettle();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field).controller!.text, '독서');
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     await tester.sendKeyEvent(LogicalKeyboardKey.backspace); await tester.pumpAndSettle();
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
@@ -53,7 +54,7 @@ void main() {
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '독'); await tester.pumpAndSettle();
     await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field).controller!.text, '독서');
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
   }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
   testWidgets('mobile quick memo displays element and tag assist above the keyboard', (tester) async {

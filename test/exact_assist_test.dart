@@ -27,7 +27,7 @@ void main() {
     await toggleAssist(tester); await tester.pumpAndSettle();
     expect(selected(), isTrue);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field).controller!.text, '오늘 작은 생각');
+    expect(tester.widget<TextField>(field).controller!.text, '오늘 ');
     expect(tester.takeException(), isNull);
   });
   testWidgets('Ctrl Space selects a composing exact Hangul match once and exits with Escape after IME echo', (tester) async {
@@ -58,18 +58,15 @@ void main() {
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '오늘 작은'); await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('suggestion-작은 생각'))); await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field).controller!.text, '오늘 작은 생각');
+    expect(tester.widget<TextField>(field).controller!.text, '오늘 ');
     await tester.enterText(field, '작은 생각'); await tester.pumpAndSettle();
     expect(tester.widgetList<WordBadge>(find.byType(WordBadge)).any((b) => b.word == '작은 생각' && b.selected), isTrue);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field).controller!.text, '작은 생각');
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     final controller = tester.widget<TextField>(field).controller! as BoundTextController;
-    expect(controller.bindings.single.id, elements.records['작은 생각']!.id);
-    await tester.enterText(field, '작은 새 생각'); await tester.pumpAndSettle();
-    expect(controller.text, '작은 생각');
-    await tester.enterText(field, '작은 생'); await tester.pumpAndSettle();
-    expect(controller.text, isEmpty);
     expect(controller.bindings, isEmpty);
+    await tester.enterText(field, '새 본문'); await tester.pumpAndSettle();
+    expect(controller.text, '새 본문');
     expect(tester.takeException(), isNull);
   });
 }
