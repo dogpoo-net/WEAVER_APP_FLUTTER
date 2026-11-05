@@ -94,6 +94,10 @@ void main() {
         expect(controller.text, '각\n');
         expect(controller.selection.extentOffset, 2);
         expect(elements.words, isEmpty);
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+        expect(controller.text, '각\n');
+        expect(elements.words, isEmpty);
         if (!nativeNewline) {
           // A late IME commit must not erase the manually inserted newline.
           tester.testTextInput.updateEditingValue(const TextEditingValue(text: '각',
