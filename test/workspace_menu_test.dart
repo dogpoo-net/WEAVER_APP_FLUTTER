@@ -39,7 +39,8 @@ void main() {
     await tester.pumpWidget(const MyApp());
     await tester.tap(find.byTooltip('메뉴 열기'));
     await tester.pumpAndSettle();
-    expect(find.text('메인'), findsOneWidget);
+    expect(find.text('메인'), findsNothing);
+    expect(tester.getSize(find.byType(Dialog)).height, greaterThan(480));
     expect(find.descendant(of: find.byType(WorkspaceMenu), matching: find.text('문단 쓰기')), findsNothing);
     await tester.tap(find.byTooltip('메뉴 닫기'));
     await tester.pumpAndSettle();
@@ -47,6 +48,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('생각 만들기'), findsNothing);
     expect(find.byTooltip('생각 만들기'), findsOneWidget);
+    await tester.tap(find.text('WEAVER'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('생각 만들기'), findsNothing);
+    expect(find.text('빠른 메모'), findsOneWidget);
   });
   testWidgets('only project list scrolls while navigation remains fixed', (
     tester,
@@ -73,7 +78,7 @@ void main() {
     );
     await tester.tap(find.text('열기'));
     await tester.pumpAndSettle();
-    final before = tester.getTopLeft(find.text('메인'));
+    final before = tester.getTopLeft(find.text('페이지'));
     await tester.scrollUntilVisible(
       find.text('프로젝트 29'),
       200,
@@ -82,7 +87,7 @@ void main() {
         matching: find.byType(Scrollable),
       ),
     );
-    expect(tester.getTopLeft(find.text('메인')), before);
+    expect(tester.getTopLeft(find.text('페이지')), before);
     await tester.ensureVisible(find.text('프로젝트 29'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('프로젝트 29'));
