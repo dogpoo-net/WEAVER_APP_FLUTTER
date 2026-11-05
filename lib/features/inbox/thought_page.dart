@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'element_store.dart';
 import 'tag_colors.dart';
 import 'hashtags.dart';
+import 'memo_boxes.dart';
 import 'word_badge.dart';
 
 /// A live workspace over the same thoughts, tags and reciprocal connections.
 class ThoughtPage extends StatefulWidget {
-  const ThoughtPage({super.key, required this.onChanged});
+  const ThoughtPage({super.key, required this.onChanged, this.box});
   final VoidCallback onChanged;
+  final MemoBox? box;
   @override
   State<ThoughtPage> createState() => _ThoughtPageState();
 }
@@ -23,8 +25,9 @@ class _ThoughtPageState extends State<ThoughtPage> {
   static const _nodeSize = Size(170, 76);
   @override
   void initState() { super.initState(); elements.addListener(_storeChanged); _sync(); }
+  List<ElementRecord> get _records => elements.records.values.where((r) => widget.box == null || widget.box!.elementIds.contains(r.id)).toList();
   void _sync() {
-    final records = elements.records.values.toList();
+    final records = _records;
     _positions.removeWhere((id, _) => !records.any((r) => r.id == id));
     for (var i = 0; i < records.length; i++) {
       final angle = i * 2.39996;
@@ -37,7 +40,7 @@ class _ThoughtPageState extends State<ThoughtPage> {
   void _storeChanged() { if (mounted) setState(_sync); }
   void _relax() {
     if (!mounted || _dragging || _frames++ > 120) return;
-    final records = elements.records.values.toList();
+    final records = _records;
     final forces = {for (final r in records) r.id: Offset.zero};
     // Repulsion stays local so large collections remain responsive.
     for (var i = 0; i < records.length; i++) {
@@ -76,6 +79,7 @@ class _ThoughtPageState extends State<ThoughtPage> {
     controller.dispose();
     if (text == null || !mounted) return;
     final r = elements.add(text);
+    widget.box?.elementIds.add(r.id);
     if (_selected != null) elements.connect(_selected!, [r.id]);
     _selected = r.id; _changed();
   }
@@ -83,14 +87,27 @@ class _ThoughtPageState extends State<ThoughtPage> {
     if (a == b) return;
     elements.connect(a, [b]); _linkFrom = null; _changed();
   }
+  Future<void> _pick() async {
+    final box = widget.box!;
+    final selected = Set.of(box.elementIds);
+    final accepted = await showDialog<bool>(context: context, builder: (context) => StatefulBuilder(builder: (context, update) => AlertDialog(
+      title: const Text('상자에 생각 담기'), content: SizedBox(width: 400, height: 400, child: ListView(children: [
+        for (final r in elements.records.values) CheckboxListTile(title: Text(badgeLabel(r.text), maxLines: 2, overflow: TextOverflow.ellipsis),
+          value: selected.contains(r.id), onChanged: (yes) => update(() { if (yes == true) { selected.add(r.id); } else { selected.remove(r.id); } }))])),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('적용'))])));
+    if (accepted == true && mounted) { box.elementIds..clear()..addAll(selected); _changed(); }
+  }
   @override
   void dispose() { _timer?.cancel(); elements.removeListener(_storeChanged); _view.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) {
-    final records = elements.records.values.toList();
-    final tags = elements.tags;
+    final records = _records;
+    final tags = records.expand((r) => r.tags).toSet().toList()..sort();
+    final tagPositions = {for (var i = 0; i < tags.length; i++) 'tag:${tags[i]}': Offset(1050 + (i % 5) * 180, 650 - (i ~/ 5) * 70)};
     final color = Theme.of(context).colorScheme;
-    return Scaffold(appBar: AppBar(title: const Text('페이지'), actions: [
+    return Scaffold(appBar: AppBar(title: Text(widget.box?.name ?? '페이지'), actions: [
+      if (widget.box != null) IconButton(tooltip: '상자에 생각 담기', onPressed: _pick, icon: const Icon(Icons.playlist_add)),
       IconButton(tooltip: '연결 모드', isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
       IconButton(tooltip: '보기 초기화', onPressed: () => _view.value = Matrix4.identity(), icon: const Icon(Icons.center_focus_strong)),
@@ -108,10 +125,16 @@ class _ThoughtPageState extends State<ThoughtPage> {
         boundaryMargin: const EdgeInsets.all(500),
         child: SizedBox(width: 3000, height: 2200, child: Stack(children: [
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
-            {for (final entry in _positions.entries) entry.key: entry.value + const Offset(85, 38)},
-            {for (final r in records) r.id: Set.of(r.connections)}, color.outlineVariant)))),
-          if (records.isEmpty) Positioned(left: 40, top: 40, child: TextButton.icon(onPressed: _create,
+            {for (final entry in _positions.entries) entry.key: entry.value + const Offset(85, 38), ...tagPositions},
+            {for (final r in records) r.id: {...r.connections, ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant)))),
+          if (records.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
             icon: const Icon(Icons.add), label: const Text('첫 생각 만들기'))),
+          for (final tag in tags) Positioned(left: tagPositions['tag:$tag']!.dx - 60, top: tagPositions['tag:$tag']!.dy - 20,
+            child: DragTarget<String>(onAcceptWithDetails: (d) {
+              final r = records.where((r) => r.id == d.data).firstOrNull;
+              if (r != null) { r.tags.add(tag); _changed(); }
+            }, builder: (context, candidates, _) => Chip(label: Text('#$tag'),
+              backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: candidates.isEmpty ? .3 : .6)))),
           for (final record in records) Positioned(left: _positions[record.id]!.dx, top: _positions[record.id]!.dy,
             child: DragTarget<String>(onWillAcceptWithDetails: (d) => d.data != record.id,
               onAcceptWithDetails: (d) => _connect(d.data, record.id), builder: (context, candidates, _) => GestureDetector(

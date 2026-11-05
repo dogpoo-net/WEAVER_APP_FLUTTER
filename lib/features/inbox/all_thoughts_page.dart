@@ -1,4 +1,5 @@
 import 'tag_colors.dart';
+import 'thought_page.dart';
 import 'memo_boxes.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -217,7 +218,7 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
               box: box, onChanged: _changed, child: _filterChip(
                 key: ValueKey('thought-filter-box-${box.name}'), label: box.name,
                 color: Color(box.color), colorTooltip: '${box.name} 상자 색상 변경',
-                selected: identical(_filterBox, box), onFilter: () => _filter(box: box), onColor: () async {
+                selected: identical(_filterBox, box), onFilter: () async { await Navigator.push(context, MaterialPageRoute(builder: (_) => ThoughtPage(box: box, onChanged: () { widget.onChanged?.call(); }))); if (mounted) setState(() {}); }, onColor: () async {
                   final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
                   if (!mounted || color == null) return;
                   box.color = color.toARGB32(); _changed();

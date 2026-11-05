@@ -581,6 +581,11 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   Future<void> _allThoughts([MemoBox? box]) async {
+    if (box != null) {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => ThoughtPage(box: box, onChanged: () { _persist(); })));
+      if (mounted) setState(() {});
+      return;
+    }
     await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onChanged: _persist, initialBox: box)));
     if (mounted) setState(() {});
   }
