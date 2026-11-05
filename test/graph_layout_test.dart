@@ -76,7 +76,13 @@ void main() {
       expect(saved, isNotNull);
       expect(contentSaves, 0);
       final layout = inBox ? box.layout : pageGraphLayout;
-      final positions = Map.of(layout.positions);
+      // Compare the last rendered coordinates, including movement since the
+      // throttled save. Leaving the page must flush those latest coordinates.
+      Offset renderedPosition(String text) {
+        final node = tester.widget<Positioned>(find.ancestor(of: find.text(text), matching: find.byType(Positioned)).first);
+        return Offset(node.left!, node.top!);
+      }
+      final positions = {a.id: renderedPosition('생각 A'), b.id: renderedPosition('생각 B')};
       final tags = Map.of(layout.tags);
       final matrix = List.of(layout.viewport!);
       await tester.pumpWidget(const SizedBox());
