@@ -20,6 +20,7 @@ class WorkspaceMenu extends StatefulWidget {
     this.onBoxChanged, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
   final bool embedded;
   final VoidCallback? onBoxChanged;
+  static const saveBackup = -1000009, loadBackup = -1000010;
   static const createBox = -1000007, createBoxFolder = -1000008;
   final VoidCallback? onTagColorChanged;
   final ValueChanged<int>? onSelected;
@@ -225,6 +226,10 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         ]),
       ))),
       const Divider(indent: 16, endIndent: 16),
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(children: [
+        Expanded(child: TextButton(onPressed: () => _select(WorkspaceMenu.saveBackup), child: const Text('저장하기'))),
+        Expanded(child: TextButton(onPressed: () => _select(WorkspaceMenu.loadBackup), child: const Text('불러오기'))),
+      ])),
       ListTile(dense: true, leading: const Icon(Icons.delete_outline, size: 18), title: const Text('데이터 초기화'),
         onTap: () => _select(WorkspaceMenu.resetData)),
     ]);

@@ -1,3 +1,4 @@
+import 'features/inbox/numbered_backup.dart';
 import 'app_theme.dart';
 import 'features/inbox/workspace_routes.dart';
 import 'package:flutter/material.dart';
@@ -31,8 +32,9 @@ Future<void> main() async {
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key, this.storage});
+  const MyApp({super.key, this.storage, this.backupStore});
   final WorkspaceStorage? storage;
+  final NumberedBackupStore? backupStore;
   @override
   State<MyApp> createState() => _MyAppState();
 }
@@ -114,6 +116,7 @@ class _MyAppState extends State<MyApp> {
     themeMode: _mode,
     home: InboxPage(
       storage: widget.storage,
+      backupStore: widget.backupStore,
       themeMode: _mode,
       lightPalette: _lightPalette,
       onLightPaletteChanged: (palette) => setState(() { _lightPalette = palette; _mode = ThemeMode.light; }),
