@@ -121,9 +121,30 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     });
     arrangeGraph(thoughts: ordered.map((r) => r.id).toList(), tags: tags,
       positions: _positions, tagPositions: _tagPositions);
+    if (!hadPositions && widget.box == null) _separateBoxes();
     if (!hadPositions && _positions.isNotEmpty) _centered = false;
     if (!records.any((r) => r.id == _selected)) _selected = null;
     _saveLayout();
+  }
+  void _separateBoxes() {
+    var x = 640.0;
+    final assigned = <String>{};
+    var bottom = 400.0;
+    for (final box in memoBoxes) {
+      final ids = box.elementIds.where((id) => _positions.containsKey(id) && !assigned.contains(id)).toList();
+      if (ids.isEmpty) continue;
+      for (var i = 0; i < ids.length; i++) { _positions[ids[i]] = Offset(x + (i % 3) * 220, 600 + (i ~/ 3) * 140); }
+      final bounds = memoBoxCircleBounds(ids.map((id) => _positions[id]!))!;
+      final shift = Offset(x - bounds.left, math.max(0, 400 - bounds.top));
+      for (final id in ids) { _positions[id] = _positions[id]! + shift; }
+      final moved = bounds.shift(shift);
+      x = moved.right + 100; bottom = math.max(bottom, moved.bottom);
+      assigned.addAll(ids);
+    }
+    var i = 0;
+    for (final id in _positions.keys.where((id) => !assigned.contains(id)).toList()) {
+      _positions[id] = Offset(640 + (i % 6) * 250, bottom + 120 + (i ~/ 6) * 160); i++;
+    }
   }
   void _storeChanged() { if (mounted && _routeVisible && _appActive) setState(_sync); }
   void _changed() { widget.onChanged(); setState(_sync); }
@@ -223,7 +244,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         transformationController: _view, constrained: false, minScale: .15, maxScale: 2.5,
         boundaryMargin: const EdgeInsets.all(500),
         child: SizedBox(width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
-          for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds),
+          for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds,
+            onDrag: (delta) => setState(() {
+              final shift = delta / _view.value.getMaxScaleOnAxis();
+              for (final id in region.box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
+              _saveLayout();
+            }), onDragEnd: () => _saveLayout(flush: true)),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
             nodeRects,
             {for (final r in records) r.id: {...r.connections, ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
@@ -286,12 +312,11 @@ class _Connections extends CustomPainter {
   late final List<({Path path, Color color})> _paths = _buildPaths();
   List<({Path path, Color color})> _buildPaths() {
     final result = <({Path path, Color color})>[];
-    final router = GraphEdgeRouter(positions);
-    var lane = 0;
+
     for (final entry in links.entries) {
       for (final id in entry.value) {
         if ((tagColors.containsKey(id) || entry.key.compareTo(id) < 0) && positions.containsKey(id) && positions.containsKey(entry.key)) {
-          final points = router.route(entry.key, id, lane++);
+          final points = [positions[entry.key]!.center, positions[id]!.center];
           final path = Path()..moveTo(points.first.dx, points.first.dy);
           for (final point in points.skip(1)) { path.lineTo(point.dx, point.dy); }
           result.add((path: path, color: tagColors[id]?.withValues(alpha: .75) ?? color));

@@ -21,17 +21,29 @@ Rect? memoBoxCircleBounds(Iterable<Offset> positions) {
 }
 
 class MemoBoxRegion extends StatelessWidget {
-  const MemoBoxRegion({super.key, required this.box, required this.bounds});
+  const MemoBoxRegion({super.key, required this.box, required this.bounds, this.onDrag, this.onDragEnd});
   final MemoBox box;
   final Rect bounds;
+  final ValueChanged<Offset>? onDrag;
+  final VoidCallback? onDragEnd;
   @override
-  Widget build(BuildContext context) => Positioned.fromRect(rect: bounds, child: IgnorePointer(
-    child: DecoratedBox(decoration: BoxDecoration(shape: BoxShape.circle,
+  Widget build(BuildContext context) => Positioned.fromRect(rect: bounds, child: Stack(children: [IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(shape: BoxShape.circle,
       color: Color(box.color).withValues(alpha: .10),
       border: Border.all(color: Color(box.color).withValues(alpha: .7), width: 1.5)),
       child: Align(alignment: Alignment.topCenter, child: Padding(padding: const EdgeInsets.fromLTRB(32, 15, 32, 0),
         child: Text(box.name, maxLines: 1, overflow: TextOverflow.ellipsis,
           style: TextStyle(color: Color(box.color), fontSize: 13, fontWeight: FontWeight.w600)))),
-    ),
-  ));
+    )),
+    Positioned.fill(child: ClipPath(clipper: _RingClipper(), child: GestureDetector(behavior: HitTestBehavior.opaque,
+      onPanUpdate: (d) => onDrag?.call(d.delta), onPanEnd: (_) => onDragEnd?.call(),
+      child: const ColoredBox(color: Colors.transparent)))),
+  ]));
+}
+
+class _RingClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) => Path()..fillType = PathFillType.evenOdd
+    ..addOval(Offset.zero & size)..addOval((Offset.zero & size).deflate(18));
+  @override
+  bool shouldReclip(_RingClipper oldClipper) => false;
 }
