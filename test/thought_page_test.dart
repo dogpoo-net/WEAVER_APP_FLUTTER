@@ -4,6 +4,7 @@ import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/graph_layout.dart';
+import 'package:weaver/features/inbox/memo_box_region.dart';
 
 void main() {
   setUp(() { pageGraphLayout = GraphLayout(); memoBoxes.clear(); });
@@ -42,6 +43,23 @@ void main() {
     await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 300));
     expect(pageGraphLayout.tags['tag:태그']!.dy, lessThan(pageGraphLayout.positions[a.id]!.dy));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('dragging a thought into an empty box adds membership', (tester) async {
+    elements.clear();
+    final a = elements.add('담을 생각 #라벨');
+    final box = MemoBox('빈 상자'); memoBoxes.add(box);
+    var changes = 0;
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () => changes++)));
+    await tester.pumpAndSettle();
+    final from = tester.getCenter(find.text('담을 생각'));
+    final target = tester.getCenter(find.byType(MemoBoxRegion));
+    await tester.dragFrom(from, target - from);
+    await tester.pumpAndSettle();
+    expect(box.elementIds, contains(a.id));
+    expect(changes, greaterThan(0));
+    expect(find.byWidgetPredicate((w) => w is Chip && w.side?.width == 2.5), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
