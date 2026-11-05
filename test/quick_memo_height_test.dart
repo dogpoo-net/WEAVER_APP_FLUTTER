@@ -14,9 +14,9 @@ void main() {
       final initialHeight = tester.getSize(field).height;
       await tester.enterText(field, List.filled(40, '기록할 생각').join('\n'));
       await tester.pumpAndSettle();
-      expect(tester.getSize(field).height, greaterThan(initialHeight));
+      expect(tester.getSize(field).height, size.width < 760 ? initialHeight : greaterThan(initialHeight));
       expect(tester.getSize(field).height, lessThan(size.height));
-      expect(tester.widget<TextField>(field).maxLines, isNull);
+      expect(tester.widget<TextField>(field).maxLines, size.width < 760 ? 4 : null);
       expect(tester.takeException(), isNull);
     });
   }

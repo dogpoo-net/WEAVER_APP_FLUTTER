@@ -829,8 +829,8 @@ class _InboxPageState extends State<InboxPage> {
               onSubmitted: _desktopQuickMemo ? (_) => _submitQuickMemo() : null,
               controller: _draft,
               focusNode: _focus,
-              minLines: MediaQuery.sizeOf(context).width < 760 ? 8 : 4,
-              maxLines: MediaQuery.sizeOf(context).width < 760 ? 8 : null,
+              minLines: 4,
+              maxLines: MediaQuery.sizeOf(context).width < 760 ? 4 : null,
               onChanged: (_) {
                 final completed = takeCompletedParagraphTags(_draft.value);
                 setState(() {
@@ -866,7 +866,7 @@ class _InboxPageState extends State<InboxPage> {
             if (_draftConnections.isNotEmpty) ...[
               const SizedBox(width: 8),
               Expanded(child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 66),
-                child: SingleChildScrollView(child: ClipRect(child: LimitedRowsWrap(maxRows: 2, children: [
+                child: SingleChildScrollView(child: ClipRect(child: Wrap(spacing: 6, runSpacing: 6, children: [
                   for (final record in elements.records.values.where((r) => _draftConnections.contains(r.id)))
                     WordBadge(compact: true, word: record.text, onTap: () => showElementMetadata(context, record.text),
                       onLongPress: () => setState(() => _draftConnections.remove(record.id))),
