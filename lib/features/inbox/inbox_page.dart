@@ -1,4 +1,3 @@
-import 'numbered_backup.dart';
 import 'limited_rows_wrap.dart';
 import 'caret_assist.dart';
 import 'element_binding.dart';
@@ -29,14 +28,12 @@ class InboxPage extends StatefulWidget {
   const InboxPage({
     super.key,
     this.storage,
-    this.backupStore,
     required this.themeMode,
     this.lightPalette = LightPalette.neutral,
     this.onLightPaletteChanged,
     required this.onThemeChanged,
   });
   final WorkspaceStorage? storage;
-  final NumberedBackupStore? backupStore;
   final ThemeMode themeMode;
   final LightPalette lightPalette;
   final ValueChanged<LightPalette>? onLightPaletteChanged;
@@ -221,20 +218,6 @@ class _InboxPageState extends State<InboxPage> {
       }
     }
   }
-
-  Future<void> _backup(bool saving) => showNumberedBackup(context, saving: saving, store: widget.backupStore,
-    export: () => WorkspaceSnapshot.encode(_notes), restore: (raw, snapshot) async {
-      final storage = widget.storage;
-      if (storage == null) throw StateError('Storage unavailable');
-      await storage.write(raw);
-      if (!mounted) return;
-      setState(() {
-        snapshot.apply();
-        _notes..clear()..addAll(snapshot.notes);
-        _draft.clear(); _draftTags.clear(); _editing = null;
-        _restoreBlocked = false; _storageError = null;
-      });
-    });
 
   Future<void> _reset() async {
     final yes = await showDialog<bool>(
@@ -662,9 +645,6 @@ class _InboxPageState extends State<InboxPage> {
     if (choice == WorkspaceMenu.createProject) {
       await _createProject();
       return;
-    }
-    if (choice == WorkspaceMenu.saveBackup || choice == WorkspaceMenu.loadBackup) {
-      await _backup(choice == WorkspaceMenu.saveBackup); return;
     }
     if (choice == WorkspaceMenu.resetData) {
       await _reset();
