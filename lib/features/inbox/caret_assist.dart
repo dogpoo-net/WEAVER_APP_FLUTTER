@@ -346,9 +346,9 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     }
     final checked = _autoCheckedValue;
     final changed = checked == null || checked.text != value.text || checked.selection != value.selection;
-    if (autoSelect && changed && (!value.composing.isValid || value.composing.isCollapsed)) {
+    if (autoSelect && changed && (!_tagMode || !value.composing.isValid || value.composing.isCollapsed)) {
       _autoCheckedValue = value;
-      final exact = query.isEmpty ? -1 : _matches.indexWhere((word) => (_tagMode ? word.substring(1) : word).toLowerCase() == query.toLowerCase());
+      final exact = query.isEmpty ? -1 : _matches.indexWhere((word) => (_tagMode ? word.substring(1).toLowerCase() == query.toLowerCase() : word == query));
       if (exact >= 0) {
         _selected = exact;
         _controlling = true;
