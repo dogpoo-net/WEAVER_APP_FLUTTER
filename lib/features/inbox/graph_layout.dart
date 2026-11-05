@@ -44,7 +44,7 @@ class GraphLayout {
     readPoints(data['positions'], layout.positions);
     readPoints(data['tags'], layout.tags);
     readPoints(data['sizes'], layout.sizes);
-    layout.sizes.updateAll((id, p) => Offset(p.dx.clamp(178, 640), p.dy.clamp(84, 520)));
+    layout.sizes.updateAll((id, p) => Offset(p.dx.clamp(170, 640), p.dy.clamp(76, 520)));
     final matrix = data['viewport'];
     if (matrix is List && matrix.length == 16 && matrix.every((n) => n is num && n.isFinite)) {
       final values = matrix.map((n) => (n as num).toDouble()).toList();

@@ -17,7 +17,7 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
   Size _start = Size.zero;
   Offset _pointer = Offset.zero;
   bool _resized = false;
-  Size _clamp(double w, double h) => Size(w.clamp(178, 640), h.clamp(84, 520));
+  Size _clamp(double w, double h) => Size(w.clamp(170, 640), h.clamp(76, 520));
   Widget _handle(String name, MouseCursor cursor, bool left, bool top, bool horizontal, bool vertical) =>
     MouseRegion(cursor: cursor, child: GestureDetector(key: ValueKey('resize-$name'), behavior: HitTestBehavior.opaque,
       onPanUpdate: (d) {
