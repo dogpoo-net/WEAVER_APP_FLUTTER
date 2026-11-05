@@ -32,6 +32,19 @@ void main() {
       expect(tester.takeException(), isNull);
     }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
   }
+  testWidgets('a new Backspace after completion removes the element instead of being treated as an echo', (tester) async {
+    elements.clear(); elements.add('독서');
+    SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
+    final storage = WorkspaceStorage(await SharedPreferences.getInstance());
+    await tester.pumpWidget(MyApp(storage: storage));
+    final field = find.byKey(const ValueKey('quick-memo'));
+    await tester.enterText(field, '독'); await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).controller!.text, '독서');
+    await tester.sendKeyEvent(LogicalKeyboardKey.backspace); await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+    expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
+  }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
   testWidgets('native submit without a hardware key still accepts visible assist first', (tester) async {
     elements.clear(); elements.add('독서');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});

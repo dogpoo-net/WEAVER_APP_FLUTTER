@@ -412,6 +412,7 @@ class _InboxPageState extends State<InboxPage> {
       LogicalKeyboardKey.altLeft, LogicalKeyboardKey.altRight, LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.controlRight,
     }.contains(event.logicalKey)) {
       _newlineEchoBefore = null; _newlineEchoAfter = null; _newlineEchoUntil = null;
+      _assistSubmitUntil = null; _assistInputBefore = null; _assistCompleted = null;
     }
     final enter = event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.numpadEnter ||
       event.physicalKey == PhysicalKeyboardKey.enter || event.physicalKey == PhysicalKeyboardKey.numpadEnter;
