@@ -202,9 +202,13 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     final ranked = together.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     return AlertDialog(
-      title: Align(
-        alignment: AlignmentDirectional.centerStart,
-        child: elementBadge(context, word),
+      title: element.tags.isEmpty ? null : Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: [for (final tag in element.tags) Text('#$tag',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            fontSize: 11, fontWeight: FontWeight.w400,
+            color: Theme.of(context).colorScheme.onSurfaceVariant))],
       ),
       content: SizedBox(
         width: 400,
@@ -229,16 +233,6 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                 },
               ),
               const Divider(height: 28),
-              if (element.tags.isNotEmpty) ...[
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: element.tags
-                      .map((tag) => Chip(label: Text('#$tag')))
-                      .toList(),
-                ),
-                const Divider(height: 20),
-              ],
               MergeSemantics(child: ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('검색에서 숨기기'),
