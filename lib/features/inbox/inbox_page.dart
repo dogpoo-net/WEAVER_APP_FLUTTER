@@ -797,6 +797,11 @@ class _InboxPageState extends State<InboxPage> {
                 _editing == null ? '빠른 메모' : '메모 다듬기',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
+              if (_draftTags.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Expanded(child: SingleChildScrollView(scrollDirection: Axis.horizontal,
+                  child: InlineTags(tags: _draftTags, onRemove: (tag) => setState(() => _draftTags.remove(tag))))),
+              ],
             ],
           ),
           const SizedBox(height: 14),
@@ -842,31 +847,25 @@ class _InboxPageState extends State<InboxPage> {
           ),
           ),
           const SizedBox(height: 12),
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            FilledButton.icon(
-              style: MediaQuery.sizeOf(context).width < 760 ? FilledButton.styleFrom(
-                minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 10),
-                textStyle: const TextStyle(fontSize: 12), visualDensity: VisualDensity.compact,
-              ) : null,
-              onPressed: _draft.text.trim().isEmpty ? null : _save,
-              icon: const Icon(Icons.arrow_downward_rounded, size: 16),
-              label: const Text('저장'),
+          if (_draftConnections.isNotEmpty) ...[
+            ConstrainedBox(constraints: const BoxConstraints(maxHeight: 66),
+              child: SingleChildScrollView(child: Wrap(spacing: 6, runSpacing: 6, children: [
+                for (final record in elements.records.values.where((r) => _draftConnections.contains(r.id)))
+                  WordBadge(compact: true, word: record.text, onTap: () => showElementMetadata(context, record.text),
+                    onLongPress: () => setState(() => _draftConnections.remove(record.id))),
+              ]))),
+            const SizedBox(height: 8),
+          ],
+          Align(alignment: AlignmentDirectional.centerEnd, child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 28), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              textStyle: const TextStyle(fontSize: 11), visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            if (_draftConnections.isNotEmpty) ...[
-              const SizedBox(width: 8),
-              Expanded(child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 66),
-                child: SingleChildScrollView(child: ClipRect(child: Wrap(spacing: 6, runSpacing: 6, children: [
-                  for (final record in elements.records.values.where((r) => _draftConnections.contains(r.id)))
-                    WordBadge(compact: true, word: record.text, onTap: () => showElementMetadata(context, record.text),
-                      onLongPress: () => setState(() => _draftConnections.remove(record.id))),
-                ]))),
-              )),
-            ],
-          ]),
-          if (_draftTags.isNotEmpty) Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: SingleChildScrollView(scrollDirection: Axis.horizontal,
-              child: InlineTags(tags: _draftTags, onRemove: (tag) => setState(() => _draftTags.remove(tag))))),
+            onPressed: _draft.text.trim().isEmpty ? null : _save,
+            icon: const Icon(Icons.arrow_downward_rounded, size: 14),
+            label: const Text('저장'),
+          )),
         ],
       ),
     ),
