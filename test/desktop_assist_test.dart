@@ -113,7 +113,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(controller.text, '생');
       expect(controller.selection.extentOffset, 1);
-      expect(controller.value.composing.isCollapsed, isTrue);
+      expect(controller.value.composing, const TextRange(start: 0, end: 1));
       expect(
         tester
             .widgetList<WordBadge>(find.byType(WordBadge))
