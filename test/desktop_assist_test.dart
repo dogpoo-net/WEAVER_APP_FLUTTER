@@ -5,6 +5,12 @@ import 'package:weaver/features/inbox/paragraph_editor.dart';
 import 'package:weaver/features/inbox/caret_assist.dart';
 import 'package:weaver/features/inbox/word_badge.dart';
 
+Future<void> toggleAssist(WidgetTester tester) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+  await tester.sendKeyEvent(LogicalKeyboardKey.space);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+}
+
 void main() {
   testWidgets('single candidate toggles once before overlay refresh and survives IME callbacks', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
@@ -23,10 +29,10 @@ void main() {
     for (final entry in {'생': '생각', '독': '독서'}.entries) {
       // Previously inserted assist text is now protected; remove it atomically.
       controller.clear();
-      // No pump between input and Ctrl: the candidate overlay still has old data.
+      // No pump between input and Ctrl+Space: the candidate overlay still has old data.
       tester.testTextInput.updateEditingValue(TextEditingValue(text: entry.key,
         selection: const TextSelection.collapsed(offset: 1), composing: const TextRange(start: 0, end: 1)));
-      await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft);
+      await toggleAssist(tester);
       await tester.pumpAndSettle();
       expect(selected(entry.value), isTrue);
       // Browsers may report composing again after Ctrl has already committed it.
@@ -46,17 +52,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('suggestion-독서')), findsOneWidget);
     expect(selected('독서'), isTrue);
-    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft);
+    await toggleAssist(tester);
     await tester.pumpAndSettle();
     expect(selected('독서'), isFalse);
-    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft);
+    await toggleAssist(tester);
     await tester.pumpAndSettle();
     expect(selected('독서'), isTrue);
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
 
   testWidgets(
-    'one Control toggles during Korean composition without moving caret',
+    'Control Space toggles during Korean composition without moving caret',
     (tester) async {
       tester.view.physicalSize = const Size(1200, 900);
       tester.view.devicePixelRatio = 1;
@@ -86,10 +92,11 @@ void main() {
           .firstWhere((f) => !f.canRequestFocus && f.onKeyEvent != null);
       final node = FocusNode();
       addTearDown(node.dispose);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
       handler.onKeyEvent!(
         node,
         const KeyDownEvent(
-          physicalKey: PhysicalKeyboardKey.controlLeft,
+          physicalKey: PhysicalKeyboardKey.space,
           logicalKey: LogicalKeyboardKey.process,
           timeStamp: Duration.zero,
         ),
@@ -97,11 +104,12 @@ void main() {
       handler.onKeyEvent!(
         node,
         const KeyUpEvent(
-          physicalKey: PhysicalKeyboardKey.controlLeft,
+          physicalKey: PhysicalKeyboardKey.space,
           logicalKey: LogicalKeyboardKey.process,
           timeStamp: Duration.zero,
         ),
       );
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
       expect(controller.text, '생');
       expect(controller.selection.extentOffset, 1);
@@ -114,7 +122,7 @@ void main() {
             .word,
         '생각',
       );
-      await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft);
+      await toggleAssist(tester);
       await tester.pumpAndSettle();
       expect(
         tester
@@ -141,7 +149,7 @@ void main() {
             .any((w) => w.selected),
         isFalse,
       );
-      await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft);
+      await toggleAssist(tester);
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -185,7 +193,7 @@ void main() {
         .widgetList<WordBadge>(find.byType(WordBadge))
         .singleWhere((b) => b.selected)
         .word;
-    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft);
+    await toggleAssist(tester);
     await tester.pumpAndSettle();
     expect(selected(), words.first);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
@@ -209,7 +217,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
     await tester.pumpAndSettle();
     expect(selected(), words.first);
-    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft);
+    await toggleAssist(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
     await tester.pumpAndSettle();
     expect(controller.selection.extentOffset, 0);
@@ -221,7 +229,7 @@ void main() {
     );
     controller.selection = const TextSelection.collapsed(offset: 1);
     await tester.pumpAndSettle();
-    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft);
+    await toggleAssist(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
     expect(controller.text, words.first);

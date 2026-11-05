@@ -32,12 +32,14 @@ class ParagraphEditor extends StatefulWidget {
     this.projectCreation = false,
     this.available = const [],
     this.initialTags = const {},
+    this.availableTags = const [],
     required this.words,
   });
   final bool projectEditing;
   final bool projectCreation;
   final List<Paragraph> available;
   final Set<String> initialTags;
+  final List<String> availableTags;
   final List<Paragraph> initial;
   final List<String> words;
   @override
@@ -223,6 +225,20 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     _focus[_active].requestFocus();
   }
 
+  void _insertTag(int index, String tag) {
+    final c = _controllers[index];
+    final token = wordPrefix(c.value);
+    if (!token.startsWith('#')) return;
+    final start = c.selection.start - token.length;
+    setState(() {
+      _tags.add(tag);
+      c.value = TextEditingValue(text: c.text.replaceRange(start, c.selection.end, ''),
+        selection: TextSelection.collapsed(offset: start));
+      _dirty = true;
+    });
+    _focus[index].requestFocus();
+  }
+
   Future<void> _loadParagraph() async {
     _focus[_active].unfocus();
     var query = '';
@@ -368,6 +384,8 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                             controller: _controllers[i],
                             focus: _focus[i],
                             words: words,
+                            tags: {...widget.availableTags, ...elements.tags, ..._tags}.toList()..sort(),
+                            onTag: widget.projectEditing ? null : (tag) => _insertTag(i, tag),
                             onWord: (word) {
                               _active = i;
                               _insert(word, complete: true);

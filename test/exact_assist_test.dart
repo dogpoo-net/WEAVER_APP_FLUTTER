@@ -7,6 +7,12 @@ import 'package:weaver/features/inbox/word_badge.dart';
 import 'package:weaver/main.dart';
 import 'package:weaver/features/inbox/element_binding.dart';
 
+Future<void> toggleAssist(WidgetTester tester) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+  await tester.sendKeyEvent(LogicalKeyboardKey.space);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+}
+
 void main() {
   testWidgets('exact phrase selects automatically, escape stays dismissed, and enter binds', (tester) async {
     elements.clear(); elements.add('작은 생각');
@@ -18,7 +24,7 @@ void main() {
     expect(selected(), isTrue);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape); await tester.pumpAndSettle();
     expect(selected(), isFalse);
-    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft); await tester.pumpAndSettle();
+    await toggleAssist(tester); await tester.pumpAndSettle();
     expect(selected(), isTrue);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
     expect(tester.widget<TextField>(field).controller!.text, '오늘 작은 생각');
@@ -33,16 +39,16 @@ void main() {
     const composing = TextEditingValue(text: '생각', selection: TextSelection.collapsed(offset: 2), composing: TextRange(start: 0, end: 2));
     bool selected() => tester.widgetList<WordBadge>(find.byType(WordBadge)).any((b) => b.word == '생각' && b.selected);
     tester.testTextInput.updateEditingValue(composing);
-    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft); await tester.pumpAndSettle();
+    await toggleAssist(tester); await tester.pumpAndSettle();
     expect(selected(), isTrue);
     tester.testTextInput.updateEditingValue(composing); await tester.pumpAndSettle();
     expect(selected(), isTrue);
-    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft); await tester.pumpAndSettle();
+    await toggleAssist(tester); await tester.pumpAndSettle();
     expect(selected(), isFalse);
     tester.testTextInput.updateEditingValue(composing.copyWith(composing: TextRange.empty));
     await tester.pumpAndSettle();
     expect(selected(), isFalse);
-    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft); await tester.pumpAndSettle();
+    await toggleAssist(tester); await tester.pumpAndSettle();
     expect(selected(), isTrue);
     expect(tester.takeException(), isNull);
   });

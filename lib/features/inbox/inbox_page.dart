@@ -442,6 +442,18 @@ class _InboxPageState extends State<InboxPage> {
     _focus.requestFocus();
   }
 
+  void _insertQuickTag(String tag) {
+    final token = wordPrefix(_draft.value);
+    if (!token.startsWith('#')) return;
+    final start = _draft.selection.start - token.length;
+    setState(() {
+      _draftTags.add(tag);
+      _draft.value = TextEditingValue(text: _draft.text.replaceRange(start, _draft.selection.end, ''),
+        selection: TextSelection.collapsed(offset: start));
+    });
+    _focus.requestFocus();
+  }
+
   void _save() {
     _pendingImeSave = false;
     if (_draft.text.trim().isEmpty) return;
@@ -479,6 +491,7 @@ class _InboxPageState extends State<InboxPage> {
         builder: (_) => ParagraphEditor(
           initial: note?.paragraphs ?? const [],
           initialTags: note?.tags ?? const {},
+          availableTags: _allTags,
           words: words,
         ),
       ),
@@ -745,6 +758,7 @@ class _InboxPageState extends State<InboxPage> {
             canRequestFocus: false,
             onKeyEvent: _quickMemoKey,
             child: CaretAssist(controller: _draft, focus: _focus, words: elements.visibleWords, showWhenEmpty: false,
+              tags: {..._allTags, ..._draftTags}.toList()..sort(), onTag: _insertQuickTag,
               onWord: _insertQuickElement, child: TextField(
               key: const ValueKey('quick-memo'),
               inputFormatters: [TextInputFormatter.withFunction(_formatQuickMemo)],

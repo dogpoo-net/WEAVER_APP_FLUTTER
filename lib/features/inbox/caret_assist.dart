@@ -23,10 +23,14 @@ class CaretAssist extends StatefulWidget {
     required this.child,
     this.mobileViewportKey,
     this.showWhenEmpty = true,
+    this.tags = const [],
+    this.onTag,
   });
   final TextEditingController controller;
   final FocusNode focus;
   final List<String> words;
+  final List<String> tags;
+  final ValueChanged<String>? onTag;
   final ValueChanged<String> onWord;
   final Widget child;
   final GlobalKey? mobileViewportKey;
@@ -46,7 +50,8 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   int _selected = 0;
   String _query = '';
   bool _controlling = false;
-  bool _controlAlone = false;
+  bool _tagMode = false, _spaceShortcutHeld = false;
+  String? _explicitOpenText;
   TextEditingValue? _controlValue;
   TextEditingValue? _autoCheckedValue;
   final _badgeKeys = <String, GlobalKey>{};
@@ -55,7 +60,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       MediaQuery.viewInsetsOf(context).bottom == 0;
   void _choose(String word) {
     _controlling = false;
-    widget.onWord(word);
+    if (_tagMode) { widget.onTag?.call(word.substring(1)); } else { widget.onWord(word); }
     _dismissed = widget.controller.text;
     _hide();
   }
@@ -114,44 +119,27 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       return false;
     }
     final keyboard = HardwareKeyboard.instance;
-    final control =
-        event.logicalKey == LogicalKeyboardKey.controlLeft ||
-        event.logicalKey == LogicalKeyboardKey.controlRight ||
-        event.physicalKey == PhysicalKeyboardKey.controlLeft ||
-        event.physicalKey == PhysicalKeyboardKey.controlRight;
-    if (control) {
-      if (event is KeyDownEvent) {
-        _controlAlone =
-            !keyboard.isAltPressed &&
-            !keyboard.isMetaPressed &&
-            !keyboard.isShiftPressed;
-      }
-      if (event is KeyUpEvent && _controlAlone) {
-        _controlAlone = false;
-        // Resolve against the current editing value, not last frame's overlay.
-        // Composition callbacks and layout refreshes must not invert this mode.
+    final space = event.logicalKey == LogicalKeyboardKey.space || event.physicalKey == PhysicalKeyboardKey.space;
+    if (space && event is KeyUpEvent && _spaceShortcutHeld) {
+      _spaceShortcutHeld = false; return true;
+    }
+    if (space && keyboard.isControlPressed && !keyboard.isAltPressed && !keyboard.isMetaPressed && !keyboard.isShiftPressed) {
+      if (event is KeyDownEvent && !_spaceShortcutHeld) {
+        _spaceShortcutHeld = true;
+        _dismissed = null;
+        _explicitOpenText = widget.controller.text;
         _refreshMatches(widget.controller.value, autoSelect: false);
-        if (_matches.isEmpty) {
-          _controlling = false;
-          _controlValue = null;
-          _update();
-          return false;
-        }
         final enterControl = !_controlling;
         widget.controller.clearComposing();
-        // IME commit must not auto-select and then invert this explicit Ctrl toggle.
         _autoCheckedValue = widget.controller.value;
         _refreshMatches(widget.controller.value, autoSelect: false);
         _controlling = _matches.isNotEmpty && enterControl;
         _controlValue = _controlling ? widget.controller.value : null;
-        _entry?.markNeedsBuild();
-        _update();
-        _revealSelection();
+        _entry?.markNeedsBuild(); _update(); _revealSelection();
       }
-      return false;
+      return true;
     }
     if (event is KeyUpEvent) return false;
-    _controlAlone = false;
     if (_matches.isEmpty) return false;
     if (keyboard.isControlPressed ||
         keyboard.isMetaPressed ||
@@ -208,7 +196,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   @override
   void didUpdateWidget(CaretAssist oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!listEquals(oldWidget.words, widget.words)) _update();
+    if (!listEquals(oldWidget.words, widget.words) || !listEquals(oldWidget.tags, widget.tags)) _update();
   }
 
   @override
@@ -243,16 +231,18 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       _controlling = false;
       _controlValue = null;
     }
-    final query = completionPrefix(value, widget.words);
-    if (_query != query) _selected = 0;
-    _query = query;
-    _matches = wordSuggestions(widget.words, query);
+    final token = wordPrefix(value);
+    final tagMode = widget.onTag != null && token.startsWith('#');
+    final query = tagMode ? token.substring(1) : completionPrefix(value, widget.words);
+    if (_query != query || _tagMode != tagMode) _selected = 0;
+    _tagMode = tagMode; _query = query;
+    _matches = tagMode ? wordSuggestions(widget.tags, query).map((tag) => '#$tag').toList() : wordSuggestions(widget.words, query);
     if (_selected >= _matches.length) _selected = 0;
     final checked = _autoCheckedValue;
     final changed = checked == null || checked.text != value.text || checked.selection != value.selection;
     if (autoSelect && changed && (!value.composing.isValid || value.composing.isCollapsed)) {
       _autoCheckedValue = value;
-      final exact = query.isEmpty ? -1 : _matches.indexWhere((word) => word.toLowerCase() == query.toLowerCase());
+      final exact = query.isEmpty ? -1 : _matches.indexWhere((word) => (_tagMode ? word.substring(1) : word).toLowerCase() == query.toLowerCase());
       if (exact >= 0) {
         _selected = exact;
         _controlling = true;
@@ -264,11 +254,12 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
 
   void _update() {
     if (_dismissed != null && _dismissed != widget.controller.text) _dismissed = null;
+    if (_explicitOpenText != widget.controller.text) _explicitOpenText = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (!widget.focus.hasFocus || _dismissed == widget.controller.text) {
         _controlling = false;
-        _controlAlone = false;
+        _spaceShortcutHeld = false; _explicitOpenText = null;
         _controlValue = null;
         _hide();
         return;
@@ -288,7 +279,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       }
       final value = widget.controller.value;
       _refreshMatches(value);
-      if (_matches.isEmpty || (!widget.showWhenEmpty && _query.isEmpty)) {
+      if (_matches.isEmpty || (!widget.showWhenEmpty && !_tagMode && _query.isEmpty && _explicitOpenText == null)) {
         _controlling = false;
         _controlValue = null;
         _hide();
@@ -398,12 +389,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
                               selected:
                                   _controlling &&
                                   _matches.indexOf(word) == _selected,
-                              onTap: () {
-                                widget.onWord(word);
-                                _dismissed = widget.controller.text;
-                                _controlling = false;
-                                _hide();
-                              },
+                              onTap: () => _choose(word),
                             ),
                           ),
                         )
