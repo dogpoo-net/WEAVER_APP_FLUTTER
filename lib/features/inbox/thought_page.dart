@@ -23,6 +23,7 @@ class ThoughtPage extends StatefulWidget {
 }
 class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, RouteAware {
   final _sceneKey = GlobalKey();
+  final _emptyBoxBounds = <MemoBox, Rect>{};
   final _positions = <String, Offset>{};
   final _tagPositions = <String, Offset>{};
   String _query = '';
@@ -209,7 +210,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       nodeRects.values.map((r) => r.right + 80).fold(640.0, math.max), math.max);
     for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
       if (box.elementIds.any(_positions.containsKey)) continue;
-      regions.add((box: box, bounds: Rect.fromLTWH(emptyX, 440, 260, 260)));
+      regions.add((box: box, bounds: _emptyBoxBounds.putIfAbsent(box, () => Rect.fromLTWH(emptyX, 440, 260, 260))));
       emptyX += 340;
     }
     final color = Theme.of(context).colorScheme;
@@ -218,7 +219,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       IconButton(tooltip: '연결 모드', isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
       IconButton(tooltip: '기본 배치로 정리', onPressed: () => setState(() {
-        _positions.clear(); _tagPositions.clear(); _centered = false; _sync();
+        _positions.clear(); _tagPositions.clear(); _emptyBoxBounds.clear(); _centered = false; _sync();
       }), icon: const Icon(Icons.grid_on_outlined)),
       IconButton(tooltip: '보기 초기화', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
     ]), body: Column(children: [
