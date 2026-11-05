@@ -15,7 +15,9 @@ void main() {
     String? saved;
     await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () => saved = WorkspaceSnapshot.encode([]))));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('생각 A')); await tester.pumpAndSettle();
+    await tester.tap(find.text('생각 A'));
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('연결 끊기')); await tester.pumpAndSettle();
     await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('생각 B')));
     await tester.pumpAndSettle();
