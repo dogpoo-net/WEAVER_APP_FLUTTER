@@ -231,9 +231,15 @@ String completionPrefix(TextEditingValue value, List<String> words) {
   String? exact;
   for (final word in words) {
     if (word.isEmpty || !before.toLowerCase().endsWith(word.toLowerCase())) continue;
-    final start = before.length - word.length;
-    if (start > 0 && !RegExp(r'\s').hasMatch(before[start - 1])) continue;
     if (exact == null || word.length > exact.length) exact = word;
   }
-  return exact == null ? wordPrefix(value) : before.substring(before.length - exact.length);
+  if (exact != null) return before.substring(before.length - exact.length);
+  final token = wordPrefix(value);
+  if (words.any((word) => matchesWord(word, token))) return token;
+  final characters = token.characters.toList();
+  for (var i = 1; i < characters.length; i++) {
+    final suffix = characters.skip(i).join();
+    if (words.any((word) => matchesWord(word, suffix))) return suffix;
+  }
+  return token;
 }
