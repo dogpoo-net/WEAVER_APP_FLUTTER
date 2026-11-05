@@ -416,6 +416,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
                             child: WordBadge(
                               key: ValueKey('suggestion-$word'),
                               word: word,
+                              tag: _tagMode,
                               query: _query,
                               selected:
                                   _controlling &&

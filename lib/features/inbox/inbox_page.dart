@@ -432,6 +432,12 @@ class _InboxPageState extends State<InboxPage> {
     }
     final value = _draft.value;
     final keyboard = HardwareKeyboard.instance;
+    if (event is KeyDownEvent && !keyboard.isShiftPressed && !keyboard.isAltPressed &&
+        !keyboard.isControlPressed && !keyboard.isMetaPressed &&
+        _quickAssistKey.currentState?.acceptVisibleCandidate() == true) {
+      _pendingImeSave = false;
+      return KeyEventResult.handled;
+    }
     if (keyboard.isControlPressed || keyboard.isMetaPressed) {
       return KeyEventResult.ignored;
     }
@@ -499,6 +505,7 @@ class _InboxPageState extends State<InboxPage> {
     final input = [_draft.text, ..._draftTags.map((tag) => '#$tag')].join(' ');
     final record = elements.add(input, replaceTags: _editing != null);
     final links = taggedTextBindings(_draft);
+    elements.connect(record.id, links.map((link) => link.id));
     setState(() {
       if (_editing == null) {
         _notes.insert(0, Note(record.text)..bindings = links);

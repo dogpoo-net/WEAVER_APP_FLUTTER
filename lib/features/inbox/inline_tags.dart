@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'tag_colors.dart';
 
 class InlineTags extends StatelessWidget {
   const InlineTags({super.key, required this.tags, required this.onRemove});
@@ -9,9 +10,10 @@ class InlineTags extends StatelessWidget {
     for (final tag in tags) Tooltip(message: '#$tag 태그 삭제', child: TextButton(
       onPressed: () => onRemove(tag),
       style: TextButton.styleFrom(
-        foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-        backgroundColor: Colors.transparent, side: BorderSide.none,
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+        foregroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE),
+        backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: .16), side: BorderSide.none,
+        shape: const StadiumBorder(),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         minimumSize: const Size(0, 22), tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w400)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [Text('#$tag'),

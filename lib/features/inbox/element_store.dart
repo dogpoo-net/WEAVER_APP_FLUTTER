@@ -23,6 +23,7 @@ class ElementRecord {
     this.tags.addAll(tags);
   }
   final Set<String> tags = {};
+  final Set<String> connections = {};
   String? folder;
   bool hiddenFromSearch = false;
   static int _next = 0;
@@ -85,8 +86,24 @@ class ElementStore extends ChangeNotifier {
     ];
   }
 
+  void connect(String id, Iterable<String> targets) {
+    final byId = {for (final record in records.values) record.id: record};
+    final source = byId[id];
+    if (source == null) return;
+    for (final targetId in targets) {
+      final target = byId[targetId];
+      if (target == null || targetId == id) continue;
+      source.connections.add(targetId);
+      target.connections.add(id);
+    }
+    notifyListeners();
+  }
+
   void remove(String word) {
-    if (records.remove(word) != null) notifyListeners();
+    final removed = records.remove(word);
+    if (removed == null) return;
+    for (final record in records.values) { record.connections.remove(removed.id); }
+    notifyListeners();
   }
 
   final Map<String, ElementRecord> records = {};
@@ -256,6 +273,15 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                     onChanged: (hidden) => setState(() => elements.setHidden(word, hidden))),
                 )),
               )),
+              if (element.connections.isNotEmpty) ...[
+                Text('연결', style: Theme.of(context).textTheme.labelMedium),
+                const SizedBox(height: 6),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  for (final linked in elements.records.values.where((r) => element.connections.contains(r.id)))
+                    WordBadge(word: linked.text, onTap: () => showElementMetadata(context, linked.text)),
+                ]),
+                const Divider(height: 28),
+              ],
               Text('생성일', style: Theme.of(context).textTheme.labelMedium),
               const SizedBox(height: 6),
               Text(element.createdAt.toLocal().toString().split('.').first),

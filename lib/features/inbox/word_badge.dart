@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'tag_colors.dart';
 
 import 'package:flutter/material.dart';
 
@@ -111,6 +112,7 @@ class WordBadge extends StatelessWidget {
     required this.word,
     required this.onTap,
     this.selected = false,
+    this.tag = false,
     this.compact = false,
     this.query = '',
     this.onLongPress,
@@ -120,6 +122,7 @@ class WordBadge extends StatelessWidget {
   final String query;
   final VoidCallback onTap;
   final bool selected;
+  final bool tag;
   final bool compact;
   final VoidCallback? onLongPress;
   final VoidCallback? onDoubleTap;
@@ -127,18 +130,20 @@ class WordBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final hue = _wordHues.putIfAbsent(word, () => _random.nextDouble() * 360);
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final maxWidth = min(280.0, (MediaQuery.sizeOf(context).width - 64).clamp(48.0, 280.0));
+    return LayoutBuilder(builder: (context, constraints) {
+    final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : MediaQuery.sizeOf(context).width - 24;
+    final labelColor = tag ? Color(hashtagColors[word.replaceFirst('#', '')] ?? 0xFF90A4AE) : null;
     final badge = ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: TextButton(
       onPressed: onTap,
       onLongPress: onLongPress,
       style: TextButton.styleFrom(
-        backgroundColor: HSLColor.fromAHSL(
+        backgroundColor: labelColor?.withValues(alpha: dark ? .3 : .18) ?? HSLColor.fromAHSL(
           1,
           hue,
           .55,
           dark ? .25 : .9,
         ).toColor(),
-        foregroundColor: HSLColor.fromAHSL(
+        foregroundColor: labelColor ?? HSLColor.fromAHSL(
           1,
           hue,
           .5,
@@ -161,6 +166,7 @@ class WordBadge extends StatelessWidget {
         maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, semanticsLabel: word),
     ));
     return onDoubleTap == null ? badge : GestureDetector(onDoubleTap: onDoubleTap, child: badge);
+    });
   }
 }
 

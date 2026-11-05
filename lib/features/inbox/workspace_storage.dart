@@ -74,6 +74,7 @@ class WorkspaceSnapshot {
             'text': r.text,
             'createdAt': r.createdAt.toIso8601String(),
             'tags': r.tags.toList(),
+            'connections': r.connections.toList(),
             'folder': r.folder,
             'hiddenFromSearch': r.hiddenFromSearch,
           },
@@ -139,12 +140,18 @@ class WorkspaceSnapshot {
         text,
         DateTime.parse(r['createdAt'] as String),
         tags: ((r['tags'] ?? []) as List).cast<String>(),
-      )..folder = r['folder'] as String?
+      )..connections.addAll(((r['connections'] ?? []) as List).cast<String>())
+       ..folder = r['folder'] as String?
        ..hiddenFromSearch = (r['hiddenFromSearch'] as bool?) ?? false;
     }).toList();
     if (records.map((r) => r.text).toSet().length != records.length ||
         records.map((r) => r.id).toSet().length != records.length) {
       throw const FormatException('Duplicate elements');
+    }
+    final byId = {for (final record in records) record.id: record};
+    for (final record in records) {
+      record.connections.removeWhere((id) => id == record.id || !byId.containsKey(id));
+      for (final id in record.connections.toList()) { byId[id]!.connections.add(record.id); }
     }
     final notes = (data['notes'] as List).map((n) {
       final note = Note(
