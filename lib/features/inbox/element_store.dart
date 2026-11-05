@@ -1,3 +1,5 @@
+import 'inline_tags.dart';
+import 'paragraph_tag_input.dart';
 import 'package:flutter/material.dart';
 
 import 'project_page.dart';
@@ -47,7 +49,7 @@ class ElementStore extends ChangeNotifier {
   Future<void> Function()? onProjectChanged;
   List<Paragraph> Function()? availableParagraphs;
   void Function(String oldText, String newText)? onRenamed;
-  String? update(String oldText, String input) {
+  String? update(String oldText, String input, {Iterable<String>? tags}) {
     final parsed = parseTaggedInput(input);
     if (parsed.text.isEmpty) return '원소 내용을 입력해주세요.';
     final record = records[oldText];
@@ -59,7 +61,7 @@ class ElementStore extends ChangeNotifier {
     record.text = parsed.text;
     record.tags
       ..clear()
-      ..addAll(parsed.tags);
+      ..addAll({...parsed.tags, ...?tags});
     records[parsed.text] = record;
     if (oldText != parsed.text) {
       renameWordColor(oldText, parsed.text);
@@ -165,14 +167,29 @@ class _ElementMetadata extends StatefulWidget {
 
 class _ElementMetadataState extends State<_ElementMetadata> {
   late final TextEditingController _editor;
+  late final Set<String> _tags;
+  bool _movingTags = false;
   String? _error;
   @override
   void initState() {
     super.initState();
     final record = elements.records[widget.word]!;
-    _editor = TextEditingController(
-      text: [record.text, ...record.tags.map((t) => '#$t')].join(' '),
-    );
+    _tags = Set.of(record.tags);
+    _editor = TextEditingController(text: record.text)..addListener(_extractTags);
+  }
+
+  void _extractTags() {
+    if (_movingTags) return;
+    final completed = takeCompletedParagraphTags(_editor.value);
+    if (completed.tags.isEmpty) return;
+    _movingTags = true;
+    try {
+      setState(() {
+        _tags.addAll(completed.tags);
+        _editor.value = completed.value;
+        _error = null;
+      });
+    } finally { _movingTags = false; }
   }
 
   @override
@@ -202,14 +219,8 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     final ranked = together.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     return AlertDialog(
-      title: element.tags.isEmpty ? null : Wrap(
-        spacing: 8,
-        runSpacing: 4,
-        children: [for (final tag in element.tags) Text('#$tag',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            fontSize: 11, fontWeight: FontWeight.w400,
-            color: Theme.of(context).colorScheme.onSurfaceVariant))],
-      ),
+      title: _tags.isEmpty ? null : InlineTags(key: const ValueKey('element-tags'), tags: _tags,
+        onRemove: (tag) => setState(() => _tags.remove(tag))),
       content: SizedBox(
         width: 400,
         child: SingleChildScrollView(
@@ -324,7 +335,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
       actions: [
         FilledButton(
           onPressed: () {
-            final error = elements.update(word, _editor.text);
+            final error = elements.update(word, _editor.text, tags: _tags);
             if (error != null) {
               setState(() => _error = error);
               return;
