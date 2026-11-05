@@ -45,19 +45,29 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     elements.indexProject(project); await widget.onChanged?.call();
     if (mounted) { setState(() => _dirty = false); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('저장했습니다.'))); }
   }
-  Widget _referencesPanel() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text('연결된 생각', style: Theme.of(context).textTheme.titleSmall),
-    Wrap(spacing: 6, runSpacing: 6, children: [for (final r in elements.records.values.where((r) => _references.contains(r.text)))
-      WordBadge(word: r.text, onTap: () => showElementMetadata(context, r.text), onLongPress: () => setState(() { _references.remove(r.text); _dirty = true; }))]),
-    const SizedBox(height: 12),
-    Wrap(spacing: 6, children: [for (final tag in {..._tags, ...elements.records.values.where((r) => _references.contains(r.text)).expand((r) => r.tags)})
-      FilterChip(label: Text('#$tag'), selected: _tags.contains(tag), onSelected: (yes) => setState(() { if (yes) { _tags.add(tag); } else { _tags.remove(tag); } _dirty = true; }))]),
-    const Divider(height: 24),
-    TextField(controller: _search, onChanged: (_) => setState(() {}), decoration: const InputDecoration(labelText: '참고할 생각 찾기', prefixIcon: Icon(Icons.search))),
-    for (final r in elements.records.values.where((r) => r.text.toLowerCase().contains(_search.text.toLowerCase()) || r.tags.any((t) => t.contains(_search.text.toLowerCase()))).take(50))
-      CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, title: Text(badgeLabel(r.text), maxLines: 2, overflow: TextOverflow.ellipsis),
-        value: _references.contains(r.text), onChanged: (yes) => setState(() { if (yes == true) { _references.add(r.text); } else { _references.remove(r.text); } _dirty = true; })),
-  ]);
+  Widget _referencesPanel() {
+    final tags = {...elements.tags, ..._tags}.toList()..sort();
+    final query = _search.text.trim().replaceFirst('#', '').toLowerCase();
+    final thoughts = elements.records.values.where((r) =>
+      _references.contains(r.text) || r.tags.any(_tags.contains)).toList();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('연결된 생각', style: Theme.of(context).textTheme.titleSmall),
+      const SizedBox(height: 8),
+      if (thoughts.isEmpty) Text('해시태그를 선택하면 관련 생각이 표시됩니다.', style: Theme.of(context).textTheme.bodySmall),
+      Wrap(spacing: 6, runSpacing: 6, children: [for (final r in thoughts)
+        WordBadge(word: r.text, onTap: () => showElementMetadata(context, r.text),
+          onLongPress: _references.contains(r.text) ? () => setState(() { _references.remove(r.text); _dirty = true; }) : null)]),
+      const Divider(height: 24),
+      TextField(controller: _search, onChanged: (_) => setState(() {}),
+        decoration: const InputDecoration(labelText: '해시태그 찾기', prefixIcon: Icon(Icons.search))),
+      const SizedBox(height: 8),
+      for (final tag in tags.where((tag) => tag.toLowerCase().contains(query)))
+        CheckboxListTile(key: ValueKey('project-tag-$tag'), dense: true, contentPadding: EdgeInsets.zero,
+          title: Text('#$tag'), value: _tags.contains(tag), onChanged: (yes) => setState(() {
+            if (yes == true) { _tags.add(tag); } else { _tags.remove(tag); } _dirty = true;
+          })),
+    ]);
+  }
   @override
   Widget build(BuildContext context) => PopScope(canPop: !_dirty, onPopInvokedWithResult: (didPop, result) async {
     if (didPop) return;
