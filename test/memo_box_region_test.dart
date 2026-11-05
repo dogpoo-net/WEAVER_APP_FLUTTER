@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/memo_box_region.dart';
 
 void main() {
-  testWidgets('circle border drags while the interior remains available', (tester) async {
+  testWidgets('circle border, empty interior and title all drag the group', (tester) async {
     var shift = Offset.zero;
     var interior = 0;
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: Stack(children: [
@@ -15,8 +15,11 @@ void main() {
     expect(shift.dx, greaterThan(0));
     final borderShift = shift;
     await tester.dragFrom(const Offset(120, 120), const Offset(35, 0));
-    expect(shift, borderShift);
-    expect(interior, greaterThan(0));
+    expect(shift.dx, greaterThan(borderShift.dx));
+    final interiorShift = shift;
+    await tester.drag(find.text('상자'), const Offset(35, 0));
+    expect(shift.dx, greaterThan(interiorShift.dx));
+    expect(interior, 0);
     expect(tester.takeException(), isNull);
   });
   test('circle encloses full member cards and follows moved members', () {

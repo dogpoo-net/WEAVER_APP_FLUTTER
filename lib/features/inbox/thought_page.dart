@@ -257,6 +257,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds,
             onDrag: (delta) => setState(() {
               final shift = delta;
+              if (!region.box.elementIds.any(_positions.containsKey)) { _emptyBoxBounds[region.box] = region.bounds.shift(shift); }
               for (final id in region.box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
               _saveLayout();
             }), onDragEnd: () => _saveLayout(flush: true)),
