@@ -22,6 +22,7 @@ class CaretAssist extends StatefulWidget {
     required this.onWord,
     required this.child,
     this.mobileViewportKey,
+    this.showWhenEmpty = true,
   });
   final TextEditingController controller;
   final FocusNode focus;
@@ -29,6 +30,7 @@ class CaretAssist extends StatefulWidget {
   final ValueChanged<String> onWord;
   final Widget child;
   final GlobalKey? mobileViewportKey;
+  final bool showWhenEmpty;
   @override
   State<CaretAssist> createState() => _CaretAssistState();
 }
@@ -283,7 +285,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       }
       final value = widget.controller.value;
       _refreshMatches(value);
-      if (_matches.isEmpty) {
+      if (_matches.isEmpty || (!widget.showWhenEmpty && _query.isEmpty)) {
         _controlling = false;
         _controlValue = null;
         _hide();

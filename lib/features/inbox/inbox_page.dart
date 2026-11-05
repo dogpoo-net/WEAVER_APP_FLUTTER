@@ -672,7 +672,7 @@ class _InboxPageState extends State<InboxPage> {
           Focus(
             canRequestFocus: false,
             onKeyEvent: _quickMemoKey,
-            child: CaretAssist(controller: _draft, focus: _focus, words: elements.visibleWords,
+            child: CaretAssist(controller: _draft, focus: _focus, words: elements.visibleWords, showWhenEmpty: false,
               onWord: _insertQuickElement, child: TextField(
               key: const ValueKey('quick-memo'),
               inputFormatters: [TextInputFormatter.withFunction(_formatQuickMemo)],
