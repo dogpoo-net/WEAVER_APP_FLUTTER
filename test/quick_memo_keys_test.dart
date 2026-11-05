@@ -79,11 +79,15 @@ void main() {
           selection: TextSelection.collapsed(offset: 1), composing: TextRange(start: 0, end: 1)));
         await tester.pump();
         await tester.sendKeyDownEvent(modifier);
-        await tester.sendKeyDownEvent(LogicalKeyboardKey.process, physicalKey: PhysicalKeyboardKey.enter);
+        final handler = tester.widget<Focus>(find.byKey(const ValueKey('quick-memo-keyboard'))).onKeyEvent!;
+        final focus = tester.widget<TextField>(field).focusNode!;
+        handler(focus, const KeyDownEvent(logicalKey: LogicalKeyboardKey.process,
+          physicalKey: PhysicalKeyboardKey.enter, timeStamp: Duration.zero));
         final committed = nativeNewline ? '각\n' : '각';
         tester.testTextInput.updateEditingValue(TextEditingValue(text: committed,
           selection: TextSelection.collapsed(offset: committed.length)));
-        await tester.sendKeyUpEvent(LogicalKeyboardKey.process, physicalKey: PhysicalKeyboardKey.enter);
+        handler(focus, const KeyUpEvent(logicalKey: LogicalKeyboardKey.process,
+          physicalKey: PhysicalKeyboardKey.enter, timeStamp: Duration.zero));
         await tester.sendKeyUpEvent(modifier);
         await tester.pumpAndSettle();
         final controller = tester.widget<TextField>(field).controller!;

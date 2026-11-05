@@ -737,6 +737,7 @@ class _InboxPageState extends State<InboxPage> {
           ),
           const SizedBox(height: 14),
           Focus(
+            key: const ValueKey('quick-memo-keyboard'),
             canRequestFocus: false,
             onKeyEvent: _quickMemoKey,
             child: CaretAssist(controller: _draft, focus: _focus, words: elements.visibleWords, showWhenEmpty: false,
