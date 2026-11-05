@@ -54,6 +54,7 @@ void main() {
     expect(find.byType(ToggleButtons), findsNothing);
     expect(find.text('다음 문단'), findsNothing);
     await tester.enterText(find.byKey(const ValueKey('paragraph-0')), '독립된 문단 #문단태그 ');
+    await tester.pumpAndSettle();
     await tester.tap(find.text('저장'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('독립된 문단'));
