@@ -17,6 +17,10 @@ void main() {
       final input = tag ? '메모 #태' : '메모 독';
       await tester.enterText(field, input); await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('assist-popup')), findsOneWidget);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
       final completed = '메모 ';
       expect(tester.widget<TextField>(field).controller!.text, completed);
