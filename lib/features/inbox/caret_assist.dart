@@ -122,8 +122,12 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     final keyboard = HardwareKeyboard.instance;
     if (event is KeyUpEvent && (event.logicalKey == LogicalKeyboardKey.controlLeft ||
         event.logicalKey == LogicalKeyboardKey.controlRight || event.physicalKey == PhysicalKeyboardKey.controlLeft ||
-        event.physicalKey == PhysicalKeyboardKey.controlRight)) _spaceShortcutHeld = false;
+        event.physicalKey == PhysicalKeyboardKey.controlRight)) {
+      _spaceShortcutHeld = false;
+    }
     final space = event.logicalKey == LogicalKeyboardKey.space || event.physicalKey == PhysicalKeyboardKey.space;
+    final enter = event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.numpadEnter ||
+      event.physicalKey == PhysicalKeyboardKey.enter || event.physicalKey == PhysicalKeyboardKey.numpadEnter;
     if (space && event is KeyUpEvent && _spaceShortcutHeld) {
       _spaceShortcutHeld = false; return true;
     }
@@ -152,7 +156,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       return false;
     }
     if (!_controlling) return false;
-    final navigation = [LogicalKeyboardKey.escape, LogicalKeyboardKey.arrowDown,
+    final navigation = enter || space || [LogicalKeyboardKey.escape, LogicalKeyboardKey.arrowDown,
       LogicalKeyboardKey.arrowUp, LogicalKeyboardKey.arrowLeft, LogicalKeyboardKey.arrowRight,
       LogicalKeyboardKey.enter, LogicalKeyboardKey.space].contains(event.logicalKey);
     if (navigation) widget.controller.clearComposing();
@@ -170,8 +174,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       _move(event.logicalKey);
       return true;
     }
-    if (event.logicalKey == LogicalKeyboardKey.enter ||
-        event.logicalKey == LogicalKeyboardKey.space) {
+    if (enter || space) {
       _choose(_matches[_selected]);
       return true;
     }
