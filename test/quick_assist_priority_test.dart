@@ -56,6 +56,19 @@ void main() {
     }
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
+  testWidgets('native submit completes an attached hashtag without saving prose', (tester) async {
+    elements.clear();
+    SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
+    final storage = WorkspaceStorage(await SharedPreferences.getInstance());
+    await tester.pumpWidget(MyApp(storage: storage));
+    final field = find.byKey(const ValueKey('quick-memo'));
+    await tester.enterText(field, '본문#새태그'); await tester.pumpAndSettle();
+    await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).controller!.text, '본문');
+    expect(find.byTooltip('#새태그 태그 삭제'), findsOneWidget);
+    expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
+    expect(tester.takeException(), isNull);
+  }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
   testWidgets('a new Backspace after completion removes the element instead of being treated as an echo', (tester) async {
     elements.clear(); elements.add('독서');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
