@@ -253,7 +253,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         child: SizedBox(width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds,
             onDrag: (delta) => setState(() {
-              final shift = delta / _view.value.getMaxScaleOnAxis();
+              final shift = delta;
               for (final id in region.box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
               _saveLayout();
             }), onDragEnd: () => _saveLayout(flush: true)),
@@ -268,7 +268,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 onTap: () { if (_linkMode && _linkFrom != null) { _connect(_linkFrom!, record.id); }
                   else { setState(() { _selected = record.id; if (_linkMode) _linkFrom = record.id; }); } },
                 onDoubleTap: () => showElementMetadata(context, record.text),
-                onPanUpdate: (d) => setState(() { final p = _positions[record.id]! + d.delta / _view.value.getMaxScaleOnAxis();
+                onPanUpdate: (d) => setState(() { final p = _positions[record.id]! + d.delta;
                   _positions[record.id] = Offset(p.dx.clamp(0, sceneWidth - graphThoughtSize.width), p.dy.clamp(0, sceneHeight - graphThoughtSize.height)); _saveLayout(); }),
                 onPanEnd: (_) {
                   final center = thoughtBounds(_positions[record.id]!).center;
@@ -296,7 +296,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             width: graphTagSize.width, height: graphTagSize.height,
             child: GestureDetector(key: ValueKey('graph-tag-$tag'), behavior: HitTestBehavior.opaque,
               onPanUpdate: (d) => setState(() {
-                final p = _tagPositions['tag:$tag']! + d.delta / _view.value.getMaxScaleOnAxis();
+                final p = _tagPositions['tag:$tag']! + d.delta;
                 _tagPositions['tag:$tag'] = Offset(p.dx.clamp(graphTagSize.width / 2, sceneWidth - graphTagSize.width / 2), p.dy.clamp(graphTagSize.height / 2, sceneHeight - graphTagSize.height / 2)); _saveLayout();
               }),
               onPanEnd: (_) => _saveLayout(flush: true), onPanCancel: () => _saveLayout(flush: true),
