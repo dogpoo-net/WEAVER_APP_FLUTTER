@@ -325,7 +325,9 @@ class _InboxPageState extends State<InboxPage> {
         return v.text.replaceRange(start, end, line);
       }
       if (value.text == beforeAssist.text || [newline(beforeAssist, '\n'), newline(beforeAssist, '\r\n'),
-        newline(completedAssist, '\n'), newline(completedAssist, '\r\n')].contains(value.text)) return completedAssist;
+        newline(completedAssist, '\n'), newline(completedAssist, '\r\n')].contains(value.text)) {
+        return completedAssist;
+      }
     }
     if (_newlineEchoUntil != null && now.isBefore(_newlineEchoUntil!) && oldValue.text == _newlineEchoAfter &&
         (value.text == _newlineEchoBefore || value.text == '$_newlineEchoAfter\n' || value.text == '$_newlineEchoAfter\r\n')) {
