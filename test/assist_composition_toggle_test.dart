@@ -1,0 +1,39 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:weaver/features/inbox/caret_assist.dart';
+import 'package:weaver/features/inbox/word_badge.dart';
+
+void main() {
+  for (final tag in [false, true]) {
+    testWidgets('multi-character composition cannot undo selection toggle (tag=$tag)', (tester) async {
+      final c = TextEditingController(); final f = FocusNode();
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: CaretAssist(controller: c,
+        focus: f, words: const ['생각 정리'], tags: const ['생각정리'], onWord: (_) {}, onTag: (_) {},
+        child: TextField(controller: c, focusNode: f)))));
+      await tester.tap(find.byType(TextField));
+      final text = tag ? '#생각' : '생각';
+      final composing = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length),
+        composing: TextRange(start: tag ? 1 : 0, end: text.length));
+      tester.testTextInput.updateEditingValue(composing); await tester.pumpAndSettle();
+      Future<void> toggle() async {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pumpAndSettle();
+      }
+      bool selected() => tester.widgetList<WordBadge>(find.byType(WordBadge)).any((b) => b.selected);
+      await toggle(); expect(selected(), isTrue);
+      tester.testTextInput.updateEditingValue(composing); await tester.pumpAndSettle();
+      await toggle(); expect(selected(), isFalse);
+      tester.testTextInput.updateEditingValue(composing); await tester.pumpAndSettle();
+      expect(selected(), isFalse);
+      expect(find.byKey(const ValueKey('assist-popup')), findsOneWidget);
+      await toggle(); expect(selected(), isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape); await tester.pumpAndSettle();
+      expect(selected(), isFalse);
+      expect(find.byKey(const ValueKey('assist-popup')), findsOneWidget);
+      await tester.pumpWidget(const SizedBox()); c.dispose(); f.dispose();
+    });
+  }
+}

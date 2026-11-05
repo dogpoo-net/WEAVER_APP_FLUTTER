@@ -285,9 +285,13 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
 
   void _refreshMatches(TextEditingValue value, {bool autoSelect = true}) {
     final manualValue = _manualValue;
-    if (manualValue != null && value.text == manualValue.text) {
+    if (manualValue != null && value.text == manualValue.text &&
+        (value.selection == manualValue.selection ||
+         (value.composing.isValid && !value.composing.isCollapsed) ||
+         (manualValue.composing.isValid && !manualValue.composing.isCollapsed))) {
       // IME composition and selection echoes must not override explicit keyboard intent.
-      value = manualValue;
+      _manualValue = manualValue.copyWith(composing: value.composing);
+      value = _manualValue!;
     } else {
       _manualSelection = null; _manualValue = null;
     }
