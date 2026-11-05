@@ -1,3 +1,4 @@
+import 'keyboard_viewport.dart';
 import 'inline_tags.dart';
 import 'limited_rows_wrap.dart';
 import 'caret_assist.dart';
@@ -47,6 +48,7 @@ class _InboxPageState extends State<InboxPage> {
   final _draft = BoundTextController('', const []);
   final _draftTags = <String>{};
   final _focus = FocusNode();
+  final _bodyKey = GlobalKey();
   final List<Note> _notes = [];
   String _query = '';
   int _memoRows = 5, _paragraphLimit = 5, _projectLimit = 5;
@@ -56,6 +58,8 @@ class _InboxPageState extends State<InboxPage> {
   bool _pendingImeNewline = false, _finishingImeNewline = false;
   int _imeNewlineLines = 0;
   String? _newlineEchoBefore, _newlineEchoAfter;
+  TextEditingValue? _assistInputBefore, _assistCompleted;
+  DateTime? _assistSubmitUntil;
   DateTime? _newlineEchoUntil;
   bool _platformEnterQueued = false;
   String? _enterEchoText;
@@ -289,6 +293,7 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   void _submitQuickMemo() {
+    if (_assistSubmitUntil != null && DateTime.now().isBefore(_assistSubmitUntil!)) return;
     if (_pendingImeNewline || (_explicitNewlineUntil != null && DateTime.now().isBefore(_explicitNewlineUntil!))) return;
     if (_draft.text.trim().isEmpty) return;
     _enterEchoText = _draft.text;
@@ -309,6 +314,17 @@ class _InboxPageState extends State<InboxPage> {
   TextEditingValue _formatQuickMemo(TextEditingValue oldValue, TextEditingValue value) {
     if (!_desktopQuickMemo) return value;
     final now = DateTime.now();
+    final beforeAssist = _assistInputBefore, completedAssist = _assistCompleted;
+    if (_assistSubmitUntil != null && now.isBefore(_assistSubmitUntil!) && beforeAssist != null && completedAssist != null &&
+        oldValue.text == completedAssist.text) {
+      String newline(TextEditingValue v, String line) {
+        final start = v.selection.isValid ? v.selection.start : v.text.length;
+        final end = v.selection.isValid ? v.selection.end : start;
+        return v.text.replaceRange(start, end, line);
+      }
+      if (value.text == beforeAssist.text || [newline(beforeAssist, '\n'), newline(beforeAssist, '\r\n'),
+        newline(completedAssist, '\n'), newline(completedAssist, '\r\n')].contains(value.text)) return completedAssist;
+    }
     if (_newlineEchoUntil != null && now.isBefore(_newlineEchoUntil!) && oldValue.text == _newlineEchoAfter &&
         (value.text == _newlineEchoBefore || value.text == '$_newlineEchoAfter\n' || value.text == '$_newlineEchoAfter\r\n')) {
       return oldValue.copyWith(composing: TextRange.empty);
@@ -398,6 +414,10 @@ class _InboxPageState extends State<InboxPage> {
     if (!_desktopQuickMemo || !enter) {
       return KeyEventResult.ignored;
     }
+    // A new Enter that bubbles past assist is a distinct save request.
+    if (event is KeyDownEvent) {
+      _assistSubmitUntil = null; _assistInputBefore = null; _assistCompleted = null;
+    }
     if (event is KeyUpEvent) {
       if (_pendingImeSave) _finishImeSave();
       if (_pendingImeNewline) _finishImeNewline();
@@ -429,6 +449,14 @@ class _InboxPageState extends State<InboxPage> {
       _submitQuickMemo();
     }
     return KeyEventResult.handled;
+  }
+
+  void _acceptQuickAssist(VoidCallback action) {
+    final before = _draft.value;
+    action();
+    _pendingImeSave = false;
+    _assistInputBefore = before; _assistCompleted = _draft.value;
+    _assistSubmitUntil = DateTime.now().add(const Duration(milliseconds: 500));
   }
 
   void _insertQuickElement(String word) {
@@ -758,8 +786,10 @@ class _InboxPageState extends State<InboxPage> {
             canRequestFocus: false,
             onKeyEvent: _quickMemoKey,
             child: CaretAssist(controller: _draft, focus: _focus, words: elements.visibleWords, showWhenEmpty: false,
-              tags: {..._allTags, ..._draftTags}.toList()..sort(), onTag: _insertQuickTag,
-              onWord: _insertQuickElement, child: TextField(
+              mobileViewportKey: _bodyKey,
+              tags: {..._allTags, ..._draftTags}.toList()..sort(), enterSelectsVisible: true,
+              onTag: (tag) => _acceptQuickAssist(() => _insertQuickTag(tag)),
+              onWord: (word) => _acceptQuickAssist(() => _insertQuickElement(word)), child: TextField(
               key: const ValueKey('quick-memo'),
               inputFormatters: [TextInputFormatter.withFunction(_formatQuickMemo)],
               textInputAction: _desktopQuickMemo ? TextInputAction.done : TextInputAction.newline,
@@ -934,7 +964,9 @@ class _InboxPageState extends State<InboxPage> {
             _notes[i].content,
           ),
     ];
-    return Scaffold(
+    final rawMedia = MediaQuery.of(context);
+    final media = rawMedia.copyWith(viewInsets: rawMedia.viewInsets.copyWith(bottom: effectiveKeyboardInset(rawMedia)));
+    return MediaQuery(data: media, child: Scaffold(
       appBar: AppBar(
         leading: IconButton(
           tooltip: MediaQuery.sizeOf(context).width >= 1000 && _menuVisible
@@ -994,7 +1026,7 @@ class _InboxPageState extends State<InboxPage> {
         ),
         centerTitle: false,
       ),
-      body: Row(
+      body: SizedBox(key: _bodyKey, child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (MediaQuery.sizeOf(context).width >= 1000 && _menuVisible)
@@ -1110,7 +1142,7 @@ class _InboxPageState extends State<InboxPage> {
             ),
           ),
         ],
-      ),
-    );
+      )),
+    ));
   }
 }

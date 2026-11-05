@@ -216,7 +216,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     final end = selection.isValid ? selection.end : start;
     if (c is BoundTextController) {
       final record = elements.records[word] ?? elements.add(word);
-      c.bind(start, end, record.id, word);
+      c.bind(start, end, record.id, word, newlineAfter: word.contains('\n'));
     } else {
       c.value = TextEditingValue(text: c.text.replaceRange(start, end, word),
         selection: TextSelection.collapsed(offset: start + word.length));

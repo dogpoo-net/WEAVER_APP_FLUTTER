@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'inline_tags.dart';
 import 'paragraph_tag_input.dart';
 import 'package:flutter/material.dart';
@@ -379,18 +380,32 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   }
 }
 
-class ElementText extends StatelessWidget {
+class ElementText extends StatefulWidget {
   const ElementText(this.text, {super.key, this.style, this.focusOffset});
   final String text;
   final TextStyle? style;
   final int? focusOffset;
   @override
+  State<ElementText> createState() => _ElementTextState();
+}
+class _ElementTextState extends State<ElementText> {
+  final _links = <String, TapGestureRecognizer>{};
+  @override
+  void dispose() { for (final link in _links.values) { link.dispose(); } super.dispose(); }
+  @override
   Widget build(BuildContext context) {
+    final text = widget.text, style = widget.style;
     final spans = <InlineSpan>[];
     var cursor = 0;
     for (final hit in elements.matches(text)) {
       spans.add(TextSpan(text: text.substring(cursor, hit.start)));
-      spans.add(
+      if (hit.word.contains('\n') || hit.word.contains('\r')) {
+        final link = _links.putIfAbsent('${hit.start}:${hit.word}', () => TapGestureRecognizer());
+        link.onTap = () => showElementMetadata(context, hit.word);
+        spans.add(TextSpan(text: hit.word, recognizer: link,
+          style: TextStyle(color: wordColor(context, hit.word), decoration: TextDecoration.underline,
+            decorationStyle: TextDecorationStyle.dotted)));
+      } else { spans.add(
         WidgetSpan(
           alignment: PlaceholderAlignment.baseline,
           baseline: TextBaseline.alphabetic,
@@ -398,10 +413,11 @@ class ElementText extends StatelessWidget {
             key: ValueKey('element-${hit.start}'),
             word: hit.word,
             style: style,
-            autofocus: focusOffset == hit.start,
+            autofocus: widget.focusOffset == hit.start,
           ),
         ),
       );
+      }
       cursor = hit.end;
     }
     spans.add(TextSpan(text: text.substring(cursor)));

@@ -26,6 +26,7 @@ class CaretAssist extends StatefulWidget {
     this.showWhenEmpty = true,
     this.tags = const [],
     this.onTag,
+    this.enterSelectsVisible = false,
   });
   final TextEditingController controller;
   final FocusNode focus;
@@ -36,6 +37,7 @@ class CaretAssist extends StatefulWidget {
   final Widget child;
   final GlobalKey? mobileViewportKey;
   final bool showWhenEmpty;
+  final bool enterSelectsVisible;
   @override
   State<CaretAssist> createState() => _CaretAssistState();
 }
@@ -51,7 +53,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   int _selected = 0;
   String _query = '';
   bool _controlling = false;
-  bool _tagMode = false, _spaceShortcutHeld = false;
+  bool _tagMode = false, _spaceShortcutHeld = false, _acceptEnterHeld = false;
   String? _explicitOpenText;
   TextEditingValue? _controlValue;
   TextEditingValue? _autoCheckedValue;
@@ -128,6 +130,24 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     final space = event.logicalKey == LogicalKeyboardKey.space || event.physicalKey == PhysicalKeyboardKey.space;
     final enter = event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.numpadEnter ||
       event.physicalKey == PhysicalKeyboardKey.enter || event.physicalKey == PhysicalKeyboardKey.numpadEnter;
+    if (enter && _acceptEnterHeld) {
+      if (event is KeyUpEvent) _acceptEnterHeld = false;
+      return true;
+    }
+    if (widget.enterSelectsVisible && enter && event is KeyDownEvent && _entry != null &&
+        _dismissed != widget.controller.text && !keyboard.isControlPressed && !keyboard.isMetaPressed &&
+        !keyboard.isAltPressed && !keyboard.isShiftPressed) {
+      _refreshMatches(widget.controller.value, autoSelect: false);
+      if (_matches.isNotEmpty) {
+        widget.controller.clearComposing();
+        _refreshMatches(widget.controller.value, autoSelect: false);
+        if (_matches.isNotEmpty) {
+          _acceptEnterHeld = true;
+          _choose(_matches[_selected]);
+          return true;
+        }
+      }
+    }
     if (space && event is KeyUpEvent && _spaceShortcutHeld) {
       _spaceShortcutHeld = false; return true;
     }
@@ -175,6 +195,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       return true;
     }
     if (enter || space) {
+      if (enter) _acceptEnterHeld = true;
       _choose(_matches[_selected]);
       return true;
     }
@@ -265,6 +286,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (!widget.focus.hasFocus || _dismissed == widget.controller.text) {
+        if (!widget.focus.hasFocus) _acceptEnterHeld = false;
         _controlling = false;
         _spaceShortcutHeld = false; _explicitOpenText = null;
         _controlValue = null;

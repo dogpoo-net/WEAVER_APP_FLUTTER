@@ -44,13 +44,18 @@ class BoundTextController extends TextEditingController {
           link.end > start && link.start >= end ? link.end + delta : link.end)];
     super.value = next;
   }
-  bool bind(int start, int end, String id, String word) {
+  bool bind(int start, int end, String id, String word, {bool newlineAfter = false}) {
     if (bindings.any((link) => start < link.end && end > link.start || start > link.start && start < link.end)) return false;
-    final delta = word.length - (end - start);
+    final appendLine = newlineAfter && !word.endsWith('\n') && (end >= text.length || text[end] != '\n');
+    final replacement = word + (appendLine ? '\n' : '');
+    final delta = replacement.length - (end - start);
     bindings = [for (final link in bindings) ElementBinding(link.id,
       link.start >= end ? link.start + delta : link.start, link.start >= end ? link.end + delta : link.end),
       ElementBinding(id, start, start + word.length)]..sort((a, b) => a.start.compareTo(b.start));
-    super.value = TextEditingValue(text: text.replaceRange(start, end, word), selection: TextSelection.collapsed(offset: start + word.length));
+    final updated = text.replaceRange(start, end, replacement);
+    final offset = start + replacement.length;
+    super.value = TextEditingValue(text: updated, selection: TextSelection.collapsed(offset:
+      newlineAfter && !appendLine && offset < updated.length && updated[offset] == '\n' ? offset + 1 : offset));
     return true;
   }
   void sync(Map<String, String> records) {
