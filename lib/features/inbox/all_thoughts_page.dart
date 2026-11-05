@@ -204,7 +204,15 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
             for (final box in memoBoxes) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
               box: box, onChanged: _changed, child: ChoiceChip(
                 key: ValueKey('thought-filter-box-${box.name}'),
-                avatar: Icon(Icons.circle, color: Color(box.color), size: 14),
+                showCheckmark: false,
+                avatarBoxConstraints: const BoxConstraints.tightFor(width: 24, height: 24),
+                avatar: IconButton(tooltip: '${box.name} 상자 색상 변경', padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(width: 24, height: 24),
+                  icon: Icon(Icons.circle, color: Color(box.color), size: 14), onPressed: () async {
+                    final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
+                    if (!mounted || color == null) return;
+                    box.color = color.toARGB32(); _changed();
+                  }),
                 label: Text(box.name), selected: identical(_filterBox, box), onSelected: (_) => _filter(box: box)))),
           ])), TextButton.icon(
             icon: const Icon(Icons.add, size: 18), label: const Text('상자 만들기'),
@@ -218,7 +226,18 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
             Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
               for (final tag in tags) Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(
                 key: ValueKey('thought-filter-tag-$tag'), label: Text('#$tag'), selected: _filterTag == tag,
-                avatar: hashtagColors.containsKey(tag) ? Icon(Icons.circle, size: 12, color: Color(hashtagColors[tag]!)) : null,
+                showCheckmark: false,
+                avatarBoxConstraints: const BoxConstraints.tightFor(width: 24, height: 24),
+                avatar: IconButton(tooltip: '#$tag 색상 변경', padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(width: 24, height: 24),
+                  icon: Icon(Icons.circle, size: 12, color: hashtagColors.containsKey(tag)
+                    ? Color(hashtagColors[tag]!) : Theme.of(context).colorScheme.outlineVariant),
+                  onPressed: () async {
+                    final current = hashtagColors[tag];
+                    final color = await pickHashtagColor(context, tag, current == null ? null : Color(current));
+                    if (!mounted || color == null) return;
+                    hashtagColors[tag] = color.toARGB32(); _changed();
+                  }),
                 onSelected: (_) => _filter(tag: tag))),
             ])),
           ])),

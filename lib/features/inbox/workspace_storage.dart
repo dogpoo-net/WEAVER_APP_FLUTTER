@@ -278,6 +278,15 @@ class WorkspaceStorage {
   WorkspaceStorage(this.preferences);
   final SharedPreferences preferences;
   static const key = 'weaver.workspace.v1';
+  static const themeKey = 'weaver.theme.v1';
+  String? readTheme() => preferences.getString(themeKey);
+  Future<void> writeTheme(String data) {
+    final task = _pending.catchError((Object _) {}).then((_) async {
+      if (!await preferences.setString(themeKey, data)) throw StateError('Theme save failed');
+    });
+    _pending = task;
+    return task;
+  }
   Future<void> _pending = Future.value();
   String? read() => preferences.getString(key);
   Future<void> clear() {

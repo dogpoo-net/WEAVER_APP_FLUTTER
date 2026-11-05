@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'app_theme.dart';
 import 'features/inbox/workspace_routes.dart';
 import 'package:flutter/material.dart';
@@ -40,10 +41,26 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   ThemeMode _mode = ThemeMode.dark;
   LightPalette _lightPalette = LightPalette.neutral;
+  final _messenger = GlobalKey<ScaffoldMessengerState>();
   @override
   void initState() {
     super.initState();
     elements.clear();
+    try {
+      final raw = widget.storage?.readTheme();
+      if (raw != null) {
+        final data = jsonDecode(raw) as Map<String, dynamic>;
+        final mode = ThemeMode.values.byName(data['mode'] as String);
+        final palette = LightPalette.values.byName(data['palette'] as String);
+        _mode = mode; _lightPalette = palette;
+      }
+    } catch (_) { /* Invalid settings fall back to the default theme. */ }
+  }
+
+  void _persistTheme() {
+    widget.storage?.writeTheme(jsonEncode({'mode': _mode.name, 'palette': _lightPalette.name})).catchError((Object _) {
+      if (mounted) _messenger.currentState?.showSnackBar(const SnackBar(content: Text('테마 설정을 저장하지 못했습니다.')));
+    });
   }
 
   ThemeData _theme(Brightness brightness) {
@@ -107,6 +124,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'WEAVER',
+    scaffoldMessengerKey: _messenger,
     navigatorObservers: [workspaceRouteObserver],
     debugShowCheckedModeBanner: false,
     theme: _theme(Brightness.light),
@@ -116,8 +134,11 @@ class _MyAppState extends State<MyApp> {
       storage: widget.storage,
       themeMode: _mode,
       lightPalette: _lightPalette,
-      onLightPaletteChanged: (palette) => setState(() { _lightPalette = palette; _mode = ThemeMode.light; }),
-      onThemeChanged: (mode) => setState(() => _mode = mode),
+      onLightPaletteChanged: (palette) {
+        setState(() { _lightPalette = palette; _mode = ThemeMode.light; });
+        _persistTheme();
+      },
+      onThemeChanged: (mode) { setState(() => _mode = mode); _persistTheme(); },
     ),
   );
 }
