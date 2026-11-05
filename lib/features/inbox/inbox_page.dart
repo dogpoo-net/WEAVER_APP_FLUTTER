@@ -302,6 +302,15 @@ class _InboxPageState extends State<InboxPage> {
     if (_assistSubmitUntil != null && DateTime.now().isBefore(_assistSubmitUntil!)) return;
     if (_pendingImeNewline || (_explicitNewlineUntil != null && DateTime.now().isBefore(_explicitNewlineUntil!))) return;
     if (_quickAssistKey.currentState?.acceptVisibleCandidate() == true) return;
+    final tagToken = tagPrefix(_draft.value);
+    if (tagToken.isNotEmpty) {
+      final query = tagToken.substring(1);
+      final candidates = wordSuggestions(_allTags, query);
+      if (candidates.isNotEmpty || query.isNotEmpty) {
+        _acceptQuickAssist(() => _insertQuickTag(candidates.isNotEmpty ? candidates.first : query));
+      }
+      return;
+    }
     if (_draft.text.trim().isEmpty) return;
     _enterEchoText = _draft.text;
     _enterEchoUntil = DateTime.now().add(const Duration(milliseconds: 250));
@@ -417,7 +426,10 @@ class _InboxPageState extends State<InboxPage> {
       LogicalKeyboardKey.altLeft, LogicalKeyboardKey.altRight, LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.controlRight,
     }.contains(event.logicalKey) || event.physicalKey == PhysicalKeyboardKey.backspace ||
         event.physicalKey == PhysicalKeyboardKey.delete)) {
-      _tagCommitUntil = null;
+      if (event.logicalKey != LogicalKeyboardKey.enter && event.logicalKey != LogicalKeyboardKey.numpadEnter &&
+          event.physicalKey != PhysicalKeyboardKey.enter && event.physicalKey != PhysicalKeyboardKey.numpadEnter) {
+        _tagCommitUntil = null;
+      }
       _newlineEchoBefore = null; _newlineEchoAfter = null; _newlineEchoUntil = null;
       _assistSubmitUntil = null; _assistInputBefore = null; _assistCompleted = null;
     }

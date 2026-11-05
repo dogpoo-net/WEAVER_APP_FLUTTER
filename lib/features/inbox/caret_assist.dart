@@ -121,7 +121,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   }
 
   bool acceptVisibleCandidate() {
-    if (!mounted || !widget.focus.hasFocus || _entry == null || _dismissed == widget.controller.text) return false;
+    if (!mounted || _entry == null || _dismissed == widget.controller.text) return false;
     _refreshMatches(widget.controller.value, autoSelect: false);
     if (_matches.isEmpty) return false;
     widget.controller.clearComposing();
