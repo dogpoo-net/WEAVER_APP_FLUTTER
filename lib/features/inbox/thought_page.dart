@@ -204,6 +204,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final bounds = memoBoxCircleBounds(box.elementIds.where(visiblePositions.containsKey).map((id) => visiblePositions[id]!));
       if (bounds != null) regions.add((box: box, bounds: bounds));
     }
+    var emptyX = regions.map((r) => r.bounds.right + 80).fold(640.0, math.max);
+    for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
+      if (box.elementIds.any(_positions.containsKey)) continue;
+      regions.add((box: box, bounds: Rect.fromLTWH(emptyX, 440, 260, 260)));
+      emptyX += 340;
+    }
     final color = Theme.of(context).colorScheme;
     return Scaffold(appBar: AppBar(title: Text(widget.box?.name ?? '페이지'), actions: [
       if (widget.box != null) IconButton(tooltip: '상자에 생각 담기', onPressed: _pick, icon: const Icon(Icons.playlist_add)),
@@ -264,7 +270,18 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 onDoubleTap: () => showElementMetadata(context, record.text),
                 onPanUpdate: (d) => setState(() { final p = _positions[record.id]! + d.delta / _view.value.getMaxScaleOnAxis();
                   _positions[record.id] = Offset(p.dx.clamp(0, sceneWidth - graphThoughtSize.width), p.dy.clamp(0, sceneHeight - graphThoughtSize.height)); _saveLayout(); }),
-                onPanEnd: (_) => _saveLayout(flush: true), onPanCancel: () => _saveLayout(flush: true),
+                onPanEnd: (_) {
+                  final center = thoughtBounds(_positions[record.id]!).center;
+                  final targets = regions.where((r) => !r.box.elementIds.contains(record.id) &&
+                    (center - r.bounds.center).distance <= r.bounds.width / 2).toList()
+                    ..sort((a, b) => a.bounds.width.compareTo(b.bounds.width));
+                  if (targets.isNotEmpty) {
+                    targets.first.box.elementIds.add(record.id);
+                    _changed();
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${targets.first.box.name}에 담았습니다.')));
+                  }
+                  _saveLayout(flush: true);
+                }, onPanCancel: () => _saveLayout(flush: true),
                 child: Card(color: wordBackgroundColor(context, record.text),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: candidates.isNotEmpty || _selected == record.id ? color.primary : Colors.transparent, width: 2)),
@@ -286,7 +303,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               child: DragTarget<String>(onAcceptWithDetails: (d) {
               final r = records.where((r) => r.id == d.data).firstOrNull;
               if (r != null) { r.tags.add(tag); _changed(); }
-            }, builder: (context, candidates, _) => Tooltip(message: '#$tag', child: Chip(label: Text('#$tag', maxLines: 1, overflow: TextOverflow.ellipsis),
+            }, builder: (context, candidates, _) => Tooltip(message: '#$tag', child: Chip(side: BorderSide(color: Color(hashtagColors[tag] ?? 0xFF90A4AE), width: 2.5), label: Text('#$tag', maxLines: 1, overflow: TextOverflow.ellipsis),
               backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: candidates.isEmpty ? .3 : .6)))))),
         ])),
       ); })),
