@@ -47,6 +47,8 @@ class InboxPage extends StatefulWidget {
 class _InboxPageState extends State<InboxPage> {
   final _draft = BoundTextController('', const []);
   final _draftTags = <String>{};
+  final _draftConnections = <String>{};
+  DateTime? _tagCommitUntil;
   final _focus = FocusNode();
   final _bodyKey = GlobalKey();
   final _quickAssistKey = GlobalKey<CaretAssistState>();
@@ -165,6 +167,7 @@ class _InboxPageState extends State<InboxPage> {
         _editing = null;
         _draft.clear();
       _draftTags.clear();
+      _draftConnections.clear();
       }
     });
     _persist();
@@ -268,6 +271,7 @@ class _InboxPageState extends State<InboxPage> {
         _notes.clear();
         _draft.clear();
       _draftTags.clear();
+      _draftConnections.clear();
         _editing = null;
         _storageError = null;
         _restoreBlocked = false;
@@ -294,6 +298,7 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   void _submitQuickMemo() {
+    if (_tagCommitUntil != null && DateTime.now().isBefore(_tagCommitUntil!)) return;
     if (_assistSubmitUntil != null && DateTime.now().isBefore(_assistSubmitUntil!)) return;
     if (_pendingImeNewline || (_explicitNewlineUntil != null && DateTime.now().isBefore(_explicitNewlineUntil!))) return;
     if (_quickAssistKey.currentState?.acceptVisibleCandidate() == true) return;
@@ -478,7 +483,11 @@ class _InboxPageState extends State<InboxPage> {
     final end = selection.isValid ? selection.end : start;
     final record = elements.records[word];
     if (record == null) return;
-    setState(() => _draft.bind(start, end, record.id, word));
+    setState(() {
+      _draftConnections.add(record.id);
+      _draft.value = TextEditingValue(text: _draft.text.replaceRange(start, end, ''),
+        selection: TextSelection.collapsed(offset: start));
+    });
     _focus.requestFocus();
   }
 
@@ -497,15 +506,17 @@ class _InboxPageState extends State<InboxPage> {
   void _save() {
     _pendingImeSave = false;
     if (_draft.text.trim().isEmpty) return;
-    if (parseTaggedInput(_draft.text).text.isEmpty) {
+    var body = _draft.text;
+    for (final link in _draft.bindings.reversed) { body = body.replaceRange(link.start, link.end, ''); }
+    if (parseTaggedInput(body).text.isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('태그와 함께 원소 내용을 입력해주세요.')));
       return;
     }
-    final input = [_draft.text, ..._draftTags.map((tag) => '#$tag')].join(' ');
+    final input = [body, ..._draftTags.map((tag) => '#$tag')].join(' ');
     final record = elements.add(input, replaceTags: _editing != null);
-    final links = taggedTextBindings(_draft);
-    elements.connect(record.id, links.map((link) => link.id));
+    final links = <ElementBinding>[];
+    elements.connect(record.id, {..._draftConnections, ..._draft.bindings.map((link) => link.id)});
     setState(() {
       if (_editing == null) {
         _notes.insert(0, Note(record.text)..bindings = links);
@@ -516,6 +527,7 @@ class _InboxPageState extends State<InboxPage> {
       _editing = null;
       _draft.clear();
       _draftTags.clear();
+      _draftConnections.clear();
     });
     ScaffoldMessenger.of(
       context,
@@ -656,6 +668,7 @@ class _InboxPageState extends State<InboxPage> {
       _editing = note;
       final tags = elements.records[note.content.trim()]?.tags ?? <String>{};
       _draftTags..clear()..addAll(tags);
+      _draftConnections..clear()..addAll(elements.records[note.content.trim()]?.connections ?? <String>{});
       _draft.clear();
       _draft.text = note.content;
       _draft.bindings = List.of(note.bindings);
@@ -815,6 +828,9 @@ class _InboxPageState extends State<InboxPage> {
               onChanged: (_) {
                 final completed = takeCompletedParagraphTags(_draft.value);
                 setState(() {
+                  if (completed.tags.isNotEmpty) {
+                    _tagCommitUntil = DateTime.now().add(const Duration(milliseconds: 500));
+                  }
                   _draftTags.addAll(completed.tags);
                   if (completed.tags.isNotEmpty) _draft.value = completed.value;
                 });
@@ -829,6 +845,11 @@ class _InboxPageState extends State<InboxPage> {
               ),
             )),
           ),
+          if (_draftConnections.isNotEmpty) Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final record in elements.records.values.where((r) => _draftConnections.contains(r.id)))
+              WordBadge(word: record.text, onTap: () => showElementMetadata(context, record.text),
+                onLongPress: () => setState(() => _draftConnections.remove(record.id))),
+          ]),
           if (_draftTags.isNotEmpty) Padding(
             padding: const EdgeInsets.only(top: 8),
             child: InlineTags(tags: _draftTags, onRemove: (tag) => setState(() => _draftTags.remove(tag)))),

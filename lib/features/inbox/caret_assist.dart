@@ -128,6 +128,8 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     return true;
   }
 
+  bool _committingNavigation = false;
+
   bool _key(KeyEvent event) {
     if (!mounted || !widget.focus.hasFocus || !_desktop) {
       return false;
@@ -181,7 +183,11 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     final navigation = enter || space || [LogicalKeyboardKey.escape, LogicalKeyboardKey.arrowDown,
       LogicalKeyboardKey.arrowUp, LogicalKeyboardKey.arrowLeft, LogicalKeyboardKey.arrowRight,
       LogicalKeyboardKey.enter, LogicalKeyboardKey.space].contains(event.logicalKey);
-    if (navigation) widget.controller.clearComposing();
+    if (navigation) {
+      _committingNavigation = true;
+      try { widget.controller.clearComposing(); } finally { _committingNavigation = false; }
+      _controlValue = widget.controller.value;
+    }
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       _controlling = false;
       _entry?.markNeedsBuild();
@@ -254,7 +260,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
 
   void _refreshMatches(TextEditingValue value, {bool autoSelect = true}) {
     final controlValue = _controlValue;
-    if (_controlling && controlValue != null &&
+    if (!_committingNavigation && _controlling && controlValue != null &&
         (value.text != controlValue.text ||
          value.selection.baseOffset != controlValue.selection.baseOffset ||
          value.selection.extentOffset != controlValue.selection.extentOffset)) {
