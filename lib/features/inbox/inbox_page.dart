@@ -89,6 +89,24 @@ class _InboxPageState extends State<InboxPage> {
 
   void _elementRenamed(String oldText, String newText) {
     for (final note in _notes) {
+      if (note.project == null && note.paragraphs == null && note.bindings.isNotEmpty) {
+        final previous = note.content;
+        final controller = BoundTextController(previous, note.bindings)
+          ..sync({for (final record in elements.records.values) record.id: record.text});
+        final owner = elements.records[previous];
+        final collision = elements.records[controller.text];
+        if (owner == null || collision == null || identical(owner, collision)) {
+          if (owner != null && previous != controller.text) {
+            elements.records.remove(previous);
+            owner.text = controller.text;
+            elements.records[owner.text] = owner;
+            renameWordColor(previous, owner.text);
+          }
+          note.content = controller.text;
+          note.bindings = List.of(controller.bindings);
+        }
+        controller.dispose();
+      }
       final paragraphs = note.project?.paragraphs ?? note.paragraphs;
       if (paragraphs != null) {
         final records = {for (final record in elements.records.values) record.id: record.text};
