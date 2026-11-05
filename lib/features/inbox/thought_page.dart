@@ -129,13 +129,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void _separateBoxes() {
     var x = 640.0;
     final assigned = <String>{};
-    var bottom = 400.0;
+    final top = _tagPositions.values.map((p) => tagBounds(p).bottom + 100).fold(400.0, math.max);
+    var bottom = top;
     for (final box in memoBoxes) {
       final ids = box.elementIds.where((id) => _positions.containsKey(id) && !assigned.contains(id)).toList();
       if (ids.isEmpty) continue;
       for (var i = 0; i < ids.length; i++) { _positions[ids[i]] = Offset(x + (i % 3) * 220, 600 + (i ~/ 3) * 140); }
       final bounds = memoBoxCircleBounds(ids.map((id) => _positions[id]!))!;
-      final shift = Offset(x - bounds.left, math.max(0, 400 - bounds.top));
+      final shift = Offset(x - bounds.left, math.max(0, top - bounds.top));
       for (final id in ids) { _positions[id] = _positions[id]! + shift; }
       final moved = bounds.shift(shift);
       x = moved.right + 100; bottom = math.max(bottom, moved.bottom);
