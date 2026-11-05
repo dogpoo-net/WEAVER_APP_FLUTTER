@@ -230,8 +230,8 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         onTap: () => _select(WorkspaceMenu.resetData)),
     ]);
     if (widget.embedded) return Material(child: SizedBox(width: 280, child: content));
-    return Dialog(alignment: AlignmentDirectional.topStart, insetPadding: const EdgeInsets.fromLTRB(16, 64, 16, 24),
-      child: SizedBox(width: 320, height: 480, child: content));
+    return Dialog(alignment: AlignmentDirectional.topStart, insetPadding: const EdgeInsets.fromLTRB(16, 64, 16, 12),
+      child: SizedBox(width: 320, height: double.infinity, child: content));
   }
 }
 

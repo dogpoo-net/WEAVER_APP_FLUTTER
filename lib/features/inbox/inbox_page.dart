@@ -1076,7 +1076,7 @@ class _InboxPageState extends State<InboxPage> {
             fontSize: 16,
             fontWeight: FontWeight.w700,
             letterSpacing: 3,
-          )),
+          ),
         )),
         centerTitle: false,
       ),
