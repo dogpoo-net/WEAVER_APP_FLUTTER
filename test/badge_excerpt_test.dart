@@ -6,7 +6,7 @@ import 'package:weaver/features/inbox/paragraph_editor.dart';
 void main() {
   const phrase = '앞부분의 긴 문장이 여러 번 이어지고 다른 설명이 이어집니다 검색어가 나오는 중간 위치 그리고 뒷부분의 긴 문장이 한참 더 이어집니다';
   testWidgets('query stays visible between leading and trailing ellipses', (tester) async {
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: WordBadge(word: phrase, query: '중간 위치', onTap: () {}))));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SizedBox(width: 280, child: WordBadge(word: phrase, query: '중간 위치', onTap: () {})))));
     final text = tester.widget<Text>(find.descendant(of: find.byType(WordBadge), matching: find.byType(Text)));
     final label = text.textSpan!.toPlainText();
     expect(label, startsWith('…'));
