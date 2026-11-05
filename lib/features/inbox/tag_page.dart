@@ -30,7 +30,7 @@ class _TagPageState extends State<TagPage> {
         .where(
           (n) =>
               (n.paragraphs != null || n.project != null) &&
-              (n.tags.contains(widget.tag) || elements
+              (n.tags.contains(widget.tag) || (n.project?.tags.contains(widget.tag) ?? false) || elements
                   .matches(
                     n.project?.content ??
                         n.content,

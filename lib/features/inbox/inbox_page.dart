@@ -572,7 +572,7 @@ class _InboxPageState extends State<InboxPage> {
       .where((n) => n.project == null && n.paragraphs != null)
       .map((n) => Paragraph(n.content, ParagraphRole.body, tags: Set.of(n.tags), bindings: n.paragraphs!.single.bindings)).toList();
 
-  List<String> get _allTags => {...elements.tags,
+  List<String> get _allTags => {...elements.tags, ..._notes.expand((n) => n.project?.tags ?? <String>{}),
     ..._notes.where((n) => n.project == null && n.paragraphs != null).expand((n) => n.tags)}.toList()..sort();
 
   Future<void> _page() async {
