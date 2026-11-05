@@ -46,6 +46,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   bool _controlling = false;
   bool _controlAlone = false;
   TextEditingValue? _controlValue;
+  TextEditingValue? _autoCheckedValue;
   final _badgeKeys = <String, GlobalKey>{};
   bool get _desktop =>
       MediaQuery.sizeOf(context).width >= 760 &&
@@ -242,6 +243,18 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     _query = query;
     _matches = wordSuggestions(widget.words, query);
     if (_selected >= _matches.length) _selected = 0;
+    final checked = _autoCheckedValue;
+    final changed = checked == null || checked.text != value.text || checked.selection != value.selection;
+    if (changed && (!value.composing.isValid || value.composing.isCollapsed)) {
+      _autoCheckedValue = value;
+      final exact = query.isEmpty ? -1 : _matches.indexWhere((word) => word.toLowerCase() == query.toLowerCase());
+      if (exact >= 0) {
+        _selected = exact;
+        _controlling = true;
+        _controlValue = value;
+        _revealSelection();
+      }
+    }
   }
 
   void _update() {

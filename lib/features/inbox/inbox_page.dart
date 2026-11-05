@@ -1,3 +1,4 @@
+import 'caret_assist.dart';
 import 'element_binding.dart';
 import 'paragraph_tag_input.dart';
 import 'memo_boxes.dart';
@@ -365,6 +366,16 @@ class _InboxPageState extends State<InboxPage> {
     return KeyEventResult.handled;
   }
 
+  void _insertQuickElement(String word) {
+    final selection = _draft.selection;
+    final prefix = completionPrefix(_draft.value, elements.visibleWords);
+    final start = (selection.isValid ? selection.start : _draft.text.length) - prefix.length;
+    final end = selection.isValid ? selection.end : start;
+    setState(() => _draft.value = TextEditingValue(
+      text: _draft.text.replaceRange(start, end, word), selection: TextSelection.collapsed(offset: start + word.length)));
+    _focus.requestFocus();
+  }
+
   void _save() {
     _pendingImeSave = false;
     if (_draft.text.trim().isEmpty) return;
@@ -661,7 +672,8 @@ class _InboxPageState extends State<InboxPage> {
           Focus(
             canRequestFocus: false,
             onKeyEvent: _quickMemoKey,
-            child: TextField(
+            child: CaretAssist(controller: _draft, focus: _focus, words: elements.visibleWords,
+              onWord: _insertQuickElement, child: TextField(
               key: const ValueKey('quick-memo'),
               inputFormatters: [TextInputFormatter.withFunction(_formatQuickMemo)],
               textInputAction: _desktopQuickMemo ? TextInputAction.done : TextInputAction.newline,
@@ -686,7 +698,7 @@ class _InboxPageState extends State<InboxPage> {
                 hintText: '단어나 생각을 남겨보세요 #독서 #아이디어',
                 contentPadding: EdgeInsets.zero,
               ),
-            ),
+            )),
           ),
           if (_draftTags.isNotEmpty) Padding(
             padding: const EdgeInsets.only(top: 8),

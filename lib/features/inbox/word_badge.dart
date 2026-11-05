@@ -219,5 +219,15 @@ String _hangulParts(String text) {
   return result.toString();
 }
 
-String completionPrefix(TextEditingValue value, List<String> words) =>
-    wordPrefix(value);
+String completionPrefix(TextEditingValue value, List<String> words) {
+  if (!value.selection.isValid || !value.selection.isCollapsed) return '';
+  final before = value.text.substring(0, value.selection.extentOffset);
+  String? exact;
+  for (final word in words) {
+    if (word.isEmpty || !before.toLowerCase().endsWith(word.toLowerCase())) continue;
+    final start = before.length - word.length;
+    if (start > 0 && !RegExp(r'\s').hasMatch(before[start - 1])) continue;
+    if (exact == null || word.length > exact.length) exact = word;
+  }
+  return exact == null ? wordPrefix(value) : before.substring(before.length - exact.length);
+}
