@@ -471,7 +471,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
         },
         child: Focus(
           canRequestFocus: false,
-
+          onKeyEvent: (_, event) => _key(event) ? KeyEventResult.handled : KeyEventResult.ignored,
           child: Container(key: _anchor, child: widget.child),
         ),
       );

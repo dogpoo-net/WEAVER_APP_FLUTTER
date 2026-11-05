@@ -37,6 +37,25 @@ void main() {
       expect(tester.takeException(), isNull);
     }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
   }
+  testWidgets('second shortcut completion consumes Enter without saving', (tester) async {
+    elements.clear(); elements.add('첫생각'); elements.add('다른생각');
+    SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
+    final storage = WorkspaceStorage(await SharedPreferences.getInstance());
+    await tester.pumpWidget(MyApp(storage: storage));
+    final field = find.byKey(const ValueKey('quick-memo'));
+    for (final text in ['본문 첫', '본문 다']) {
+      await tester.enterText(field, text); await tester.pumpAndSettle();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
+      await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(field).controller!.text, '본문 ');
+      expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
+    }
+    expect(tester.takeException(), isNull);
+  }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
   testWidgets('a new Backspace after completion removes the element instead of being treated as an echo', (tester) async {
     elements.clear(); elements.add('독서');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
