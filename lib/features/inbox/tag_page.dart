@@ -32,7 +32,7 @@ class _TagPageState extends State<TagPage> {
               (n.paragraphs != null || n.project != null) &&
               (n.tags.contains(widget.tag) || elements
                   .matches(
-                    n.project?.paragraphs.map((p) => p.text).join('\n') ??
+                    n.project?.content ??
                         n.content,
                   )
                   .any((hit) => words.contains(hit.word))),

@@ -12,10 +12,11 @@ class ElementUsage {
     final counts = {for (final word in store.words) word: 0};
     final together = {for (final word in store.words) word: <String, int>{}};
     for (final note in notes) {
-      final paragraphs = note.project?.paragraphs ?? note.paragraphs;
-      if (paragraphs == null) continue;
-      for (final paragraph in paragraphs) {
-        final hits = store.matches(paragraph.text);
+      final texts = note.project?.document != null ? [note.project!.document!]
+        : (note.project?.paragraphs ?? note.paragraphs)?.map((p) => p.text).toList();
+      if (texts == null) continue;
+      for (final text in texts) {
+        final hits = store.matches(text);
         for (final hit in hits) { counts.update(hit.word, (count) => count + 1); }
         final unique = hits.map((hit) => hit.word).toSet();
         for (final word in unique) {

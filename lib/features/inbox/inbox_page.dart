@@ -619,7 +619,7 @@ class _InboxPageState extends State<InboxPage> {
     if (!mounted) return;
     setState(() {
       note.paragraphs = note.project!.paragraphs;
-      note.content = note.paragraphs!.map((p) => p.text).join("\n\n");
+      note.content = note.project!.content;
     });
     await _persist();
   }

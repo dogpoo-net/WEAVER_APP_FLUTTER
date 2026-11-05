@@ -111,7 +111,7 @@ class _ThoughtPageState extends State<ThoughtPage> {
       if (widget.box != null) IconButton(tooltip: '상자에 생각 담기', onPressed: _pick, icon: const Icon(Icons.playlist_add)),
       IconButton(tooltip: '연결 모드', isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
-      IconButton(tooltip: '보기 초기화', onPressed: () => _view.value = Matrix4.identity(), icon: const Icon(Icons.center_focus_strong)),
+      IconButton(tooltip: '보기 초기화', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
     ]), body: Column(children: [
       Padding(padding: const EdgeInsets.all(8), child: Text(_linkMode
         ? '연결할 생각 두 개를 차례로 누르세요.' : '생각을 드래그해 배치 · 연결 아이콘을 다른 생각에 드롭 · 두 번 눌러 수정',
@@ -119,7 +119,16 @@ class _ThoughtPageState extends State<ThoughtPage> {
       Expanded(child: LayoutBuilder(builder: (context, viewport) {
         if (!_centered) {
           _centered = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _view.value = Matrix4.translationValues(viewport.maxWidth / 2 - 1485, viewport.maxHeight / 2 - 1038, 0); });
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            final points = [..._positions.values, ...tagPositions.values];
+            if (points.isEmpty) points.add(const Offset(1400, 1000));
+            final left = points.map((p) => p.dx).reduce(math.min), right = points.map((p) => p.dx).reduce(math.max) + 170;
+            final top = points.map((p) => p.dy).reduce(math.min), bottom = points.map((p) => p.dy).reduce(math.max) + 76;
+            final scale = math.min(viewport.maxWidth / (right - left + 120), viewport.maxHeight / (bottom - top + 120)).clamp(.15, 1.0);
+            _view.value = Matrix4.diagonal3Values(scale, scale, 1)..setTranslationRaw(viewport.maxWidth / 2 - (left + right) / 2 * scale,
+              viewport.maxHeight / 2 - (top + bottom) / 2 * scale, 0);
+          });
         }
         return InteractiveViewer(
         transformationController: _view, constrained: false, minScale: .15, maxScale: 2.5,
