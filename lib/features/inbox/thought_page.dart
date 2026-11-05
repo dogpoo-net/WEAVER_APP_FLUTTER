@@ -174,19 +174,6 @@ class _ThoughtPageState extends State<ThoughtPage> {
             {for (final r in records) r.id: {...r.connections, ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
           if (records.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
             icon: const Icon(Icons.add), label: Text(_query.isNotEmpty || _unlinkedOnly ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
-          for (final tag in tags) Positioned(left: tagPositions['tag:$tag']!.dx - 60, top: tagPositions['tag:$tag']!.dy - 20,
-            child: GestureDetector(key: ValueKey('graph-tag-$tag'),
-              onPanStart: (_) => _dragging = true,
-              onPanUpdate: (d) => setState(() {
-                final p = _tagPositions['tag:$tag']! + d.delta / _view.value.getMaxScaleOnAxis();
-                _tagPositions['tag:$tag'] = Offset(p.dx.clamp(60, 2900), p.dy.clamp(20, 2160));
-              }),
-              onPanEnd: (_) => _dragging = false, onPanCancel: () => _dragging = false,
-              child: DragTarget<String>(onAcceptWithDetails: (d) {
-              final r = records.where((r) => r.id == d.data).firstOrNull;
-              if (r != null) { r.tags.add(tag); _changed(); }
-            }, builder: (context, candidates, _) => Chip(label: Text('#$tag'),
-              backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: candidates.isEmpty ? .3 : .6))))),
           for (final record in records) Positioned(left: _positions[record.id]!.dx, top: _positions[record.id]!.dy,
             child: DragTarget<String>(onWillAcceptWithDetails: (d) => d.data != record.id,
               onAcceptWithDetails: (d) => _connect(d.data, record.id), builder: (context, candidates, _) => GestureDetector(
@@ -208,6 +195,19 @@ class _ThoughtPageState extends State<ThoughtPage> {
                       child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.link, size: 20))),
                   ])))),
             )),
+          for (final tag in tags) Positioned(left: tagPositions['tag:$tag']!.dx - 60, top: tagPositions['tag:$tag']!.dy - 20,
+            child: GestureDetector(key: ValueKey('graph-tag-$tag'), behavior: HitTestBehavior.opaque,
+              onPanStart: (_) => _dragging = true,
+              onPanUpdate: (d) => setState(() {
+                final p = _tagPositions['tag:$tag']! + d.delta / _view.value.getMaxScaleOnAxis();
+                _tagPositions['tag:$tag'] = Offset(p.dx.clamp(60, 2900), p.dy.clamp(20, 2160));
+              }),
+              onPanEnd: (_) => _dragging = false, onPanCancel: () => _dragging = false,
+              child: DragTarget<String>(onAcceptWithDetails: (d) {
+              final r = records.where((r) => r.id == d.data).firstOrNull;
+              if (r != null) { r.tags.add(tag); _changed(); }
+            }, builder: (context, candidates, _) => Chip(label: Text('#$tag'),
+              backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: candidates.isEmpty ? .3 : .6))))),
         ])),
       ); })),
       if (_selected != null) Row(mainAxisAlignment: MainAxisAlignment.center, children: [
