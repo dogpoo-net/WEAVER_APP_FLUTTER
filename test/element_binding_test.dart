@@ -44,10 +44,11 @@ void main() {
   test('paragraph bindings survive backup and legacy paragraphs remain plain text', () {
     elements.clear();
     final record = elements.add('원소');
-    final note = Note('원소')..paragraphs = [Paragraph('원소', ParagraphRole.body,
+    final note = Note('원소')..bindings = [ElementBinding(record.id, 0, 2)]..paragraphs = [Paragraph('원소', ParagraphRole.body,
       bindings: [ElementBinding(record.id, 0, 2)])];
     final restored = WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([note]));
     expect(restored.notes.single.paragraphs!.single.bindings.single.id, record.id);
+    expect(restored.notes.single.bindings.single.id, record.id);
   });
   for (final project in [false, true]) {
     testWidgets('assist binds a protected element in editor ($project)', (tester) async {

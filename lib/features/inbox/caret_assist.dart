@@ -130,16 +130,19 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
         _controlAlone = false;
         // Resolve against the current editing value, not last frame's overlay.
         // Composition callbacks and layout refreshes must not invert this mode.
-        _refreshMatches(widget.controller.value);
+        _refreshMatches(widget.controller.value, autoSelect: false);
         if (_matches.isEmpty) {
           _controlling = false;
           _controlValue = null;
           _update();
           return false;
         }
+        final enterControl = !_controlling;
         widget.controller.clearComposing();
-        _refreshMatches(widget.controller.value);
-        _controlling = _matches.isNotEmpty && !_controlling;
+        // IME commit must not auto-select and then invert this explicit Ctrl toggle.
+        _autoCheckedValue = widget.controller.value;
+        _refreshMatches(widget.controller.value, autoSelect: false);
+        _controlling = _matches.isNotEmpty && enterControl;
         _controlValue = _controlling ? widget.controller.value : null;
         _entry?.markNeedsBuild();
         _update();
@@ -231,7 +234,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     _entry = null;
   }
 
-  void _refreshMatches(TextEditingValue value) {
+  void _refreshMatches(TextEditingValue value, {bool autoSelect = true}) {
     final controlValue = _controlValue;
     if (_controlling && controlValue != null &&
         (value.text != controlValue.text ||
@@ -247,7 +250,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     if (_selected >= _matches.length) _selected = 0;
     final checked = _autoCheckedValue;
     final changed = checked == null || checked.text != value.text || checked.selection != value.selection;
-    if (changed && (!value.composing.isValid || value.composing.isCollapsed)) {
+    if (autoSelect && changed && (!value.composing.isValid || value.composing.isCollapsed)) {
       _autoCheckedValue = value;
       final exact = query.isEmpty ? -1 : _matches.indexWhere((word) => word.toLowerCase() == query.toLowerCase());
       if (exact >= 0) {

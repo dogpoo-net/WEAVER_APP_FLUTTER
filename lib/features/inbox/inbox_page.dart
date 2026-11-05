@@ -42,7 +42,7 @@ class InboxPage extends StatefulWidget {
 }
 
 class _InboxPageState extends State<InboxPage> {
-  final _draft = TextEditingController();
+  final _draft = BoundTextController('', const []);
   final _draftTags = <String>{};
   final _focus = FocusNode();
   final List<Note> _notes = [];
@@ -117,6 +117,7 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   void _elementDeleted() {
+    _draft.sync({for (final record in elements.records.values) record.id: record.text});
     setState(() {
       _notes.removeWhere(
         (n) =>
@@ -371,8 +372,9 @@ class _InboxPageState extends State<InboxPage> {
     final prefix = completionPrefix(_draft.value, elements.visibleWords);
     final start = (selection.isValid ? selection.start : _draft.text.length) - prefix.length;
     final end = selection.isValid ? selection.end : start;
-    setState(() => _draft.value = TextEditingValue(
-      text: _draft.text.replaceRange(start, end, word), selection: TextSelection.collapsed(offset: start + word.length)));
+    final record = elements.records[word];
+    if (record == null) return;
+    setState(() => _draft.bind(start, end, record.id, word));
     _focus.requestFocus();
   }
 
@@ -386,11 +388,13 @@ class _InboxPageState extends State<InboxPage> {
     }
     final input = [_draft.text, ..._draftTags.map((tag) => '#$tag')].join(' ');
     final record = elements.add(input, replaceTags: _editing != null);
+    final links = taggedTextBindings(_draft);
     setState(() {
       if (_editing == null) {
-        _notes.insert(0, Note(record.text));
+        _notes.insert(0, Note(record.text)..bindings = links);
       } else {
         _editing!.content = record.text;
+        _editing!.bindings = links;
       }
       _editing = null;
       _draft.clear();
@@ -534,7 +538,10 @@ class _InboxPageState extends State<InboxPage> {
       _editing = note;
       final tags = elements.records[note.content.trim()]?.tags ?? <String>{};
       _draftTags..clear()..addAll(tags);
+      _draft.clear();
       _draft.text = note.content;
+      _draft.bindings = List.of(note.bindings);
+      _draft.sync({for (final record in elements.records.values) record.id: record.text});
     });
     _focus.requestFocus();
   }

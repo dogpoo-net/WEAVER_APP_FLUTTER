@@ -80,3 +80,22 @@ class BoundTextController extends TextEditingController {
     return TextSpan(style: style, children: children);
   }
 }
+
+  List<ElementBinding> taggedTextBindings(BoundTextController controller) {
+    final text = controller.text;
+    final pattern = RegExp(r'(^|\s)#[^\s#.,!?;:،؛؟()\[\]{}]+', multiLine: true);
+    final matches = pattern.allMatches(text).toList();
+    int offset(int position) {
+      var removed = 0;
+      for (final match in matches) {
+        final start = match.start + match.group(1)!.length;
+        removed += (position - start).clamp(0, match.end - start);
+      }
+      final stripped = text.replaceAllMapped(pattern, (m) => m.group(1)!);
+      final leading = stripped.length - stripped.trimLeft().length;
+      return position - removed - leading;
+    }
+    return [for (final link in controller.bindings)
+      if (!matches.any((m) => m.start < link.end && m.end > link.start))
+        ElementBinding(link.id, offset(link.start), offset(link.end))];
+  }

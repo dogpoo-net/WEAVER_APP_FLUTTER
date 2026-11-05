@@ -17,6 +17,7 @@ class Note {
     : createdAt = created ?? DateTime.now();
   String content;
   String? folder;
+  List<ElementBinding> bindings = [];
   final Set<String> tags = {};
   List<Paragraph>? paragraphs;
   WritingProject? project;
@@ -83,6 +84,7 @@ class WorkspaceSnapshot {
         .map(
           (n) => {
             'content': n.content,
+            'bindings': n.bindings.map((link) => link.toJson()).toList(),
             'folder': n.folder,
             'tags': n.tags.toList(),
             'createdAt': n.createdAt.toIso8601String(),
@@ -149,6 +151,7 @@ class WorkspaceSnapshot {
         n['content'] as String,
         created: DateTime.parse(n['createdAt'] as String),
       );
+      note.bindings = bindings({'text': n['content'], 'bindings': n['bindings']});
       note.folder = n['folder'] as String?;
       note.tags.addAll(List<String>.from(n['tags'] ?? []));
       if (n['paragraphs'] != null) {

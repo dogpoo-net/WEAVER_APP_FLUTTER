@@ -122,25 +122,6 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     }
   }
 
-  List<ElementBinding> _savedBindings(BoundTextController controller) {
-    final text = controller.text;
-    final pattern = RegExp(r'(^|\s)#[^\s#.,!?;:،؛؟()\[\]{}]+', multiLine: true);
-    final matches = pattern.allMatches(text).toList();
-    int offset(int position) {
-      var removed = 0;
-      for (final match in matches) {
-        final start = match.start + match.group(1)!.length;
-        removed += (position - start).clamp(0, match.end - start);
-      }
-      final stripped = text.replaceAllMapped(pattern, (m) => m.group(1)!);
-      final leading = stripped.length - stripped.trimLeft().length;
-      return position - removed - leading;
-    }
-    return [for (final link in controller.bindings)
-      if (!matches.any((m) => m.start < link.end && m.end > link.start))
-        ElementBinding(link.id, offset(link.start), offset(link.end))];
-  }
-
   void _add(Paragraph p) {
     final controller = BoundTextController(p.text, p.bindings);
     _controllers.add(controller);
@@ -548,7 +529,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                               Paragraph(_controllers[i].text, _roles[i], bindings: List.of((_controllers[i] as BoundTextController).bindings))
                             else
                               Paragraph(parseTaggedInput(_controllers[i].text).text, ParagraphRole.body,
-                                bindings: _savedBindings(_controllers[i] as BoundTextController),
+                                bindings: taggedTextBindings(_controllers[i] as BoundTextController),
                                 tags: {...parseTaggedInput(_controllers[i].text).tags,
                                   ..._tags.text.split(RegExp(r'\s+')).map((t) => t.replaceFirst(RegExp(r'^#'), '').toLowerCase()).where((t) => t.isNotEmpty)}),
                       ];

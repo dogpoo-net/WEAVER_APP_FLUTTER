@@ -5,6 +5,7 @@ import 'package:weaver/features/inbox/paragraph_editor.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/word_badge.dart';
 import 'package:weaver/main.dart';
+import 'package:weaver/features/inbox/element_binding.dart';
 
 void main() {
   testWidgets('exact phrase selects automatically, escape stays dismissed, and enter binds', (tester) async {
@@ -23,6 +24,28 @@ void main() {
     expect(tester.widget<TextField>(field).controller!.text, '오늘 작은 생각');
     expect(tester.takeException(), isNull);
   });
+  testWidgets('Ctrl selects a composing exact Hangul match once and toggles off after IME echo', (tester) async {
+    elements.clear(); elements.add('생각');
+    await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: TargetPlatform.linux),
+      home: const ParagraphEditor(words: ['생각', '생각 정리'])));
+    final field = find.byKey(const ValueKey('paragraph-0'));
+    await tester.tap(field); await tester.pumpAndSettle();
+    const composing = TextEditingValue(text: '생각', selection: TextSelection.collapsed(offset: 2), composing: TextRange(start: 0, end: 2));
+    bool selected() => tester.widgetList<WordBadge>(find.byType(WordBadge)).any((b) => b.word == '생각' && b.selected);
+    tester.testTextInput.updateEditingValue(composing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft); await tester.pumpAndSettle();
+    expect(selected(), isTrue);
+    tester.testTextInput.updateEditingValue(composing); await tester.pumpAndSettle();
+    expect(selected(), isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft); await tester.pumpAndSettle();
+    expect(selected(), isFalse);
+    tester.testTextInput.updateEditingValue(composing.copyWith(composing: TextRange.empty));
+    await tester.pumpAndSettle();
+    expect(selected(), isFalse);
+    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft); await tester.pumpAndSettle();
+    expect(selected(), isTrue);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('quick memo completes existing phrases without saving on assist enter', (tester) async {
     await tester.pumpWidget(const MyApp());
     elements.add('작은 생각');
@@ -34,6 +57,13 @@ void main() {
     expect(tester.widgetList<WordBadge>(find.byType(WordBadge)).any((b) => b.word == '작은 생각' && b.selected), isTrue);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
     expect(tester.widget<TextField>(field).controller!.text, '작은 생각');
+    final controller = tester.widget<TextField>(field).controller! as BoundTextController;
+    expect(controller.bindings.single.id, elements.records['작은 생각']!.id);
+    await tester.enterText(field, '작은 새 생각'); await tester.pumpAndSettle();
+    expect(controller.text, '작은 생각');
+    await tester.enterText(field, '작은 생'); await tester.pumpAndSettle();
+    expect(controller.text, isEmpty);
+    expect(controller.bindings, isEmpty);
     expect(tester.takeException(), isNull);
   });
 }
