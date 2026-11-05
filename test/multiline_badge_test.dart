@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/paragraph_editor.dart';
+import 'package:weaver/features/inbox/element_binding.dart';
 import 'package:weaver/features/inbox/word_badge.dart';
 
 void main() {
@@ -17,7 +18,10 @@ void main() {
     expect(label.softWrap, isFalse);
     await tester.tap(badge);
     await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field).controller!.text, phrase);
+    final controller = tester.widget<TextField>(field).controller! as BoundTextController;
+    expect(controller.text, '$phrase\n');
+    expect(controller.bindings.single.end, phrase.length);
+    expect(controller.selection.extentOffset, phrase.length + 1);
   });
 
   testWidgets('metadata chip also displays a single line', (tester) async {
