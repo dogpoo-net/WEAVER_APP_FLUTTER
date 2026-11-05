@@ -23,16 +23,14 @@ class ThoughtPage extends StatefulWidget {
 class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, RouteAware {
   final _positions = <String, Offset>{};
   final _tagPositions = <String, Offset>{};
-  final _pinned = <String>{};
   String _query = '';
   bool _unlinkedOnly = false;
   final _view = TransformationController();
-  Timer? _timer, _saveTimer;
+  Timer? _saveTimer;
   late final GraphLayout _layout;
   late final TextEditingController _search;
   String? _selected, _linkFrom;
-  bool _dragging = false, _linkMode = false, _centered = false;
-  int _frames = 0, _stableFrames = 0;
+  bool _linkMode = false, _centered = false;
   bool _routeVisible = true, _appActive = true;
   ModalRoute<dynamic>? _route;
   static const _nodeSize = Size(170, 76);
@@ -42,7 +40,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _layout = widget.box?.layout ?? pageGraphLayout;
     _positions.addAll(_layout.positions);
     _tagPositions.addAll(_layout.tags);
-    _pinned.addAll(_positions.keys);
     _query = _layout.query;
     _unlinkedOnly = _layout.unlinkedOnly;
     _search = TextEditingController(text: _query);
@@ -87,7 +84,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   @override
   void didPushNext() {
     _routeVisible = false;
-    _stopLayout();
     _saveLayout(flush: true);
   }
   @override
@@ -99,18 +95,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appActive = state == AppLifecycleState.resumed;
     if (!_appActive) {
-      _stopLayout();
       _saveLayout(flush: true);
     } else if (mounted && _routeVisible) {
       setState(_sync);
     }
-  }
-  void _stopLayout() {
-    final wasRunning = _timer != null;
-    _timer?.cancel(); _timer = null;
-    // Completed positions are stable within this session as well as on reopen.
-    _pinned.addAll(_positions.keys);
-    if (wasRunning) _saveLayout(flush: true);
   }
   List<ElementRecord> get _scopeRecords => elements.records.values.where((r) => widget.box == null || widget.box!.elementIds.contains(r.id)).toList();
   List<ElementRecord> get _records => _scopeRecords.where((r) =>
@@ -123,7 +111,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _positions.removeWhere((id, _) => !scopeIds.contains(id));
     final scopeTags = scope.expand((r) => r.tags).map((tag) => 'tag:$tag').toSet();
     _tagPositions.removeWhere((tag, _) => !scopeTags.contains(tag));
-    _pinned.removeWhere((id) => !_positions.containsKey(id));
+    // Assign new thoughts once; existing nodes never move automatically.
     for (var i = 0; i < records.length; i++) {
       final angle = i * 2.39996;
       final radius = 65 + math.sqrt(i) * 70;
@@ -136,80 +124,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _tagPositions.putIfAbsent('tag:${tags[i]}', () => center + Offset(85 + (i % 3 - 1) * 100, -65 - (i % 2) * 45));
     }
     if (!records.any((r) => r.id == _selected)) _selected = null;
-    final needsLayout = records.any((r) => !_pinned.contains(r.id));
-    if (!needsLayout) {
-      _stopLayout();
-    } else if (_timer == null && _routeVisible && _appActive && !_dragging) {
-      _frames = 0; _stableFrames = 0;
-      _timer = Timer.periodic(const Duration(milliseconds: 32), (_) => _relax());
-    }
     _saveLayout();
   }
   void _storeChanged() { if (mounted && _routeVisible && _appActive) setState(_sync); }
-  void _relax() {
-    if (!mounted) return;
-    if (_dragging || !_routeVisible || !_appActive || _frames++ >= 120) { _stopLayout(); return; }
-    final records = _records;
-    final forces = {for (final r in records) r.id: Offset.zero};
-    final visibleIds = forces.keys.toSet();
-    // Compare only nearby cells instead of every pair in the whole graph.
-    const cellSize = 235.0;
-    final cells = <(int, int), List<int>>{};
-    for (var i = 0; i < records.length; i++) {
-      final p = _positions[records[i].id]!;
-      final cell = ((p.dx / cellSize).floor(), (p.dy / cellSize).floor());
-      (cells[cell] ??= []).add(i);
-    }
-    for (var i = 0; i < records.length; i++) {
-      final a = records[i].id;
-      final p = _positions[a]!;
-      final cx = (p.dx / cellSize).floor(), cy = (p.dy / cellSize).floor();
-      for (var x = cx - 1; x <= cx + 1; x++) {
-        for (var y = cy - 1; y <= cy + 1; y++) {
-          for (final j in cells[(x, y)] ?? const <int>[]) {
-            if (j <= i) continue;
-            final b = records[j].id;
-            var delta = p - _positions[b]!;
-            if (delta.distanceSquared < 1) delta = const Offset(1, 1);
-            final distance = delta.distance;
-            if (distance > cellSize) continue;
-            final force = delta / distance * (500 / distance.clamp(20, cellSize));
-            forces[a] = forces[a]! + force; forces[b] = forces[b]! - force;
-          }
-        }
-      }
-    }
-    for (final r in records) {
-      for (final id in r.connections.where(visibleIds.contains)) {
-        final delta = _positions[id]! - _positions[r.id]!;
-        final distance = delta.distance;
-        if (distance > 1) forces[r.id] = forces[r.id]! + delta / distance * ((distance - 185) * .015);
-      }
-    }
-    for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
-      final members = box.elementIds.where(visibleIds.contains).toList();
-      if (members.length < 2) continue;
-      final center = members.map((id) => _positions[id]!).reduce((a, b) => a + b) / members.length.toDouble();
-      for (final id in members) { forces[id] = forces[id]! + (center - _positions[id]!) * .012; }
-    }
-    final updates = <String, Offset>{};
-    var maxMovement = 0.0;
-    for (final r in records) {
-      if (_pinned.contains(r.id)) continue;
-      final old = _positions[r.id]!;
-      final p = old + forces[r.id]!;
-      final next = Offset(p.dx.clamp(30, 2770), p.dy.clamp(30, 1970));
-      final movement = (next - old).distance;
-      maxMovement = math.max(maxMovement, movement);
-      if (movement > .01) updates[r.id] = next;
-    }
-    if (updates.isNotEmpty) {
-      setState(() => _positions.addAll(updates));
-      _saveLayout();
-    }
-    _stableFrames = maxMovement < .2 ? _stableFrames + 1 : 0;
-    if (_stableFrames >= 3) _stopLayout();
-  }
   void _changed() { widget.onChanged(); setState(_sync); }
   Future<void> _create() async {
     var draft = '';
@@ -241,7 +158,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   @override
   void dispose() {
-    _timer?.cancel();
     _saveLayout(flush: true);
     WidgetsBinding.instance.removeObserver(this);
     workspaceRouteObserver.unsubscribe(this);
@@ -295,7 +211,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           });
         }
         return InteractiveViewer(
-        onInteractionStart: (_) => _stopLayout(),
         onInteractionEnd: (_) => _saveLayout(flush: true),
         transformationController: _view, constrained: false, minScale: .15, maxScale: 2.5,
         boundaryMargin: const EdgeInsets.all(500),
@@ -312,10 +227,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 onTap: () { if (_linkMode && _linkFrom != null) { _connect(_linkFrom!, record.id); }
                   else { setState(() { _selected = record.id; if (_linkMode) _linkFrom = record.id; }); } },
                 onDoubleTap: () => showElementMetadata(context, record.text),
-                onPanStart: (_) { _stopLayout(); _dragging = true; _pinned.add(record.id); },
                 onPanUpdate: (d) => setState(() { final p = _positions[record.id]! + d.delta / _view.value.getMaxScaleOnAxis();
                   _positions[record.id] = Offset(p.dx.clamp(0, 2830), p.dy.clamp(0, 2124)); _saveLayout(); }),
-                onPanEnd: (_) { _dragging = false; _sync(); _saveLayout(flush: true); }, onPanCancel: () => _dragging = false,
+                onPanEnd: (_) => _saveLayout(flush: true), onPanCancel: () => _saveLayout(flush: true),
                 child: Card(color: wordBackgroundColor(context, record.text),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: candidates.isNotEmpty || _selected == record.id ? color.primary : Colors.transparent, width: 2)),
@@ -323,18 +237,16 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                     Expanded(child: Padding(padding: const EdgeInsets.all(10), child: Text(badgeLabel(record.text), maxLines: 2,
                       overflow: TextOverflow.ellipsis, style: TextStyle(color: wordColor(context, record.text))))),
                     Draggable<String>(data: record.id, feedback: Material(child: Chip(label: Text(badgeLabel(record.text), overflow: TextOverflow.ellipsis))),
-                      onDragStarted: () { _stopLayout(); _dragging = true; }, onDragEnd: (_) => _dragging = false,
                       child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.link, size: 20))),
                   ])))),
             )),
           for (final tag in tags) Positioned(left: tagPositions['tag:$tag']!.dx - 60, top: tagPositions['tag:$tag']!.dy - 20,
             child: GestureDetector(key: ValueKey('graph-tag-$tag'), behavior: HitTestBehavior.opaque,
-              onPanStart: (_) { _stopLayout(); _dragging = true; },
               onPanUpdate: (d) => setState(() {
                 final p = _tagPositions['tag:$tag']! + d.delta / _view.value.getMaxScaleOnAxis();
                 _tagPositions['tag:$tag'] = Offset(p.dx.clamp(60, 2900), p.dy.clamp(20, 2160)); _saveLayout();
               }),
-              onPanEnd: (_) { _dragging = false; _saveLayout(flush: true); }, onPanCancel: () => _dragging = false,
+              onPanEnd: (_) => _saveLayout(flush: true), onPanCancel: () => _saveLayout(flush: true),
               child: DragTarget<String>(onAcceptWithDetails: (d) {
               final r = records.where((r) => r.id == d.data).firstOrNull;
               if (r != null) { r.tags.add(tag); _changed(); }

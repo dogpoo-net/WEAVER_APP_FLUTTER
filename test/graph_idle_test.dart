@@ -22,6 +22,37 @@ void main() {
   });
 
   for (final inBox in [false, true]) {
+    testWidgets('new graphs and newly added thoughts stay fixed from their first frame (box=$inBox)', (tester) async {
+      final a = elements.add('첫 생각');
+      final b = elements.add('둘째 생각');
+      final box = MemoBox('고정 상자', ids: [a.id, b.id]); memoBoxes.add(box);
+      await tester.pumpWidget(MaterialApp(home: ThoughtPage(box: inBox ? box : null, onChanged: () {})));
+      Offset position(String text) {
+        final node = tester.widget<Positioned>(find.ancestor(of: find.text(text), matching: find.byType(Positioned)).first);
+        return Offset(node.left!, node.top!);
+      }
+      final first = position('첫 생각'), second = position('둘째 생각');
+      for (var frame = 0; frame < 12; frame++) {
+        await tester.pump(const Duration(milliseconds: 32));
+        expect(position('첫 생각'), first);
+        expect(position('둘째 생각'), second);
+      }
+      final c = elements.add('추가 생각');
+      box.elementIds.add(c.id);
+      elements.update(c.text, c.text);
+      await tester.pump();
+      final added = position('추가 생각');
+      for (var frame = 0; frame < 12; frame++) {
+        await tester.pump(const Duration(milliseconds: 32));
+        expect(position('추가 생각'), added);
+        expect(position('첫 생각'), first);
+        expect(position('둘째 생각'), second);
+      }
+      await tester.pump(const Duration(seconds: 5));
+      expect(position('추가 생각'), added);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
     testWidgets('settled nodes do not restart for metadata, links or dragging (box=$inBox)', (tester) async {
       final a = elements.add('생각 A');
       final b = elements.add('생각 B');
