@@ -43,7 +43,16 @@ void main() {
         await tester.pumpAndSettle();
       }
       bool selected() => tester.widgetList<WordBadge>(find.byType(WordBadge)).any((b) => b.selected);
-      await toggle(); expect(selected(), isTrue);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(c.value.composing, TextRange.empty);
+      expect(c.text, text);
+      expect(f.hasFocus, isTrue);
+      expect(selected(), isFalse);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(selected(), isTrue);
       tester.testTextInput.updateEditingValue(composing); await tester.pumpAndSettle();
       await toggle(); expect(selected(), isFalse);
       tester.testTextInput.updateEditingValue(composing); await tester.pumpAndSettle();

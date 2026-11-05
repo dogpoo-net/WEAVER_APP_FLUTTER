@@ -140,6 +140,22 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     final keyboard = HardwareKeyboard.instance;
     final control = keyboard.isControlPressed || keyboard.physicalKeysPressed.contains(PhysicalKeyboardKey.controlLeft) ||
         keyboard.physicalKeysPressed.contains(PhysicalKeyboardKey.controlRight);
+    final controlKey = event.logicalKey == LogicalKeyboardKey.controlLeft ||
+        event.logicalKey == LogicalKeyboardKey.controlRight ||
+        event.physicalKey == PhysicalKeyboardKey.controlLeft || event.physicalKey == PhysicalKeyboardKey.controlRight;
+    if (controlKey && event is KeyDownEvent) {
+      final value = widget.controller.value;
+      if (value.composing.isValid && !value.composing.isCollapsed) {
+        // Commit the IME before Space arrives, without blurring the input or
+        // turning Ctrl alone into assist selection.
+        _manualSelection = _manualSelection == true && _controlling;
+        _manualValue = value.copyWith(composing: TextRange.empty);
+        _autoCheckedValue = _manualValue;
+        _committingNavigation = true;
+        try { widget.controller.clearComposing(); } finally { _committingNavigation = false; }
+        _controlValue = _controlling ? widget.controller.value : null;
+      }
+    }
     if (event is KeyUpEvent && (event.logicalKey == LogicalKeyboardKey.controlLeft ||
         event.logicalKey == LogicalKeyboardKey.controlRight || event.physicalKey == PhysicalKeyboardKey.controlLeft ||
         event.physicalKey == PhysicalKeyboardKey.controlRight)) {
