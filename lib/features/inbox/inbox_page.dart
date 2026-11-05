@@ -50,6 +50,10 @@ class _InboxPageState extends State<InboxPage> {
   String _query = '';
   bool _menuVisible = true;
   bool _pendingImeSave = false;
+  bool _pendingImeNewline = false, _finishingImeNewline = false;
+  int _imeNewlineLines = 0;
+  String? _newlineEchoBefore, _newlineEchoAfter;
+  DateTime? _newlineEchoUntil;
   bool _platformEnterQueued = false;
   String? _enterEchoText;
   DateTime? _enterEchoUntil, _explicitNewlineUntil;
@@ -299,8 +303,13 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   TextEditingValue _formatQuickMemo(TextEditingValue oldValue, TextEditingValue value) {
-    if (!_desktopQuickMemo || (value.composing.isValid && !value.composing.isCollapsed)) return value;
+    if (!_desktopQuickMemo) return value;
     final now = DateTime.now();
+    if (_newlineEchoUntil != null && now.isBefore(_newlineEchoUntil!) && oldValue.text == _newlineEchoAfter &&
+        (value.text == _newlineEchoBefore || value.text == '$_newlineEchoAfter\n' || value.text == '$_newlineEchoAfter\r\n')) {
+      return oldValue.copyWith(composing: TextRange.empty);
+    }
+    if (_pendingImeNewline || (value.composing.isValid && !value.composing.isCollapsed)) return value;
     if (oldValue.text.isEmpty && _enterEchoUntil != null && now.isBefore(_enterEchoUntil!) &&
         (value.text == '$_enterEchoText\n' || value.text == '$_enterEchoText\r\n' || value.text == '\n')) {
       _enterEchoText = null;
@@ -328,9 +337,38 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   void _imeUpdated() {
+    if (_pendingImeNewline && _draft.value.composing.isCollapsed) _finishImeNewline();
     if (_pendingImeSave && _draft.value.composing.isCollapsed) {
       _finishImeSave();
     }
+  }
+
+  void _insertQuickNewline() {
+    final value = _draft.value;
+    final selection = value.selection;
+    final start = selection.isValid ? selection.start : value.text.length;
+    final end = selection.isValid ? selection.end : start;
+    _explicitNewlineUntil = DateTime.now().add(const Duration(milliseconds: 250));
+    setState(() => _draft.value = TextEditingValue(text: value.text.replaceRange(start, end, '\n'),
+      selection: TextSelection.collapsed(offset: start + 1)));
+    _newlineEchoBefore = value.text;
+    _newlineEchoAfter = _draft.text;
+    _newlineEchoUntil = _explicitNewlineUntil;
+  }
+
+  void _finishImeNewline() {
+    if (_finishingImeNewline) return;
+    _finishingImeNewline = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _finishingImeNewline = false;
+      if (!mounted || !_pendingImeNewline) return;
+      _pendingImeNewline = false;
+      if (!_focus.hasFocus) return;
+      _draft.clearComposing();
+      // Some IMEs commit only the syllable; others also insert the newline.
+      if (_draft.text.split('\n').length <= _imeNewlineLines) _insertQuickNewline();
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   void _finishImeSave() {
@@ -345,13 +383,20 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   KeyEventResult _quickMemoKey(FocusNode node, KeyEvent event) {
-    if (!_desktopQuickMemo ||
-        (event.logicalKey != LogicalKeyboardKey.enter &&
-            event.logicalKey != LogicalKeyboardKey.numpadEnter)) {
+    if (event is KeyDownEvent && !{
+      LogicalKeyboardKey.process, LogicalKeyboardKey.shiftLeft, LogicalKeyboardKey.shiftRight,
+      LogicalKeyboardKey.altLeft, LogicalKeyboardKey.altRight, LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.controlRight,
+    }.contains(event.logicalKey)) {
+      _newlineEchoBefore = null; _newlineEchoAfter = null; _newlineEchoUntil = null;
+    }
+    final enter = event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.numpadEnter ||
+      event.physicalKey == PhysicalKeyboardKey.enter || event.physicalKey == PhysicalKeyboardKey.numpadEnter;
+    if (!_desktopQuickMemo || !enter) {
       return KeyEventResult.ignored;
     }
     if (event is KeyUpEvent) {
       if (_pendingImeSave) _finishImeSave();
+      if (_pendingImeNewline) _finishImeNewline();
       return HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed
           ? KeyEventResult.ignored : KeyEventResult.handled;
     }
@@ -363,23 +408,19 @@ class _InboxPageState extends State<InboxPage> {
     if (event is KeyRepeatEvent) return KeyEventResult.handled;
     if (!keyboard.isShiftPressed && !keyboard.isAltPressed) _explicitNewlineUntil = null;
     if (value.composing.isValid && !value.composing.isCollapsed) {
-      if (!keyboard.isShiftPressed && !keyboard.isAltPressed) {
+      if (keyboard.isShiftPressed || keyboard.isAltPressed) {
+        _pendingImeSave = false;
+        _pendingImeNewline = true;
+        _imeNewlineLines = value.text.split('\n').length;
+        _explicitNewlineUntil = DateTime.now().add(const Duration(milliseconds: 250));
+      } else {
         _pendingImeSave = true;
       }
-      // Let the IME commit first, then save its final editing value.
+      // Commit the final IME value before applying the captured save or newline intent.
       return KeyEventResult.ignored;
     }
     if (keyboard.isShiftPressed || keyboard.isAltPressed) {
-      _explicitNewlineUntil = DateTime.now().add(const Duration(milliseconds: 250));
-      final selection = value.selection;
-      final start = selection.isValid ? selection.start : value.text.length;
-      final end = selection.isValid ? selection.end : start;
-      setState(
-        () => _draft.value = TextEditingValue(
-          text: value.text.replaceRange(start, end, '\n'),
-          selection: TextSelection.collapsed(offset: start + 1),
-        ),
-      );
+      _insertQuickNewline();
     } else if (value.text.trim().isNotEmpty) {
       _submitQuickMemo();
     }

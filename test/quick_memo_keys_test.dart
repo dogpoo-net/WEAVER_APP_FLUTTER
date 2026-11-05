@@ -69,6 +69,56 @@ void main() {
     }),
   );
 
+  for (final modifier in [LogicalKeyboardKey.shiftLeft, LogicalKeyboardKey.altLeft]) {
+    for (final nativeNewline in [false, true]) {
+      testWidgets('Korean IME modifier Enter inserts exactly one newline ($modifier, native=$nativeNewline)', (tester) async {
+        await tester.pumpWidget(const MyApp());
+        final field = find.byKey(const ValueKey('quick-memo'));
+        await tester.tap(field);
+        tester.testTextInput.updateEditingValue(const TextEditingValue(text: '가',
+          selection: TextSelection.collapsed(offset: 1), composing: TextRange(start: 0, end: 1)));
+        await tester.pump();
+        await tester.sendKeyDownEvent(modifier);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.process, physicalKey: PhysicalKeyboardKey.enter);
+        final committed = nativeNewline ? '각\n' : '각';
+        tester.testTextInput.updateEditingValue(TextEditingValue(text: committed,
+          selection: TextSelection.collapsed(offset: committed.length)));
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.process, physicalKey: PhysicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(modifier);
+        await tester.pumpAndSettle();
+        final controller = tester.widget<TextField>(field).controller!;
+        expect(controller.text, '각\n');
+        expect(controller.selection.extentOffset, 2);
+        expect(elements.words, isEmpty);
+        if (!nativeNewline) {
+          // A late IME commit must not erase the manually inserted newline.
+          tester.testTextInput.updateEditingValue(const TextEditingValue(text: '각',
+            selection: TextSelection.collapsed(offset: 1), composing: TextRange(start: 0, end: 1)));
+          await tester.pumpAndSettle();
+          expect(controller.text, '각\n');
+        }
+        await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+        await tester.pumpAndSettle();
+        expect(controller.text, '각');
+        expect(tester.takeException(), isNull);
+      }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
+    }
+    testWidgets('Korean IME still composing on modifier Enter key-up inserts newline ($modifier)', (tester) async {
+      await tester.pumpWidget(const MyApp());
+      final field = find.byKey(const ValueKey('quick-memo'));
+      await tester.tap(field);
+      tester.testTextInput.updateEditingValue(const TextEditingValue(text: '한글',
+        selection: TextSelection.collapsed(offset: 2), composing: TextRange(start: 1, end: 2)));
+      await tester.pump();
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(field).controller!.text, '한글\n');
+      expect(elements.words, isEmpty);
+    }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
+  }
+
   testWidgets(
     'desktop enter saves; shift and alt enter insert newline',
     (tester) async {
