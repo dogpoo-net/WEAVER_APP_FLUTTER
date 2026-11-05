@@ -43,8 +43,10 @@ void main() {
         await tester.pumpAndSettle();
       }
       bool selected() => tester.widgetList<WordBadge>(find.byType(WordBadge)).any((b) => b.selected);
+      final releases = tester.testTextInput.log.where((call) => call.method == 'TextInput.clearClient').length;
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
+      expect(tester.testTextInput.log.where((call) => call.method == 'TextInput.clearClient').length, greaterThan(releases));
       expect(c.value.composing, TextRange.empty);
       expect(c.text, text);
       expect(f.hasFocus, isTrue);
