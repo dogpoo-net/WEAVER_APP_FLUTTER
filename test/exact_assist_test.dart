@@ -30,7 +30,7 @@ void main() {
     expect(tester.widget<TextField>(field).controller!.text, '오늘 작은 생각');
     expect(tester.takeException(), isNull);
   });
-  testWidgets('Ctrl selects a composing exact Hangul match once and toggles off after IME echo', (tester) async {
+  testWidgets('Ctrl Space selects a composing exact Hangul match once and toggles off after IME echo', (tester) async {
     elements.clear(); elements.add('생각');
     await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: TargetPlatform.linux),
       home: const ParagraphEditor(words: ['생각', '생각 정리'])));

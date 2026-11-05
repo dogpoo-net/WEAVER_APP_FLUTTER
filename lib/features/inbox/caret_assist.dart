@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'word_badge.dart';
 import 'mobile_element_assist.dart';
+import 'project_folders.dart';
 
 /// Three badge rows (30 each), two row gaps (6 each), and panel padding (8 each).
 double mobileAssistHeight(MediaQueryData media) {
@@ -236,7 +237,7 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     final query = tagMode ? token.substring(1) : completionPrefix(value, widget.words);
     if (_query != query || _tagMode != tagMode) _selected = 0;
     _tagMode = tagMode; _query = query;
-    _matches = tagMode ? wordSuggestions(widget.tags, query).map((tag) => '#$tag').toList() : wordSuggestions(widget.words, query);
+    _matches = tagMode ? wordSuggestions(widget.tags.where((tag) => !hiddenSearchTags.contains(tag)).toList(), query).map((tag) => '#$tag').toList() : wordSuggestions(widget.words, query);
     if (_selected >= _matches.length) _selected = 0;
     final checked = _autoCheckedValue;
     final changed = checked == null || checked.text != value.text || checked.selection != value.selection;
