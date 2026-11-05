@@ -22,6 +22,7 @@ class ThoughtPage extends StatefulWidget {
   State<ThoughtPage> createState() => _ThoughtPageState();
 }
 class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, RouteAware {
+  final _sceneKey = GlobalKey();
   final _positions = <String, Offset>{};
   final _tagPositions = <String, Offset>{};
   String _query = '';
@@ -154,7 +155,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final text = await showDialog<String>(context: context, builder: (context) => AlertDialog(
       title: const Text('생각 만들기'), content: TextField(onChanged: (value) => draft = value, autofocus: true,
         minLines: 3, maxLines: 8, decoration: const InputDecoration(hintText: '생각을 적어주세요')),
-      actions: [TextButton(onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst), child: const Text('WEAVER', style: TextStyle(fontSize: 11))),TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
         FilledButton(onPressed: () { if (parseTaggedInput(draft).text.isNotEmpty) Navigator.pop(context, draft); }, child: const Text('만들기'))]));
     if (text == null || !mounted) return;
     final r = elements.add(text);
@@ -211,7 +212,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       emptyX += 340;
     }
     final color = Theme.of(context).colorScheme;
-    return Scaffold(appBar: AppBar(title: Text(widget.box?.name ?? '페이지'), actions: [
+    return Scaffold(appBar: AppBar(title: Text(widget.box?.name ?? '페이지'), actions: [TextButton(onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst), child: const Text('WEAVER', style: TextStyle(fontSize: 11))),
       if (widget.box != null) IconButton(tooltip: '상자에 생각 담기', onPressed: _pick, icon: const Icon(Icons.playlist_add)),
       IconButton(tooltip: '연결 모드', isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
@@ -250,7 +251,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         onInteractionEnd: (_) => _saveLayout(flush: true),
         transformationController: _view, constrained: false, minScale: .15, maxScale: 2.5,
         boundaryMargin: const EdgeInsets.all(500),
-        child: SizedBox(width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
+        child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds,
             onDrag: (delta) => setState(() {
               final shift = delta;
@@ -270,8 +271,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 onDoubleTap: () => showElementMetadata(context, record.text),
                 onPanUpdate: (d) => setState(() { final p = _positions[record.id]! + d.delta;
                   _positions[record.id] = Offset(p.dx.clamp(0, sceneWidth - graphThoughtSize.width), p.dy.clamp(0, sceneHeight - graphThoughtSize.height)); _saveLayout(); }),
-                onPanEnd: (_) {
-                  final center = thoughtBounds(_positions[record.id]!).center;
+                onPanEnd: (details) {
+                  final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
+                  final center = scene?.globalToLocal(details.globalPosition) ?? thoughtBounds(_positions[record.id]!).center;
                   final targets = regions.where((r) => !r.box.elementIds.contains(record.id) &&
                     (center - r.bounds.center).distance <= r.bounds.width / 2).toList()
                     ..sort((a, b) => a.bounds.width.compareTo(b.bounds.width));

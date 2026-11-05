@@ -55,7 +55,12 @@ void main() {
     await tester.pumpAndSettle();
     final from = tester.getCenter(find.text('담을 생각'));
     final target = tester.getCenter(find.byType(MemoBoxRegion));
-    await tester.dragFrom(from, target - from);
+    final gesture = await tester.startGesture(from);
+    await gesture.moveTo(from + const Offset(0, -80));
+    await tester.pump();
+    await gesture.moveTo(target);
+    await tester.pump();
+    await gesture.up();
     await tester.pumpAndSettle();
     expect(box.elementIds, contains(a.id));
     expect(changes, greaterThan(0));

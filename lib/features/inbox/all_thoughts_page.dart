@@ -155,7 +155,7 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
               title: Text(record.text, maxLines: 2, overflow: TextOverflow.ellipsis), value: selected.contains(record.id),
               onChanged: (checked) => update(() { if (checked == true) { selected.add(record.id); } else { selected.remove(record.id); } })),
           ])),
-        ])), actions: [TextButton(onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst), child: const Text('WEAVER', style: TextStyle(fontSize: 11))),TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        ])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
           FilledButton(onPressed: () => Navigator.pop(context, selected), child: const Text('담기'))],
       )));
     if (!mounted || result == null) return;
@@ -204,7 +204,7 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
               children: [for (final record in records) _tile(record, usage, maximum, desktop, width: width)]));
         }),
       ]))));
-    return Scaffold(appBar: AppBar(title: const Text('모든 생각 보기'), actions: [
+    return Scaffold(appBar: AppBar(title: const Text('모든 생각 보기'), actions: [TextButton(onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst), child: const Text('WEAVER', style: TextStyle(fontSize: 11))),
       if (_filterBox != null) IconButton(tooltip: '상자에 담을 메모 선택', onPressed: _manageBox, icon: const Icon(Icons.playlist_add)),
     ]),
       bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
