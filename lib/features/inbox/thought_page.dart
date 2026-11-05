@@ -205,7 +205,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final bounds = memoBoxCircleBounds(box.elementIds.where(visiblePositions.containsKey).map((id) => visiblePositions[id]!));
       if (bounds != null) regions.add((box: box, bounds: bounds));
     }
-    var emptyX = regions.map((r) => r.bounds.right + 80).fold(640.0, math.max);
+    var emptyX = regions.map((r) => r.bounds.right + 80).fold(
+      nodeRects.values.map((r) => r.right + 80).fold(640.0, math.max), math.max);
     for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
       if (box.elementIds.any(_positions.containsKey)) continue;
       regions.add((box: box, bounds: Rect.fromLTWH(emptyX, 440, 260, 260)));
