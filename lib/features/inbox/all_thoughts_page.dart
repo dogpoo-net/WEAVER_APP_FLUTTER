@@ -126,6 +126,10 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
         const Text('같은 문단·프로젝트 문장에서 함께 등장한 횟수입니다.', style: TextStyle(fontSize: 12)),
       ]));
   }
+  Widget _colorLabel(String label, Color color, VoidCallback onTap) => Tooltip(message: label,
+    child: SizedBox.square(dimension: 16, child: InkWell(onTap: onTap,
+      customBorder: const CircleBorder(), child: Icon(Icons.circle, color: color, size: 14))));
+
   Future<void> _manageBox() async {
     final box = _filterBox;
     if (box == null) return;
@@ -205,10 +209,8 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
               box: box, onChanged: _changed, child: ChoiceChip(
                 key: ValueKey('thought-filter-box-${box.name}'),
                 showCheckmark: false,
-                avatarBoxConstraints: const BoxConstraints.tightFor(width: 24, height: 24),
-                avatar: IconButton(tooltip: '${box.name} 상자 색상 변경', padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints.tightFor(width: 24, height: 24),
-                  icon: Icon(Icons.circle, color: Color(box.color), size: 14), onPressed: () async {
+                avatarBoxConstraints: const BoxConstraints.tightFor(width: 16, height: 16),
+                avatar: _colorLabel('${box.name} 상자 색상 변경', Color(box.color), () async {
                     final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
                     if (!mounted || color == null) return;
                     box.color = color.toARGB32(); _changed();
@@ -227,12 +229,9 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
               for (final tag in tags) Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(
                 key: ValueKey('thought-filter-tag-$tag'), label: Text('#$tag'), selected: _filterTag == tag,
                 showCheckmark: false,
-                avatarBoxConstraints: const BoxConstraints.tightFor(width: 24, height: 24),
-                avatar: IconButton(tooltip: '#$tag 색상 변경', padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints.tightFor(width: 24, height: 24),
-                  icon: Icon(Icons.circle, size: 12, color: hashtagColors.containsKey(tag)
-                    ? Color(hashtagColors[tag]!) : Theme.of(context).colorScheme.outlineVariant),
-                  onPressed: () async {
+                avatarBoxConstraints: const BoxConstraints.tightFor(width: 16, height: 16),
+                avatar: _colorLabel('#$tag 색상 변경', hashtagColors.containsKey(tag)
+                    ? Color(hashtagColors[tag]!) : Theme.of(context).colorScheme.outlineVariant, () async {
                     final current = hashtagColors[tag];
                     final color = await pickHashtagColor(context, tag, current == null ? null : Color(current));
                     if (!mounted || color == null) return;
