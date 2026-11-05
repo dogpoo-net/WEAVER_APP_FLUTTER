@@ -858,12 +858,12 @@ class _InboxPageState extends State<InboxPage> {
           ],
           Align(alignment: AlignmentDirectional.centerEnd, child: FilledButton.icon(
             style: FilledButton.styleFrom(
-              minimumSize: const Size(0, 28), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              textStyle: const TextStyle(fontSize: 11), visualDensity: VisualDensity.compact,
+              minimumSize: const Size(0, 34), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              textStyle: const TextStyle(fontSize: 12), visualDensity: VisualDensity.compact,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             onPressed: _draft.text.trim().isEmpty ? null : _save,
-            icon: const Icon(Icons.arrow_downward_rounded, size: 14),
+            icon: const Icon(Icons.arrow_downward_rounded, size: 16),
             label: const Text('저장'),
           )),
         ],

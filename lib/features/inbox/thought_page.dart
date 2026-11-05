@@ -5,6 +5,7 @@ import 'element_store.dart';
 import 'tag_colors.dart';
 import 'hashtags.dart';
 import 'memo_boxes.dart';
+import 'memo_box_region.dart';
 import 'word_badge.dart';
 
 /// A live workspace over the same thoughts, tags and reciprocal connections.
@@ -62,6 +63,12 @@ class _ThoughtPageState extends State<ThoughtPage> {
         if (distance > 1) forces[r.id] = forces[r.id]! + delta / distance * ((distance - 240) * .015);
       }
     }
+    for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
+      final members = box.elementIds.where(_positions.containsKey).toList();
+      if (members.length < 2) continue;
+      final center = members.map((id) => _positions[id]!).reduce((a, b) => a + b) / members.length.toDouble();
+      for (final id in members) { forces[id] = forces[id]! + (center - _positions[id]!) * .012; }
+    }
     setState(() {
       for (final r in records) {
         final p = _positions[r.id]! + forces[r.id]!;
@@ -105,6 +112,11 @@ class _ThoughtPageState extends State<ThoughtPage> {
     final records = _records;
     final tags = records.expand((r) => r.tags).toSet().toList()..sort();
     final tagPositions = {for (var i = 0; i < tags.length; i++) 'tag:${tags[i]}': Offset(1050 + (i % 5) * 180, 650 - (i ~/ 5) * 70)};
+    final regions = <({MemoBox box, Rect bounds})>[];
+    for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
+      final bounds = memoBoxCircleBounds(box.elementIds.where(_positions.containsKey).map((id) => _positions[id]!));
+      if (bounds != null) regions.add((box: box, bounds: bounds));
+    }
     final color = Theme.of(context).colorScheme;
     return Scaffold(appBar: AppBar(title: Text(widget.box?.name ?? '페이지'), actions: [
       if (widget.box != null) IconButton(tooltip: '상자에 생각 담기', onPressed: _pick, icon: const Icon(Icons.playlist_add)),
@@ -120,7 +132,8 @@ class _ThoughtPageState extends State<ThoughtPage> {
           _centered = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
-            final points = [..._positions.values, ...tagPositions.values];
+            final points = [..._positions.values, ...tagPositions.values,
+              for (final region in regions) ...[region.bounds.topLeft, region.bounds.bottomRight]];
             if (points.isEmpty) points.add(const Offset(1400, 1000));
             final left = points.map((p) => p.dx).reduce(math.min), right = points.map((p) => p.dx).reduce(math.max) + 170;
             final top = points.map((p) => p.dy).reduce(math.min), bottom = points.map((p) => p.dy).reduce(math.max) + 76;
@@ -132,7 +145,8 @@ class _ThoughtPageState extends State<ThoughtPage> {
         return InteractiveViewer(
         transformationController: _view, constrained: false, minScale: .15, maxScale: 2.5,
         boundaryMargin: const EdgeInsets.all(500),
-        child: SizedBox(width: 3000, height: 2200, child: Stack(children: [
+        child: SizedBox(width: 3000, height: 2200, child: Stack(clipBehavior: Clip.none, children: [
+          for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
             {for (final entry in _positions.entries) entry.key: entry.value + const Offset(85, 38), ...tagPositions},
             {for (final r in records) r.id: {...r.connections, ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant)))),
