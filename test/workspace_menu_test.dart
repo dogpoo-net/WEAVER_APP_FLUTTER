@@ -43,9 +43,10 @@ void main() {
     expect(find.descendant(of: find.byType(WorkspaceMenu), matching: find.text('문단 쓰기')), findsNothing);
     await tester.tap(find.byTooltip('메뉴 닫기'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('문단 쓰기'));
+    await tester.tap(find.text('페이지'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('paragraph-0')), findsOneWidget);
+    expect(find.text('생각 만들기'), findsNothing);
+    expect(find.byTooltip('생각 만들기'), findsOneWidget);
   });
   testWidgets('only project list scrolls while navigation remains fixed', (
     tester,

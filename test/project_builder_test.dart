@@ -3,41 +3,35 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/paragraph_editor.dart';
 import 'package:weaver/features/inbox/project_builder.dart';
 import 'package:weaver/features/inbox/project_page.dart';
+import 'package:weaver/features/inbox/workspace_storage.dart';
+import 'package:weaver/features/inbox/element_binding.dart';
 
 void main() {
-  testWidgets('project writes roles and loads an independent copy from a searchable modal', (tester) async {
+  testWidgets('project creation uses a single document', (tester) async {
     WritingProject? result;
-    const source = Paragraph('저장된 원본 문단', ParagraphRole.body, tags: {'자료'});
     await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(body: TextButton(
-      onPressed: () async { result = await Navigator.push<WritingProject>(context,
-        MaterialPageRoute(builder: (_) => const ProjectBuilder(available: [source], words: ['원소']))); },
-      child: const Text('시작'),
-    )))));
-    await tester.tap(find.text('시작'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const ValueKey('project-name')), '새 프로젝트');
-    await tester.enterText(find.byKey(const ValueKey('paragraph-0')), '직접 쓴 제목');
-    await tester.tap(find.text('제목'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('다음 문단'));
-    await tester.tap(find.text('다음 문단'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('문단 찾기'));
-    await tester.tap(find.text('문단 찾기'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, '내용 또는 태그 검색'), '#자료');
-    await tester.pumpAndSettle();
-    expect(find.text('저장된 원본 문단'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('pick-0')));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const ValueKey('paragraph-1')), '프로젝트에서 수정한 문장');
-    await tester.tap(find.text('프로젝트 만들기'));
-    await tester.pumpAndSettle();
-    expect(result!.name, '새 프로젝트');
-    expect(result!.paragraphs.map((p) => p.text), ['직접 쓴 제목', '프로젝트에서 수정한 문장']);
-    expect(result!.paragraphs.map((p) => p.role), [ParagraphRole.title, ParagraphRole.body]);
-    expect(source.text, '저장된 원본 문단');
-    expect(result!.words, ['원소']);
+      onPressed: () async { result = await Navigator.push<WritingProject>(context, MaterialPageRoute(builder: (_) => const ProjectBuilder(available: [], words: []))); }, child: const Text('시작'))))));
+    await tester.tap(find.text('시작')); await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('project-name')), '프로젝트');
+    await tester.enterText(find.byKey(const ValueKey('project-document')), '첫 줄\n두 번째 줄');
+    expect(find.text('다음 문단'), findsNothing);
+    await tester.tap(find.text('저장')); await tester.pumpAndSettle();
+    expect(result!.document, '첫 줄\n두 번째 줄');
+    expect(result!.paragraphs, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('editing preserves original paragraph roles and bindings across storage', (tester) async {
+    final original = Paragraph('원본', ParagraphRole.title, bindings: [const ElementBinding('source', 0, 2)]);
+    final project = WritingProject([original], [], name: '보존');
+    await tester.pumpWidget(MaterialApp(home: ProjectPage(project: project)));
+    expect(tester.widget<TextField>(find.byKey(const ValueKey('project-document'))).controller!.text, '# 원본');
+    await tester.enterText(find.byKey(const ValueKey('project-document')), '새 통합 본문');
+    await tester.tap(find.text('저장')); await tester.pumpAndSettle();
+    final restored = WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([Note(project.content)..project = project])).notes.single.project!;
+    expect(restored.document, '새 통합 본문');
+    expect(restored.paragraphs.single.text, '원본');
+    expect(restored.paragraphs.single.role, ParagraphRole.title);
+    expect(restored.paragraphs.single.bindings.single.id, 'source');
     expect(tester.takeException(), isNull);
   });
 }

@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/all_thoughts_page.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/element_usage.dart';
-import 'package:weaver/features/inbox/paragraph_editor.dart';
 import 'package:weaver/features/inbox/project_page.dart';
 import 'package:weaver/features/inbox/word_badge.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
@@ -113,7 +112,7 @@ void main() {
 
   testWidgets('main and menu expose all thoughts, and paragraph heading exposes plus', (tester) async {
     await tester.pumpWidget(const MyApp());
-    expect(tester.getCenter(find.text('모든 생각 보기')).dx, greaterThan(tester.getCenter(find.text('문단 쓰기')).dx));
+    expect(tester.getCenter(find.text('모든 생각 보기')).dx, greaterThan(tester.getCenter(find.text('페이지')).dx));
     await tester.tap(find.text('모든 생각 보기'));
     await tester.pumpAndSettle();
     expect(find.byType(AllThoughtsPage), findsOneWidget);
@@ -123,9 +122,9 @@ void main() {
     await tester.pumpAndSettle();
     final menu = find.byType(WorkspaceMenu);
     expect(find.descendant(of: menu, matching: find.text('모든 생각 보기')), findsOneWidget);
-    expect(find.byTooltip('문단 추가'), findsOneWidget);
-    await tester.tap(find.byTooltip('문단 추가'));
+    expect(find.byTooltip('문단 추가'), findsNothing);
+    await tester.tap(find.descendant(of: menu, matching: find.text('페이지')));
     await tester.pumpAndSettle();
-    expect(find.byType(ParagraphEditor), findsOneWidget);
+    expect(find.byTooltip('생각 만들기'), findsOneWidget);
   });
 }

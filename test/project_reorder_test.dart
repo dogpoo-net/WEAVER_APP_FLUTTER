@@ -4,21 +4,6 @@ import 'package:weaver/features/inbox/paragraph_editor.dart';
 import 'package:weaver/features/inbox/project_page.dart';
 
 void main() {
-  testWidgets('project tabs show sentences before elements and open the corresponding content', (tester) async {
-    await tester.pumpWidget(MaterialApp(home: ProjectPage(project: WritingProject(
-      const [Paragraph('프로젝트 문장', ParagraphRole.body)], [], name: '프로젝트'))));
-    expect(tester.getCenter(find.widgetWithText(ChoiceChip, '문장')).dx,
-      lessThan(tester.getCenter(find.widgetWithText(ChoiceChip, '원소')).dx));
-    await tester.tap(find.widgetWithText(ChoiceChip, '문장'));
-    await tester.pumpAndSettle();
-    expect(find.text('프로젝트 문장'), findsOneWidget);
-    await tester.tap(find.widgetWithText(ChoiceChip, '원소'));
-    await tester.pumpAndSettle();
-    expect(find.text('이 프로젝트에서 사용한 원소'), findsOneWidget);
-    expect(find.text('글로벌 원소 저장'), findsNothing);
-    expect(find.byType(TextField), findsNothing);
-  });
-
   testWidgets('handle drag moves text and role together and saves the new order', (tester) async {
     tester.view.physicalSize = const Size(1100, 1100);
     tester.view.devicePixelRatio = 1;

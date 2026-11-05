@@ -41,9 +41,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byWidgetPredicate((w) => w is WordBadge && w.word == '숨긴 원소'), findsNothing);
     expect(find.byWidgetPredicate((w) => w is WordBadge && w.word == '보이는 원소'), findsOneWidget);
-    await tester.tap(find.text('문단 쓰기'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const ValueKey('paragraph-0')), '숨긴');
+    await tester.enterText(find.byKey(const ValueKey('quick-memo')), '숨긴');
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('suggestion-숨긴 원소')), findsNothing);
     expect(elements.records.containsKey('숨긴 원소'), isTrue);
@@ -55,13 +53,13 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const MyApp());
-    await tester.ensureVisible(find.byTooltip('문단 폴더 만들기'));
-    await tester.tap(find.byTooltip('문단 폴더 만들기'));
+    await tester.ensureVisible(find.byTooltip('프로젝트 폴더 만들기'));
+    await tester.tap(find.byTooltip('프로젝트 폴더 만들기'));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, '폴더 이름'), '새 문단 폴더');
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
-    expect(paragraphFolders, ['새 문단 폴더']);
+    expect(projectFolders, ['새 문단 폴더']);
     expect(find.byType(AlertDialog), findsNothing);
     expect(find.byTooltip('원소 폴더 만들기'), findsNothing);
     await tester.ensureVisible(find.byTooltip('해시태그 폴더 만들기'));

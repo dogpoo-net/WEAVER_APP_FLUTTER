@@ -51,15 +51,10 @@ void main() {
     final search = find.byKey(const ValueKey('note-search'));
     await tester.ensureVisible(search);
     await tester.enterText(search, '문단0'); await tester.pumpAndSettle();
-    expect(find.widgetWithText(ListTile, '문단0'), findsOneWidget);
+    expect(find.text('문단0'), findsOneWidget);
     await tester.enterText(search, '프로젝트0'); await tester.pumpAndSettle();
     expect(find.widgetWithText(ListTile, '프로젝트0'), findsOneWidget);
     await tester.enterText(search, ''); await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const ValueKey('paragraphs-more')));
-    await tester.tap(find.byKey(const ValueKey('paragraphs-more'))); await tester.pumpAndSettle();
-    expect(find.widgetWithText(ListTile, '문단0'), findsOneWidget);
-    expect(find.byType(AllThoughtsPage), findsNothing);
-    expect(find.widgetWithText(ListTile, '프로젝트0'), findsNothing);
     await tester.ensureVisible(find.byKey(const ValueKey('thoughts-all')));
     await tester.tap(find.byKey(const ValueKey('thoughts-all'))); await tester.pumpAndSettle();
     expect(find.byType(AllThoughtsPage), findsOneWidget);

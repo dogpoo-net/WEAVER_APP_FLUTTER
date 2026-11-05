@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/paragraph_editor.dart';
@@ -40,18 +39,9 @@ void main() {
     await tester.tap(find.text(' 두번째 기억을 담은 문장'));
     await tester.pumpAndSettle();
     expect(find.byType(ProjectPage), findsOneWidget);
-    final link = find.byKey(const ValueKey('element-10'));
-    expect(link, findsOneWidget);
-    expect(
-      FocusManager.instance.primaryFocus!.context!
-          .findAncestorWidgetOfExactType<ElementLink>()
-          ?.key,
-      const ValueKey('element-10'),
-    );
-    expect(tester.getRect(link).top, greaterThanOrEqualTo(56));
-    expect(tester.getRect(link).bottom, lessThanOrEqualTo(600));
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
-    expect(find.text('사용 2회 · 1개 위치'), findsOneWidget);
+    final field = find.byKey(const ValueKey('project-document'));
+    expect(field, findsOneWidget);
+    expect(tester.widget<TextField>(field).controller!.text, contains('첫 기억. 두번째 기억을 담은 문장.'));
+    expect(tester.takeException(), isNull);
   });
 }
