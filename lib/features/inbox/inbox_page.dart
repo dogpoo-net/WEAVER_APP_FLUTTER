@@ -788,13 +788,16 @@ class _InboxPageState extends State<InboxPage> {
 
   ColorScheme get colors => Theme.of(context).colorScheme;
 
-  Widget _composer() => Card(
+  Widget _composer(double maxHeight) => ConstrainedBox(
+    constraints: BoxConstraints(maxHeight: maxHeight),
+    child: Card(
     color: colors.surfaceContainerLow,
     elevation: 0,
     margin: EdgeInsets.zero,
     child: Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -808,7 +811,9 @@ class _InboxPageState extends State<InboxPage> {
             ],
           ),
           const SizedBox(height: 14),
-          Focus(
+          Flexible(
+            fit: FlexFit.loose,
+            child: Focus(
             key: const ValueKey('quick-memo-keyboard'),
             canRequestFocus: false,
             onKeyEvent: _quickMemoKey,
@@ -825,7 +830,7 @@ class _InboxPageState extends State<InboxPage> {
               controller: _draft,
               focusNode: _focus,
               minLines: 4,
-              maxLines: 8,
+              maxLines: null,
               onChanged: (_) {
                 final completed = takeCompletedParagraphTags(_draft.value);
                 setState(() {
@@ -845,6 +850,7 @@ class _InboxPageState extends State<InboxPage> {
                 contentPadding: EdgeInsets.zero,
               ),
             )),
+          ),
           ),
           if (_draftConnections.isNotEmpty) Wrap(spacing: 6, runSpacing: 6, children: [
             for (final record in elements.records.values.where((r) => _draftConnections.contains(r.id)))
@@ -870,7 +876,7 @@ class _InboxPageState extends State<InboxPage> {
         ],
       ),
     ),
-  );
+  ));
 
   Widget _list() {
     final visible = _notes
@@ -1106,7 +1112,10 @@ class _InboxPageState extends State<InboxPage> {
             ),
           Expanded(
             child: SafeArea(
-              child: SingleChildScrollView(
+              child: LayoutBuilder(builder: (context, viewport) {
+                // Reserve the heading, actions and scroll padding above the card.
+                final composerHeight = (viewport.maxHeight - 140).clamp(180.0, double.infinity);
+                return SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
                 child: Center(
                   child: ConstrainedBox(
@@ -1154,12 +1163,12 @@ class _InboxPageState extends State<InboxPage> {
                                       ),
                                     ),
                                     const SizedBox(width: 24),
-                                    Expanded(child: _composer()),
+                                    Expanded(child: _composer(composerHeight)),
                                   ],
                                 )
                               : Column(
                                   children: [
-                                    _composer(),
+                                    _composer(composerHeight),
                                     const SizedBox(height: 24),
                                     _list(),
                                   ],
@@ -1173,7 +1182,8 @@ class _InboxPageState extends State<InboxPage> {
                     ),
                   ),
                 ),
-              ),
+              );
+              }),
             ),
           ),
         ],
