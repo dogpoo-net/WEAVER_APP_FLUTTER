@@ -10,9 +10,9 @@ class LimitedRowsWrap extends Wrap {
   @override
   RenderWrap createRenderObject(BuildContext context) => _LimitedRowsRenderWrap(maxRows, Directionality.of(context));
   @override
-  void updateRenderObject(BuildContext context, covariant _LimitedRowsRenderWrap renderObject) {
+  void updateRenderObject(BuildContext context, covariant RenderWrap renderObject) {
     super.updateRenderObject(context, renderObject);
-    renderObject.maxRows = maxRows;
+    (renderObject as _LimitedRowsRenderWrap).maxRows = maxRows;
   }
 }
 class _LimitedRowsRenderWrap extends RenderWrap {
