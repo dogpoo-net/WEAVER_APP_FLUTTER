@@ -27,7 +27,7 @@ void main() {
     await toggleAssist(tester); await tester.pumpAndSettle();
     expect(selected(), isTrue);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field).controller!.text, '오늘 ');
+    expect(tester.widget<TextField>(field).controller!.text, '오늘 작은 생각');
     expect(tester.takeException(), isNull);
   });
   testWidgets('Ctrl Space selects a composing exact Hangul match once and exits with Escape after IME echo', (tester) async {
