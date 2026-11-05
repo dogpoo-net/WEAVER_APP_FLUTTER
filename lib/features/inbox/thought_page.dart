@@ -39,7 +39,8 @@ class _ThoughtPageState extends State<ThoughtPage> {
   }
   void _storeChanged() { if (mounted) setState(_sync); }
   void _relax() {
-    if (!mounted || _dragging || _frames++ > 120) return;
+    if (!mounted || _dragging) return;
+    if (_frames++ > 120) { _timer?.cancel(); _timer = null; return; }
     final records = _records;
     final forces = {for (final r in records) r.id: Offset.zero};
     // Repulsion stays local so large collections remain responsive.
@@ -144,7 +145,7 @@ class _ThoughtPageState extends State<ThoughtPage> {
                 onPanStart: (_) => _dragging = true,
                 onPanUpdate: (d) => setState(() { final p = _positions[record.id]! + d.delta / _view.value.getMaxScaleOnAxis();
                   _positions[record.id] = Offset(p.dx.clamp(0, 2830), p.dy.clamp(0, 2124)); }),
-                onPanEnd: (_) { _dragging = false; _frames = 0; }, onPanCancel: () => _dragging = false,
+                onPanEnd: (_) { _dragging = false; _sync(); }, onPanCancel: () => _dragging = false,
                 child: Card(color: wordBackgroundColor(context, record.text),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: candidates.isNotEmpty || _selected == record.id ? color.primary : Colors.transparent, width: 2)),
