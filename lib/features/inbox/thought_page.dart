@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'element_store.dart';
 import 'tag_colors.dart';
 import 'hashtags.dart';
@@ -8,6 +9,7 @@ import 'memo_boxes.dart';
 import 'memo_box_region.dart';
 import 'word_badge.dart';
 import 'graph_layout.dart';
+import 'workspace_routes.dart';
 
 /// A live workspace over the same thoughts, tags and reciprocal connections.
 class ThoughtPage extends StatefulWidget {
@@ -18,7 +20,7 @@ class ThoughtPage extends StatefulWidget {
   @override
   State<ThoughtPage> createState() => _ThoughtPageState();
 }
-class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver {
+class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, RouteAware {
   final _positions = <String, Offset>{};
   final _tagPositions = <String, Offset>{};
   final _pinned = <String>{};
@@ -30,7 +32,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver {
   late final TextEditingController _search;
   String? _selected, _linkFrom;
   bool _dragging = false, _linkMode = false, _centered = false;
-  int _frames = 0;
+  int _frames = 0, _stableFrames = 0;
+  bool _routeVisible = true, _appActive = true;
+  ModalRoute<dynamic>? _route;
   static const _nodeSize = Size(170, 76);
   @override
   void initState() {
@@ -71,8 +75,42 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver {
     (widget.onLayoutChanged ?? widget.onChanged)();
   }
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != _route) {
+      workspaceRouteObserver.unsubscribe(this);
+      _route = route;
+      if (route != null) workspaceRouteObserver.subscribe(this, route);
+    }
+  }
+  @override
+  void didPushNext() {
+    _routeVisible = false;
+    _stopLayout();
+    _saveLayout(flush: true);
+  }
+  @override
+  void didPopNext() {
+    _routeVisible = true;
+    if (mounted) setState(_sync);
+  }
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) _saveLayout(flush: true);
+    _appActive = state == AppLifecycleState.resumed;
+    if (!_appActive) {
+      _stopLayout();
+      _saveLayout(flush: true);
+    } else if (mounted && _routeVisible) {
+      setState(_sync);
+    }
+  }
+  void _stopLayout() {
+    final wasRunning = _timer != null;
+    _timer?.cancel(); _timer = null;
+    // Completed positions are stable within this session as well as on reopen.
+    _pinned.addAll(_positions.keys);
+    if (wasRunning) _saveLayout(flush: true);
   }
   List<ElementRecord> get _scopeRecords => elements.records.values.where((r) => widget.box == null || widget.box!.elementIds.contains(r.id)).toList();
   List<ElementRecord> get _records => _scopeRecords.where((r) =>
@@ -98,15 +136,19 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver {
       _tagPositions.putIfAbsent('tag:${tags[i]}', () => center + Offset(85 + (i % 3 - 1) * 100, -65 - (i % 2) * 45));
     }
     if (!records.any((r) => r.id == _selected)) _selected = null;
-    _frames = 0;
-    _timer?.cancel(); _timer = null;
-    if (records.any((r) => !_pinned.contains(r.id))) _timer ??= Timer.periodic(const Duration(milliseconds: 32), (_) => _relax());
+    final needsLayout = records.any((r) => !_pinned.contains(r.id));
+    if (!needsLayout) {
+      _stopLayout();
+    } else if (_timer == null && _routeVisible && _appActive && !_dragging) {
+      _frames = 0; _stableFrames = 0;
+      _timer = Timer.periodic(const Duration(milliseconds: 32), (_) => _relax());
+    }
     _saveLayout();
   }
-  void _storeChanged() { if (mounted) setState(_sync); }
+  void _storeChanged() { if (mounted && _routeVisible && _appActive) setState(_sync); }
   void _relax() {
-    if (!mounted || _dragging) return;
-    if (_frames++ > 120) { _timer?.cancel(); _timer = null; _saveLayout(flush: true); return; }
+    if (!mounted) return;
+    if (_dragging || !_routeVisible || !_appActive || _frames++ >= 120) { _stopLayout(); return; }
     final records = _records;
     final forces = {for (final r in records) r.id: Offset.zero};
     final visibleIds = forces.keys.toSet();
@@ -150,14 +192,23 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver {
       final center = members.map((id) => _positions[id]!).reduce((a, b) => a + b) / members.length.toDouble();
       for (final id in members) { forces[id] = forces[id]! + (center - _positions[id]!) * .012; }
     }
-    setState(() {
-      for (final r in records) {
-        if (_pinned.contains(r.id)) continue;
-        final p = _positions[r.id]! + forces[r.id]!;
-        _positions[r.id] = Offset(p.dx.clamp(30, 2770), p.dy.clamp(30, 1970));
-      }
-    });
-    _saveLayout();
+    final updates = <String, Offset>{};
+    var maxMovement = 0.0;
+    for (final r in records) {
+      if (_pinned.contains(r.id)) continue;
+      final old = _positions[r.id]!;
+      final p = old + forces[r.id]!;
+      final next = Offset(p.dx.clamp(30, 2770), p.dy.clamp(30, 1970));
+      final movement = (next - old).distance;
+      maxMovement = math.max(maxMovement, movement);
+      if (movement > .01) updates[r.id] = next;
+    }
+    if (updates.isNotEmpty) {
+      setState(() => _positions.addAll(updates));
+      _saveLayout();
+    }
+    _stableFrames = maxMovement < .2 ? _stableFrames + 1 : 0;
+    if (_stableFrames >= 3) _stopLayout();
   }
   void _changed() { widget.onChanged(); setState(_sync); }
   Future<void> _create() async {
@@ -193,6 +244,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver {
     _timer?.cancel();
     _saveLayout(flush: true);
     WidgetsBinding.instance.removeObserver(this);
+    workspaceRouteObserver.unsubscribe(this);
     elements.removeListener(_storeChanged);
     _view.removeListener(_saveLayout);
     _view.dispose(); _search.dispose();
@@ -243,6 +295,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver {
           });
         }
         return InteractiveViewer(
+        onInteractionStart: (_) => _stopLayout(),
         onInteractionEnd: (_) => _saveLayout(flush: true),
         transformationController: _view, constrained: false, minScale: .15, maxScale: 2.5,
         boundaryMargin: const EdgeInsets.all(500),
@@ -259,7 +312,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver {
                 onTap: () { if (_linkMode && _linkFrom != null) { _connect(_linkFrom!, record.id); }
                   else { setState(() { _selected = record.id; if (_linkMode) _linkFrom = record.id; }); } },
                 onDoubleTap: () => showElementMetadata(context, record.text),
-                onPanStart: (_) { _dragging = true; _pinned.add(record.id); },
+                onPanStart: (_) { _stopLayout(); _dragging = true; _pinned.add(record.id); },
                 onPanUpdate: (d) => setState(() { final p = _positions[record.id]! + d.delta / _view.value.getMaxScaleOnAxis();
                   _positions[record.id] = Offset(p.dx.clamp(0, 2830), p.dy.clamp(0, 2124)); _saveLayout(); }),
                 onPanEnd: (_) { _dragging = false; _sync(); _saveLayout(flush: true); }, onPanCancel: () => _dragging = false,
@@ -270,13 +323,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver {
                     Expanded(child: Padding(padding: const EdgeInsets.all(10), child: Text(badgeLabel(record.text), maxLines: 2,
                       overflow: TextOverflow.ellipsis, style: TextStyle(color: wordColor(context, record.text))))),
                     Draggable<String>(data: record.id, feedback: Material(child: Chip(label: Text(badgeLabel(record.text), overflow: TextOverflow.ellipsis))),
-                      onDragStarted: () => _dragging = true, onDragEnd: (_) => _dragging = false,
+                      onDragStarted: () { _stopLayout(); _dragging = true; }, onDragEnd: (_) => _dragging = false,
                       child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.link, size: 20))),
                   ])))),
             )),
           for (final tag in tags) Positioned(left: tagPositions['tag:$tag']!.dx - 60, top: tagPositions['tag:$tag']!.dy - 20,
             child: GestureDetector(key: ValueKey('graph-tag-$tag'), behavior: HitTestBehavior.opaque,
-              onPanStart: (_) => _dragging = true,
+              onPanStart: (_) { _stopLayout(); _dragging = true; },
               onPanUpdate: (d) => setState(() {
                 final p = _tagPositions['tag:$tag']! + d.delta / _view.value.getMaxScaleOnAxis();
                 _tagPositions['tag:$tag'] = Offset(p.dx.clamp(60, 2900), p.dy.clamp(20, 2160)); _saveLayout();
@@ -322,5 +375,8 @@ class _Connections extends CustomPainter {
     }
   }
   @override
-  bool shouldRepaint(covariant _Connections oldDelegate) => true;
+  bool shouldRepaint(covariant _Connections oldDelegate) =>
+    color != oldDelegate.color || !mapEquals(positions, oldDelegate.positions) ||
+    !mapEquals(tagColors, oldDelegate.tagColors) || links.length != oldDelegate.links.length ||
+    links.entries.any((entry) => !setEquals(entry.value, oldDelegate.links[entry.key]));
 }
