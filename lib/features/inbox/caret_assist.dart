@@ -138,6 +138,8 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       return false;
     }
     final keyboard = HardwareKeyboard.instance;
+    final control = keyboard.isControlPressed || keyboard.physicalKeysPressed.contains(PhysicalKeyboardKey.controlLeft) ||
+        keyboard.physicalKeysPressed.contains(PhysicalKeyboardKey.controlRight);
     if (event is KeyUpEvent && (event.logicalKey == LogicalKeyboardKey.controlLeft ||
         event.logicalKey == LogicalKeyboardKey.controlRight || event.physicalKey == PhysicalKeyboardKey.controlLeft ||
         event.physicalKey == PhysicalKeyboardKey.controlRight)) {
@@ -151,14 +153,14 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       return true;
     }
     if (widget.enterSelectsVisible && enter && event is KeyDownEvent && _entry != null &&
-        _dismissed != widget.controller.text && !keyboard.isControlPressed && !keyboard.isMetaPressed &&
+        _dismissed != widget.controller.text && !control && !keyboard.isMetaPressed &&
         !keyboard.isAltPressed && !keyboard.isShiftPressed) {
       if (acceptVisibleCandidate()) { _acceptEnterHeld = true; return true; }
     }
     if (space && event is KeyUpEvent && _spaceShortcutHeld) {
       _spaceShortcutHeld = false; return true;
     }
-    if (space && keyboard.isControlPressed && !keyboard.isAltPressed && !keyboard.isMetaPressed && !keyboard.isShiftPressed) {
+    if (space && control && !keyboard.isAltPressed && !keyboard.isMetaPressed && !keyboard.isShiftPressed) {
       if (event is KeyDownEvent && !_spaceShortcutHeld) {
         _spaceShortcutHeld = true;
         // Automatic exact-match highlighting is not a shortcut entry. The first
@@ -193,7 +195,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       return true;
     }
     if (_matches.isEmpty) return false;
-    if (keyboard.isControlPressed ||
+    if (control ||
         keyboard.isMetaPressed ||
         keyboard.isAltPressed ||
         keyboard.isShiftPressed) {
