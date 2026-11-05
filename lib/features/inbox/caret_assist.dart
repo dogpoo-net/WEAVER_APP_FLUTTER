@@ -159,7 +159,8 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       if (event is KeyDownEvent && !_spaceShortcutHeld) {
         _spaceShortcutHeld = true;
         if (_controlling && _entry != null && _dismissed != widget.controller.text &&
-            _controlValue?.text == widget.controller.text) {
+            _controlValue?.text == widget.controller.text &&
+            (!widget.controller.value.composing.isValid || widget.controller.value.composing.isCollapsed)) {
           _controlling = false;
           _controlValue = null;
           _autoCheckedValue = widget.controller.value;
@@ -291,8 +292,10 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     final controlValue = _controlValue;
     if (!_committingNavigation && _controlling && controlValue != null &&
         (value.text != controlValue.text ||
-         value.selection.baseOffset != controlValue.selection.baseOffset ||
-         value.selection.extentOffset != controlValue.selection.extentOffset)) {
+         ((!value.composing.isValid || value.composing.isCollapsed) &&
+          (!controlValue.composing.isValid || controlValue.composing.isCollapsed) &&
+          (value.selection.baseOffset != controlValue.selection.baseOffset ||
+           value.selection.extentOffset != controlValue.selection.extentOffset)))) {
       _controlling = false;
       _controlValue = null;
     }
