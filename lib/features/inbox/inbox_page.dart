@@ -1166,8 +1166,6 @@ class _InboxPageState extends State<InboxPage> {
                               icon: const Icon(Icons.subject, size: 18),
                               label: const Text('페이지'),
                             ),
-                            TextButton.icon(onPressed: _allThoughts, icon: const Icon(Icons.bubble_chart_outlined),
-                              label: const Text('모든 생각 보기')),
                           ],
                         ),
                         const SizedBox(height: 8),

@@ -113,12 +113,7 @@ void main() {
 
   testWidgets('main and menu expose all thoughts, and paragraph heading exposes plus', (tester) async {
     await tester.pumpWidget(const MyApp());
-    expect(tester.getCenter(find.text('모든 생각 보기')).dx, greaterThan(tester.getCenter(find.text('페이지')).dx));
-    await tester.tap(find.text('모든 생각 보기'));
-    await tester.pumpAndSettle();
-    expect(find.byType(AllThoughtsPage), findsOneWidget);
-    await tester.pageBack();
-    await tester.pumpAndSettle();
+    expect(find.text('모든 생각 보기'), findsNothing);
     await tester.tap(find.byTooltip('메뉴 열기'));
     await tester.pumpAndSettle();
     final menu = find.byType(WorkspaceMenu);
