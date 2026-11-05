@@ -1,44 +1,5 @@
 import 'package:flutter/services.dart';
 
-/// Keep separators ready for the next hashtag without changing IME composition.
-class HashtagInputFormatter extends TextInputFormatter {
-  const HashtagInputFormatter();
-
-  String _normalize(String text) {
-    final tokens = text.split(RegExp(r'\s+')).where((t) => t.isNotEmpty)
-        .map((t) => '#${t.replaceFirst(RegExp(r'^#+'), '')}').toList();
-    if (RegExp(r'\s$').hasMatch(text) && (tokens.isEmpty || tokens.last != '#')) {
-      tokens.add('#');
-    }
-    return tokens.join(' ');
-  }
-
-  @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    if (newValue.composing.isValid && !newValue.composing.isCollapsed) return newValue;
-    if (oldValue.text.endsWith(' #') && newValue.text == oldValue.text.substring(0, oldValue.text.length - 1)) {
-      final text = newValue.text.trimRight();
-      return newValue.copyWith(text: text, selection: TextSelection.collapsed(offset: text.length), composing: TextRange.empty);
-    }
-    final text = _normalize(newValue.text);
-    int offset(int original) {
-      if (original < 0) return text.length;
-      final prefix = newValue.text.substring(0, original.clamp(0, newValue.text.length));
-      var result = _normalize(prefix).length;
-      if (RegExp(r'\s$').hasMatch(prefix) && original < newValue.text.length && newValue.text[original] == '#') {
-        result--;
-      }
-      return result.clamp(0, text.length);
-    }
-    return newValue.copyWith(text: text, selection: TextSelection(
-      baseOffset: offset(newValue.selection.baseOffset),
-      extentOffset: offset(newValue.selection.extentOffset),
-      affinity: newValue.selection.affinity,
-      isDirectional: newValue.selection.isDirectional,
-    ), composing: TextRange.empty);
-  }
-}
-
 class CompletedParagraphTags {
   const CompletedParagraphTags(this.value, this.tags);
   final TextEditingValue value;

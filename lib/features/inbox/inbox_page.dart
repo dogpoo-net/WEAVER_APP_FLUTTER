@@ -1,3 +1,4 @@
+import 'inline_tags.dart';
 import 'limited_rows_wrap.dart';
 import 'caret_assist.dart';
 import 'element_binding.dart';
@@ -771,11 +772,7 @@ class _InboxPageState extends State<InboxPage> {
           ),
           if (_draftTags.isNotEmpty) Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Wrap(spacing: 6, runSpacing: 4, children: [
-              for (final tag in _draftTags) InputChip(
-                label: Text('#$tag'), visualDensity: VisualDensity.compact,
-                onDeleted: () => setState(() => _draftTags.remove(tag))),
-            ])),
+            child: InlineTags(tags: _draftTags, onRemove: (tag) => setState(() => _draftTags.remove(tag)))),
           const SizedBox(height: 12),
           Wrap(
             spacing: 16,

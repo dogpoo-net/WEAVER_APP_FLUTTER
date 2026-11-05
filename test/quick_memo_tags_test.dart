@@ -10,17 +10,17 @@ void main() {
     await tester.enterText(memo, '기록할 생각 #독서 ');
     await tester.pumpAndSettle();
     expect(tester.widget<TextField>(memo).controller!.text, isNot(contains('#독서')));
-    expect(find.widgetWithText(InputChip, '#독서'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '#독서'), findsOneWidget);
     await tester.enterText(memo, '기록할 생각 #아이디어 ');
     await tester.pumpAndSettle();
-    expect(find.byType(InputChip), findsNWidgets(2));
-    await tester.tap(find.descendant(of: find.widgetWithText(InputChip, '#독서'), matching: find.byType(Icon)).last);
+    expect(find.byTooltip(RegExp(r'태그 삭제$')), findsNWidgets(2));
+    await tester.tap(find.byTooltip('#독서 태그 삭제'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('저장'));
     await tester.tap(find.text('저장'));
     await tester.pumpAndSettle();
     expect(elements.records['기록할 생각']!.tags, {'아이디어'});
     expect(tester.widget<TextField>(memo).controller!.text, isEmpty);
-    expect(find.byType(InputChip), findsNothing);
+    expect(find.byTooltip(RegExp(r'태그 삭제$')), findsNothing);
   });
 }

@@ -1,3 +1,4 @@
+import 'inline_tags.dart';
 import 'element_binding.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -46,7 +47,7 @@ class ParagraphEditor extends StatefulWidget {
 class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingObserver {
   final _bodyKey = GlobalKey();
   final _name = TextEditingController();
-  late final TextEditingController _tags;
+  late final Set<String> _tags;
   bool _syncingTags = false;
   Timer? _revealTimer;
   bool _reordering = false;
@@ -95,7 +96,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     elements.addListener(_refreshSearchableWords);
-    _tags = TextEditingController(text: widget.initialTags.map((t) => '#$t').join(' '));
+    _tags = {...widget.initialTags, ...widget.initial.take(1).expand((p) => p.tags)};
     for (final p in widget.projectEditing ? widget.initial : widget.initial.take(1)) {
       _add(widget.projectEditing ? p : Paragraph(p.text, ParagraphRole.body, bindings: p.bindings));
     }
@@ -108,13 +109,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     if (completed.tags.isEmpty) return;
     _syncingTags = true;
     try {
-      final all = {
-        ..._tags.text.split(RegExp(r'\s+')).map((t) => t.replaceFirst(RegExp(r'^#+'), '').toLowerCase()).where((t) => t.isNotEmpty),
-        ...completed.tags,
-      };
-      final pending = _tags.text.endsWith(' #');
-      final text = all.map((t) => '#$t').join(' ') + (pending ? ' #' : '');
-      _tags.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+      _tags.addAll(completed.tags);
       controller.value = completed.value;
       _dirty = true;
     } finally {
@@ -200,7 +195,6 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
     elements.removeListener(_refreshSearchableWords);
     _revealTimer?.cancel();
     _name.dispose();
-    _tags.dispose();
     _scroll.dispose();
     for (final c in _controllers) {
       c.dispose();
@@ -531,7 +525,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                               Paragraph(parseTaggedInput(_controllers[i].text).text, ParagraphRole.body,
                                 bindings: taggedTextBindings(_controllers[i] as BoundTextController),
                                 tags: {...parseTaggedInput(_controllers[i].text).tags,
-                                  ..._tags.text.split(RegExp(r'\s+')).map((t) => t.replaceFirst(RegExp(r'^#'), '').toLowerCase()).where((t) => t.isNotEmpty)}),
+                                  ..._tags}),
                       ];
                       if (widget.projectCreation) {
                         final title = _name.text.trim();
@@ -576,11 +570,10 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                   ) else SliverList(delegate: SliverChildBuilderDelegate(
                     (context, index) => _paragraphField(index), childCount: _controllers.length)),
                   SliverToBoxAdapter(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  if (!widget.projectEditing) TextField(
-                    key: const ValueKey('paragraph-tags'), controller: _tags,
-                    inputFormatters: const [HashtagInputFormatter()],
-                    decoration: const InputDecoration(labelText: '태그', hintText: '#독서 #아이디어'),
-                    onChanged: (_) => setState(() => _dirty = true)),
+                  if (!widget.projectEditing && _tags.isNotEmpty) Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: InlineTags(key: const ValueKey('paragraph-tags'), tags: _tags,
+                      onRemove: (tag) => setState(() { _tags.remove(tag); _dirty = true; }))),
                   if (widget.projectEditing) OutlinedButton.icon(
                     onPressed: () {
                       setState(() {

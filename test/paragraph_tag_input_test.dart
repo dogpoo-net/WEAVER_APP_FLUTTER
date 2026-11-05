@@ -20,15 +20,6 @@ void main() {
     expect(takeCompletedParagraphTags(value('첫줄\n#태그\n다음줄')).value.text, '첫줄\n\n다음줄');
   });
 
-  test('tag field prefixes tokens and spaces, while allowing pending marker deletion', () {
-    const formatter = HashtagInputFormatter();
-    expect(formatter.formatEditUpdate(value(''), value('독서 아이디어 ')).text, '#독서 #아이디어 #');
-    expect(formatter.formatEditUpdate(value('#독서'), value('#독서  ')).text, '#독서 #');
-    expect(formatter.formatEditUpdate(value('#독서 #'), value('#독서 ')).text, '#독서');
-    final composing = value('한').copyWith(composing: const TextRange(start: 0, end: 1));
-    expect(formatter.formatEditUpdate(value(''), composing), composing);
-  });
-
   testWidgets('paragraph moves a completed hashtag immediately and saves it separately', (tester) async {
     List<Paragraph>? saved;
     await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(body: TextButton(
@@ -43,10 +34,12 @@ void main() {
     await tester.enterText(body, '본문 #독서 ');
     await tester.pumpAndSettle();
     expect(tester.widget<TextField>(body).controller!.text, '본문 ');
-    expect(tester.widget<TextField>(tags).controller!.text, '#기존 #독서');
-    await tester.enterText(tags, '#기존 #독서 새태그 ');
+    expect(find.descendant(of: tags, matching: find.text('#기존')), findsOneWidget);
+    expect(find.descendant(of: tags, matching: find.text('#독서')), findsOneWidget);
+    expect(find.descendant(of: tags, matching: find.byType(TextField)), findsNothing);
+    await tester.enterText(body, '본문 #새태그 ');
     await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(tags).controller!.text, '#기존 #독서 #새태그 #');
+    expect(find.descendant(of: tags, matching: find.text('#새태그')), findsOneWidget);
     await tester.tap(find.text('저장'));
     await tester.pumpAndSettle();
     expect(saved!.single.text, '본문');
