@@ -45,12 +45,13 @@ void main() {
     controller.value = const TextEditingValue(text: '독서', selection: TextSelection.collapsed(offset: 2));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('suggestion-독서')), findsOneWidget);
-    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft);
-    await tester.pumpAndSettle();
     expect(selected('독서'), isTrue);
     await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft);
     await tester.pumpAndSettle();
     expect(selected('독서'), isFalse);
+    await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(selected('독서'), isTrue);
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
 
