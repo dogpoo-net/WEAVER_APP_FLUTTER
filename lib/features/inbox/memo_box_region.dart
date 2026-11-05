@@ -27,8 +27,8 @@ class MemoBoxRegion extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Positioned.fromRect(rect: bounds, child: IgnorePointer(
     child: DecoratedBox(decoration: BoxDecoration(shape: BoxShape.circle,
-      color: Color(box.color).withValues(alpha: .07),
-      border: Border.all(color: Color(box.color).withValues(alpha: .55), width: 1.5)),
+      color: Color(box.color).withValues(alpha: .10),
+      border: Border.all(color: Color(box.color).withValues(alpha: .7), width: 1.5)),
       child: Align(alignment: Alignment.topCenter, child: Padding(padding: const EdgeInsets.fromLTRB(32, 15, 32, 0),
         child: Text(box.name, maxLines: 1, overflow: TextOverflow.ellipsis,
           style: TextStyle(color: Color(box.color), fontSize: 13, fontWeight: FontWeight.w600)))),

@@ -18,6 +18,10 @@ class ThoughtPage extends StatefulWidget {
 }
 class _ThoughtPageState extends State<ThoughtPage> {
   final _positions = <String, Offset>{};
+  final _tagPositions = <String, Offset>{};
+  final _pinned = <String>{};
+  String _query = '';
+  bool _unlinkedOnly = false;
   final _view = TransformationController();
   Timer? _timer;
   String? _selected, _linkFrom;
@@ -26,15 +30,24 @@ class _ThoughtPageState extends State<ThoughtPage> {
   static const _nodeSize = Size(170, 76);
   @override
   void initState() { super.initState(); elements.addListener(_storeChanged); _sync(); }
-  List<ElementRecord> get _records => elements.records.values.where((r) => widget.box == null || widget.box!.elementIds.contains(r.id)).toList();
+  List<ElementRecord> get _records => elements.records.values.where((r) => widget.box == null || widget.box!.elementIds.contains(r.id)).where((r) =>
+    (!_unlinkedOnly || r.connections.isEmpty) &&
+    (_query.isEmpty || r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.toLowerCase().contains(_query)))).toList();
   void _sync() {
     final records = _records;
     _positions.removeWhere((id, _) => !records.any((r) => r.id == id));
     for (var i = 0; i < records.length; i++) {
       final angle = i * 2.39996;
-      final radius = 90 + math.sqrt(i) * 95;
+      final radius = 65 + math.sqrt(i) * 70;
       _positions.putIfAbsent(records[i].id, () => Offset(1400 + math.cos(angle) * radius, 1000 + math.sin(angle) * radius));
     }
+    final tags = records.expand((r) => r.tags).toSet().toList()..sort();
+    for (var i = 0; i < tags.length; i++) {
+      final members = records.where((r) => r.tags.contains(tags[i])).toList();
+      final center = members.map((r) => _positions[r.id]!).reduce((a, b) => a + b) / members.length.toDouble();
+      _tagPositions.putIfAbsent('tag:${tags[i]}', () => center + Offset(85 + (i % 3 - 1) * 100, -65 - (i % 2) * 45));
+    }
+    if (!records.any((r) => r.id == _selected)) _selected = null;
     _frames = 0;
     _timer ??= Timer.periodic(const Duration(milliseconds: 32), (_) => _relax());
   }
@@ -51,8 +64,8 @@ class _ThoughtPageState extends State<ThoughtPage> {
         var delta = _positions[a]! - _positions[b]!;
         if (delta.distanceSquared < 1) delta = const Offset(1, 1);
         final distance = delta.distance;
-        if (distance > 350) continue;
-        final force = delta / distance * (1200 / distance.clamp(20, 350));
+        if (distance > 235) continue;
+        final force = delta / distance * (500 / distance.clamp(20, 235));
         forces[a] = forces[a]! + force; forces[b] = forces[b]! - force;
       }
     }
@@ -60,7 +73,7 @@ class _ThoughtPageState extends State<ThoughtPage> {
       for (final id in r.connections.where(_positions.containsKey)) {
         final delta = _positions[id]! - _positions[r.id]!;
         final distance = delta.distance;
-        if (distance > 1) forces[r.id] = forces[r.id]! + delta / distance * ((distance - 240) * .015);
+        if (distance > 1) forces[r.id] = forces[r.id]! + delta / distance * ((distance - 185) * .015);
       }
     }
     for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
@@ -71,6 +84,7 @@ class _ThoughtPageState extends State<ThoughtPage> {
     }
     setState(() {
       for (final r in records) {
+        if (_pinned.contains(r.id)) continue;
         final p = _positions[r.id]! + forces[r.id]!;
         _positions[r.id] = Offset(p.dx.clamp(30, 2770), p.dy.clamp(30, 1970));
       }
@@ -111,7 +125,7 @@ class _ThoughtPageState extends State<ThoughtPage> {
   Widget build(BuildContext context) {
     final records = _records;
     final tags = records.expand((r) => r.tags).toSet().toList()..sort();
-    final tagPositions = {for (var i = 0; i < tags.length; i++) 'tag:${tags[i]}': Offset(1050 + (i % 5) * 180, 650 - (i ~/ 5) * 70)};
+    final tagPositions = {for (final tag in tags) 'tag:$tag': _tagPositions['tag:$tag']!};
     final regions = <({MemoBox box, Rect bounds})>[];
     for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
       final bounds = memoBoxCircleBounds(box.elementIds.where(_positions.containsKey).map((id) => _positions[id]!));
@@ -124,8 +138,16 @@ class _ThoughtPageState extends State<ThoughtPage> {
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
       IconButton(tooltip: '보기 초기화', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
     ]), body: Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 0), child: Row(children: [
+        Expanded(child: TextField(key: const ValueKey('graph-search'),
+          decoration: const InputDecoration(hintText: '생각·해시태그 찾기', prefixIcon: Icon(Icons.search), isDense: true),
+          onChanged: (value) => setState(() { _query = value.trim().replaceFirst(RegExp(r'^#'), '').toLowerCase(); _centered = false; _sync(); }))),
+        const SizedBox(width: 8),
+        FilterChip(label: const Text('연결 없음'), selected: _unlinkedOnly,
+          onSelected: (value) => setState(() { _unlinkedOnly = value; _centered = false; _sync(); })),
+      ])),
       Padding(padding: const EdgeInsets.all(8), child: Text(_linkMode
-        ? '연결할 생각 두 개를 차례로 누르세요.' : '생각을 드래그해 배치 · 연결 아이콘을 다른 생각에 드롭 · 두 번 눌러 수정',
+        ? '연결할 생각 두 개를 차례로 누르세요.' : '생각·태그를 드래그해 배치 · 연결 아이콘을 드롭해 연결 · 두 번 눌러 수정',
         style: Theme.of(context).textTheme.bodySmall)),
       Expanded(child: LayoutBuilder(builder: (context, viewport) {
         if (!_centered) {
@@ -149,22 +171,29 @@ class _ThoughtPageState extends State<ThoughtPage> {
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
             {for (final entry in _positions.entries) entry.key: entry.value + const Offset(85, 38), ...tagPositions},
-            {for (final r in records) r.id: {...r.connections, ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant)))),
+            {for (final r in records) r.id: {...r.connections, ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
           if (records.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
-            icon: const Icon(Icons.add), label: const Text('첫 생각 만들기'))),
+            icon: const Icon(Icons.add), label: Text(_query.isNotEmpty || _unlinkedOnly ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
           for (final tag in tags) Positioned(left: tagPositions['tag:$tag']!.dx - 60, top: tagPositions['tag:$tag']!.dy - 20,
-            child: DragTarget<String>(onAcceptWithDetails: (d) {
+            child: GestureDetector(key: ValueKey('graph-tag-$tag'),
+              onPanStart: (_) => _dragging = true,
+              onPanUpdate: (d) => setState(() {
+                final p = _tagPositions['tag:$tag']! + d.delta / _view.value.getMaxScaleOnAxis();
+                _tagPositions['tag:$tag'] = Offset(p.dx.clamp(60, 2900), p.dy.clamp(20, 2160));
+              }),
+              onPanEnd: (_) => _dragging = false, onPanCancel: () => _dragging = false,
+              child: DragTarget<String>(onAcceptWithDetails: (d) {
               final r = records.where((r) => r.id == d.data).firstOrNull;
               if (r != null) { r.tags.add(tag); _changed(); }
             }, builder: (context, candidates, _) => Chip(label: Text('#$tag'),
-              backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: candidates.isEmpty ? .3 : .6)))),
+              backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: candidates.isEmpty ? .3 : .6))))),
           for (final record in records) Positioned(left: _positions[record.id]!.dx, top: _positions[record.id]!.dy,
             child: DragTarget<String>(onWillAcceptWithDetails: (d) => d.data != record.id,
               onAcceptWithDetails: (d) => _connect(d.data, record.id), builder: (context, candidates, _) => GestureDetector(
                 onTap: () { if (_linkMode && _linkFrom != null) { _connect(_linkFrom!, record.id); }
                   else { setState(() { _selected = record.id; if (_linkMode) _linkFrom = record.id; }); } },
                 onDoubleTap: () => showElementMetadata(context, record.text),
-                onPanStart: (_) => _dragging = true,
+                onPanStart: (_) { _dragging = true; _pinned.add(record.id); },
                 onPanUpdate: (d) => setState(() { final p = _positions[record.id]! + d.delta / _view.value.getMaxScaleOnAxis();
                   _positions[record.id] = Offset(p.dx.clamp(0, 2830), p.dy.clamp(0, 2124)); }),
                 onPanEnd: (_) { _dragging = false; _sync(); }, onPanCancel: () => _dragging = false,
@@ -196,7 +225,8 @@ class _ThoughtPageState extends State<ThoughtPage> {
   }
 }
 class _Connections extends CustomPainter {
-  _Connections(this.positions, this.links, this.color);
+  _Connections(this.positions, this.links, this.color, this.tagColors);
+  final Map<String, Color> tagColors;
   final Map<String, Offset> positions;
   final Map<String, Set<String>> links;
   final Color color;
@@ -205,7 +235,8 @@ class _Connections extends CustomPainter {
     final pen = Paint()..color = color..strokeWidth = 1.5;
     for (final entry in links.entries) {
       for (final id in entry.value) {
-        if (entry.key.compareTo(id) < 0 && positions.containsKey(id) && positions.containsKey(entry.key)) {
+        if ((tagColors.containsKey(id) || entry.key.compareTo(id) < 0) && positions.containsKey(id) && positions.containsKey(entry.key)) {
+          pen.color = tagColors[id]?.withValues(alpha: .75) ?? color;
           canvas.drawLine(positions[entry.key]!, positions[id]!, pen);
         }
       }
