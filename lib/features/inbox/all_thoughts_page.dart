@@ -127,8 +127,16 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
       ]));
   }
   Widget _colorLabel(String label, Color color, VoidCallback onTap) => Tooltip(message: label,
-    child: SizedBox.square(dimension: 16, child: InkWell(onTap: onTap,
+    child: SizedBox.square(dimension: 24, child: InkWell(onTap: onTap,
       customBorder: const CircleBorder(), child: Icon(Icons.circle, color: color, size: 14))));
+
+  Widget _filterChip({required Key key, required String label, required Color color,
+    required String colorTooltip, required bool selected, required VoidCallback onFilter, required VoidCallback onColor}) =>
+    Row(mainAxisSize: MainAxisSize.min, children: [
+      _colorLabel(colorTooltip, color, onColor),
+      ChoiceChip(key: key, label: Text(label), selected: selected,
+        showCheckmark: false, onSelected: (_) => onFilter()),
+    ]);
 
   Future<void> _manageBox() async {
     final box = _filterBox;
@@ -206,16 +214,14 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
               key: const ValueKey('thought-filter-all'), label: const Text('전체'),
               selected: _filterBox == null && _filterTag == null, onSelected: (_) => _filter())),
             for (final box in memoBoxes) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
-              box: box, onChanged: _changed, child: ChoiceChip(
-                key: ValueKey('thought-filter-box-${box.name}'),
-                showCheckmark: false,
-                avatarBoxConstraints: const BoxConstraints.tightFor(width: 16, height: 16),
-                avatar: _colorLabel('${box.name} 상자 색상 변경', Color(box.color), () async {
-                    final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
-                    if (!mounted || color == null) return;
-                    box.color = color.toARGB32(); _changed();
-                  }),
-                label: Text(box.name), selected: identical(_filterBox, box), onSelected: (_) => _filter(box: box)))),
+              box: box, onChanged: _changed, child: _filterChip(
+                key: ValueKey('thought-filter-box-${box.name}'), label: box.name,
+                color: Color(box.color), colorTooltip: '${box.name} 상자 색상 변경',
+                selected: identical(_filterBox, box), onFilter: () => _filter(box: box), onColor: () async {
+                  final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
+                  if (!mounted || color == null) return;
+                  box.color = color.toARGB32(); _changed();
+                }))),
           ])), TextButton.icon(
             icon: const Icon(Icons.add, size: 18), label: const Text('상자 만들기'),
             onPressed: () async {
@@ -226,18 +232,16 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
           if (tags.isNotEmpty) SizedBox(height: 44, child: Row(children: [
             const Padding(padding: EdgeInsetsDirectional.only(end: 8), child: Icon(Icons.tag, size: 18)),
             Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
-              for (final tag in tags) Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(
-                key: ValueKey('thought-filter-tag-$tag'), label: Text('#$tag'), selected: _filterTag == tag,
-                showCheckmark: false,
-                avatarBoxConstraints: const BoxConstraints.tightFor(width: 16, height: 16),
-                avatar: _colorLabel('#$tag 색상 변경', hashtagColors.containsKey(tag)
-                    ? Color(hashtagColors[tag]!) : Theme.of(context).colorScheme.outlineVariant, () async {
-                    final current = hashtagColors[tag];
-                    final color = await pickHashtagColor(context, tag, current == null ? null : Color(current));
-                    if (!mounted || color == null) return;
-                    hashtagColors[tag] = color.toARGB32(); _changed();
-                  }),
-                onSelected: (_) => _filter(tag: tag))),
+              for (final tag in tags) Padding(padding: const EdgeInsets.only(right: 6), child: _filterChip(
+                key: ValueKey('thought-filter-tag-$tag'), label: '#$tag', selected: _filterTag == tag,
+                colorTooltip: '#$tag 색상 변경', color: hashtagColors.containsKey(tag)
+                  ? Color(hashtagColors[tag]!) : Theme.of(context).colorScheme.outlineVariant,
+                onFilter: () => _filter(tag: tag), onColor: () async {
+                  final current = hashtagColors[tag];
+                  final color = await pickHashtagColor(context, tag, current == null ? null : Color(current));
+                  if (!mounted || color == null) return;
+                  hashtagColors[tag] = color.toARGB32(); _changed();
+                })),
             ])),
           ])),
         ]))),
