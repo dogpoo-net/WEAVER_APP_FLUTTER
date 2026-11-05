@@ -493,7 +493,7 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   void _insertQuickTag(String tag) {
-    final token = wordPrefix(_draft.value);
+    final token = tagPrefix(_draft.value);
     if (!token.startsWith('#')) return;
     final start = _draft.selection.start - token.length;
     setState(() {

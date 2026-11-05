@@ -172,6 +172,19 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       return true;
     }
     if (event is KeyUpEvent) return false;
+    if (event.logicalKey == LogicalKeyboardKey.escape && _entry != null) {
+      if (_controlling) {
+        _controlling = false;
+        _controlValue = null;
+        _autoCheckedValue = widget.controller.value;
+        _entry?.markNeedsBuild();
+      } else {
+        _dismissed = widget.controller.text;
+        _explicitOpenText = null;
+        _hide();
+      }
+      return true;
+    }
     if (_matches.isEmpty) return false;
     if (keyboard.isControlPressed ||
         keyboard.isMetaPressed ||
@@ -275,8 +288,8 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       _controlling = false;
       _controlValue = null;
     }
-    final token = wordPrefix(value);
-    final tagMode = widget.onTag != null && token.startsWith('#');
+    final token = tagPrefix(value);
+    final tagMode = widget.onTag != null && token.isNotEmpty;
     final query = tagMode ? token.substring(1) : completionPrefix(value, widget.words);
     if (_query != query || _tagMode != tagMode) _selected = 0;
     _tagMode = tagMode; _query = query;

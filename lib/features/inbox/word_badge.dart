@@ -177,6 +177,13 @@ String wordPrefix(TextEditingValue value) {
       '';
 }
 
+/// Active hashtag can start immediately after prose or another hashtag.
+String tagPrefix(TextEditingValue value) {
+  if (!value.selection.isValid || !value.selection.isCollapsed) return '';
+  final before = value.text.substring(0, value.selection.extentOffset);
+  return RegExp(r'#[^\s#.,!?;:،؛؟()\[\]{}]*$').stringMatch(before) ?? '';
+}
+
 bool startsWord(String word, String query) =>
     _hangulParts(word.toLowerCase())
         .startsWith(_hangulParts(query.toLowerCase()));

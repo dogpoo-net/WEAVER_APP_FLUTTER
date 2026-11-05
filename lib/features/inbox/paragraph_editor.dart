@@ -227,7 +227,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
 
   void _insertTag(int index, String tag) {
     final c = _controllers[index];
-    final token = wordPrefix(c.value);
+    final token = tagPrefix(c.value);
     if (!token.startsWith('#')) return;
     final start = c.selection.start - token.length;
     setState(() {
