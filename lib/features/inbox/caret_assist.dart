@@ -56,6 +56,8 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   bool _tagMode = false, _spaceShortcutHeld = false, _acceptEnterHeld = false;
   String? _explicitOpenText;
   TextEditingValue? _controlValue;
+  bool? _manualSelection;
+  TextEditingValue? _manualValue;
   TextEditingValue? _autoCheckedValue;
   final _badgeKeys = <String, GlobalKey>{};
   bool get _desktop =>
@@ -63,6 +65,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       MediaQuery.viewInsetsOf(context).bottom == 0;
   void _choose(String word) {
     _controlling = false;
+    _manualSelection = null; _manualValue = null;
     if (_tagMode) { widget.onTag?.call(word.substring(1)); } else { widget.onWord(word); }
     _dismissed = widget.controller.text;
     _hide();
@@ -158,24 +161,15 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     if (space && keyboard.isControlPressed && !keyboard.isAltPressed && !keyboard.isMetaPressed && !keyboard.isShiftPressed) {
       if (event is KeyDownEvent && !_spaceShortcutHeld) {
         _spaceShortcutHeld = true;
-        if (_controlling && _entry != null && _dismissed != widget.controller.text &&
-            _controlValue?.text == widget.controller.text &&
-            (!widget.controller.value.composing.isValid || widget.controller.value.composing.isCollapsed)) {
-          _controlling = false;
-          _controlValue = null;
-          _autoCheckedValue = widget.controller.value;
-          _entry?.markNeedsBuild();
-          return true;
-        }
+        final leaveSelection = _controlling;
         _dismissed = null;
         _explicitOpenText = widget.controller.text;
+        _manualValue = widget.controller.value;
+        _manualSelection = !leaveSelection;
         _refreshMatches(widget.controller.value, autoSelect: false);
-        widget.controller.clearComposing();
-        _autoCheckedValue = widget.controller.value;
-        _refreshMatches(widget.controller.value, autoSelect: false);
-        // Re-enter selection only after the previous shortcut has been released.
-        _controlling = _matches.isNotEmpty;
+        _controlling = !leaveSelection && _matches.isNotEmpty;
         _controlValue = _controlling ? widget.controller.value : null;
+        _autoCheckedValue = widget.controller.value;
         _entry?.markNeedsBuild(); _update(); _revealSelection();
       }
       return true;
@@ -184,6 +178,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     if (event.logicalKey == LogicalKeyboardKey.escape && _entry != null) {
       if (_controlling) {
         _controlling = false;
+        _manualSelection = false; _manualValue = widget.controller.value;
         _controlValue = null;
         _autoCheckedValue = widget.controller.value;
         _entry?.markNeedsBuild();
@@ -289,6 +284,13 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   }
 
   void _refreshMatches(TextEditingValue value, {bool autoSelect = true}) {
+    final manualValue = _manualValue;
+    if (manualValue != null && value.text == manualValue.text) {
+      // IME composition and selection echoes must not override explicit keyboard intent.
+      value = manualValue;
+    } else {
+      _manualSelection = null; _manualValue = null;
+    }
     final controlValue = _controlValue;
     if (!_committingNavigation && _controlling && controlValue != null &&
         (value.text != controlValue.text ||
@@ -306,6 +308,12 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     _tagMode = tagMode; _query = query;
     _matches = tagMode ? wordSuggestions(widget.tags.where((tag) => !hiddenSearchTags.contains(tag)).toList(), query).map((tag) => '#$tag').toList() : wordSuggestions(widget.words, query);
     if (_selected >= _matches.length) _selected = 0;
+    final manual = _manualSelection;
+    if (manual != null) {
+      _controlling = manual && _matches.isNotEmpty;
+      _controlValue = _controlling ? value : null;
+      return;
+    }
     final checked = _autoCheckedValue;
     final changed = checked == null || checked.text != value.text || checked.selection != value.selection;
     if (autoSelect && changed && (!value.composing.isValid || value.composing.isCollapsed)) {
