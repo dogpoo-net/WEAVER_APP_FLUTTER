@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/graph_arrangement.dart';
 
@@ -33,6 +32,7 @@ void main() {
     final bounds = {for (final e in positions.entries) e.key: thoughtBounds(e.value),
       for (final e in tagPositions.entries) e.key: tagBounds(e.value)};
     final router = GraphEdgeRouter(bounds);
+    final interiors = {for (final e in bounds.entries) e.key: e.value.deflate(.5)};
     var lane = 0;
     void verify(String from, String to) {
       final path = router.route(from, to, lane++);
@@ -43,9 +43,8 @@ void main() {
         final steps = ((end - start).distance / 3).ceil();
         for (var j = 0; j <= steps; j++) {
           final point = Offset.lerp(start, end, steps == 0 ? 0 : j / steps)!;
-          for (final entry in bounds.entries) {
-            expect(entry.value.deflate(.5).contains(point), isFalse,
-              reason: '$from → $to passes through ${entry.key} at $point');
+          for (final entry in interiors.entries) {
+            if (entry.value.contains(point)) fail( '$from → $to passes through ${entry.key} at $point');
           }
         }
       }
