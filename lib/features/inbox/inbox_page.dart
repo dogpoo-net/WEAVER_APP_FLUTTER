@@ -295,8 +295,8 @@ class _InboxPageState extends State<InboxPage> {
 
   void _submitQuickMemo() {
     if (_assistSubmitUntil != null && DateTime.now().isBefore(_assistSubmitUntil!)) return;
-    if (_quickAssistKey.currentState?.acceptVisibleCandidate() == true) return;
     if (_pendingImeNewline || (_explicitNewlineUntil != null && DateTime.now().isBefore(_explicitNewlineUntil!))) return;
+    if (_quickAssistKey.currentState?.acceptVisibleCandidate() == true) return;
     if (_draft.text.trim().isEmpty) return;
     _enterEchoText = _draft.text;
     _enterEchoUntil = DateTime.now().add(const Duration(milliseconds: 250));
