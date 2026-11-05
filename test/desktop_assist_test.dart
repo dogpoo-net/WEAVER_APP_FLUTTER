@@ -52,7 +52,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('suggestion-독서')), findsOneWidget);
     expect(selected('독서'), isTrue);
-    await toggleAssist(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(selected('독서'), isFalse);
     await toggleAssist(tester);
@@ -122,7 +122,7 @@ void main() {
             .word,
         '생각',
       );
-      await toggleAssist(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(
         tester
@@ -217,7 +217,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
     await tester.pumpAndSettle();
     expect(selected(), words.first);
-    await toggleAssist(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
     await tester.pumpAndSettle();
     expect(controller.selection.extentOffset, 0);

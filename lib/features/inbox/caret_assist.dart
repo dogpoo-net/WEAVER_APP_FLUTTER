@@ -120,6 +120,9 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       return false;
     }
     final keyboard = HardwareKeyboard.instance;
+    if (event is KeyUpEvent && (event.logicalKey == LogicalKeyboardKey.controlLeft ||
+        event.logicalKey == LogicalKeyboardKey.controlRight || event.physicalKey == PhysicalKeyboardKey.controlLeft ||
+        event.physicalKey == PhysicalKeyboardKey.controlRight)) _spaceShortcutHeld = false;
     final space = event.logicalKey == LogicalKeyboardKey.space || event.physicalKey == PhysicalKeyboardKey.space;
     if (space && event is KeyUpEvent && _spaceShortcutHeld) {
       _spaceShortcutHeld = false; return true;
@@ -130,11 +133,11 @@ class _CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
         _dismissed = null;
         _explicitOpenText = widget.controller.text;
         _refreshMatches(widget.controller.value, autoSelect: false);
-        final enterControl = !_controlling;
         widget.controller.clearComposing();
         _autoCheckedValue = widget.controller.value;
         _refreshMatches(widget.controller.value, autoSelect: false);
-        _controlling = _matches.isNotEmpty && enterControl;
+        // Explicit entry must not toggle off a candidate auto-selected after deletion.
+        _controlling = _matches.isNotEmpty;
         _controlValue = _controlling ? widget.controller.value : null;
         _entry?.markNeedsBuild(); _update(); _revealSelection();
       }

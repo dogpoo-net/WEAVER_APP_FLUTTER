@@ -30,7 +30,7 @@ void main() {
     expect(tester.widget<TextField>(field).controller!.text, '오늘 작은 생각');
     expect(tester.takeException(), isNull);
   });
-  testWidgets('Ctrl Space selects a composing exact Hangul match once and toggles off after IME echo', (tester) async {
+  testWidgets('Ctrl Space selects a composing exact Hangul match once and exits with Escape after IME echo', (tester) async {
     elements.clear(); elements.add('생각');
     await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: TargetPlatform.linux),
       home: const ParagraphEditor(words: ['생각', '생각 정리'])));
@@ -43,7 +43,7 @@ void main() {
     expect(selected(), isTrue);
     tester.testTextInput.updateEditingValue(composing); await tester.pumpAndSettle();
     expect(selected(), isTrue);
-    await toggleAssist(tester); await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape); await tester.pumpAndSettle();
     expect(selected(), isFalse);
     tester.testTextInput.updateEditingValue(composing.copyWith(composing: TextRange.empty));
     await tester.pumpAndSettle();
