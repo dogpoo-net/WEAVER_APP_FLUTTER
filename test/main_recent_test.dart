@@ -16,6 +16,23 @@ void main() {
     expect(tester.getSize(find.byType(LimitedRowsWrap)).height, 174);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('badge more appends rows while all opens the full page', (tester) async {
+    elements.clear();
+    for (var i = 0; i < 22; i++) { elements.add('테스트 메모 내용이 길게 이어집니다 $i'); }
+    SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
+    await tester.pumpWidget(MyApp(storage: WorkspaceStorage(await SharedPreferences.getInstance())));
+    await tester.pumpAndSettle();
+    final badges = find.byKey(const ValueKey('recent-memo-badges'));
+    final before = tester.getSize(badges).height;
+    final more = find.byKey(const ValueKey('thoughts-more'));
+    await tester.ensureVisible(more); await tester.tap(more); await tester.pumpAndSettle();
+    expect(tester.getSize(badges).height, greaterThan(before));
+    expect(find.byType(AllThoughtsPage), findsNothing);
+    final all = find.byKey(const ValueKey('thoughts-all'));
+    await tester.ensureVisible(all); await tester.tap(all); await tester.pumpAndSettle();
+    expect(find.byType(AllThoughtsPage), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('main shows five newest paragraphs and projects but searches older entries', (tester) async {
     elements.clear();
     final notes = <Note>[];
@@ -38,8 +55,13 @@ void main() {
     await tester.enterText(search, '프로젝트0'); await tester.pumpAndSettle();
     expect(find.widgetWithText(ListTile, '프로젝트0'), findsOneWidget);
     await tester.enterText(search, ''); await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const ValueKey('thoughts-more')));
-    await tester.tap(find.byKey(const ValueKey('thoughts-more'))); await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('paragraphs-more')));
+    await tester.tap(find.byKey(const ValueKey('paragraphs-more'))); await tester.pumpAndSettle();
+    expect(find.widgetWithText(ListTile, '문단0'), findsOneWidget);
+    expect(find.byType(AllThoughtsPage), findsNothing);
+    expect(find.widgetWithText(ListTile, '프로젝트0'), findsNothing);
+    await tester.ensureVisible(find.byKey(const ValueKey('thoughts-all')));
+    await tester.tap(find.byKey(const ValueKey('thoughts-all'))); await tester.pumpAndSettle();
     expect(find.byType(AllThoughtsPage), findsOneWidget);
   });
 }

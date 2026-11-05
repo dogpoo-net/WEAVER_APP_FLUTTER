@@ -49,6 +49,8 @@ class _InboxPageState extends State<InboxPage> {
   final _focus = FocusNode();
   final List<Note> _notes = [];
   String _query = '';
+  int _memoRows = 5, _paragraphLimit = 5, _projectLimit = 5;
+  bool _memoHasMore = false;
   bool _menuVisible = true;
   bool _pendingImeSave = false;
   bool _pendingImeNewline = false, _finishingImeNewline = false;
@@ -799,12 +801,11 @@ class _InboxPageState extends State<InboxPage> {
     final records = elements.records.values.where((record) => elements.isSearchable(record.text) &&
       (record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.contains(query))))
       .toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    var paragraphs = 0, projects = 0;
-    final entries = visible.where((note) {
-      if (note.project != null) return _query.isNotEmpty || ++projects <= 5;
-      if (note.paragraphs != null) return _query.isNotEmpty || ++paragraphs <= 5;
-      return false;
-    }).toList();
+    final paragraphs = visible.where((note) => note.paragraphs != null && note.project == null).toList();
+    final projects = visible.where((note) => note.project != null).toList();
+    final moreStyle = TextButton.styleFrom(textStyle: const TextStyle(fontSize: 11),
+      minimumSize: const Size(0, 24), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap);
     final badges = [for (final record in records) WordBadge(
       word: record.text, query: _query,
       onLongPress: () => showElementMetadata(context, record.text),
@@ -822,7 +823,9 @@ class _InboxPageState extends State<InboxPage> {
         const SizedBox(height: 16),
         TextField(
           key: const ValueKey('note-search'),
-          onChanged: (value) => setState(() => _query = value),
+          onChanged: (value) => setState(() {
+            _query = value; _memoRows = 5; _paragraphLimit = 5; _projectLimit = 5; _memoHasMore = false;
+          }),
           decoration: const InputDecoration(
             hintText: '메모에서 찾기',
             prefixIcon: Icon(Icons.search),
@@ -851,13 +854,36 @@ class _InboxPageState extends State<InboxPage> {
             ),
           ),
         if (_query.isEmpty) ClipRect(child: LimitedRowsWrap(
-          key: const ValueKey('recent-memo-badges'), children: badges))
+          key: const ValueKey('recent-memo-badges'), maxRows: _memoRows,
+          onOverflowChanged: (overflow) { if (mounted && _memoHasMore != overflow) setState(() => _memoHasMore = overflow); },
+          children: badges))
         else Wrap(spacing: 6, runSpacing: 6, children: badges),
-        Align(alignment: AlignmentDirectional.centerEnd, child: TextButton(
-          key: const ValueKey('thoughts-more'), onPressed: _allThoughts, child: const Text('+더보기'))),
-        const SizedBox(height: 10),
-        for (final note in entries)
-          Card(
+        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+          if (_query.isEmpty && _memoHasMore) TextButton(key: const ValueKey('thoughts-more'), style: moreStyle,
+            onPressed: () => setState(() => _memoRows += 5), child: const Text('+더보기')),
+          TextButton(key: const ValueKey('thoughts-all'), style: moreStyle,
+            onPressed: _allThoughts, child: const Text('모두보기')),
+        ]),
+        for (final isProject in [false, true]) ...[
+          if ((isProject ? projects : paragraphs).isNotEmpty) ...[
+            Divider(key: ValueKey(isProject ? 'main-project-divider' : 'main-paragraph-divider'),
+              height: 18, thickness: 1, color: colors.outlineVariant.withValues(alpha: .45)),
+            Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(isProject ? '프로젝트' : '문단', style: Theme.of(context).textTheme.labelMedium)),
+            for (final note in (isProject ? projects : paragraphs).take(_query.isNotEmpty
+              ? (isProject ? projects.length : paragraphs.length) : (isProject ? _projectLimit : _paragraphLimit)))
+              _recentNoteCard(note),
+            if (_query.isEmpty && (isProject ? projects.length > _projectLimit : paragraphs.length > _paragraphLimit))
+              Align(alignment: AlignmentDirectional.centerEnd, child: TextButton(
+                key: ValueKey(isProject ? 'projects-more' : 'paragraphs-more'), style: moreStyle,
+                onPressed: () => setState(() { if (isProject) { _projectLimit += 5; } else { _paragraphLimit += 5; } }),
+                child: const Text('+더보기'))),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _recentNoteCard(Note note) => Card(
             elevation: 0,
             clipBehavior: Clip.antiAlias,
             color: colors.surfaceContainerLow,
@@ -879,10 +905,7 @@ class _InboxPageState extends State<InboxPage> {
               trailing: const Icon(Icons.chevron_right, size: 20),
               onTap: () => _open(note),
             ),
-          ),
-      ],
-    );
-  }
+          );
 
   @override
   Widget build(BuildContext context) {
