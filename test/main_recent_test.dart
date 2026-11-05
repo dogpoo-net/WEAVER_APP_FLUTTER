@@ -1,3 +1,4 @@
+import 'package:weaver/features/inbox/word_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -51,7 +52,7 @@ void main() {
     final search = find.byKey(const ValueKey('note-search'));
     await tester.ensureVisible(search);
     await tester.enterText(search, '문단0'); await tester.pumpAndSettle();
-    expect(find.text('문단0'), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is WordBadge && w.word == '문단0'), findsOneWidget);
     await tester.enterText(search, '프로젝트0'); await tester.pumpAndSettle();
     expect(find.widgetWithText(ListTile, '프로젝트0'), findsOneWidget);
     await tester.enterText(search, ''); await tester.pumpAndSettle();

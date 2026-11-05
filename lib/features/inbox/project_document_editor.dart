@@ -24,6 +24,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     _body = TextEditingController(text: widget.project?.document ?? widget.project?.paragraphs.map((p) =>
       '${p.role == ParagraphRole.title ? '# ' : p.role == ParagraphRole.subtitle ? '## ' : ''}${p.text}').join('\n\n') ?? '');
     _references.addAll(widget.project?.words ?? []);
+    if (widget.project != null) { _references.addAll(elements.matches(_body.text).map((h) => h.word)); elements.indexProject(widget.project!); }
     _tags.addAll(widget.project?.tags ?? {});
     _tags.addAll(widget.project?.paragraphs.expand((p) => p.tags) ?? <String>[]);
     _name.addListener(_edited); _body.addListener(_edited); elements.addListener(_refresh);

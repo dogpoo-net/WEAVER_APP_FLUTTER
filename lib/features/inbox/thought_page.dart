@@ -71,13 +71,12 @@ class _ThoughtPageState extends State<ThoughtPage> {
   }
   void _changed() { widget.onChanged(); setState(_sync); }
   Future<void> _create() async {
-    final controller = TextEditingController();
+    var draft = '';
     final text = await showDialog<String>(context: context, builder: (context) => AlertDialog(
-      title: const Text('생각 만들기'), content: TextField(controller: controller, autofocus: true,
+      title: const Text('생각 만들기'), content: TextField(onChanged: (value) => draft = value, autofocus: true,
         minLines: 3, maxLines: 8, decoration: const InputDecoration(hintText: '생각을 적어주세요')),
       actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-        FilledButton(onPressed: () { if (parseTaggedInput(controller.text).text.isNotEmpty) Navigator.pop(context, controller.text); }, child: const Text('만들기'))]));
-    controller.dispose();
+        FilledButton(onPressed: () { if (parseTaggedInput(draft).text.isNotEmpty) Navigator.pop(context, draft); }, child: const Text('만들기'))]));
     if (text == null || !mounted) return;
     final r = elements.add(text);
     widget.box?.elementIds.add(r.id);

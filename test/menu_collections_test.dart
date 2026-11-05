@@ -53,8 +53,8 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const MyApp());
-    await tester.ensureVisible(find.byTooltip('프로젝트 폴더 만들기'));
-    await tester.tap(find.byTooltip('프로젝트 폴더 만들기'));
+    await tester.ensureVisible(find.byTooltip('폴더 만들기'));
+    await tester.tap(find.byTooltip('폴더 만들기'));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, '폴더 이름'), '새 문단 폴더');
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);

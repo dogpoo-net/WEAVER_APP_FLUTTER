@@ -40,7 +40,7 @@ void main() {
         ),
       ),
     );
-    expect(find.text('문단 1'), findsOneWidget);
+    expect(find.text('생각 1'), findsOneWidget);
     expect(find.text('프로젝트 1'), findsOneWidget);
     expect(find.text('관계없는 글'), findsNothing);
     await tester.tap(find.text('독서 프로젝트'));
