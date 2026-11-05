@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/paragraph_editor.dart';
-import 'package:weaver/features/inbox/project_page.dart';
 
 void main() {
   testWidgets('handle drag moves text and role together and saves the new order', (tester) async {
