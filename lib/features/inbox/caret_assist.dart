@@ -154,6 +154,11 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
         _committingNavigation = true;
         try { widget.controller.clearComposing(); } finally { _committingNavigation = false; }
         _controlValue = _controlling ? widget.controller.value : null;
+        // Web IMEs can retain native composition after clearComposing alone.
+        // Close the input connection synchronously, then restore the same caret.
+        widget.focus.unfocus();
+        FocusManager.instance.applyFocusChangesIfNeeded();
+        widget.focus.requestFocus();
       }
     }
     if (event is KeyUpEvent && (event.logicalKey == LogicalKeyboardKey.controlLeft ||
