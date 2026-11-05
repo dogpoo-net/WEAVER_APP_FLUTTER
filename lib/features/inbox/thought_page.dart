@@ -9,6 +9,7 @@ import 'memo_boxes.dart';
 import 'memo_box_region.dart';
 import 'word_badge.dart';
 import 'graph_layout.dart';
+import 'thought_interaction.dart';
 import 'workspace_routes.dart';
 import 'graph_arrangement.dart';
 
@@ -36,7 +37,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   bool _linkMode = false, _centered = false;
   bool _routeVisible = true, _appActive = true;
   ModalRoute<dynamic>? _route;
-  static const _nodeSize = Size(170, 76);
+  Size _size(String id) { final p = _layout.sizes[id]; return p == null ? graphThoughtSize : Size(p.dx, p.dy); }
+  Rect _bounds(String id) => _positions[id]! & _size(id);
   @override
   void initState() {
     super.initState();
@@ -122,7 +124,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       return order != 0 ? order : a.createdAt.compareTo(b.createdAt);
     });
     arrangeGraph(thoughts: ordered.map((r) => r.id).toList(), tags: tags,
-      positions: _positions, tagPositions: _tagPositions);
+      positions: _positions, tagPositions: _tagPositions,
+      sizes: {for (final id in _positions.keys) id: _size(id)});
     if (!hadPositions && widget.box == null) _separateBoxes();
     if (!hadPositions && _positions.isNotEmpty) _centered = false;
     if (!records.any((r) => r.id == _selected)) _selected = null;
@@ -196,14 +199,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final tags = records.expand((r) => r.tags).toSet().toList()..sort();
     final tagPositions = {for (final tag in tags) 'tag:$tag': _tagPositions['tag:$tag']!};
     final nodeRects = <String, Rect>{
-      for (final e in visiblePositions.entries) e.key: thoughtBounds(e.value),
+      for (final e in visiblePositions.entries) e.key: _bounds(e.key),
       for (final e in tagPositions.entries) e.key: tagBounds(e.value),
     };
     final sceneWidth = math.max(3000.0, nodeRects.values.map((r) => r.right + 100).fold(0.0, math.max));
     final sceneHeight = math.max(2200.0, nodeRects.values.map((r) => r.bottom + 100).fold(0.0, math.max));
     final regions = <({MemoBox box, Rect bounds})>[];
     for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
-      final bounds = memoBoxCircleBounds(box.elementIds.where(visiblePositions.containsKey).map((id) => visiblePositions[id]!));
+      final bounds = memoBoxCircleBounds(box.elementIds.where(visiblePositions.containsKey).map((id) => visiblePositions[id]!),
+        sizes: {for (final id in box.elementIds.where(visiblePositions.containsKey)) visiblePositions[id]!: _size(id)});
       if (bounds != null) regions.add((box: box, bounds: bounds));
     }
     var emptyX = regions.map((r) => r.bounds.right + 80).fold(
@@ -268,15 +272,18 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             icon: const Icon(Icons.add), label: Text(_query.isNotEmpty || _unlinkedOnly ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
           for (final record in records) Positioned(left: _positions[record.id]!.dx, top: _positions[record.id]!.dy,
             child: DragTarget<String>(onWillAcceptWithDetails: (d) => d.data != record.id,
-              onAcceptWithDetails: (d) => _connect(d.data, record.id), builder: (context, candidates, _) => GestureDetector(
+              onAcceptWithDetails: (d) => _connect(d.data, record.id), builder: (context, candidates, _) => ThoughtInteraction(size: _size(record.id), desktop: MediaQuery.sizeOf(context).width >= 760,
                 onTap: () { if (_linkMode && _linkFrom != null) { _connect(_linkFrom!, record.id); }
                   else { setState(() { _selected = record.id; if (_linkMode) _linkFrom = record.id; }); } },
                 onDoubleTap: () => showElementMetadata(context, record.text),
-                onPanUpdate: (d) => setState(() { final p = _positions[record.id]! + d.delta;
-                  _positions[record.id] = Offset(p.dx.clamp(0, sceneWidth - graphThoughtSize.width), p.dy.clamp(0, sceneHeight - graphThoughtSize.height)); _saveLayout(); }),
-                onPanEnd: (details) {
+                onMove: (delta) => setState(() { _positions[record.id] = _positions[record.id]! + delta; _saveLayout(); }),
+                onResize: (size, shift) => setState(() {
+                  _layout.sizes[record.id] = Offset(size.width, size.height);
+                  _positions[record.id] = _positions[record.id]! + shift; _saveLayout();
+                }),
+                onDrop: (pointer) {
                   final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
-                  final center = scene?.globalToLocal(details.globalPosition) ?? thoughtBounds(_positions[record.id]!).center;
+                  final center = scene?.globalToLocal(pointer) ?? _bounds(record.id).center;
                   final targets = regions.where((r) => !r.box.elementIds.contains(record.id) &&
                     (center - r.bounds.center).distance <= r.bounds.width / 2).toList()
                     ..sort((a, b) => a.bounds.width.compareTo(b.bounds.width));
@@ -286,12 +293,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${targets.first.box.name}에 담았습니다.')));
                   }
                   _saveLayout(flush: true);
-                }, onPanCancel: () => _saveLayout(flush: true),
+                }, onEnd: () => _saveLayout(flush: true),
                 child: Card(color: wordBackgroundColor(context, record.text),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: candidates.isNotEmpty || _selected == record.id ? color.primary : Colors.transparent, width: 2)),
-                  child: SizedBox(width: _nodeSize.width, height: _nodeSize.height, child: Row(children: [
-                    Expanded(child: Padding(padding: const EdgeInsets.all(10), child: Text(badgeLabel(record.text), maxLines: 2,
+                  child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Row(children: [
+                    Expanded(child: Padding(padding: const EdgeInsets.all(10), child: Text(badgeLabel(record.text), maxLines: (_size(record.id).height / 24).floor().clamp(2, 20),
                       overflow: TextOverflow.ellipsis, style: TextStyle(color: wordColor(context, record.text))))),
                     Draggable<String>(data: record.id, feedback: Material(child: Chip(label: Text(badgeLabel(record.text), overflow: TextOverflow.ellipsis))),
                       child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.link, size: 20))),

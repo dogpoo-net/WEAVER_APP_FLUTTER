@@ -3,17 +3,18 @@ import 'package:flutter/material.dart';
 import 'memo_boxes.dart';
 
 /// Encloses every member's complete card, with room for the box label.
-Rect? memoBoxCircleBounds(Iterable<Offset> positions) {
+Rect? memoBoxCircleBounds(Iterable<Offset> positions, {Map<Offset, Size> sizes = const {}}) {
   final points = positions.toList();
   if (points.isEmpty) return null;
   final left = points.map((p) => p.dx).reduce(math.min);
-  final right = points.map((p) => p.dx + 178).reduce(math.max);
+  final right = points.map((p) => p.dx + (sizes[p]?.width ?? 178)).reduce(math.max);
   final top = points.map((p) => p.dy).reduce(math.min);
-  final bottom = points.map((p) => p.dy + 84).reduce(math.max);
+  final bottom = points.map((p) => p.dy + (sizes[p]?.height ?? 84)).reduce(math.max);
   final center = Offset((left + right) / 2, (top + bottom) / 2);
   var radius = 0.0;
   for (final point in points) {
-    for (final corner in [point, point + const Offset(178, 0), point + const Offset(0, 84), point + const Offset(178, 84)]) {
+    final size = sizes[point] ?? const Size(178, 84);
+    for (final corner in [point, point + Offset(size.width, 0), point + Offset(0, size.height), point + Offset(size.width, size.height)]) {
       radius = math.max(radius, (corner - center).distance);
     }
   }

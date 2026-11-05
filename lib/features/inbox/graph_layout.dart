@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 /// Each graph owns its layout; thought IDs survive text edits.
 class GraphLayout {
   final positions = <String, Offset>{};
+  final sizes = <String, Offset>{};
   final tags = <String, Offset>{};
   List<double>? viewport;
   String query = '';
@@ -11,6 +12,7 @@ class GraphLayout {
 
   void copyFrom(GraphLayout other) {
     positions..clear()..addAll(other.positions);
+    sizes..clear()..addAll(other.sizes);
     tags..clear()..addAll(other.tags);
     viewport = other.viewport?.toList();
     query = other.query;
@@ -20,6 +22,7 @@ class GraphLayout {
   Map<String, dynamic> toJson() => {
     'positions': {for (final e in positions.entries) e.key: [e.value.dx, e.value.dy]},
     'tags': {for (final e in tags.entries) e.key: [e.value.dx, e.value.dy]},
+    'sizes': {for (final e in sizes.entries) e.key: [e.value.dx, e.value.dy]},
     'viewport': viewport,
     'query': query,
     'unlinkedOnly': unlinkedOnly,
@@ -40,6 +43,8 @@ class GraphLayout {
     }
     readPoints(data['positions'], layout.positions);
     readPoints(data['tags'], layout.tags);
+    readPoints(data['sizes'], layout.sizes);
+    layout.sizes.updateAll((id, p) => Offset(p.dx.clamp(178, 640), p.dy.clamp(84, 520)));
     final matrix = data['viewport'];
     if (matrix is List && matrix.length == 16 && matrix.every((n) => n is num && n.isFinite)) {
       final values = matrix.map((n) => (n as num).toDouble()).toList();

@@ -12,9 +12,9 @@ Rect tagBounds(Offset center) => Rect.fromCenter(center: center, width: graphTag
 
 /// Allocate only missing nodes. Existing/manual positions and filtered nodes stay put.
 void arrangeGraph({required List<String> thoughts, required List<String> tags,
-  required Map<String, Offset> positions, required Map<String, Offset> tagPositions}) {
+  required Map<String, Offset> positions, required Map<String, Offset> tagPositions, Map<String, Size> sizes = const {}}) {
   final occupied = <Rect>[
-    ...positions.values.map(thoughtBounds), ...tagPositions.values.map(tagBounds),
+    ...positions.entries.map((e) => e.value & (sizes[e.key] ?? graphThoughtSize)), ...tagPositions.values.map(tagBounds),
   ];
   bool free(Rect candidate) => !occupied.any((r) => r.inflate(12).overlaps(candidate));
   final tagRows = math.max(1, (tags.length / _columns).ceil());
