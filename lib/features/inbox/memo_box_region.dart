@@ -22,9 +22,10 @@ Rect? memoBoxCircleBounds(Iterable<Offset> positions, {Map<Offset, Size> sizes =
 }
 
 class MemoBoxRegion extends StatelessWidget {
-  const MemoBoxRegion({super.key, required this.box, required this.bounds, this.onDrag, this.onDragEnd});
+  const MemoBoxRegion({super.key, required this.box, required this.bounds, this.onDrag, this.onDragEnd, this.highlighted = false});
   final MemoBox box;
   final Rect bounds;
+  final bool highlighted;
   final ValueChanged<Offset>? onDrag;
   final VoidCallback? onDragEnd;
   @override
@@ -32,8 +33,8 @@ class MemoBoxRegion extends StatelessWidget {
     child: GestureDetector(behavior: HitTestBehavior.opaque,
       onPanUpdate: (d) => onDrag?.call(d.delta), onPanEnd: (_) => onDragEnd?.call(),
       child: DecoratedBox(decoration: BoxDecoration(shape: BoxShape.circle,
-        color: Color(box.color).withValues(alpha: .10),
-        border: Border.all(color: Color(box.color).withValues(alpha: .7), width: 1.5)),
+        color: Color(box.color).withValues(alpha: highlighted ? .16 : .10),
+        border: Border.all(color: Color(box.color).withValues(alpha: .7), width: highlighted ? 3 : 1.5)),
         child: Align(alignment: Alignment.topCenter, child: Padding(padding: const EdgeInsets.fromLTRB(32, 15, 32, 0),
           child: Text(box.name, maxLines: 1, overflow: TextOverflow.ellipsis,
             style: TextStyle(color: Color(box.color), fontSize: 13, fontWeight: FontWeight.w600)))),
