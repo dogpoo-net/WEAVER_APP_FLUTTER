@@ -155,17 +155,26 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   void _arrangeBlocks(List<ElementRecord> records) {
     final byId = {for (final r in records) r.id: r};
+    final owners = <String, int>{};
+    for (var i = 0; i < memoBoxes.length; i++) {
+      for (final id in memoBoxes[i].elementIds) { owners.putIfAbsent(id, () => i); }
+    }
+    int owner(String id) => widget.box != null ? 0 : (owners[id] ?? memoBoxes.length);
+    final order = [...records]..sort((a, b) { final group = owner(a.id).compareTo(owner(b.id)); return group != 0 ? group : a.createdAt.compareTo(b.createdAt); });
     final visited = <String>{};
     var nextColumn = 0;
-    for (final root in records) {
+    int? lastOwner;
+    for (final root in order) {
       if (visited.contains(root.id)) continue;
+      if (lastOwner != null && lastOwner != owner(root.id)) nextColumn++;
+      lastOwner = owner(root.id);
       final pending = <(String, int, double)>[(root.id, nextColumn++, 400)];
       while (pending.isNotEmpty) {
         final (id, column, y) = pending.removeLast();
         if (!visited.add(id)) continue;
-        _positions.putIfAbsent(id, () => Offset(640 + column * 270, y));
+        _positions.putIfAbsent(id, () => Offset(640 + column * 330, y));
         var first = true;
-        for (final child in byId[id]!.connections.where((id) => byId.containsKey(id) && !visited.contains(id))) {
+        for (final child in byId[id]!.connections.where((id) => byId.containsKey(id) && !visited.contains(id) && owner(id) == owner(root.id))) {
           pending.add((child, first ? column : nextColumn++, y + _size(id).height - 16)); first = false;
         }
       }
