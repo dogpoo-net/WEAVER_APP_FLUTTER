@@ -261,7 +261,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
       insetPadding: EdgeInsets.symmetric(horizontal: mobile ? 16 : 40, vertical: 24),
       titlePadding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      actionsPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      actionsPadding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       title: _tags.isEmpty ? null : InlineTags(key: const ValueKey('element-tags'), tags: _tags,
         onRemove: (tag) => setState(() => _tags.remove(tag))),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -297,8 +297,6 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                   child: Switch.adaptive(value: element.hiddenFromSearch,
                     onChanged: (hidden) => setState(() => elements.setHidden(word, hidden))))),
               )),
-              Text(element.createdAt.toLocal().toString().split('.').first,
-                key: const ValueKey('element-created-at'), style: Theme.of(context).textTheme.bodySmall),
               if (element.connections.isNotEmpty) ...[
                 const Divider(key: ValueKey('element-connections-divider'), height: 24, thickness: 1),
                 Text('연결', style: Theme.of(context).textTheme.labelMedium),
@@ -313,6 +311,9 @@ class _ElementMetadataState extends State<_ElementMetadata> {
         ),
       )),
         const Divider(key: ValueKey('element-actions-divider'), height: 16, thickness: 1),
+        Align(alignment: Alignment.centerRight,
+          child: Text(element.createdAt.toLocal().toString().split('.').first,
+            key: const ValueKey('element-created-at'), style: Theme.of(context).textTheme.bodySmall)),
       ]),
       actions: [
         FilledButton.tonal(
