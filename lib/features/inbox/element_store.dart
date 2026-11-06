@@ -197,13 +197,32 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   late final TextEditingController _editor;
   late final Set<String> _tags;
   bool _movingTags = false;
+  late String _word;
+  final _drafts = <String, ({String text, Set<String> tags})>{};
   String? _error;
   @override
   void initState() {
     super.initState();
-    final record = elements.records[widget.word]!;
+    _word = widget.word;
+    final record = elements.records[_word]!;
     _tags = Set.of(record.tags);
     _editor = TextEditingController(text: record.text)..addListener(_extractTags);
+  }
+
+  void _bind(String word) {
+    final record = elements.records[word];
+    if (record == null || word == _word) return;
+    _drafts[_word] = (text: _editor.text, tags: Set.of(_tags));
+    final draft = _drafts[word];
+    FocusScope.of(context).unfocus();
+    _movingTags = true;
+    try {
+      setState(() {
+        _word = word; _error = null;
+        _tags..clear()..addAll(draft?.tags ?? record.tags);
+        _editor.text = draft?.text ?? record.text;
+      });
+    } finally { _movingTags = false; }
   }
 
   void _extractTags() {
@@ -228,7 +247,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
 
   @override
   Widget build(BuildContext context) {
-    final word = widget.word;
+    final word = _word;
     final element = elements.records[word];
     if (element == null) return const SizedBox.shrink();
     final mobile = MediaQuery.sizeOf(context).width < 760;
@@ -283,7 +302,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                 const SizedBox(height: 6),
                 Wrap(spacing: 6, runSpacing: 6, children: [
                   for (final linked in elements.records.values.where((r) => element.connections.contains(r.id)))
-                    WordBadge(word: linked.text, onTap: () => showElementMetadata(context, linked.text)),
+                    WordBadge(word: linked.text, onTap: () => _bind(linked.text)),
                 ]),
               ],
             ],
