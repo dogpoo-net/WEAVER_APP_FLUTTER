@@ -5,7 +5,6 @@ import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/graph_layout.dart';
 import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/memo_box_region.dart';
-import 'package:weaver/features/inbox/puzzle_border.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 import 'package:weaver/features/inbox/thought_interaction.dart';
 
@@ -30,7 +29,7 @@ void main() {
       expect(find.text('바깥 생각'), scoped ? findsNothing : findsOneWidget);
       await tester.tap(find.text('페이지')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(tester.widget<ThoughtPage>(find.byType(ThoughtPage)).blocks, isTrue);
-      expect(find.byWidgetPredicate((w) => w is Card && w.shape is PuzzleBorder), findsWidgets);
+      expect(find.byWidgetPredicate((w) => w is Card && w.shape is RoundedRectangleBorder), findsWidgets);
       expect(find.text('#안쪽'), findsOneWidget);
       expect(tester.widget<MemoBoxRegion>(find.byType(MemoBoxRegion)).rectangular, isTrue);
       expect(find.text('바깥 생각'), scoped ? findsNothing : findsOneWidget);
@@ -40,12 +39,12 @@ void main() {
       await tester.tap(find.text('다이어그램')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(tester.widget<ThoughtPage>(find.byType(ThoughtPage)).blocks, isFalse);
       expect(layout.positions, diagram);
-      expect(a.connections, {b.id}); expect(b.connections, {a.id});
+      expect(a.connections, isEmpty); expect(b.connections, isEmpty);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     });
   }
-  testWidgets('page blocks snap together and create a reciprocal connection', (tester) async {
+  testWidgets('page notes do not auto-connect when dragged beside each other', (tester) async {
     final a = elements.add('윗 블록'); final b = elements.add('아랫 블록');
     await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
     await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
@@ -55,8 +54,7 @@ void main() {
     final from = tester.getCenter(find.text('아랫 블록'));
     await tester.dragFrom(from, target - from);
     await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
-    expect(a.connections, {b.id}); expect(b.connections, {a.id});
-    expect(pageGraphLayout.blockLayout.positions[b.id], pageGraphLayout.blockLayout.positions[a.id]! + Offset(0, node.size.height - 16));
+    expect(a.connections, isEmpty); expect(b.connections, isEmpty);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
