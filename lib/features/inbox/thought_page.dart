@@ -385,12 +385,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${targets.first.box.name}에 담았습니다.')));
                   }
                   if (widget.blocks) {
-                    final moving = _bounds(record.id);
-                    final snap = records.where((r) => r.id != record.id &&
-                      (moving.topLeft - (_bounds(r.id).bottomLeft - const Offset(0, 16))).distance < 48).firstOrNull;
+                    final snap = puzzleDock(record.id, {for (final r in records) r.id: _bounds(r.id)});
                     if (snap != null) {
-                      _positions[record.id] = _bounds(snap.id).bottomLeft - const Offset(0, 16);
-                      _connect(snap.id, record.id);
+                      _positions[record.id] = snap.position;
+                      _connect(snap.target, record.id);
                     }
                   }
                   if (detached.isNotEmpty) _changed();
