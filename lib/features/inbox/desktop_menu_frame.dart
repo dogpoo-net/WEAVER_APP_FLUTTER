@@ -23,6 +23,13 @@ class DesktopMenuFrame extends StatelessWidget {
   const DesktopMenuFrame({super.key, required this.child});
   final Widget child;
   @override
+  Widget build(BuildContext context) => child;
+}
+
+class DesktopMenuBody extends StatelessWidget {
+  const DesktopMenuBody({super.key, required this.child});
+  final Widget child;
+  @override
   Widget build(BuildContext context) => AnimatedBuilder(animation: desktopMenu, child: child,
     builder: (context, child) => Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (MediaQuery.sizeOf(context).width >= 1000 && desktopMenu.visible && desktopMenu.attached)

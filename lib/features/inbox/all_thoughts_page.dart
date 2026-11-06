@@ -249,14 +249,14 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
             ])),
           ])),
         ]))),
-      body: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
+      body: DesktopMenuBody(child: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
         if (desktop && constraints.maxWidth >= 760) { return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(child: grid), const VerticalDivider(width: 1), SizedBox(width: 320, child: _relations(usage, desktop)),
         ]); }
         if (desktop) { return Column(children: [Expanded(child: grid),
           if (_selected != null) SizedBox(height: 260, child: _relations(usage, desktop))]); }
         return grid;
-      })),
+      }))),
     );
   }
 }

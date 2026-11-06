@@ -42,7 +42,7 @@ class _TagPageState extends State<TagPage> {
         .toList();
     return DesktopMenuFrame(child: Scaffold(
       appBar: AppBar(title: WorkspaceTitle('#${widget.tag}'), actions: [const DesktopMenuAction()]),
-      body: SafeArea(
+      body: DesktopMenuBody(child: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 800),
@@ -88,7 +88,7 @@ class _TagPageState extends State<TagPage> {
             ),
           ),
         ),
-      ),
+      )),
     ));
   }
 }

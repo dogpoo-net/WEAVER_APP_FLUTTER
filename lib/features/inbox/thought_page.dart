@@ -304,7 +304,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       IconButton(tooltip: '연결 모드', isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
       IconButton(tooltip: '전체 위치 보기', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
-    ]), body: Column(children: [
+    ]), body: DesktopMenuBody(child: Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 0), child: Row(children: [
         Expanded(child: TextField(key: const ValueKey('graph-search'), controller: _search,
           decoration: const InputDecoration(hintText: '생각·해시태그 찾기', prefixIcon: Icon(Icons.search), isDense: true),
@@ -435,7 +435,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             if (r != null) { r.tags.add(tag); _changed(); } },
           builder: (context, candidates, _) => Chip(backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: candidates.isEmpty ? .2 : .5), label: Text('#$tag')))),
       ])),
-    ]));
+    ])));
   }
 }
 class _Connections extends CustomPainter {

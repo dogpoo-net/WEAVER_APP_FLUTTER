@@ -99,7 +99,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         child: FilledButton.tonalIcon(key: const ValueKey('project-panel-toggle'),
           onPressed: () => setState(() => _panelOpen = !_panelOpen),
           icon: Icon(_panelOpen ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up),
-          label: Text(_panelOpen ? '참고 패널 숨기기' : '참고 패널 올리기'))))), body: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
+          label: Text(_panelOpen ? '참고 패널 숨기기' : '참고 패널 올리기'))))), body: DesktopMenuBody(child: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
       final document = Column(children: [TextField(key: const ValueKey('project-name'), controller: _name, decoration: const InputDecoration(labelText: '프로젝트 이름')),
         const SizedBox(height: 12), Expanded(child: TextField(key: const ValueKey('project-document'), controller: _body, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
           textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
@@ -111,5 +111,5 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
             child: Material(color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(16), child: panel))])
         : Column(children: [Expanded(child: document), AnimatedSize(duration: const Duration(milliseconds: 200), curve: Curves.easeOutCubic,
           child: _panelOpen ? SizedBox(key: const ValueKey('project-reference-panel'), height: (constraints.maxHeight * .42).clamp(0.0, 360.0), child: panel) : const SizedBox.shrink())]));
-    }))));
+    })))));
 }

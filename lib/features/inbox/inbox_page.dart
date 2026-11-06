@@ -1134,7 +1134,7 @@ class _InboxPageState extends State<InboxPage> {
         )),
         centerTitle: false,
       ),
-      body: SizedBox(key: _bodyKey, child: Row(
+      body: DesktopMenuBody(child: SizedBox(key: _bodyKey, child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
@@ -1207,7 +1207,7 @@ class _InboxPageState extends State<InboxPage> {
             ),
           ),
         ],
-      )),
+      ))),
     )));
   }
 }
