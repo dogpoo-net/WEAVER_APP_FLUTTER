@@ -31,12 +31,14 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
   @override
   Widget build(BuildContext context) => GestureDetector(behavior: HitTestBehavior.opaque,
     onTap: widget.onTap, onDoubleTap: widget.onDoubleTap,
-    onLongPressStart: widget.onLift == null ? null : (_) {
-      _longOffset = Offset.zero; setState(() => _lifted = true);
+    onLongPressStart: widget.onLift == null ? null : (d) {
+      _longOffset = d.globalPosition; setState(() => _lifted = true);
       widget.onLift!(); widget.onActiveChanged?.call(true);
     },
     onLongPressMoveUpdate: widget.onLift == null ? null : (d) {
-      widget.onMove(d.localOffsetFromOrigin - _longOffset); _longOffset = d.localOffsetFromOrigin;
+      final box = context.findRenderObject() as RenderBox;
+      widget.onMove(box.globalToLocal(d.globalPosition) - box.globalToLocal(_longOffset));
+      _longOffset = d.globalPosition;
     },
     onLongPressEnd: widget.onLift == null ? null : (d) {
       widget.onDrop(d.globalPosition); setState(() => _lifted = false);

@@ -118,13 +118,19 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _positions.removeWhere((id, _) => !scopeIds.contains(id));
     final scopeTags = scope.expand((r) => r.tags).map((tag) => 'tag:$tag').toSet();
     _tagPositions.removeWhere((tag, _) => !scopeTags.contains(tag));
-    var recovered = false;
-    for (final id in _positions.keys.toList()) {
-      final p = _positions[id]!;
-      final next = Offset(math.max(32, p.dx), math.max(32, p.dy));
-      if (next != p) { _positions[id] = next; recovered = true; }
+    var left = 32.0, top = 32.0;
+    for (final p in [..._positions.values, ..._tagPositions.values]) { left = math.min(left, p.dx); top = math.min(top, p.dy); }
+    for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
+      final bounds = memoBoxCircleBounds(box.elementIds.where(_positions.containsKey).map((id) => _positions[id]!),
+        sizes: {for (final id in box.elementIds.where(_positions.containsKey)) _positions[id]!: _size(id)});
+      if (bounds != null) { left = math.min(left, bounds.left); top = math.min(top, bounds.top); }
     }
-    if (recovered) _centered = false;
+    if (left < 32 || top < 32) {
+      final shift = Offset(32 - left, 32 - top);
+      _positions.updateAll((id, p) => p + shift);
+      _tagPositions.updateAll((id, p) => p + shift);
+      _centered = false;
+    }
     final tags = scope.expand((r) => r.tags).toSet().toList()..sort();
     final ordered = [...scope]..sort((a, b) {
       final at = a.tags.toList()..sort(), bt = b.tags.toList()..sort();
