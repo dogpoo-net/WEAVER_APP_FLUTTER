@@ -22,7 +22,7 @@ void main() {
     await tester.tap(find.text('상자')); await tester.pumpAndSettle();
     expect(tester.widget<WorkspaceMenu>(menu).embedded, isTrue);
     expect(find.byTooltip('메뉴 숨기기'), findsNothing);
-    expect(find.byTooltip('메뉴를 모달로 보기'), findsNothing);
+    expect(find.byTooltip('메뉴를 모달로 보기'), findsOneWidget);
     await tester.tap(find.text('WEAVER')); await tester.pumpAndSettle();
     expect(find.byType(AllThoughtsPage), findsNothing);
     await tester.tap(find.byTooltip('메뉴 숨기기')); await tester.pumpAndSettle();
@@ -30,8 +30,8 @@ void main() {
     expect(tester.getSize(find.byType(DesktopMenuBody)).width, greaterThan(pinnedWidth));
     await tester.tap(find.byTooltip('메뉴 열기')); await tester.pumpAndSettle();
     expect(tester.widget<WorkspaceMenu>(menu).embedded, isFalse);
-    expect(find.byTooltip('메뉴 고정하기'), findsNothing);
-    expect(find.byTooltip('메뉴 닫기'), findsNothing);
+    expect(find.byTooltip('메뉴 고정하기'), findsOneWidget);
+    expect(find.byTooltip('메뉴 닫기'), findsOneWidget);
     await tester.tapAt(const Offset(10, 10)); await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());

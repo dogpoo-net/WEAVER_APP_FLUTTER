@@ -299,7 +299,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     sceneWidth = regions.map((r) => r.bounds.right + 100).fold(sceneWidth, math.max);
     sceneHeight = regions.map((r) => r.bounds.bottom + 100).fold(sceneHeight, math.max);
     final color = Theme.of(context).colorScheme;
-    return Scaffold(appBar: AppBar(bottom: widget.viewSelector == null ? null : PreferredSize(preferredSize: const Size.fromHeight(44), child: widget.viewSelector!), title: WorkspaceTitle(widget.box?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(), 
+    return Scaffold(appBar: AppBar(bottom: widget.viewSelector == null ? null : PreferredSize(preferredSize: const Size.fromHeight(44), child: widget.viewSelector!), title: WorkspaceTitle(widget.box?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(),
       if (widget.box != null) IconButton(tooltip: '상자에 생각 담기', onPressed: _pick, icon: const Icon(Icons.playlist_add)),
       IconButton(tooltip: '연결 모드', isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
