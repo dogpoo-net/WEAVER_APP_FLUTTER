@@ -157,7 +157,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
               title: Text(record.text, maxLines: 2, overflow: TextOverflow.ellipsis), value: selected.contains(record.id),
               onChanged: (checked) => update(() { if (checked == true) { selected.add(record.id); } else { selected.remove(record.id); } })),
           ])),
-        ])), actions: [const DesktopMenuAction(), TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        ])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
           FilledButton(onPressed: () => Navigator.pop(context, selected), child: const Text('담기'))],
       )));
     if (!mounted || result == null) return;
@@ -206,7 +206,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
               children: [for (final record in records) _tile(record, usage, maximum, desktop, width: width)]));
         }),
       ]))));
-    return Scaffold(appBar: AppBar(bottom: widget.viewSelector == null ? null : PreferredSize(preferredSize: const Size.fromHeight(56), child: widget.viewSelector!), title: Text(widget.initialBox?.name ?? '모든 생각 보기'), actions: [const DesktopHomeAction(),
+    return Scaffold(appBar: AppBar(bottom: widget.viewSelector == null ? null : PreferredSize(preferredSize: const Size.fromHeight(56), child: widget.viewSelector!), title: Text(widget.initialBox?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(), const DesktopHomeAction(),
       if (_filterBox != null) IconButton(tooltip: '상자에 담을 메모 선택', onPressed: _manageBox, icon: const Icon(Icons.playlist_add)),
     ]),
       bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
