@@ -144,25 +144,22 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         const SizedBox(height: 12),
         if (!desktop) Row(mainAxisAlignment: MainAxisAlignment.end, children: [
           IconButton(tooltip: '확대', onPressed: _columns > 1 ? () => setState(() => _columns--) : null, icon: const Icon(Icons.zoom_in)),
-          Text('$_columns열'),
+          Text('${(200 / _columns).round()}%'),
           IconButton(tooltip: '축소', onPressed: _columns < 6 ? () => setState(() => _columns++) : null, icon: const Icon(Icons.zoom_out)),
         ]),
         if (records.isEmpty) Padding(padding: const EdgeInsets.all(40),
           child: Text(allRecords.isEmpty ? '아직 원소가 없어요.' : _filterBox != null && _query.isEmpty ? '이 상자에 담긴 메모가 없어요.' : '일치하는 원소가 없어요.')),
         LayoutBuilder(builder: (context, constraints) {
-          final columns = desktop ? math.max(1, (constraints.maxWidth / 260).floor()) : _columns;
-          final width = (constraints.maxWidth - (columns - 1) * 6) / columns;
-          final stacks = List.generate(columns, (_) => <Widget>[]);
-          final heights = List.filled(columns, 0.0);
+          final maxWidth = desktop ? math.min(480.0, constraints.maxWidth)
+            : (constraints.maxWidth * 2 / _columns).clamp(48.0, constraints.maxWidth);
+          final tiles = <Widget>[];
           for (final record in records) {
-            var column = 0;
-            for (var i = 1; i < columns; i++) { if (heights[i] < heights[column]) column = i; }
             final painter = TextPainter(text: TextSpan(text: record.text,
               style: DefaultTextStyle.of(context).style.merge(const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
-              textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout(maxWidth: math.max(1, width - 14));
-            heights[column] += math.max(30, painter.height + 6) + 6;
+              textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
+            final width = (painter.width + 24).clamp(32.0, maxWidth);
             painter.dispose();
-            stacks[column].add(Padding(padding: const EdgeInsets.only(bottom: 6), child: _tile(record, desktop, width: width)));
+            tiles.add(_tile(record, desktop, width: width));
           }
           return GestureDetector(
             onScaleStart: desktop ? null : (_) => _scaleColumns = _columns,
@@ -171,12 +168,8 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
               final next = (_scaleColumns / details.scale).round().clamp(1, 6);
               if (next != _columns) setState(() => _columns = next);
             },
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              for (var i = 0; i < columns; i++) ...[
-                if (i > 0) const SizedBox(width: 6),
-                SizedBox(width: width, child: Column(children: stacks[i])),
-              ],
-            ]));
+            child: SizedBox(width: constraints.maxWidth, child: Wrap(
+              spacing: 6, runSpacing: 6, children: tiles)));
         }),
       ]))));
     return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null, leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(widget.initialBox?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(),
@@ -249,11 +242,11 @@ class _ThoughtViewsState extends State<AllThoughtsPage> {
   late ThoughtView _view = widget.initialView;
   @override
   Widget build(BuildContext context) {
-    final mobile = MediaQuery.sizeOf(context).width < 1000;
-    final selector = Padding(padding: EdgeInsets.fromLTRB(mobile ? 0 : 12, 0, mobile ? 0 : 12, 8), child: SegmentedButton<ThoughtView>(
-      expandedInsets: mobile ? EdgeInsets.zero : null,
+    final selector = Padding(padding: const EdgeInsets.only(bottom: 8), child: SegmentedButton<ThoughtView>(
+      expandedInsets: EdgeInsets.zero,
       showSelectedIcon: false,
-      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      style: TextButton.styleFrom(side: BorderSide.none, shape: const RoundedRectangleBorder(),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         minimumSize: const Size(0, 32), visualDensity: VisualDensity.compact,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap),
       segments: const [ButtonSegment(value: ThoughtView.diagram, label: Text('다이어그램')),
