@@ -18,16 +18,16 @@ void main() {
       elements.connect(a.id, [b.id]);
       final box = MemoBox('검토함', ids: [a.id, b.id]); memoBoxes.add(box);
       await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(notes: const [], initialBox: scoped ? box : null)));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(find.byType(ThoughtPage), findsOneWidget);
       expect(find.text('안쪽 생각'), findsOneWidget);
       expect(find.text('바깥 생각'), scoped ? findsNothing : findsOneWidget);
       final diagram = Map.of((scoped ? box.layout : pageGraphLayout).positions);
-      await tester.tap(find.text('상자')); await tester.pumpAndSettle();
+      await tester.tap(find.text('상자')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(find.byType(ThoughtBoxView), findsOneWidget);
       expect(find.byKey(ValueKey('thought-${a.id}')), findsOneWidget);
       expect(find.text('바깥 생각'), scoped ? findsNothing : findsOneWidget);
-      await tester.tap(find.text('페이지')); await tester.pumpAndSettle();
+      await tester.tap(find.text('페이지')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(tester.widget<ThoughtPage>(find.byType(ThoughtPage)).blocks, isTrue);
       expect(find.byWidgetPredicate((w) => w is Card && w.shape is PuzzleBorder), findsWidgets);
       expect(find.text('#안쪽'), findsOneWidget);
@@ -36,7 +36,7 @@ void main() {
       final layout = scoped ? box.layout : pageGraphLayout;
       expect(layout.blockLayout.positions.keys, containsAll([a.id, b.id]));
       expect(GraphLayout.fromJson(layout.toJson()).blockLayout.positions, layout.blockLayout.positions);
-      await tester.tap(find.text('다이어그램')); await tester.pumpAndSettle();
+      await tester.tap(find.text('다이어그램')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(tester.widget<ThoughtPage>(find.byType(ThoughtPage)).blocks, isFalse);
       expect(layout.positions, diagram);
       expect(a.connections, {b.id}); expect(b.connections, {a.id});
