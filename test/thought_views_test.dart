@@ -7,6 +7,7 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/memo_box_region.dart';
 import 'package:weaver/features/inbox/puzzle_border.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
+import 'package:weaver/features/inbox/thought_interaction.dart';
 
 void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); pageGraphLayout = GraphLayout(); });
@@ -44,4 +45,20 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
+  testWidgets('page blocks snap together and create a reciprocal connection', (tester) async {
+    final a = elements.add('윗 블록'); final b = elements.add('아랫 블록');
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
+    final viewer = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
+    final node = tester.widget<ThoughtInteraction>(find.ancestor(of: find.text('윗 블록'), matching: find.byType(ThoughtInteraction)));
+    final target = tester.getCenter(find.text('윗 블록')) + Offset(0, (node.size.height - 16) * viewer.transformationController!.value.getMaxScaleOnAxis());
+    final from = tester.getCenter(find.text('아랫 블록'));
+    await tester.dragFrom(from, target - from);
+    await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
+    expect(a.connections, {b.id}); expect(b.connections, {a.id});
+    expect(pageGraphLayout.blockLayout.positions[b.id], pageGraphLayout.blockLayout.positions[a.id]! + Offset(0, node.size.height - 16));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
 }
