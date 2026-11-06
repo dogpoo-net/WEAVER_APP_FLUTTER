@@ -206,7 +206,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
               children: [for (final record in records) _tile(record, usage, maximum, desktop, width: width)]));
         }),
       ]))));
-    return Scaffold(appBar: AppBar(bottom: widget.viewSelector == null ? null : PreferredSize(preferredSize: const Size.fromHeight(56), child: widget.viewSelector!), title: WorkspaceTitle(widget.initialBox?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(), 
+    return Scaffold(appBar: AppBar(bottom: widget.viewSelector == null ? null : PreferredSize(preferredSize: const Size.fromHeight(44), child: widget.viewSelector!), title: WorkspaceTitle(widget.initialBox?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(), 
       if (_filterBox != null) IconButton(tooltip: '상자에 담을 메모 선택', onPressed: _manageBox, icon: const Icon(Icons.playlist_add)),
     ]),
       bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -277,6 +277,9 @@ class _ThoughtViewsState extends State<AllThoughtsPage> {
   @override
   Widget build(BuildContext context) {
     final selector = Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 8), child: SegmentedButton<ThoughtView>(
+      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        minimumSize: const Size(0, 32), visualDensity: VisualDensity.compact,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap),
       segments: const [ButtonSegment(value: ThoughtView.diagram, label: Text('다이어그램')),
         ButtonSegment(value: ThoughtView.boxes, label: Text('상자')),
         ButtonSegment(value: ThoughtView.page, label: Text('페이지'))],

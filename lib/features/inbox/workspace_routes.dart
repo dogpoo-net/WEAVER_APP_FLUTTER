@@ -40,6 +40,6 @@ class WorkspaceTitle extends StatelessWidget {
   Widget build(BuildContext context) => MediaQuery.sizeOf(context).width >= 1000
     ? Row(children: [TextButton(onPressed: () => navigateHome(context), child: const Text('WEAVER',
         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 2))),
-        const SizedBox(width: 8), Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis))])
-    : Text(title);
+        const SizedBox(width: 8), Expanded(child: Text(title, style: const TextStyle(fontSize: 18), maxLines: 1, overflow: TextOverflow.ellipsis))])
+    : Text(title, style: const TextStyle(fontSize: 18));
 }

@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 
 /// Add light color sets here; brightness remains a separate user choice.
-enum LightPalette { neutral, beige }
+enum LightPalette { neutral, beige, sage, blue }
 
 ColorScheme get weaverDarkColors => ColorScheme.fromSeed(
   seedColor: const Color(0xFF536DFE), brightness: Brightness.dark);
 
 extension LightPaletteColors on LightPalette {
-  String get label => switch (this) { LightPalette.neutral => '화이트·그레이', LightPalette.beige => '베이지' };
+  String get label => switch (this) { LightPalette.neutral => '화이트·그레이', LightPalette.beige => '베이지', LightPalette.sage => '세이지', LightPalette.blue => '미스트 블루' };
   ColorScheme get colors {
+    if (this == LightPalette.sage || this == LightPalette.blue) {
+      return ColorScheme.fromSeed(seedColor: this == LightPalette.sage
+        ? const Color(0xFF637E68) : const Color(0xFF587C9A), brightness: Brightness.light);
+    }
     if (this == LightPalette.beige) { return ColorScheme.fromSeed(seedColor: const Color(0xFF876747), brightness: Brightness.light).copyWith(
             primary: const Color(0xFF795A39),
             onPrimary: const Color(0xFFFFFFFF),
