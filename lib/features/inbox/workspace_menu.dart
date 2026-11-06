@@ -1,3 +1,4 @@
+import 'workspace_routes.dart';
 import 'memo_boxes.dart';
 import 'dart:async';
 import 'tag_colors.dart';
@@ -13,7 +14,7 @@ class _MenuDrag {
 class WorkspaceMenu extends StatefulWidget {
   const WorkspaceMenu({super.key, required this.projects, this.tags = const [],
     this.paragraphs = const [], this.elements = const [], this.embedded = false,
-    this.onSelected, this.onHide, this.onPin, this.folders = const [],
+    this.onSelected, this.onHide, this.onPin, this.onFloat, this.folders = const [],
     this.projectFolderNames = const [], this.tagFolders = const [], this.tagFolderNames = const {},
     this.paragraphFolders = const [], this.elementFolders = const [],
     this.paragraphFolderNames = const [], this.elementFolderNames = const [],
@@ -23,7 +24,7 @@ class WorkspaceMenu extends StatefulWidget {
   static const createBox = -1000007, createBoxFolder = -1000008;
   final VoidCallback? onTagColorChanged;
   final ValueChanged<int>? onSelected;
-  final VoidCallback? onHide, onPin;
+  final VoidCallback? onHide, onPin, onFloat;
   static const allThoughts = -1000006, createParagraph = -2;
   static const createProject = -1000002, resetData = -1000003;
   static const createFolder = -1000000, createTagFolder = -1000001;
@@ -198,7 +199,8 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   Widget build(BuildContext context) {
     final content = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Padding(padding: const EdgeInsetsDirectional.fromSTEB(20, 12, 8, 4), child: Row(children: [
-        Expanded(child: TextButton(onPressed: () { if (!widget.embedded) Navigator.pop(context); Navigator.of(context).popUntil((r) => r.isFirst); }, child: const Text('WEAVER', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 2)))),
+        Expanded(child: TextButton(onPressed: () { if (!widget.embedded) Navigator.pop(context); navigateHome(context); }, child: const Text('WEAVER', style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 2)))),
+        if (widget.embedded && widget.onFloat != null) IconButton(tooltip: '메뉴를 모달로 보기', onPressed: widget.onFloat, icon: const Icon(Icons.open_in_new)),
         if (!widget.embedded && widget.onPin != null) IconButton(tooltip: '메뉴 고정하기', onPressed: widget.onPin,
           icon: const Icon(Icons.push_pin_outlined)),
         IconButton(tooltip: widget.embedded ? '메뉴 숨기기' : '메뉴 닫기',

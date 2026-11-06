@@ -1,3 +1,5 @@
+import 'workspace_routes.dart';
+import 'desktop_menu_frame.dart';
 import 'graph_layout.dart';
 import 'keyboard_viewport.dart';
 import 'inline_tags.dart';
@@ -56,7 +58,8 @@ class _InboxPageState extends State<InboxPage> {
   String _query = '';
   int _memoRows = 5, _paragraphLimit = 5, _projectLimit = 5;
   bool _memoHasMore = false;
-  bool _menuVisible = true;
+  bool get _menuVisible => desktopMenu.visible;
+  set _menuVisible(bool value) => desktopMenu.setVisible(value);
   bool _pendingImeSave = false;
   bool _pendingImeNewline = false, _finishingImeNewline = false;
   int _imeNewlineLines = 0;
@@ -75,6 +78,7 @@ class _InboxPageState extends State<InboxPage> {
   @override
   void initState() {
     super.initState();
+    desktopMenu.visible = true;
     _draft.addListener(_imeUpdated);
     projectFolders.clear();
     paragraphFolders.clear();
@@ -316,6 +320,7 @@ class _InboxPageState extends State<InboxPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.addPostFrameCallback((_) => desktopMenu.detach(this));
     elements.removeListener(_elementDeleted);
     elements.onProjectChanged = null;
     elements.availableParagraphs = null;
@@ -1027,58 +1032,10 @@ class _InboxPageState extends State<InboxPage> {
             ),
           );
 
-  @override
-  Widget build(BuildContext context) {
-    for (final note in _notes) {
-      if (note.project != null) elements.indexProject(note.project!);
-    }
-    elements.sources[this] = [
-      for (var i = 0; i < _notes.length; i++)
-        if (_notes[i].paragraphs != null && _notes[i].project == null)
-          ElementSource(
-            '독립 문단 ${i + 1}: ${_notes[i].title}',
-            _notes[i].content,
-          ),
-    ];
-    final rawMedia = MediaQuery.of(context);
-    final media = rawMedia.copyWith(viewInsets: rawMedia.viewInsets.copyWith(bottom: effectiveKeyboardInset(rawMedia)));
-    return MediaQuery(data: media, child: Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          tooltip: MediaQuery.sizeOf(context).width >= 1000 && _menuVisible
-              ? '메뉴 숨기기'
-              : '메뉴 열기',
-          onPressed: MediaQuery.sizeOf(context).width >= 1000 && _menuVisible
-              ? () => setState(() => _menuVisible = false)
-              : _menu,
-          icon: const Icon(Icons.grid_view_rounded),
-        ),
-        actions: [
-          IconButton(
-            tooltip: '테마 선택',
-            onPressed: _showTheme,
-            icon: Icon(Theme.of(context).brightness == Brightness.dark
-              ? Icons.dark_mode_outlined : Icons.light_mode_outlined),
-          ),
-          const SizedBox(width: 12),
-        ],
-        title: GestureDetector(onTap: () => Navigator.of(context).popUntil((r) => r.isFirst), child: Text(
-          'WEAVER',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 3,
-          ),
-        )),
-        centerTitle: false,
-      ),
-      body: SizedBox(key: _bodyKey, child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (MediaQuery.sizeOf(context).width >= 1000 && _menuVisible)
-            SafeArea(
+  Widget _desktopSidebar(BuildContext context) => SafeArea(
               child: WorkspaceMenu(
                 embedded: true,
+                onFloat: () { setState(() => _menuVisible = false); _menu(); },
                 onHide: () => setState(() => _menuVisible = false),
                 projects: _notes
                     .where((n) => n.project != null)
@@ -1114,7 +1071,57 @@ class _InboxPageState extends State<InboxPage> {
                   _allTags,
                 ),
               ),
-            ),
+            );
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) desktopMenu.attach(this, _desktopSidebar, _menu, () => mounted); });
+    for (final note in _notes) {
+      if (note.project != null) elements.indexProject(note.project!);
+    }
+    elements.sources[this] = [
+      for (var i = 0; i < _notes.length; i++)
+        if (_notes[i].paragraphs != null && _notes[i].project == null)
+          ElementSource(
+            '독립 문단 ${i + 1}: ${_notes[i].title}',
+            _notes[i].content,
+          ),
+    ];
+    final rawMedia = MediaQuery.of(context);
+    final media = rawMedia.copyWith(viewInsets: rawMedia.viewInsets.copyWith(bottom: effectiveKeyboardInset(rawMedia)));
+    return MediaQuery(data: media, child: DesktopMenuFrame(child: Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: MediaQuery.sizeOf(context).width >= 1000 && _menuVisible
+              ? '메뉴 숨기기'
+              : '메뉴 열기',
+          onPressed: MediaQuery.sizeOf(context).width >= 1000 && _menuVisible
+              ? () => setState(() => _menuVisible = false)
+              : _menu,
+          icon: const Icon(Icons.grid_view_rounded),
+        ),
+        actions: [
+          IconButton(
+            tooltip: '테마 선택',
+            onPressed: _showTheme,
+            icon: Icon(Theme.of(context).brightness == Brightness.dark
+              ? Icons.dark_mode_outlined : Icons.light_mode_outlined),
+          ),
+          const SizedBox(width: 12),
+        ],
+        title: GestureDetector(onTap: () => navigateHome(context), child: Text(
+          'WEAVER',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 3,
+          ),
+        )),
+        centerTitle: false,
+      ),
+      body: SizedBox(key: _bodyKey, child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           Expanded(
             child: SafeArea(
               child: LayoutBuilder(builder: (context, viewport) {
@@ -1186,6 +1193,6 @@ class _InboxPageState extends State<InboxPage> {
           ),
         ],
       )),
-    ));
+    )));
   }
 }

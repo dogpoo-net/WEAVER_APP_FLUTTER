@@ -1,3 +1,4 @@
+import 'desktop_menu_frame.dart';
 import 'tag_colors.dart';
 import 'thought_page.dart';
 import 'memo_boxes.dart';
@@ -156,7 +157,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
               title: Text(record.text, maxLines: 2, overflow: TextOverflow.ellipsis), value: selected.contains(record.id),
               onChanged: (checked) => update(() { if (checked == true) { selected.add(record.id); } else { selected.remove(record.id); } })),
           ])),
-        ])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        ])), actions: [const DesktopMenuAction(), TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
           FilledButton(onPressed: () => Navigator.pop(context, selected), child: const Text('담기'))],
       )));
     if (!mounted || result == null) return;
@@ -205,7 +206,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
               children: [for (final record in records) _tile(record, usage, maximum, desktop, width: width)]));
         }),
       ]))));
-    return Scaffold(appBar: AppBar(bottom: widget.viewSelector == null ? null : PreferredSize(preferredSize: const Size.fromHeight(56), child: widget.viewSelector!), title: Text(widget.initialBox?.name ?? '모든 생각 보기'), actions: [TextButton(onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst), child: const Text('WEAVER', style: TextStyle(fontSize: 11))),
+    return Scaffold(appBar: AppBar(bottom: widget.viewSelector == null ? null : PreferredSize(preferredSize: const Size.fromHeight(56), child: widget.viewSelector!), title: Text(widget.initialBox?.name ?? '모든 생각 보기'), actions: [TextButton(onPressed: () => navigateHome(context), child: const Text('WEAVER', style: TextStyle(fontSize: 11))),
       if (_filterBox != null) IconButton(tooltip: '상자에 담을 메모 선택', onPressed: _manageBox, icon: const Icon(Icons.playlist_add)),
     ]),
       bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -281,9 +282,9 @@ class _ThoughtViewsState extends State<AllThoughtsPage> {
         ButtonSegment(value: ThoughtView.page, label: Text('페이지'))],
       selected: {_view}, onSelectionChanged: (value) => setState(() => _view = value.single),
     ));
-    if (_view == ThoughtView.boxes) { return ThoughtBoxView(notes: widget.notes, initialBox: widget.initialBox,
-      onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector); }
-    return ThoughtPage(key: ValueKey(_view), box: widget.initialBox, blocks: _view == ThoughtView.page,
-      onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, viewSelector: selector);
+    if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(notes: widget.notes, initialBox: widget.initialBox,
+      onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector)); }
+    return DesktopMenuFrame(child: ThoughtPage(key: ValueKey(_view), box: widget.initialBox, blocks: _view == ThoughtView.page,
+      onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, viewSelector: selector));
   }
 }

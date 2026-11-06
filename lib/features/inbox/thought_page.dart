@@ -1,3 +1,4 @@
+import 'desktop_menu_frame.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -298,7 +299,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     sceneWidth = regions.map((r) => r.bounds.right + 100).fold(sceneWidth, math.max);
     sceneHeight = regions.map((r) => r.bounds.bottom + 100).fold(sceneHeight, math.max);
     final color = Theme.of(context).colorScheme;
-    return Scaffold(appBar: AppBar(bottom: widget.viewSelector == null ? null : PreferredSize(preferredSize: const Size.fromHeight(56), child: widget.viewSelector!), title: Text(widget.box?.name ?? '모든 생각 보기'), actions: [TextButton(onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst), child: const Text('WEAVER', style: TextStyle(fontSize: 11))),
+    return Scaffold(appBar: AppBar(bottom: widget.viewSelector == null ? null : PreferredSize(preferredSize: const Size.fromHeight(56), child: widget.viewSelector!), title: Text(widget.box?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(), TextButton(onPressed: () => navigateHome(context), child: const Text('WEAVER', style: TextStyle(fontSize: 11))),
       if (widget.box != null) IconButton(tooltip: '상자에 생각 담기', onPressed: _pick, icon: const Icon(Icons.playlist_add)),
       IconButton(tooltip: '연결 모드', isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),

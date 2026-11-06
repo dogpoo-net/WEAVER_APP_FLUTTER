@@ -1,3 +1,4 @@
+import 'desktop_menu_frame.dart';
 import 'paragraph_editor.dart';
 import 'package:flutter/material.dart';
 import 'project_document_editor.dart';
@@ -26,5 +27,5 @@ class ProjectPage extends StatelessWidget {
   final int? initialParagraph, initialOffset;
   final List<Paragraph> available;
   @override
-  Widget build(BuildContext context) => ProjectDocumentEditor(project: project, onChanged: onChanged);
+  Widget build(BuildContext context) => DesktopMenuFrame(child: ProjectDocumentEditor(project: project, onChanged: onChanged));
 }

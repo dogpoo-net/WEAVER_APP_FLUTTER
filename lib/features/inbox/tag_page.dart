@@ -1,3 +1,5 @@
+import 'workspace_routes.dart';
+import 'desktop_menu_frame.dart';
 import 'package:flutter/material.dart';
 
 import 'element_store.dart';
@@ -38,8 +40,8 @@ class _TagPageState extends State<TagPage> {
                   .any((hit) => words.contains(hit.word))),
         )
         .toList();
-    return Scaffold(
-      appBar: AppBar(title: Text('#${widget.tag}'), actions: [TextButton(onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst), child: const Text('WEAVER', style: TextStyle(fontSize: 11)))]),
+    return DesktopMenuFrame(child: Scaffold(
+      appBar: AppBar(title: Text('#${widget.tag}'), actions: [const DesktopMenuAction(), TextButton(onPressed: () => navigateHome(context), child: const Text('WEAVER', style: TextStyle(fontSize: 11)))]),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -87,6 +89,6 @@ class _TagPageState extends State<TagPage> {
           ),
         ),
       ),
-    );
+    ));
   }
 }
