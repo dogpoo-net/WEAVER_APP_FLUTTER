@@ -115,6 +115,7 @@ class WordBadge extends StatelessWidget {
     this.tag = false,
     this.compact = false,
     this.query = '',
+    this.fullText = false,
     this.onLongPress,
     this.onDoubleTap,
   });
@@ -124,6 +125,7 @@ class WordBadge extends StatelessWidget {
   final bool selected;
   final bool tag;
   final bool compact;
+  final bool fullText;
   final VoidCallback? onLongPress;
   final VoidCallback? onDoubleTap;
   @override
@@ -152,7 +154,7 @@ class WordBadge extends StatelessWidget {
         minimumSize: const Size(0, 30),
         padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 12, vertical: compact ? 3 : 5),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        shape: StadiumBorder(
+        shape: fullText ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: selected ? BorderSide(color: Theme.of(context).colorScheme.primary, width: 2) : BorderSide.none) : StadiumBorder(
           side: selected
               ? BorderSide(
                   color: Theme.of(context).colorScheme.primary,
@@ -162,8 +164,8 @@ class WordBadge extends StatelessWidget {
         ),
         textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
       ),
-      child: Text.rich(_badgeExcerpt(context, word, query, maxWidth - 24),
-        maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, semanticsLabel: word),
+      child: Text.rich(fullText ? TextSpan(text: word) : _badgeExcerpt(context, word, query, maxWidth - 24),
+        maxLines: fullText ? null : 1, softWrap: fullText, overflow: fullText ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: word),
     ));
     return onDoubleTap == null ? badge : GestureDetector(onDoubleTap: onDoubleTap, child: badge);
     });

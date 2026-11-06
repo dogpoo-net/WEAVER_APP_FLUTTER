@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/all_thoughts_page.dart';
 import 'package:weaver/features/inbox/element_store.dart';
-import 'package:weaver/features/inbox/element_usage.dart';
 import 'package:weaver/features/inbox/project_page.dart';
 import 'package:weaver/features/inbox/word_badge.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
@@ -23,16 +22,8 @@ void main() {
   void records() {
     for (final word in ['관찰', '질문', '연결', '미사용']) { elements.add(word); }
     elements.records['미사용']!.hiddenFromSearch = true;
+    elements.connect(elements.records['관찰']!.id, [elements.records['질문']!.id]);
   }
-
-  test('usage counts occurrences and co-occurrence counts distinct shared sentences', () {
-    records();
-    final usage = ElementUsage.fromNotes(notes(), elements);
-    expect(usage.counts, {'관찰': 5, '질문': 3, '연결': 2, '미사용': 0});
-    expect(usage.together['관찰'], {'질문': 2, '연결': 1});
-    expect(usage.together['질문'], {'관찰': 2, '연결': 1});
-    expect(usage.together['미사용'], isEmpty);
-  });
 
   testWidgets('desktop single click shows related elements and double click opens metadata', (tester) async {
     records();
@@ -46,17 +37,17 @@ void main() {
     final badge = find.descendant(of: grid, matching: find.byWidgetPredicate((w) => w is WordBadge && w.word == '관찰'));
     final hiddenId = elements.records['미사용']!.id;
     expect(find.byKey(ValueKey('thought-$hiddenId')), findsOneWidget);
-    expect(tester.widget<Text>(find.byKey(ValueKey('usage-${elements.records['관찰']!.id}'))).data, '5회');
+    expect(find.byType(LinearProgressIndicator), findsNothing);
     await tester.tap(badge);
     await tester.pump();
     // Relations change before the double-click timeout has elapsed.
-    expect(find.byKey(ValueKey('together-${elements.records['질문']!.id}')), findsOneWidget);
+    expect(find.byKey(const ValueKey('thought-relations')), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
     final relations = find.byKey(const ValueKey('thought-relations'));
     expect(tester.getRect(relations).left, greaterThanOrEqualTo(tester.getRect(grid).right));
-    expect(tester.widget<Text>(find.byKey(ValueKey('together-${elements.records['질문']!.id}'))).data, '2문장');
+    expect(find.descendant(of: relations, matching: find.byWidgetPredicate((w) => w is WordBadge && w.word == '질문')), findsOneWidget);
     await tester.tap(badge);
     await tester.pump(const Duration(milliseconds: 50));
     await tester.tap(badge);
@@ -81,7 +72,9 @@ void main() {
     expect(tester.widget<WordBadge>(badge).word, phrase);
     expect(tester.widget<WordBadge>(badge).query, 'DART');
     final text = tester.widget<Text>(find.descendant(of: badge, matching: find.byType(Text)));
-    expect(text.textSpan!.toPlainText(), contains('Dart'));
+    expect(text.textSpan!.toPlainText(), phrase);
+    expect(text.maxLines, isNull);
+    expect(text.softWrap, isTrue);
     expect(tester.getRect(search).top, closeTo(before.top, 1));
     await tester.enterText(search, '없는 검색어');
     await tester.pumpAndSettle();

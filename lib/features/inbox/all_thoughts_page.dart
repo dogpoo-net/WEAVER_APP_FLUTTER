@@ -5,7 +5,6 @@ import 'memo_boxes.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'element_store.dart';
-import 'element_usage.dart';
 import 'word_badge.dart';
 import 'workspace_routes.dart';
 import 'workspace_storage.dart';
@@ -64,70 +63,32 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   }
   Widget _badge(String word, bool desktop) {
     final badge = WordBadge(
-    word: word, compact: true, query: _query, selected: elements.records[word]?.id == _selectedId,
+    word: word, compact: true, fullText: true, query: _query, selected: elements.records[word]?.id == _selectedId,
     onTap: desktop ? () => _select(word) : () => showElementMetadata(context, word),
     onDoubleTap: desktop ? () { _select(word); showElementMetadata(context, word); } : null,
     );
     return desktop ? Listener(
       onPointerDown: (event) { if (event.buttons == 1) _select(word); }, child: badge) : badge;
   }
-  Widget _tile(ElementRecord record, ElementUsage usage, int maximum, bool desktop, {double width = 280}) {
-    final count = usage.counts[record.text] ?? 0;
-    final colors = Theme.of(context).colorScheme;
-    final selected = record.id == _selectedId;
-    final tile = Container(key: ValueKey('thought-${record.id}'), width: width,
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16),
-        color: selected ? colors.secondaryContainer : colors.surfaceContainerLow,
-        border: Border.all(color: selected ? colors.primary : colors.outlineVariant)),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Row(children: [Expanded(child: _badge(record.text, desktop)), const SizedBox(width: 3),
-          if (width >= 100) Semantics(label: '사용 $count회', child: Text('$count회', key: ValueKey('usage-${record.id}'),
-            style: TextStyle(fontWeight: FontWeight.w700, color: colors.primary))),
-          if (width >= 100 && !elements.isSearchable(record.text)) const Padding(padding: EdgeInsetsDirectional.only(start: 4),
-            child: Tooltip(message: '메인·어시스트 검색에서 숨긴 원소', child: Icon(Icons.visibility_off_outlined, size: 14))),
-        ]),
-        const SizedBox(height: 4),
-        LinearProgressIndicator(value: maximum == 0 ? 0 : count / maximum, minHeight: 3,
-          borderRadius: BorderRadius.circular(3), backgroundColor: colors.surfaceContainerHighest),
-      ]));
+  Widget _tile(ElementRecord record, bool desktop, {double width = 280}) {
+    final tile = SizedBox(key: ValueKey('thought-${record.id}'), width: width, child: _badge(record.text, desktop));
     final feedback = Material(color: Colors.transparent, child: SizedBox(width: 180, child: _badge(record.text, false)));
     if (desktop) { return Draggable<MemoDrag>(data: MemoDrag(record.id), feedback: feedback,
       childWhenDragging: Opacity(opacity: .4, child: tile), child: tile); }
     return LongPressDraggable<MemoDrag>(data: MemoDrag(record.id), feedback: feedback,
       childWhenDragging: Opacity(opacity: .4, child: tile), child: tile);
   }
-  Widget _relations(ElementUsage usage, bool desktop) {
+  Widget _relations(bool desktop) {
     final selected = _selected;
-    final colors = Theme.of(context).colorScheme;
-    if (selected == null) { return const Center(child: Padding(padding: EdgeInsets.all(24),
-      child: Text('원소를 클릭하면\n함께 쓰인 원소를 보여줍니다.', textAlign: TextAlign.center))); }
-    final related = (usage.together[selected.text] ?? {}).entries.where((e) => widget.initialBox == null || widget.initialBox!.elementIds.contains(elements.records[e.key]?.id)).toList()
-      ..sort((a, b) { final frequency = b.value.compareTo(a.value); return frequency != 0 ? frequency : a.key.compareTo(b.key); });
-    final maximum = related.isEmpty ? 1 : related.first.value;
+    if (selected == null) { return const Center(child: Text('생각을 클릭하면 연결된 생각을 보여줍니다.')); }
+    final related = elements.records.values.where((r) => selected.connections.contains(r.id) &&
+      (widget.initialBox == null || widget.initialBox!.elementIds.contains(r.id)));
     return SingleChildScrollView(key: const ValueKey('thought-relations'), padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const Text('함께 쓰인 원소', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-        const SizedBox(height: 20),
-        Center(child: _badge(selected.text, desktop)),
-        const SizedBox(height: 6),
-        Text('총 ${usage.counts[selected.text] ?? 0}회 사용', textAlign: TextAlign.center),
-        const Icon(Icons.keyboard_arrow_down, size: 30),
-        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(
-          color: colors.surfaceContainerLow, borderRadius: BorderRadius.circular(20), border: Border.all(color: colors.outlineVariant)),
-          child: Column(children: [
-            if (related.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('함께 쓰인 원소가 없어요.')),
-            for (final entry in related) Padding(padding: const EdgeInsets.only(bottom: 12),
-              child: Column(children: [
-                Row(children: [Expanded(child: _badge(entry.key, desktop)), const SizedBox(width: 6),
-                  Text('${entry.value}문장', key: ValueKey('together-${elements.records[entry.key]!.id}'))]),
-                const SizedBox(height: 5),
-                LinearProgressIndicator(value: entry.value / maximum, minHeight: 3,
-                  borderRadius: BorderRadius.circular(3), backgroundColor: colors.surfaceContainerHighest),
-              ])),
-          ])),
-        const SizedBox(height: 16),
-        const Text('같은 문단·프로젝트 문장에서 함께 등장한 횟수입니다.', style: TextStyle(fontSize: 12)),
+        const Text('연결된 생각', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+        const SizedBox(height: 12), _badge(selected.text, desktop), const Divider(height: 24),
+        if (related.isEmpty) const Text('연결된 생각이 없어요.'),
+        for (final record in related) Padding(padding: const EdgeInsets.only(bottom: 6), child: _badge(record.text, desktop)),
       ]));
   }
   Widget _colorLabel(String label, Color color, VoidCallback onTap) => Tooltip(message: label,
@@ -166,24 +127,20 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   }
   @override
   Widget build(BuildContext context) {
-    final usage = ElementUsage.fromNotes(widget.notes, elements);
     final allRecords = elements.records.values.where((r) => widget.initialBox == null || widget.initialBox!.elementIds.contains(r.id)).toList();
     final tags = allRecords.expand((record) => record.tags).toSet().toList()..sort();
     final records = allRecords.where((record) =>
       (_filterBox == null || _filterBox!.elementIds.contains(record.id)) &&
       (_filterTag == null || record.tags.contains(_filterTag)) &&
       record.text.toLowerCase().contains(_query.toLowerCase())).toList();
-    final maximum = usage.counts.values.fold<int>(0, math.max);
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
     final grid = SingleChildScrollView(key: const ValueKey('all-thoughts-grid'), padding: EdgeInsets.all(desktop ? 24 : 8),
       child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1000), child: Column(children: [
         Text(_query.isEmpty && _filterBox == null && _filterTag == null ? '원소 ${records.length}개' : '원소 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 6),
-        const Text('사용 횟수는 저장된 문단·프로젝트 문장 안의 등장 횟수입니다.', textAlign: TextAlign.center),
-        const SizedBox(height: 20),
         TextField(key: const ValueKey('all-thoughts-search'),
           onChanged: (value) => setState(() => _query = value),
-          decoration: const InputDecoration(hintText: '원소에서 찾기', prefixIcon: Icon(Icons.search), isDense: true)),
+          decoration: const InputDecoration(hintText: '원소에서 찾기', prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 34, minHeight: 32), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), isDense: true)),
         const SizedBox(height: 12),
         if (!desktop) Row(mainAxisAlignment: MainAxisAlignment.end, children: [
           IconButton(tooltip: '확대', onPressed: _columns > 1 ? () => setState(() => _columns--) : null, icon: const Icon(Icons.zoom_in)),
@@ -195,6 +152,18 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         LayoutBuilder(builder: (context, constraints) {
           final columns = desktop ? math.max(1, (constraints.maxWidth / 260).floor()) : _columns;
           final width = (constraints.maxWidth - (columns - 1) * 6) / columns;
+          final stacks = List.generate(columns, (_) => <Widget>[]);
+          final heights = List.filled(columns, 0.0);
+          for (final record in records) {
+            var column = 0;
+            for (var i = 1; i < columns; i++) { if (heights[i] < heights[column]) column = i; }
+            final painter = TextPainter(text: TextSpan(text: record.text,
+              style: DefaultTextStyle.of(context).style.merge(const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
+              textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout(maxWidth: math.max(1, width - 14));
+            heights[column] += math.max(30, painter.height + 6) + 6;
+            painter.dispose();
+            stacks[column].add(Padding(padding: const EdgeInsets.only(bottom: 6), child: _tile(record, desktop, width: width)));
+          }
           return GestureDetector(
             onScaleStart: desktop ? null : (_) => _scaleColumns = _columns,
             onScaleUpdate: desktop ? null : (details) {
@@ -202,8 +171,12 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
               final next = (_scaleColumns / details.scale).round().clamp(1, 6);
               if (next != _columns) setState(() => _columns = next);
             },
-            child: Wrap(alignment: WrapAlignment.center, spacing: 6, runSpacing: 6,
-              children: [for (final record in records) _tile(record, usage, maximum, desktop, width: width)]));
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              for (var i = 0; i < columns; i++) ...[
+                if (i > 0) const SizedBox(width: 6),
+                SizedBox(width: width, child: Column(children: stacks[i])),
+              ],
+            ]));
         }),
       ]))));
     return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null, leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(widget.initialBox?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(),
@@ -251,10 +224,10 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         ]))),
       body: DesktopMenuBody(child: Column(children: [if (widget.viewSelector != null) widget.viewSelector!, Expanded(child: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
         if (desktop && constraints.maxWidth >= 760) { return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Expanded(child: grid), const VerticalDivider(width: 1), SizedBox(width: 320, child: _relations(usage, desktop)),
+          Expanded(child: grid), const VerticalDivider(width: 1), SizedBox(width: 320, child: _relations(desktop)),
         ]); }
         if (desktop) { return Column(children: [Expanded(child: grid),
-          if (_selected != null) SizedBox(height: 260, child: _relations(usage, desktop))]); }
+          if (_selected != null) SizedBox(height: 260, child: _relations(desktop))]); }
         return grid;
       })))])),
     );
