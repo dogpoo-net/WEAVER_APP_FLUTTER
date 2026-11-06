@@ -41,6 +41,11 @@ void main() {
       expect(find.text(removed), findsNothing);
     }
     expect(tester.widget<AlertDialog>(dialog).actions!.length, 3);
+    final divider = find.byKey(const ValueKey('element-actions-divider'));
+    expect(divider, findsOneWidget);
+    final save = find.widgetWithText(FilledButton, '저장');
+    expect(tester.getBottomRight(divider).dy, lessThanOrEqualTo(tester.getTopLeft(save).dy));
+    expect(tester.widget<FilledButton>(save).style?.backgroundColor, isNull);
     expect(tester.getSize(find.widgetWithText(FilledButton, '저장')).height, lessThanOrEqualTo(40));
     expect(tester.getSize(find.widgetWithText(TextButton, '생각 삭제')).height, lessThanOrEqualTo(40));
     await tester.tap(find.text('비활성')); await tester.pumpAndSettle();

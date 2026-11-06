@@ -242,7 +242,8 @@ class _ElementMetadataState extends State<_ElementMetadata> {
       actionsPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
       title: _tags.isEmpty ? null : InlineTags(key: const ValueKey('element-tags'), tags: _tags,
         onRemove: (tag) => setState(() => _tags.remove(tag))),
-      content: SizedBox(
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        Flexible(child: SizedBox(
         width: mobile ? MediaQuery.sizeOf(context).width : 440,
         child: SingleChildScrollView(
           child: Column(
@@ -288,9 +289,11 @@ class _ElementMetadataState extends State<_ElementMetadata> {
             ],
           ),
         ),
-      ),
+      )),
+        const Divider(key: ValueKey('element-actions-divider'), height: 16, thickness: 1),
+      ]),
       actions: [
-        FilledButton(
+        FilledButton.tonal(
           style: compact,
           onPressed: () {
             final error = elements.update(word, _editor.text, tags: _tags);

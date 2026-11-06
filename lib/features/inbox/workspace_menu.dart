@@ -197,14 +197,6 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   @override
   Widget build(BuildContext context) {
     final content = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Padding(padding: const EdgeInsetsDirectional.fromSTEB(20, 12, 8, 4), child: Row(children: [
-        const Spacer(),
-        if (widget.embedded && widget.onFloat != null) IconButton(tooltip: '메뉴를 모달로 보기', onPressed: widget.onFloat, icon: const Icon(Icons.open_in_new)),
-        if (!widget.embedded && widget.onPin != null) IconButton(tooltip: '메뉴 고정하기', onPressed: widget.onPin,
-          icon: const Icon(Icons.push_pin_outlined)),
-        IconButton(tooltip: widget.embedded ? '메뉴 숨기기' : '메뉴 닫기',
-          onPressed: widget.embedded ? widget.onHide : () => Navigator.pop(context), icon: const Icon(Icons.close)),
-      ])),
       ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), leading: const Icon(Icons.bubble_chart_outlined, size: 19), title: const Text('모든 생각 보기', style: TextStyle(fontSize: 13)),
         onTap: () => _select(WorkspaceMenu.allThoughts)),
       const Divider(indent: 16, endIndent: 16),

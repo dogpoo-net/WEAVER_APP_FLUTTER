@@ -26,12 +26,10 @@ void main() {
       isFalse,
     );
     expect(tester.getTopLeft(find.byType(Dialog)).dx, lessThan(100));
-    await tester.tap(find.byTooltip('메뉴 고정하기'));
-    await tester.pumpAndSettle();
-    expect(
-      tester.widget<WorkspaceMenu>(find.byType(WorkspaceMenu)).embedded,
-      isTrue,
-    );
+    expect(find.byTooltip('메뉴 고정하기'), findsNothing);
+    expect(find.byTooltip('메뉴 닫기'), findsNothing);
+    await tester.tapAt(const Offset(10, 10)); await tester.pumpAndSettle();
+    expect(find.byType(WorkspaceMenu), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -42,7 +40,7 @@ void main() {
     expect(find.text('메인'), findsNothing);
     expect(tester.getSize(find.byType(Dialog)).height, greaterThan(480));
     expect(find.descendant(of: find.byType(WorkspaceMenu), matching: find.text('문단 쓰기')), findsNothing);
-    await tester.tap(find.byTooltip('메뉴 닫기'));
+    await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const ValueKey('thoughts-all')));
     await tester.tap(find.byKey(const ValueKey('thoughts-all')));
