@@ -50,12 +50,12 @@ void main() {
     );
     await tester.tap(find.text('정보'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('원소 삭제'));
+    await tester.tap(find.text('생각 삭제'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('취소'));
     await tester.pumpAndSettle();
     expect(elements.words, ['기억']);
-    await tester.tap(find.text('원소 삭제'));
+    await tester.tap(find.text('생각 삭제'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('삭제'));
     await tester.pumpAndSettle();

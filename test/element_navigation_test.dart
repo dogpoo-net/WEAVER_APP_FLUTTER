@@ -6,7 +6,7 @@ import 'package:weaver/features/inbox/project_page.dart';
 
 void main() {
   setUp(elements.clear);
-  testWidgets('usage links open and focus the exact distant occurrence', (
+  testWidgets('metadata no longer scans or navigates project usage', (
     tester,
   ) async {
     elements.add('기억');
@@ -33,15 +33,11 @@ void main() {
     );
     await tester.tap(find.text('정보'));
     await tester.pumpAndSettle();
-    expect(find.text('사용 2회 · 1개 위치'), findsOneWidget);
-    await tester.ensureVisible(find.text(' 두번째 기억을 담은 문장'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(' 두번째 기억을 담은 문장'));
-    await tester.pumpAndSettle();
-    expect(find.byType(ProjectPage), findsOneWidget);
-    final field = find.byKey(const ValueKey('project-document'));
-    expect(field, findsOneWidget);
-    expect(tester.widget<TextField>(field).controller!.text, contains('첫 기억. 두번째 기억을 담은 문장.'));
+    expect(find.text('프로젝트 사용'), findsNothing);
+    expect(find.text('사용 위치'), findsNothing);
+    expect(find.text('함께 쓰인 원소'), findsNothing);
+    expect(find.byType(ProjectPage), findsNothing);
+    expect(tester.widget<TextField>(find.byKey(const ValueKey('element-editor'))).controller!.text, '기억');
     expect(tester.takeException(), isNull);
   });
 }

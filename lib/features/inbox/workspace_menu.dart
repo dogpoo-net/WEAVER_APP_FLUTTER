@@ -230,7 +230,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     ]);
     if (widget.embedded) return Material(child: SizedBox(width: 280, child: content));
     return Dialog(alignment: AlignmentDirectional.topStart, insetPadding: const EdgeInsets.fromLTRB(16, 64, 16, 12),
-      child: SizedBox(width: 320, height: double.infinity, child: content));
+      child: SizedBox(width: MediaQuery.sizeOf(context).width < 760 ? double.infinity : 320, height: double.infinity, child: content));
   }
 }
 

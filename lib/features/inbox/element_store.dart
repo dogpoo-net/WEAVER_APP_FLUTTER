@@ -4,7 +4,6 @@ import 'paragraph_tag_input.dart';
 import 'package:flutter/material.dart';
 
 import 'project_page.dart';
-import 'paragraph_editor.dart';
 import 'project_folders.dart';
 
 import 'word_badge.dart';
@@ -48,8 +47,6 @@ class ElementSource {
 }
 
 class ElementStore extends ChangeNotifier {
-  Future<void> Function()? onProjectChanged;
-  List<Paragraph> Function()? availableParagraphs;
   void Function(String oldText, String newText)? onRenamed;
   String? update(String oldText, String input, {Iterable<String>? tags}) {
     final parsed = parseTaggedInput(input);
@@ -234,31 +231,25 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     final word = widget.word;
     final element = elements.records[word];
     if (element == null) return const SizedBox.shrink();
-    final uses = <ElementSource, int>{};
-    final together = <String, int>{};
-    for (final source in elements.sources.values.expand((s) => s)) {
-      if (!source.isProject) continue;
-      final hits = elements.matches(source.text);
-      final count = hits.where((h) => h.word == word).length;
-      if (count == 0) continue;
-      uses[source] = count;
-      for (final other
-          in hits.map((h) => h.word).toSet().where((w) => w != word)) {
-        together.update(other, (v) => v + 1, ifAbsent: () => 1);
-      }
-    }
-    final ranked = together.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final mobile = MediaQuery.sizeOf(context).width < 760;
+    final compact = TextButton.styleFrom(minimumSize: const Size(0, 34),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact);
     return AlertDialog(
+      insetPadding: EdgeInsets.symmetric(horizontal: mobile ? 16 : 40, vertical: 24),
+      titlePadding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      actionsPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
       title: _tags.isEmpty ? null : InlineTags(key: const ValueKey('element-tags'), tags: _tags,
         onRemove: (tag) => setState(() => _tags.remove(tag))),
       content: SizedBox(
-        width: 400,
+        width: mobile ? MediaQuery.sizeOf(context).width : 440,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
+              const SizedBox(height: 8),
               TextField(
                 key: const ValueKey('element-editor'),
                 controller: _editor,
@@ -274,106 +265,33 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                   if (_error != null) setState(() => _error = null);
                 },
               ),
-              const Divider(height: 28),
+              const SizedBox(height: 8),
               MergeSemantics(child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('검색에서 숨기기'),
-                subtitle: const Text('메인과 원소 어시스트에 표시하지 않습니다.'),
+                dense: true, visualDensity: const VisualDensity(vertical: -3), contentPadding: EdgeInsets.zero,
+                title: const Text('비활성'),
                 onTap: () => setState(() => elements.setHidden(word, !element.hiddenFromSearch)),
-                trailing: SizedBox(width: 48, height: 40, child: Transform.scale(
-                  scale: .85,
+                trailing: SizedBox(width: 44, height: 32, child: Transform.scale(scale: .8,
                   child: Switch.adaptive(value: element.hiddenFromSearch,
-                    onChanged: (hidden) => setState(() => elements.setHidden(word, hidden))),
-                )),
+                    onChanged: (hidden) => setState(() => elements.setHidden(word, hidden))))),
               )),
+              Text(element.createdAt.toLocal().toString().split('.').first,
+                key: const ValueKey('element-created-at'), style: Theme.of(context).textTheme.bodySmall),
               if (element.connections.isNotEmpty) ...[
+                const Divider(key: ValueKey('element-connections-divider'), height: 24, thickness: 1),
                 Text('연결', style: Theme.of(context).textTheme.labelMedium),
                 const SizedBox(height: 6),
                 Wrap(spacing: 6, runSpacing: 6, children: [
                   for (final linked in elements.records.values.where((r) => element.connections.contains(r.id)))
                     WordBadge(word: linked.text, onTap: () => showElementMetadata(context, linked.text)),
                 ]),
-                const Divider(height: 28),
               ],
-              Text('생성일', style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(height: 6),
-              Text(element.createdAt.toLocal().toString().split('.').first),
-              const Divider(height: 28),
-              Text('프로젝트 사용', style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(height: 6),
-              Text(
-                '사용 ${uses.values.fold<int>(0, (a, b) => a + b)}회 · ${uses.length}개 위치',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 4),
-              Text('독립 문단 제외', style: Theme.of(context).textTheme.bodySmall),
-              const Divider(height: 28),
-              Text('사용 위치', style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(height: 8),
-              if (uses.isEmpty) const Text('사용한 프로젝트가 없어요.'),
-              for (final use in uses.entries)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${use.key.label} · ${use.value}회'),
-                      if (use.key.project != null)
-                        for (final hit
-                            in elements
-                                .matches(use.key.text)
-                                .where((h) => h.word == word))
-                          TextButton.icon(
-                            icon: const Icon(Icons.arrow_outward, size: 16),
-                            label: Text(
-                              '${use.key.text.substring(0, hit.start).split(RegExp(r'[.!?。\n]')).last}$word${use.key.text.substring(hit.end).split(RegExp(r'[.!?。\n]')).first}',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            onPressed: () {
-                              final navigator = Navigator.of(context);
-                              navigator.pop();
-                              navigator.push(
-                                MaterialPageRoute(
-                                  builder: (_) => ProjectPage(
-                                    project: use.key.project!,
-                                    available: elements.availableParagraphs?.call() ?? const [],
-                                    initialParagraph: use.key.paragraphIndex,
-                                    initialOffset: hit.start,
-                                    onChanged: elements.onProjectChanged,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                    ],
-                  ),
-                ),
-              const Divider(height: 28),
-              Text('함께 쓰인 원소', style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(height: 8),
-              if (ranked.isEmpty) const Text('함께 쓰인 원소가 없어요.'),
-              for (final entry in ranked)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Wrap(
-                    spacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      elementBadge(context, entry.key),
-                      Text(
-                        '${entry.value}개 프로젝트 문단',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
             ],
           ),
         ),
       ),
       actions: [
         FilledButton(
+          style: compact,
           onPressed: () {
             final error = elements.update(word, _editor.text, tags: _tags);
             if (error != null) {
@@ -385,12 +303,13 @@ class _ElementMetadataState extends State<_ElementMetadata> {
           child: const Text('저장'),
         ),
         TextButton(
+          style: compact,
           onPressed: () async {
             final confirmed = await showDialog<bool>(
               context: context,
               builder: (dialogContext) => AlertDialog(
-                title: const Text('원소를 삭제할까요?'),
-                content: const Text('모든 원소 목록에서 삭제합니다. 문단과 프로젝트의 글은 유지됩니다.'),
+                title: const Text('생각을 삭제할까요?'),
+                content: const Text('생각 목록과 연결에서 삭제합니다. 프로젝트의 글은 유지됩니다.'),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(dialogContext, false),
@@ -408,9 +327,10 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               Navigator.pop(context);
             }
           },
-          child: const Text('원소 삭제'),
+          child: const Text('생각 삭제'),
         ),
         TextButton(
+          style: compact,
           onPressed: () => Navigator.pop(context),
           child: const Text('닫기'),
         ),

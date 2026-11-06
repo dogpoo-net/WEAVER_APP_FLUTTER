@@ -91,8 +91,6 @@ class _InboxPageState extends State<InboxPage> {
     pageGraphLayout = GraphLayout();
     memoBoxFolders.clear();
     elements.addListener(_elementDeleted);
-    elements.onProjectChanged = _persist;
-    elements.availableParagraphs = () => _availableParagraphs;
     elements.onRenamed = _elementRenamed;
     try {
       final raw = widget.storage?.read();
@@ -323,8 +321,6 @@ class _InboxPageState extends State<InboxPage> {
   void dispose() {
     WidgetsBinding.instance.addPostFrameCallback((_) => desktopMenu.detach(this));
     elements.removeListener(_elementDeleted);
-    elements.onProjectChanged = null;
-    elements.availableParagraphs = null;
     elements.onRenamed = null;
     _draft.dispose();
     _focus.dispose();
