@@ -30,7 +30,7 @@ void main() {
       await tester.tap(find.text('페이지')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(tester.widget<ThoughtPage>(find.byType(ThoughtPage)).blocks, isTrue);
       expect(find.byWidgetPredicate((w) => w is Card && w.shape is RoundedRectangleBorder), findsWidgets);
-      expect(find.text('#안쪽'), findsOneWidget);
+      expect(find.text('#안쪽'), findsNWidgets(2));
       expect(tester.widget<MemoBoxRegion>(find.byType(MemoBoxRegion)).rectangular, isTrue);
       expect(find.text('바깥 생각'), scoped ? findsNothing : findsOneWidget);
       final layout = scoped ? box.layout : pageGraphLayout;
