@@ -37,9 +37,6 @@ class WorkspaceTitle extends StatelessWidget {
   const WorkspaceTitle(this.title, {super.key});
   final String title;
   @override
-  Widget build(BuildContext context) => MediaQuery.sizeOf(context).width >= 1000
-    ? Row(children: [TextButton(onPressed: () => navigateHome(context), child: const Text('WEAVER',
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 2))),
-        const SizedBox(width: 8), Expanded(child: Text(title, style: const TextStyle(fontSize: 18), maxLines: 1, overflow: TextOverflow.ellipsis))])
-    : Text(title, style: const TextStyle(fontSize: 18));
+  Widget build(BuildContext context) => Text(title, style: const TextStyle(fontSize: 18),
+    maxLines: 1, overflow: TextOverflow.ellipsis);
 }
