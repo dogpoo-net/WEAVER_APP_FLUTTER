@@ -40,7 +40,7 @@ void main() {
     expect(elements.records.containsKey(record.text), isTrue);
     expect(saves, 2);
   });
-  testWidgets('mobile zoom supports six columns and drag adds to box', (tester) async {
+  testWidgets('mobile zoom reduces badge width and drag adds to box', (tester) async {
     final record = elements.add('보관할 메모');
     final box = MemoBox('자료'); memoBoxes.add(box);
     await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: TargetPlatform.android),
@@ -49,7 +49,7 @@ void main() {
       await tester.ensureVisible(find.byTooltip('축소'));
       await tester.tap(find.byTooltip('축소')); await tester.pumpAndSettle();
     }
-    expect(find.text('6열'), findsOneWidget);
+    expect(find.text('33%'), findsOneWidget);
     final tile = find.byKey(ValueKey('thought-${record.id}'));
     await tester.ensureVisible(tile);
     final gesture = await tester.startGesture(tester.getCenter(tile));
