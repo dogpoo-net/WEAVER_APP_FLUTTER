@@ -277,6 +277,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> {
   @override
   Widget build(BuildContext context) {
     final selector = Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 8), child: SegmentedButton<ThoughtView>(
+      showSelectedIcon: false,
       style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         minimumSize: const Size(0, 32), visualDensity: VisualDensity.compact,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap),
