@@ -34,6 +34,7 @@ void main() {
     pageGraphLayout.positions.addAll({a.id: const Offset(-400, -200), b.id: const Offset(100, 100)});
     await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(pageGraphLayout.positions[a.id]!.dx, greaterThanOrEqualTo(32));
     expect(pageGraphLayout.positions[a.id]!.dy, greaterThanOrEqualTo(32));
     expect(pageGraphLayout.positions[b.id]! - pageGraphLayout.positions[a.id]!, const Offset(500, 300));
