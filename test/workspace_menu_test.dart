@@ -28,7 +28,7 @@ void main() {
     expect(tester.getTopLeft(find.byType(Dialog)).dx, lessThan(100));
     expect(find.byTooltip('메뉴 고정하기'), findsOneWidget);
     expect(find.byTooltip('메뉴 닫기'), findsNothing);
-    expect(tester.getCenter(find.byTooltip('메뉴 고정하기')).dx, closeTo(tester.getCenter(find.byType(WorkspaceMenu)).dx, 1));
+    expect(tester.getCenter(find.byTooltip('메뉴 고정하기')).dx, closeTo(tester.getCenter(find.descendant(of: find.byType(WorkspaceMenu), matching: find.byType(ListTile)).first).dx, 1));
     await tester.tap(find.byTooltip('메뉴 고정하기'));
     await tester.pumpAndSettle();
     expect(tester.widget<WorkspaceMenu>(find.byType(WorkspaceMenu)).embedded, isTrue);
