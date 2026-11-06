@@ -206,7 +206,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
               children: [for (final record in records) _tile(record, usage, maximum, desktop, width: width)]));
         }),
       ]))));
-    return Scaffold(appBar: AppBar(bottom: widget.viewSelector == null ? null : PreferredSize(preferredSize: const Size.fromHeight(44), child: widget.viewSelector!), title: WorkspaceTitle(widget.initialBox?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(),
+    return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null, leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(widget.initialBox?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(),
       if (_filterBox != null) IconButton(tooltip: '상자에 담을 메모 선택', onPressed: _manageBox, icon: const Icon(Icons.playlist_add)),
     ]),
       bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -249,14 +249,14 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
             ])),
           ])),
         ]))),
-      body: DesktopMenuBody(child: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
+      body: DesktopMenuBody(child: Column(children: [if (widget.viewSelector != null) widget.viewSelector!, Expanded(child: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
         if (desktop && constraints.maxWidth >= 760) { return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(child: grid), const VerticalDivider(width: 1), SizedBox(width: 320, child: _relations(usage, desktop)),
         ]); }
         if (desktop) { return Column(children: [Expanded(child: grid),
           if (_selected != null) SizedBox(height: 260, child: _relations(usage, desktop))]); }
         return grid;
-      }))),
+      })))])),
     );
   }
 }
@@ -276,7 +276,9 @@ class _ThoughtViewsState extends State<AllThoughtsPage> {
   late ThoughtView _view = widget.initialView;
   @override
   Widget build(BuildContext context) {
-    final selector = Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 8), child: SegmentedButton<ThoughtView>(
+    final mobile = MediaQuery.sizeOf(context).width < 1000;
+    final selector = Padding(padding: EdgeInsets.fromLTRB(mobile ? 0 : 12, 0, mobile ? 0 : 12, 8), child: SegmentedButton<ThoughtView>(
+      expandedInsets: mobile ? EdgeInsets.zero : null,
       showSelectedIcon: false,
       style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         minimumSize: const Size(0, 32), visualDensity: VisualDensity.compact,

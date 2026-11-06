@@ -1046,7 +1046,7 @@ class _InboxPageState extends State<InboxPage> {
             ),
           );
 
-  Widget _desktopSidebar(BuildContext context) => SafeArea(
+  Widget _desktopSidebar(BuildContext context) => SafeArea(top: false,
               child: WorkspaceMenu(
                 embedded: true,
                 onFloat: () { setState(() => _menuVisible = false); _menu(); },
