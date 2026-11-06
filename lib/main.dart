@@ -41,6 +41,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   ThemeMode _mode = ThemeMode.dark;
   LightPalette _lightPalette = LightPalette.neutral;
+  DarkPalette _darkPalette = DarkPalette.classic;
   final _messenger = GlobalKey<ScaffoldMessengerState>();
   @override
   void initState() {
@@ -53,18 +54,19 @@ class _MyAppState extends State<MyApp> {
         final mode = ThemeMode.values.byName(data['mode'] as String);
         final palette = LightPalette.values.byName(data['palette'] as String);
         _mode = mode; _lightPalette = palette;
+        _darkPalette = DarkPalette.values.where((p) => p.name == data['darkPalette']).firstOrNull ?? DarkPalette.classic;
       }
     } catch (_) { /* Invalid settings fall back to the default theme. */ }
   }
 
   void _persistTheme() {
-    widget.storage?.writeTheme(jsonEncode({'mode': _mode.name, 'palette': _lightPalette.name})).catchError((Object _) {
+    widget.storage?.writeTheme(jsonEncode({'mode': _mode.name, 'palette': _lightPalette.name, 'darkPalette': _darkPalette.name})).catchError((Object _) {
       if (mounted) _messenger.currentState?.showSnackBar(const SnackBar(content: Text('테마 설정을 저장하지 못했습니다.')));
     });
   }
 
   ThemeData _theme(Brightness brightness) {
-    final colors = brightness == Brightness.dark ? weaverDarkColors : _lightPalette.colors;
+    final colors = brightness == Brightness.dark ? _darkPalette.colors : _lightPalette.colors;
     final border = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(24),
       side: BorderSide(color: colors.outlineVariant),
@@ -134,6 +136,10 @@ class _MyAppState extends State<MyApp> {
       storage: widget.storage,
       themeMode: _mode,
       lightPalette: _lightPalette,
+      darkPalette: _darkPalette,
+      onDarkPaletteChanged: (palette) {
+        setState(() { _darkPalette = palette; _mode = ThemeMode.dark; }); _persistTheme();
+      },
       onLightPaletteChanged: (palette) {
         setState(() { _lightPalette = palette; _mode = ThemeMode.light; });
         _persistTheme();

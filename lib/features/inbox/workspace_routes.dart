@@ -33,10 +33,13 @@ Future<void> navigateHome(BuildContext context) async {
   }
 }
 
-class DesktopHomeAction extends StatelessWidget {
-  const DesktopHomeAction({super.key});
+class WorkspaceTitle extends StatelessWidget {
+  const WorkspaceTitle(this.title, {super.key});
+  final String title;
   @override
   Widget build(BuildContext context) => MediaQuery.sizeOf(context).width >= 1000
-    ? TextButton(onPressed: () => navigateHome(context), child: const Text('WEAVER', style: TextStyle(fontSize: 11)))
-    : const SizedBox.shrink();
+    ? Row(children: [TextButton(onPressed: () => navigateHome(context), child: const Text('WEAVER',
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 2))),
+        const SizedBox(width: 8), Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis))])
+    : Text(title);
 }

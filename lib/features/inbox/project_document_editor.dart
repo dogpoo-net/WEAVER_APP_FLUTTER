@@ -88,7 +88,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('계속 작성')),
       TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('나가기'))]));
     if (discard == true && mounted) { setState(() => _dirty = false); WidgetsBinding.instance.addPostFrameCallback((_) { if (context.mounted) Navigator.pop(context); }); }
-  }, child: Scaffold(appBar: AppBar(title: Text(widget.project?.name ?? '프로젝트 만들기'), actions: [const DesktopHomeAction(), const DesktopMenuAction(), TextButton(onPressed: _save, child: const Text('저장')),
+  }, child: Scaffold(appBar: AppBar(title: WorkspaceTitle(widget.project?.name ?? '프로젝트 만들기'), actions: [const DesktopMenuAction(), TextButton(onPressed: _save, child: const Text('저장')),
     if (widget.project != null) IconButton(tooltip: '프로젝트 폴더', icon: const Icon(Icons.folder_outlined), onPressed: () async {
       final folder = await showDialog<String>(context: context, builder: (context) => SimpleDialog(title: const Text('프로젝트 폴더'), children: [for (final folder in ['', ...projectFolders])
         SimpleDialogOption(onPressed: () => Navigator.pop(context, folder), child: Text(folder.isEmpty ? '폴더 밖으로' : folder))]));

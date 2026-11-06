@@ -197,7 +197,8 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   @override
   Widget build(BuildContext context) {
     final content = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), leading: const Icon(Icons.bubble_chart_outlined, size: 19), title: const Text('모든 생각 보기', style: TextStyle(fontSize: 13)),
+      if (MediaQuery.sizeOf(context).width < 1000) const SizedBox(height: 8),
+      ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), leading: Icon(Icons.bubble_chart_outlined, size: MediaQuery.sizeOf(context).width < 1000 ? 20 : 19), title: Text('모든 생각 보기', style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 14 : 13)),
         onTap: () => _select(WorkspaceMenu.allThoughts)),
       const Divider(indent: 16, endIndent: 16),
       Expanded(child: SizedBox(key: _viewport, child: Scrollbar(controller: _scroll,

@@ -64,3 +64,29 @@ class PaletteSwatches extends StatelessWidget {
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant))),
   ]);
 }
+
+enum DarkPalette { classic, charcoal, navy, forest }
+extension DarkPaletteColors on DarkPalette {
+  String get label => switch (this) {
+    DarkPalette.classic => '기본 다크', DarkPalette.charcoal => '차콜', DarkPalette.navy => '네이비', DarkPalette.forest => '포레스트',
+  };
+  ColorScheme get colors => switch (this) {
+    DarkPalette.classic => weaverDarkColors,
+    DarkPalette.charcoal => ColorScheme.fromSeed(seedColor: const Color(0xFF7C838A), brightness: Brightness.dark,
+      dynamicSchemeVariant: DynamicSchemeVariant.monochrome).copyWith(
+        surface: const Color(0xFF17191B), surfaceContainerLowest: const Color(0xFF111315),
+        surfaceContainerLow: const Color(0xFF1E2124), surfaceContainer: const Color(0xFF25292D),
+        surfaceContainerHigh: const Color(0xFF2B3035), surfaceContainerHighest: const Color(0xFF343A40),
+        primary: const Color(0xFFD3D7DC), onPrimary: const Color(0xFF282C30),
+        primaryContainer: const Color(0xFF3F464D), onPrimaryContainer: const Color(0xFFE2E7EC)),
+    DarkPalette.navy => ColorScheme.fromSeed(seedColor: const Color(0xFF657DAA), brightness: Brightness.dark).copyWith(
+      surface: const Color(0xFF111A2B), surfaceContainerLowest: const Color(0xFF0B1220),
+      surfaceContainerLow: const Color(0xFF172339), surfaceContainer: const Color(0xFF1D2C45),
+      surfaceContainerHigh: const Color(0xFF253651), surfaceContainerHighest: const Color(0xFF2D405F)),
+    DarkPalette.forest => ColorScheme.fromSeed(seedColor: const Color(0xFF4F8063), brightness: Brightness.dark).copyWith(
+      surface: const Color(0xFF12221C), surfaceContainerLowest: const Color(0xFF0C1813),
+      surfaceContainerLow: const Color(0xFF192E25), surfaceContainer: const Color(0xFF20382D),
+      surfaceContainerHigh: const Color(0xFF284338), surfaceContainerHighest: const Color(0xFF314F40)),
+  };
+  List<Color> get swatches => [colors.surface, colors.surfaceContainerHighest, colors.primary];
+}
