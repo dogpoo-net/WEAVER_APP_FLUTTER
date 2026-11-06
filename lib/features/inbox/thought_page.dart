@@ -299,14 +299,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     sceneWidth = regions.map((r) => r.bounds.right + 100).fold(sceneWidth, math.max);
     sceneHeight = regions.map((r) => r.bounds.bottom + 100).fold(sceneHeight, math.max);
     final color = Theme.of(context).colorScheme;
-    return Scaffold(appBar: AppBar(bottom: widget.viewSelector == null ? null : PreferredSize(preferredSize: const Size.fromHeight(56), child: widget.viewSelector!), title: Text(widget.box?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(), TextButton(onPressed: () => navigateHome(context), child: const Text('WEAVER', style: TextStyle(fontSize: 11))),
+    return Scaffold(appBar: AppBar(bottom: widget.viewSelector == null ? null : PreferredSize(preferredSize: const Size.fromHeight(56), child: widget.viewSelector!), title: Text(widget.box?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(), const DesktopHomeAction(),
       if (widget.box != null) IconButton(tooltip: '상자에 생각 담기', onPressed: _pick, icon: const Icon(Icons.playlist_add)),
       IconButton(tooltip: '연결 모드', isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
-      IconButton(tooltip: '기본 배치로 정리', onPressed: () => setState(() {
-        _positions.clear(); _tagPositions.clear(); _emptyBoxBounds.clear(); _centered = false; _sync();
-      }), icon: const Icon(Icons.grid_on_outlined)),
-      IconButton(tooltip: '보기 초기화', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
+      IconButton(tooltip: '전체 위치 보기', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
     ]), body: Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 0), child: Row(children: [
         Expanded(child: TextField(key: const ValueKey('graph-search'), controller: _search,

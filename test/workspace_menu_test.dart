@@ -49,7 +49,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('생각 만들기'), findsNothing);
     expect(find.byTooltip('생각 만들기'), findsOneWidget);
-    await tester.tap(find.text('WEAVER'));
+    await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.byTooltip('생각 만들기'), findsNothing);
     expect(find.text('빠른 메모'), findsOneWidget);

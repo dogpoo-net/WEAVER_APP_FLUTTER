@@ -1110,7 +1110,7 @@ class _InboxPageState extends State<InboxPage> {
           ),
           const SizedBox(width: 12),
         ],
-        title: GestureDetector(onTap: () => navigateHome(context), child: Text(
+        title: GestureDetector(onTap: MediaQuery.sizeOf(context).width >= 1000 ? () => navigateHome(context) : null, child: Text(
           'WEAVER',
           style: TextStyle(
             fontSize: 16,

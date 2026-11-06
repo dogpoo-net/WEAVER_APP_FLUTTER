@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
 class WorkspaceRouteObserver extends RouteObserver<ModalRoute<dynamic>> {
   ModalRoute<dynamic>? current;
@@ -31,4 +31,12 @@ Future<void> navigateHome(BuildContext context) async {
     if (!await navigator.maybePop() || guarded) return;
     if (identical(current, workspaceRouteObserver.current)) return;
   }
+}
+
+class DesktopHomeAction extends StatelessWidget {
+  const DesktopHomeAction({super.key});
+  @override
+  Widget build(BuildContext context) => MediaQuery.sizeOf(context).width >= 1000
+    ? TextButton(onPressed: () => navigateHome(context), child: const Text('WEAVER', style: TextStyle(fontSize: 11)))
+    : const SizedBox.shrink();
 }

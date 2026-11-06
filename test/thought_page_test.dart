@@ -31,19 +31,17 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
-  testWidgets('arrange action puts saved tags above thoughts and keeps manual positions until requested', (tester) async {
+  testWidgets('saved manual layouts have no destructive rearrange action', (tester) async {
     elements.clear();
-    final a = elements.add('정리할 생각 #태그');
+    final a = elements.add('수동 배치 #태그');
     pageGraphLayout.positions[a.id] = const Offset(700, 200);
     pageGraphLayout.tags['tag:태그'] = const Offset(700, 500);
     await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byTooltip('기본 배치로 정리'), findsNothing);
+    expect(find.byIcon(Icons.grid_on_outlined), findsNothing);
     expect(pageGraphLayout.positions[a.id], const Offset(700, 200));
-    await tester.tap(find.byTooltip('기본 배치로 정리'));
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(pageGraphLayout.tags['tag:태그']!.dy, lessThan(pageGraphLayout.positions[a.id]!.dy));
-    expect(tester.takeException(), isNull);
+    expect(pageGraphLayout.tags['tag:태그'], const Offset(700, 500));
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets('dragging a thought into an empty box adds membership', (tester) async {
