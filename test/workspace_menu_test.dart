@@ -44,6 +44,7 @@ void main() {
     expect(find.descendant(of: find.byType(WorkspaceMenu), matching: find.text('문단 쓰기')), findsNothing);
     await tester.tap(find.byTooltip('메뉴 닫기'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('thoughts-all')));
     await tester.tap(find.byKey(const ValueKey('thoughts-all')));
     await tester.pumpAndSettle();
     expect(find.text('생각 만들기'), findsNothing);
