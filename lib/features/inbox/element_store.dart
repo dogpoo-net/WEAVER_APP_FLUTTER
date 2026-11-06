@@ -195,6 +195,7 @@ class _ElementMetadata extends StatefulWidget {
 
 class _ElementMetadataState extends State<_ElementMetadata> {
   late final TextEditingController _editor;
+  final _contentScroll = ScrollController();
   late final Set<String> _tags;
   bool _movingTags = false;
   late String _word;
@@ -223,6 +224,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
         _editor.text = draft?.text ?? record.text;
       });
     } finally { _movingTags = false; }
+    if (_contentScroll.hasClients) _contentScroll.jumpTo(0);
   }
 
   void _extractTags() {
@@ -242,6 +244,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   @override
   void dispose() {
     _editor.dispose();
+    _contentScroll.dispose();
     super.dispose();
   }
 
@@ -264,7 +267,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         Flexible(child: SizedBox(
         width: mobile ? MediaQuery.sizeOf(context).width : 440,
-        child: SingleChildScrollView(
+        child: SingleChildScrollView(controller: _contentScroll, primary: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
