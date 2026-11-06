@@ -9,17 +9,18 @@ import 'word_badge.dart';
 import 'workspace_routes.dart';
 import 'workspace_storage.dart';
 
-class AllThoughtsPage extends StatefulWidget {
-  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox});
+class ThoughtBoxView extends StatefulWidget {
+  const ThoughtBoxView({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox, this.viewSelector});
+  final Widget? viewSelector;
   final List<Note> notes;
   final MemoBox? initialBox;
   final VoidCallback? onChanged;
   final VoidCallback? onLayoutChanged;
   @override
-  State<AllThoughtsPage> createState() => _AllThoughtsPageState();
+  State<ThoughtBoxView> createState() => _AllThoughtsPageState();
 }
 
-class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
+class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   String? _selectedId;
   String _query = '';
   MemoBox? _filterBox;
@@ -100,7 +101,7 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
     final colors = Theme.of(context).colorScheme;
     if (selected == null) { return const Center(child: Padding(padding: EdgeInsets.all(24),
       child: Text('원소를 클릭하면\n함께 쓰인 원소를 보여줍니다.', textAlign: TextAlign.center))); }
-    final related = (usage.together[selected.text] ?? {}).entries.toList()
+    final related = (usage.together[selected.text] ?? {}).entries.where((e) => widget.initialBox == null || widget.initialBox!.elementIds.contains(elements.records[e.key]?.id)).toList()
       ..sort((a, b) { final frequency = b.value.compareTo(a.value); return frequency != 0 ? frequency : a.key.compareTo(b.key); });
     final maximum = related.isEmpty ? 1 : related.first.value;
     return SingleChildScrollView(key: const ValueKey('thought-relations'), padding: const EdgeInsets.all(20),
@@ -165,7 +166,7 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
   @override
   Widget build(BuildContext context) {
     final usage = ElementUsage.fromNotes(widget.notes, elements);
-    final allRecords = elements.records.values.toList();
+    final allRecords = elements.records.values.where((r) => widget.initialBox == null || widget.initialBox!.elementIds.contains(r.id)).toList();
     final tags = allRecords.expand((record) => record.tags).toSet().toList()..sort();
     final records = allRecords.where((record) =>
       (_filterBox == null || _filterBox!.elementIds.contains(record.id)) &&
@@ -204,7 +205,7 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
               children: [for (final record in records) _tile(record, usage, maximum, desktop, width: width)]));
         }),
       ]))));
-    return Scaffold(appBar: AppBar(title: const Text('모든 생각 보기'), actions: [TextButton(onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst), child: const Text('WEAVER', style: TextStyle(fontSize: 11))),
+    return Scaffold(appBar: AppBar(bottom: widget.viewSelector == null ? null : PreferredSize(preferredSize: const Size.fromHeight(56), child: widget.viewSelector!), title: Text(widget.initialBox?.name ?? '모든 생각 보기'), actions: [TextButton(onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst), child: const Text('WEAVER', style: TextStyle(fontSize: 11))),
       if (_filterBox != null) IconButton(tooltip: '상자에 담을 메모 선택', onPressed: _manageBox, icon: const Icon(Icons.playlist_add)),
     ]),
       bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -215,11 +216,11 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
             Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(
               key: const ValueKey('thought-filter-all'), label: const Text('전체'),
               selected: _filterBox == null && _filterTag == null, onSelected: (_) => _filter())),
-            for (final box in memoBoxes) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
+            if (widget.initialBox == null) for (final box in memoBoxes) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
               box: box, onChanged: _changed, child: _filterChip(
                 key: ValueKey('thought-filter-box-${box.name}'), label: box.name,
                 color: Color(box.color), colorTooltip: '${box.name} 상자 색상 변경',
-                selected: identical(_filterBox, box), onFilter: () async { await Navigator.push(context, MaterialPageRoute(builder: (_) => ThoughtPage(box: box, onLayoutChanged: widget.onLayoutChanged, onChanged: () { widget.onChanged?.call(); }))); if (mounted) setState(() {}); }, onColor: () async {
+                selected: identical(_filterBox, box), onFilter: () async { await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: widget.notes, initialBox: box, onLayoutChanged: widget.onLayoutChanged, onChanged: () { widget.onChanged?.call(); }))); if (mounted) setState(() {}); }, onColor: () async {
                   final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
                   if (!mounted || color == null) return;
                   box.color = color.toARGB32(); _changed();
@@ -256,5 +257,33 @@ class _AllThoughtsPageState extends State<AllThoughtsPage> with RouteAware {
         return grid;
       })),
     );
+  }
+}
+
+enum ThoughtView { diagram, boxes, page }
+
+class AllThoughtsPage extends StatefulWidget {
+  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox, this.initialView = ThoughtView.diagram});
+  final List<Note> notes;
+  final VoidCallback? onChanged, onLayoutChanged;
+  final MemoBox? initialBox;
+  final ThoughtView initialView;
+  @override
+  State<AllThoughtsPage> createState() => _ThoughtViewsState();
+}
+class _ThoughtViewsState extends State<AllThoughtsPage> {
+  late ThoughtView _view = widget.initialView;
+  @override
+  Widget build(BuildContext context) {
+    final selector = Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 8), child: SegmentedButton<ThoughtView>(
+      segments: const [ButtonSegment(value: ThoughtView.diagram, label: Text('다이어그램')),
+        ButtonSegment(value: ThoughtView.boxes, label: Text('상자')),
+        ButtonSegment(value: ThoughtView.page, label: Text('페이지'))],
+      selected: {_view}, onSelectionChanged: (value) => setState(() => _view = value.single),
+    ));
+    if (_view == ThoughtView.boxes) return ThoughtBoxView(notes: widget.notes, initialBox: widget.initialBox,
+      onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector);
+    return ThoughtPage(key: ValueKey(_view), box: widget.initialBox, blocks: _view == ThoughtView.page,
+      onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, viewSelector: selector);
   }
 }

@@ -24,7 +24,6 @@ class WorkspaceMenu extends StatefulWidget {
   final VoidCallback? onTagColorChanged;
   final ValueChanged<int>? onSelected;
   final VoidCallback? onHide, onPin;
-  static const page = -1000009;
   static const allThoughts = -1000006, createParagraph = -2;
   static const createProject = -1000002, resetData = -1000003;
   static const createFolder = -1000000, createTagFolder = -1000001;
@@ -205,7 +204,6 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         IconButton(tooltip: widget.embedded ? '메뉴 숨기기' : '메뉴 닫기',
           onPressed: widget.embedded ? widget.onHide : () => Navigator.pop(context), icon: const Icon(Icons.close)),
       ])),
-      ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), leading: const Icon(Icons.account_tree_outlined, size: 19), title: const Text('페이지', style: TextStyle(fontSize: 13)), onTap: () => _select(WorkspaceMenu.page)),
       ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), leading: const Icon(Icons.bubble_chart_outlined, size: 19), title: const Text('모든 생각 보기', style: TextStyle(fontSize: 13)),
         onTap: () => _select(WorkspaceMenu.allThoughts)),
       const Divider(indent: 16, endIndent: 16),

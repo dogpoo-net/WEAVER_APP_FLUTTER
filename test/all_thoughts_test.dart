@@ -41,7 +41,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: TargetPlatform.linux),
-      home: AllThoughtsPage(notes: notes())));
+      home: AllThoughtsPage(initialView: ThoughtView.boxes, notes: notes())));
     final grid = find.byKey(const ValueKey('all-thoughts-grid'));
     final badge = find.descendant(of: grid, matching: find.byWidgetPredicate((w) => w is WordBadge && w.word == '관찰'));
     final hiddenId = elements.records['미사용']!.id;
@@ -71,7 +71,7 @@ void main() {
     elements.add(phrase);
     elements.add('다른 원소');
     await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: TargetPlatform.android),
-      home: const AllThoughtsPage(notes: [])));
+      home: const AllThoughtsPage(initialView: ThoughtView.boxes, notes: [])));
     final search = find.byKey(const ValueKey('all-thoughts-search'));
     final before = tester.getRect(search);
     await tester.enterText(search, 'DART');
@@ -104,7 +104,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: TargetPlatform.android), home: AllThoughtsPage(notes: notes())));
+    await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: TargetPlatform.android), home: AllThoughtsPage(initialView: ThoughtView.boxes, notes: notes())));
     final badge = find.byWidgetPredicate((w) => w is WordBadge && w.word == '관찰');
     await tester.tap(badge);
     await tester.pumpAndSettle();
@@ -119,7 +119,7 @@ void main() {
     final menu = find.byType(WorkspaceMenu);
     expect(find.descendant(of: menu, matching: find.text('모든 생각 보기')), findsOneWidget);
     expect(find.byTooltip('문단 추가'), findsNothing);
-    await tester.tap(find.descendant(of: menu, matching: find.text('페이지')));
+    await tester.tap(find.descendant(of: menu, matching: find.text('모든 생각 보기')));
     await tester.pumpAndSettle();
     expect(find.byTooltip('생각 만들기'), findsOneWidget);
   });

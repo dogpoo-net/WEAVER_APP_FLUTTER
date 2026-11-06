@@ -44,7 +44,7 @@ void main() {
     expect(find.descendant(of: find.byType(WorkspaceMenu), matching: find.text('문단 쓰기')), findsNothing);
     await tester.tap(find.byTooltip('메뉴 닫기'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('페이지'));
+    await tester.tap(find.byKey(const ValueKey('thoughts-all')));
     await tester.pumpAndSettle();
     expect(find.text('생각 만들기'), findsNothing);
     expect(find.byTooltip('생각 만들기'), findsOneWidget);
@@ -78,7 +78,7 @@ void main() {
     );
     await tester.tap(find.text('열기'));
     await tester.pumpAndSettle();
-    final before = tester.getTopLeft(find.text('페이지'));
+    final before = tester.getTopLeft(find.text('모든 생각 보기'));
     await tester.scrollUntilVisible(
       find.text('프로젝트 29'),
       200,
@@ -87,7 +87,7 @@ void main() {
         matching: find.byType(Scrollable),
       ),
     );
-    expect(tester.getTopLeft(find.text('페이지')), before);
+    expect(tester.getTopLeft(find.text('모든 생각 보기')), before);
     await tester.ensureVisible(find.text('프로젝트 29'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('프로젝트 29'));

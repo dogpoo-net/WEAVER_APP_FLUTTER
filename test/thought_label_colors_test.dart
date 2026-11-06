@@ -12,7 +12,7 @@ void main() {
     final record = elements.add('생각 #독서');
     final box = MemoBox('자료', ids: [record.id]); memoBoxes.add(box);
     var saves = 0;
-    await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(notes: const [], onChanged: () => saves++)));
+    await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(initialView: ThoughtView.boxes, notes: const [], onChanged: () => saves++)));
     await tester.tap(find.byTooltip('자료 상자 색상 변경')); await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('hashtag-palette')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('hashtag-color-2'))); await tester.pumpAndSettle();

@@ -22,17 +22,17 @@ Rect? memoBoxCircleBounds(Iterable<Offset> positions, {Map<Offset, Size> sizes =
 }
 
 class MemoBoxRegion extends StatelessWidget {
-  const MemoBoxRegion({super.key, required this.box, required this.bounds, this.onDrag, this.onDragEnd, this.highlighted = false});
+  const MemoBoxRegion({super.key, required this.box, required this.bounds, this.onDrag, this.onDragEnd, this.highlighted = false, this.rectangular = false});
   final MemoBox box;
   final Rect bounds;
-  final bool highlighted;
+  final bool highlighted, rectangular;
   final ValueChanged<Offset>? onDrag;
   final VoidCallback? onDragEnd;
   @override
-  Widget build(BuildContext context) => Positioned.fromRect(rect: bounds, child: ClipOval(
+  Widget build(BuildContext context) => Positioned.fromRect(rect: bounds, child: ClipPath(clipper: _RegionClipper(rectangular),
     child: GestureDetector(behavior: HitTestBehavior.opaque,
       onPanUpdate: (d) => onDrag?.call(d.delta), onPanEnd: (_) => onDragEnd?.call(),
-      child: DecoratedBox(decoration: BoxDecoration(shape: BoxShape.circle,
+      child: DecoratedBox(decoration: BoxDecoration(shape: rectangular ? BoxShape.rectangle : BoxShape.circle, borderRadius: rectangular ? BorderRadius.circular(24) : null,
         color: Color(box.color).withValues(alpha: highlighted ? .16 : .10),
         border: Border.all(color: Color(box.color).withValues(alpha: .7), width: highlighted ? 3 : 1.5)),
         child: Align(alignment: Alignment.topCenter, child: Padding(padding: const EdgeInsets.fromLTRB(32, 15, 32, 0),
@@ -41,4 +41,13 @@ class MemoBoxRegion extends StatelessWidget {
       ),
     ),
   ));
+}
+
+class _RegionClipper extends CustomClipper<Path> {
+  const _RegionClipper(this.rectangular);
+  final bool rectangular;
+  @override
+  Path getClip(Size size) => rectangular ? (Path()..addRRect(RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(24)))) : (Path()..addOval(Offset.zero & size));
+  @override
+  bool shouldReclip(_RegionClipper old) => old.rectangular != rectangular;
 }

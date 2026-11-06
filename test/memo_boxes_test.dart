@@ -24,7 +24,7 @@ void main() {
     final record = elements.add('보관할 메모');
     final box = MemoBox('자료');
     var saves = 0;
-    await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(notes: const [], initialBox: box, onChanged: () => saves++)));
+    await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(initialView: ThoughtView.boxes, notes: const [], initialBox: box, onChanged: () => saves++)));
     await tester.tap(find.byTooltip('상자에 담을 메모 선택'));
     await tester.pumpAndSettle();
     await tester.tap(find.byType(CheckboxListTile));
@@ -44,7 +44,7 @@ void main() {
     final record = elements.add('보관할 메모');
     final box = MemoBox('자료'); memoBoxes.add(box);
     await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: TargetPlatform.android),
-      home: const AllThoughtsPage(notes: [])));
+      home: const AllThoughtsPage(initialView: ThoughtView.boxes, notes: [])));
     for (var i = 0; i < 4; i++) {
       await tester.ensureVisible(find.byTooltip('축소'));
       await tester.tap(find.byTooltip('축소')); await tester.pumpAndSettle();

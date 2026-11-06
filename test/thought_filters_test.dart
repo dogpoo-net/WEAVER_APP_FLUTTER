@@ -13,7 +13,7 @@ void main() {
       final second = elements.add('다른 메모 #여행');
       memoBoxes.add(MemoBox('테스트', ids: [first.id]));
       memoBoxes.add(MemoBox('빈 상자'));
-      await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: platform), home: const AllThoughtsPage(notes: [])));
+      await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: platform), home: const AllThoughtsPage(initialView: ThoughtView.boxes, notes: [])));
       final all = find.byKey(const ValueKey('thought-filter-all'));
       expect(tester.widget<ChoiceChip>(all).selected, isTrue);
       await tester.tap(find.byKey(const ValueKey('thought-filter-box-테스트')));

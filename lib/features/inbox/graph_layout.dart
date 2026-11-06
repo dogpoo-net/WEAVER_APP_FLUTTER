@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 /// Each graph owns its layout; thought IDs survive text edits.
 class GraphLayout {
+  GraphLayout? _blocks;
+  GraphLayout get blockLayout => _blocks ??= GraphLayout();
   final positions = <String, Offset>{};
   final sizes = <String, Offset>{};
   final tags = <String, Offset>{};
@@ -11,6 +13,7 @@ class GraphLayout {
   bool unlinkedOnly = false;
 
   void copyFrom(GraphLayout other) {
+    _blocks = other._blocks;
     positions..clear()..addAll(other.positions);
     sizes..clear()..addAll(other.sizes);
     tags..clear()..addAll(other.tags);
@@ -20,6 +23,7 @@ class GraphLayout {
   }
 
   Map<String, dynamic> toJson() => {
+    if (_blocks != null) 'blocks': _blocks!.toJson(),
     'positions': {for (final e in positions.entries) e.key: [e.value.dx, e.value.dy]},
     'tags': {for (final e in tags.entries) e.key: [e.value.dx, e.value.dy]},
     'sizes': {for (final e in sizes.entries) e.key: [e.value.dx, e.value.dy]},
@@ -31,6 +35,7 @@ class GraphLayout {
   static GraphLayout fromJson(dynamic data) {
     final layout = GraphLayout();
     if (data is! Map) return layout;
+    if (data['blocks'] is Map) layout._blocks = GraphLayout.fromJson(data['blocks']);
     void readPoints(dynamic source, Map<String, Offset> target) {
       if (source is! Map) return;
       for (final e in source.entries) {

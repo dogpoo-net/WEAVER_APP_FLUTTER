@@ -22,7 +22,6 @@ import 'paragraph_editor.dart';
 import 'word_badge.dart';
 import 'project_page.dart';
 import 'project_builder.dart';
-import 'thought_page.dart';
 import 'all_thoughts_page.dart';
 import 'workspace_menu.dart';
 import 'element_store.dart';
@@ -595,17 +594,7 @@ class _InboxPageState extends State<InboxPage> {
   List<String> get _allTags => {...elements.tags, ..._notes.expand((n) => n.project?.tags ?? <String>{}),
     ..._notes.where((n) => n.project == null && n.paragraphs != null).expand((n) => n.tags)}.toList()..sort();
 
-  Future<void> _page() async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => ThoughtPage(onLayoutChanged: _persistLayouts, onChanged: () { _persist(); })));
-    if (mounted) setState(() {});
-  }
-
   Future<void> _allThoughts([MemoBox? box]) async {
-    if (box != null) {
-      await Navigator.push(context, MaterialPageRoute(builder: (_) => ThoughtPage(box: box, onLayoutChanged: _persistLayouts, onChanged: () { _persist(); })));
-      if (mounted) setState(() {});
-      return;
-    }
     await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onLayoutChanged: _persistLayouts, onChanged: _persist, initialBox: box)));
     if (mounted) setState(() {});
   }
@@ -748,7 +737,6 @@ class _InboxPageState extends State<InboxPage> {
       }
       return;
     }
-    if (choice == WorkspaceMenu.page) { await _page(); return; }
     if (choice == WorkspaceMenu.allThoughts) { await _allThoughts(); return; }
     if (choice <= -3000000) {
       final index = -3000000 - choice;
@@ -789,7 +777,7 @@ class _InboxPageState extends State<InboxPage> {
         ),
       );
     } else if (choice == -2) {
-      await _page();
+      await _allThoughts();
     } else {
       await _showProject(projects[choice]);
     }
@@ -1156,11 +1144,6 @@ class _InboxPageState extends State<InboxPage> {
                                 size: 18,
                               ),
                               label: const Text('프로젝트 생성'),
-                            ),
-                            TextButton.icon(
-                              onPressed: _page,
-                              icon: const Icon(Icons.subject, size: 18),
-                              label: const Text('페이지'),
                             ),
                           ],
                         ),
