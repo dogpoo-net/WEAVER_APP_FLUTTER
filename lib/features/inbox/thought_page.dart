@@ -33,7 +33,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   Timer? _saveTimer;
   late final GraphLayout _layout;
   late final TextEditingController _search;
-  String? _selected, _linkFrom;
+  String? _selected, _linkFrom, _draggingId;
+  final _liftBoxes = <MemoBox, Rect>{};
   bool _linkMode = false, _centered = false;
   bool _routeVisible = true, _appActive = true;
   ModalRoute<dynamic>? _route;
@@ -117,6 +118,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _positions.removeWhere((id, _) => !scopeIds.contains(id));
     final scopeTags = scope.expand((r) => r.tags).map((tag) => 'tag:$tag').toSet();
     _tagPositions.removeWhere((tag, _) => !scopeTags.contains(tag));
+    var recovered = false;
+    for (final id in _positions.keys.toList()) {
+      final p = _positions[id]!;
+      final next = Offset(math.max(32, p.dx), math.max(32, p.dy));
+      if (next != p) { _positions[id] = next; recovered = true; }
+    }
+    if (recovered) _centered = false;
     final tags = scope.expand((r) => r.tags).toSet().toList()..sort();
     final ordered = [...scope]..sort((a, b) {
       final at = a.tags.toList()..sort(), bt = b.tags.toList()..sort();
@@ -231,7 +239,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
       final bounds = memoBoxCircleBounds(box.elementIds.where(visiblePositions.containsKey).map((id) => visiblePositions[id]!),
         sizes: {for (final id in box.elementIds.where(visiblePositions.containsKey)) visiblePositions[id]!: _size(id)});
-      if (bounds != null) regions.add((box: box, bounds: bounds));
+      if (bounds != null) regions.add((box: box, bounds: _liftBoxes[box] ?? bounds));
     }
     var emptyX = regions.map((r) => r.bounds.right + 80).fold(
       nodeRects.values.map((r) => r.right + 80).fold(640.0, math.max), math.max);
@@ -283,7 +291,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds,
             onDrag: (delta) => setState(() {
-              final shift = delta;
+              final shift = Offset(math.max(delta.dx, 32 - region.bounds.left), math.max(delta.dy, 32 - region.bounds.top));
               if (!region.box.elementIds.any(_positions.containsKey)) { _emptyBoxBounds[region.box] = region.bounds.shift(shift); }
               for (final id in region.box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
               _saveLayout();
@@ -296,18 +304,29 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           for (final record in records) Positioned(left: _positions[record.id]!.dx, top: _positions[record.id]!.dy,
             child: DragTarget<String>(onWillAcceptWithDetails: (d) => d.data != record.id,
               onAcceptWithDetails: (d) => _connect(d.data, record.id), builder: (context, candidates, _) => ThoughtInteraction(size: _size(record.id), desktop: MediaQuery.sizeOf(context).width >= 760,
+                onLift: () => setState(() {
+                  _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
+                }),
+                onActiveChanged: (active) => setState(() => _draggingId = active ? record.id : null),
                 onTap: () { if (_linkMode && _linkFrom != null) { _connect(_linkFrom!, record.id); }
                   else { setState(() { _selected = record.id; if (_linkMode) _linkFrom = record.id; }); } },
                 onDoubleTap: () => showElementMetadata(context, record.text),
-                onMove: (delta) => setState(() { _positions[record.id] = _positions[record.id]! + delta; _saveLayout(); }),
+                onMove: (delta) => setState(() { final p = _positions[record.id]! + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy)); _saveLayout(); }),
                 onResize: (size, shift) => setState(() {
                   _layout.sizes[record.id] = Offset(size.width, size.height);
-                  _positions[record.id] = _positions[record.id]! + shift; _saveLayout();
+                  final p = _positions[record.id]! + shift; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy)); _saveLayout();
                 }),
                 onDrop: (pointer) {
                   final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
                   final center = scene?.globalToLocal(pointer) ?? _bounds(record.id).center;
-                  final targets = regions.where((r) => !r.box.elementIds.contains(record.id) &&
+                  final detached = <MemoBox>{};
+                  for (final entry in _liftBoxes.entries) {
+                    if ((center - entry.value.center).distance > entry.value.width / 2) {
+                      entry.key.elementIds.remove(record.id); detached.add(entry.key);
+                      _emptyBoxBounds[entry.key] = entry.value;
+                    }
+                  }
+                  final targets = regions.where((r) => !detached.contains(r.box) && !r.box.elementIds.contains(record.id) &&
                     (center - r.bounds.center).distance <= r.bounds.width / 2).toList()
                     ..sort((a, b) => a.bounds.width.compareTo(b.bounds.width));
                   if (targets.isNotEmpty) {
@@ -315,11 +334,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                     _changed();
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${targets.first.box.name}에 담았습니다.')));
                   }
+                  if (detached.isNotEmpty) _changed();
                   _saveLayout(flush: true);
-                }, onEnd: () => _saveLayout(flush: true),
+                }, onEnd: () { setState(() { _liftBoxes.clear(); _draggingId = null; }); _saveLayout(flush: true); },
                 child: Card(color: wordBackgroundColor(context, record.text),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
-                    color: candidates.isNotEmpty || _selected == record.id ? color.primary : Colors.transparent, width: 2)),
+                    color: candidates.isNotEmpty || _selected == record.id || _draggingId == record.id ? color.primary : Colors.transparent, width: _draggingId == record.id ? 3 : 2)),
                   child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Row(children: [
                     Expanded(child: Padding(padding: const EdgeInsets.all(8), child: Text(badgeLabel(record.text), maxLines: ((_size(record.id).height - 24) / 22).floor().clamp(1, 20),
                       overflow: TextOverflow.ellipsis, style: TextStyle(color: wordColor(context, record.text))))),
