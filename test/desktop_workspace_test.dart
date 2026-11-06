@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/main.dart';
+import 'package:weaver/features/inbox/desktop_menu_frame.dart';
 import 'package:weaver/features/inbox/workspace_menu.dart';
 import 'package:weaver/features/inbox/all_thoughts_page.dart';
 
@@ -15,7 +16,9 @@ void main() {
     expect(find.byType(AllThoughtsPage), findsOneWidget);
     expect(tester.widget<WorkspaceMenu>(menu).embedded, isTrue);
     expect(tester.getTopLeft(menu).dx, 0);
-    final pinnedWidth = tester.getSize(find.byType(Scaffold)).width;
+    expect(tester.getSize(find.byType(AppBar)).width, 1420);
+    expect(tester.getTopLeft(menu).dy, greaterThanOrEqualTo(tester.getBottomRight(find.byType(AppBar)).dy));
+    final pinnedWidth = tester.getSize(find.byType(DesktopMenuBody)).width - tester.getSize(menu).width;
     await tester.tap(find.text('상자')); await tester.pumpAndSettle();
     expect(tester.widget<WorkspaceMenu>(menu).embedded, isTrue);
     expect(find.byTooltip('메뉴 숨기기'), findsNothing);
@@ -24,7 +27,7 @@ void main() {
     expect(find.byType(AllThoughtsPage), findsNothing);
     await tester.tap(find.byTooltip('메뉴 숨기기')); await tester.pumpAndSettle();
     expect(menu, findsNothing);
-    expect(tester.getSize(find.byType(Scaffold)).width, greaterThan(pinnedWidth));
+    expect(tester.getSize(find.byType(DesktopMenuBody)).width, greaterThan(pinnedWidth));
     await tester.tap(find.byTooltip('메뉴 열기')); await tester.pumpAndSettle();
     expect(tester.widget<WorkspaceMenu>(menu).embedded, isFalse);
     expect(find.byTooltip('메뉴 고정하기'), findsNothing);
