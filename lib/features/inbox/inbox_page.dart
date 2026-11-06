@@ -1075,6 +1075,7 @@ class _InboxPageState extends State<InboxPage> {
 
   @override
   Widget build(BuildContext context) {
+    desktopMenu.attach(this, _desktopSidebar, _menu, () => mounted, notify: false);
     WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) desktopMenu.attach(this, _desktopSidebar, _menu, () => mounted); });
     for (final note in _notes) {
       if (note.project != null) elements.indexProject(note.project!);

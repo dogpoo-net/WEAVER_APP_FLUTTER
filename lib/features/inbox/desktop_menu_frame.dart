@@ -7,8 +7,8 @@ class DesktopMenuController extends ChangeNotifier {
   bool Function()? alive;
   bool visible = true;
   bool get attached => builder != null && (alive?.call() ?? false);
-  void attach(Object owner, WidgetBuilder menu, VoidCallback open, bool Function() isAlive) {
-    _owner = owner; builder = menu; openModal = open; alive = isAlive; notifyListeners();
+  void attach(Object owner, WidgetBuilder menu, VoidCallback open, bool Function() isAlive, {bool notify = true}) {
+    _owner = owner; builder = menu; openModal = open; alive = isAlive; if (notify) notifyListeners();
   }
   void detach(Object owner) {
     if (!identical(_owner, owner)) return;
