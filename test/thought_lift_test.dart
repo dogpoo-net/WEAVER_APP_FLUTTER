@@ -38,6 +38,10 @@ void main() {
     expect(pageGraphLayout.positions[a.id]!.dx, greaterThanOrEqualTo(32));
     expect(pageGraphLayout.positions[a.id]!.dy, greaterThanOrEqualTo(32));
     expect(pageGraphLayout.positions[b.id]! - pageGraphLayout.positions[a.id]!, const Offset(500, 300));
+    final before = pageGraphLayout.positions[a.id]!;
+    await tester.drag(find.text('왼쪽 생각'), const Offset(70, 20));
+    await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
+    expect(pageGraphLayout.positions[a.id]!.dx, greaterThan(before.dx), reason: 'Recovered nodes must receive input, not just paint inside the canvas.');
     await tester.drag(find.text('왼쪽 생각'), const Offset(-1500, -1500));
     await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
     expect(pageGraphLayout.positions[a.id]!.dx, greaterThanOrEqualTo(32));
