@@ -14,6 +14,7 @@ class DesktopMenuController extends ChangeNotifier {
     if (!identical(_owner, owner)) return;
     _owner = null; builder = null; openModal = null; alive = null; notifyListeners();
   }
+  void refresh() { if (attached) notifyListeners(); }
   void setVisible(bool value) { if (visible != value) { visible = value; notifyListeners(); } }
 }
 final desktopMenu = DesktopMenuController();

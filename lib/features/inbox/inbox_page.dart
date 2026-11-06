@@ -249,6 +249,7 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   Future<void> _persist() async {
+    desktopMenu.refresh();
     if (widget.storage == null || _restoreBlocked) return;
     try {
       for (final note in _notes.where((n) => n.project != null)) { note.content = note.project!.content; }
