@@ -281,8 +281,8 @@ class _ThoughtViewsState extends State<AllThoughtsPage> {
         ButtonSegment(value: ThoughtView.page, label: Text('페이지'))],
       selected: {_view}, onSelectionChanged: (value) => setState(() => _view = value.single),
     ));
-    if (_view == ThoughtView.boxes) return ThoughtBoxView(notes: widget.notes, initialBox: widget.initialBox,
-      onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector);
+    if (_view == ThoughtView.boxes) { return ThoughtBoxView(notes: widget.notes, initialBox: widget.initialBox,
+      onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector); }
     return ThoughtPage(key: ValueKey(_view), box: widget.initialBox, blocks: _view == ThoughtView.page,
       onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, viewSelector: selector);
   }

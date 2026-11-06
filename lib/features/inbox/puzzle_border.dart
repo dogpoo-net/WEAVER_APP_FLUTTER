@@ -24,7 +24,7 @@ class PuzzleBorder extends OutlinedBorder {
   Path getInnerPath(Rect rect, {TextDirection? textDirection}) => getOuterPath(rect.deflate(side.width), textDirection: textDirection);
   @override
   void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
-    if (side.style == BorderStyle.solid && side.width > 0) canvas.drawPath(getOuterPath(rect.deflate(side.width / 2)),
-      Paint()..color = side.color..style = PaintingStyle.stroke..strokeWidth = side.width);
+    if (side.style == BorderStyle.solid && side.width > 0) { canvas.drawPath(getOuterPath(rect.deflate(side.width / 2)),
+      Paint()..color = side.color..style = PaintingStyle.stroke..strokeWidth = side.width); }
   }
 }
