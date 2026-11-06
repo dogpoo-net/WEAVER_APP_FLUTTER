@@ -124,7 +124,15 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     if (!mounted || _entry == null || _dismissed == widget.controller.text) return false;
     _refreshMatches(widget.controller.value, autoSelect: false);
     if (_matches.isEmpty) return false;
-    widget.controller.clearComposing();
+    if (widget.controller.value.composing.isValid && !widget.controller.value.composing.isCollapsed) {
+      final committed = widget.controller.value.copyWith(composing: TextRange.empty);
+      widget.focus.unfocus();
+      FocusManager.instance.applyFocusChangesIfNeeded();
+      widget.controller.value = committed;
+      widget.focus.requestFocus();
+    } else {
+      widget.controller.clearComposing();
+    }
     _refreshMatches(widget.controller.value, autoSelect: false);
     if (_matches.isEmpty) return false;
     _choose(_matches[_selected]);

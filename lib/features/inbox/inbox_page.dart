@@ -539,6 +539,14 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   void _insertQuickTag(String tag) {
+    // Close the native IME connection before removing its composing token.
+    // Otherwise the platform can insert the final syllable again after removal.
+    if (_draft.value.composing.isValid && !_draft.value.composing.isCollapsed) {
+      final committed = _draft.value.copyWith(composing: TextRange.empty);
+      _focus.unfocus();
+      FocusManager.instance.applyFocusChangesIfNeeded();
+      _draft.value = committed;
+    }
     final token = tagPrefix(_draft.value);
     if (!token.startsWith('#')) return;
     final start = _draft.selection.start - token.length;
