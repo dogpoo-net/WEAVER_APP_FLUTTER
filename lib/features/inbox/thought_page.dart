@@ -280,11 +280,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       emptyX += 340;
     }
     final tagRegions = <({String tag, Rect bounds})>[];
-    if (widget.blocks) for (final tag in tags) {
+    if (widget.blocks) { for (final tag in tags) {
       final members = records.where((r) => r.tags.contains(tag) && visiblePositions.containsKey(r.id)).toList();
       final bounds = memoBoxCircleBounds(members.map((r) => visiblePositions[r.id]!),
         sizes: {for (final r in members) visiblePositions[r.id]!: _size(r.id)});
       if (bounds != null) tagRegions.add((tag: tag, bounds: bounds));
+    }
     }
     for (final region in tagRegions) {
       sceneWidth = math.max(sceneWidth, region.bounds.right + 100);
