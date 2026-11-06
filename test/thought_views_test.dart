@@ -39,7 +39,7 @@ void main() {
       await tester.tap(find.text('다이어그램')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(tester.widget<ThoughtPage>(find.byType(ThoughtPage)).blocks, isFalse);
       expect(layout.positions, diagram);
-      expect(a.connections, isEmpty); expect(b.connections, isEmpty);
+      expect(a.connections, {b.id}); expect(b.connections, {a.id});
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     });
