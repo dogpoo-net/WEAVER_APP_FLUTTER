@@ -6,7 +6,7 @@ import 'package:weaver/features/inbox/element_store.dart';
 void main() {
   WritingProject project() {
     elements.clear();
-    for (var i = 0; i < 40; i++) { elements.add('참고할 생각 $i #글 #분류$i'); }
+    for (var i = 0; i < 80; i++) { elements.add('참고할 생각 $i #글 #분류$i'); }
     return WritingProject([], [], name: '작성 중')..document = List.generate(100, (i) => '본문 $i').join('\n')..tags.add('글');
   }
   testWidgets('desktop references are wider with independent thought, tag and document scrolling', (tester) async {
