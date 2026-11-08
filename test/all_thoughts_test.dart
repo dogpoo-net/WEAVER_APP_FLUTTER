@@ -130,6 +130,6 @@ void main() {
     expect(find.byTooltip('문단 추가'), findsNothing);
     await tester.tap(find.descendant(of: menu, matching: find.text('모든 생각 보기')));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('생각 만들기'), findsOneWidget);
+    expect(find.byTooltip('메모상자 만들기'), findsOneWidget);
   });
 }

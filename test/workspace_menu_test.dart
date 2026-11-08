@@ -51,10 +51,10 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('thoughts-all')));
     await tester.pumpAndSettle();
     expect(find.text('생각 만들기'), findsNothing);
-    expect(find.byTooltip('생각 만들기'), findsOneWidget);
+    expect(find.byTooltip('메모상자 만들기'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
-    expect(find.byTooltip('생각 만들기'), findsNothing);
+    expect(find.byTooltip('메모상자 만들기'), findsNothing);
     expect(find.text('빠른 메모'), findsOneWidget);
   });
   testWidgets('only project list scrolls while navigation remains fixed', (
