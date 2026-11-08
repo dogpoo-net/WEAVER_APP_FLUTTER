@@ -169,7 +169,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
               if (next != _columns) setState(() => _columns = next);
             },
             child: SizedBox(width: constraints.maxWidth, child: Wrap(
-              spacing: 6, runSpacing: 6, children: tiles)));
+              alignment: WrapAlignment.center, spacing: 6, runSpacing: 6, children: tiles)));
         }),
       ]))));
     final footer = SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
