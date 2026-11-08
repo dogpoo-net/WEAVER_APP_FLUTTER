@@ -25,7 +25,7 @@ void main() {
     expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('thought-filter-tag-독서'))).selected, isTrue);
     expect(saves, 2);
     final restored = WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([]));
-    expect(restored.boxes.single.color, hashtagPalette[2].toARGB32());
+    expect(restored.boxes.singleWhere((box) => box.name == '자료').color, hashtagPalette[2].toARGB32());
     expect(restored.tagColors['독서'], hashtagPalette[5].toARGB32());
     expect(tester.takeException(), isNull);
   });

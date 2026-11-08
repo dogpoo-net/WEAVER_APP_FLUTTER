@@ -6,6 +6,17 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 
 void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); });
+  testWidgets('default thought view filters unclassified without navigation', (tester) async {
+    final free = elements.add('미분류 생각');
+    final filed = elements.add('상자 속 생각');
+    memoBoxes.add(MemoBox('자료', ids: [filed.id]));
+    await tester.pumpWidget(const MaterialApp(home: AllThoughtsPage(notes: [])));
+    expect(find.byType(ThoughtBoxView), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('thought-filter-box-미분류')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('thought-${free.id}')), findsOneWidget);
+    expect(find.byKey(ValueKey('thought-${filed.id}')), findsNothing);
+  });
   for (final platform in [TargetPlatform.android, TargetPlatform.linux]) {
     testWidgets('boxes and tags filter in place and all resets ($platform)', (tester) async {
       final first = elements.add('첫 메모 #독서');

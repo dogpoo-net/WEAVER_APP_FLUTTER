@@ -19,6 +19,8 @@ void main() {
       final box = MemoBox('검토함', ids: [a.id, b.id]); memoBoxes.add(box);
       await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(notes: const [], initialBox: scoped ? box : null)));
       await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(ThoughtBoxView), findsOneWidget);
+      await tester.tap(find.text('다이어그램')); await tester.pumpAndSettle();
       expect(find.byType(ThoughtPage), findsOneWidget);
       expect(find.text('안쪽 생각'), findsOneWidget);
       expect(find.text('바깥 생각'), scoped ? findsNothing : findsOneWidget);
@@ -31,7 +33,7 @@ void main() {
       expect(tester.widget<ThoughtPage>(find.byType(ThoughtPage)).blocks, isTrue);
       expect(find.byWidgetPredicate((w) => w is Card && w.shape is RoundedRectangleBorder), findsWidgets);
       expect(find.text('#안쪽'), findsNWidgets(2));
-      expect(tester.widget<MemoBoxRegion>(find.byType(MemoBoxRegion)).rectangular, isTrue);
+      expect(tester.widget<MemoBoxRegion>(find.byWidgetPredicate((w) => w is MemoBoxRegion && identical(w.box, box))).rectangular, isTrue);
       expect(find.text('바깥 생각'), scoped ? findsNothing : findsOneWidget);
       final layout = scoped ? box.layout : pageGraphLayout;
       expect(layout.blockLayout.positions.keys, containsAll([a.id, b.id]));

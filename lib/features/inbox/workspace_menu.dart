@@ -122,9 +122,10 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         _Kind.paragraph => WorkspaceMenu.paragraphChoice(index), _Kind.element => WorkspaceMenu.elementChoice(index) }));
     final draggable = switch (kind) {
       _Kind.project => widget.onProjectMoved != null, _Kind.paragraph => widget.onParagraphMoved != null,
-      _Kind.box => true, _Kind.element => widget.onElementMoved != null, _Kind.tag => widget.onTagMoved != null,
+      _Kind.box => !memoBoxes[index].isUnclassified, _Kind.element => widget.onElementMoved != null, _Kind.tag => widget.onTagMoved != null,
     };
-    if (!draggable) return tile;
+    if (!draggable) return kind == _Kind.box ? MemoBoxTarget(box: memoBoxes[index],
+      onChanged: () { setState(() {}); widget.onBoxChanged?.call(); }, child: tile) : tile;
     final child = kind == _Kind.box ? MemoBoxTarget(box: memoBoxes[index],
       onChanged: () { setState(() {}); widget.onBoxChanged?.call(); }, child: tile) : tile;
     final data = _MenuDrag(kind, index);

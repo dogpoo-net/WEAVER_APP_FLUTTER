@@ -7,6 +7,20 @@ import 'package:weaver/features/inbox/all_thoughts_page.dart';
 
 void main() {
   setUp(() { memoBoxes.clear(); memoBoxFolders.clear(); elements.clear(); });
+  test('unclassified follows membership and survives restore', () {
+    final record = elements.add('분류할 생각');
+    final unclassified = ensureUnclassifiedBox();
+    final box = MemoBox('자료'); memoBoxes.add(box);
+    expect(unclassified.elementIds, {record.id});
+    moveThoughtToBox(record.id, box);
+    expect(unclassified.elementIds, isEmpty);
+    moveThoughtToBox(record.id, unclassified);
+    expect(box.elementIds, isEmpty);
+    expect(unclassified.elementIds, {record.id});
+    WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([])).apply();
+    expect(ensureUnclassifiedBox().elementIds, {record.id});
+    expect(memoBoxes.where((box) => box.isUnclassified), hasLength(1));
+  });
   test('moving a thought replaces membership and restore removes legacy duplicates', () {
     final record = elements.add('단일 소속');
     final first = MemoBox('첫 상자', ids: [record.id]);
@@ -52,7 +66,7 @@ void main() {
     await tester.ensureVisible(tile);
     final gesture = await tester.startGesture(tester.getCenter(tile));
     await tester.pump(const Duration(milliseconds: 600));
-    await gesture.moveTo(tester.getCenter(find.byType(MemoBoxTarget)));
+    await gesture.moveTo(tester.getCenter(find.byWidgetPredicate((w) => w is MemoBoxTarget && identical(w.box, box))));
     await tester.pump(); await gesture.up(); await tester.pumpAndSettle();
     expect(box.elementIds, {record.id});
     expect(tester.takeException(), isNull);

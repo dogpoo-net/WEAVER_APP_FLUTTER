@@ -119,6 +119,7 @@ class _InboxPageState extends State<InboxPage> {
       _restoreBlocked = true;
       _storageError = '브라우저 저장 데이터를 읽지 못했습니다. 기존 데이터는 보존되며 새 저장은 중단됩니다.';
     }
+    ensureUnclassifiedBox();
   }
 
   void _elementRenamed(String oldText, String newText) {
@@ -301,6 +302,7 @@ class _InboxPageState extends State<InboxPage> {
     pageGraphLayout = GraphLayout();
     memoBoxFolders.clear();
         elements.clear();
+        ensureUnclassifiedBox();
         restoreWordColors({});
         _notes.clear();
         _draft.clear();

@@ -164,7 +164,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
 enum ThoughtView { boxes, diagram, page }
 
 class AllThoughtsPage extends StatefulWidget {
-  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox, this.initialView = ThoughtView.diagram});
+  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox, this.initialView = ThoughtView.boxes});
   final List<Note> notes;
   final VoidCallback? onChanged, onLayoutChanged;
   final MemoBox? initialBox;
@@ -173,6 +173,11 @@ class AllThoughtsPage extends StatefulWidget {
   State<AllThoughtsPage> createState() => _ThoughtViewsState();
 }
 class _ThoughtViewsState extends State<AllThoughtsPage> {
+  @override
+  void initState() {
+    super.initState();
+    ensureUnclassifiedBox();
+  }
   late ThoughtView _view = widget.initialView;
   late ThoughtView _previousView = widget.initialView;
   @override

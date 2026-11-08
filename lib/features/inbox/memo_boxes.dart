@@ -1,24 +1,37 @@
 import 'package:flutter/material.dart';
 import 'graph_layout.dart';
+import 'element_store.dart';
 
 class MemoBox {
-  MemoBox(this.name, {this.color = 0xFF90A4AE, this.folder, Iterable<String> ids = const [], GraphLayout? layout}) : elementIds = {...ids}, layout = layout ?? GraphLayout();
+  MemoBox(this.name, {this.color = 0xFF90A4AE, this.folder, this.isUnclassified = false, Iterable<String> ids = const [], GraphLayout? layout}) : _elementIds = {...ids}, layout = layout ?? GraphLayout();
   final GraphLayout layout;
   final String name;
   int color;
   String? folder;
-  final Set<String> elementIds;
+  final bool isUnclassified;
+  final Set<String> _elementIds;
+  Set<String> get elementIds => isUnclassified
+      ? elements.records.values.map((record) => record.id).toSet().difference(
+          memoBoxes.where((box) => !box.isUnclassified).expand((box) => box.elementIds).toSet())
+      : _elementIds;
 }
 final memoBoxes = <MemoBox>[];
 final memoBoxFolders = <String>[];
+MemoBox ensureUnclassifiedBox() {
+  final existing = memoBoxes.where((box) => box.isUnclassified).firstOrNull;
+  if (existing != null) return existing;
+  final box = MemoBox('미분류', isUnclassified: true);
+  memoBoxes.insert(0, box);
+  return box;
+}
 /// Moving a thought to a box replaces its previous membership.
 void moveThoughtToBox(String id, MemoBox target) {
   for (final box in memoBoxes) { if (!identical(box, target)) box.elementIds.remove(id); }
-  target.elementIds.add(id);
+  if (!target.isUnclassified) target.elementIds.add(id);
 }
 void normalizeBoxMemberships() {
   final seen = <String>{};
-  for (final box in memoBoxes) { box.elementIds.removeWhere((id) => !seen.add(id)); }
+  for (final box in memoBoxes.where((box) => !box.isUnclassified)) { box.elementIds.removeWhere((id) => !seen.add(id)); }
 }
 
 class MemoDrag {
@@ -37,6 +50,7 @@ Future<MemoBox?> createMemoBox(BuildContext context) async {
       TextButton(onPressed: () { if (draft.trim().isNotEmpty) Navigator.pop(context, draft.trim()); }, child: const Text('만들기'))],
   ));
   if (name == null) return null;
+  if (name == '미분류') return ensureUnclassifiedBox();
   final existing = memoBoxes.where((box) => box.name == name);
   if (existing.isNotEmpty) return existing.first;
   final box = MemoBox(name);
