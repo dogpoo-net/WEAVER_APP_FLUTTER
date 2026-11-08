@@ -1,0 +1,36 @@
+name: Validate mobile capture
+on:
+  push:
+    branches: [codex/mobile-capture]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          git clone --depth 1 --branch 3.47.9 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - run: flutter pub get
+      - name: Report resolved dependencies
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          message = Path('pubspec.lock').read_text().replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          print(f'::notice title=Resolved dependency lock::{message}')
+          PY
+      - name: Validate
+        run: |
+          set +e
+          flutter analyze > /tmp/analysis.log 2>&1
+          result=$?
+          cat /tmp/analysis.log
+          python3 - <<'PY'
+          from pathlib import Path
+          message = Path('/tmp/analysis.log').read_text().replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          print(f'::notice title=Analysis::{message}')
+          PY
+          exit "$result"
+      - run: flutter test --reporter expanded
+      - run: flutter build web --release --base-href /WEAVER_APP_FLUTTER/
