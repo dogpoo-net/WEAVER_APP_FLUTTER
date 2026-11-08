@@ -79,7 +79,7 @@ void main() {
     await tester.enterText(search, '없는 검색어');
     await tester.pumpAndSettle();
     expect(find.byType(WordBadge), findsNothing);
-    expect(find.text('일치하는 생각가 없어요.'), findsOneWidget);
+    expect(find.text('일치하는 생각이 없어요.'), findsOneWidget);
     await tester.enterText(search, '');
     await tester.pumpAndSettle();
     expect(find.byType(WordBadge), findsNWidgets(2));

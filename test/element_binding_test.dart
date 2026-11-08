@@ -8,9 +8,9 @@ import 'package:weaver/features/inbox/element_store.dart';
 void main() {
   test('linked ranges reject internal edits but allow surrounding edits and atomic removal', () {
     final c = BoundTextController('앞 생각 뒤', [const ElementBinding('id', 2, 4)]);
-    c.value = const TextEditingValue(text: '앞 원수 뒤');
+    c.value = const TextEditingValue(text: '앞 생걱 뒤');
     expect(c.text, '앞 생각 뒤');
-    c.value = const TextEditingValue(text: '앞 원가소 뒤');
+    c.value = const TextEditingValue(text: '앞 생가각 뒤');
     expect(c.text, '앞 생각 뒤');
     c.value = const TextEditingValue(text: '새 앞 생각 뒤');
     expect(c.bindings.single.start, 4);
@@ -19,7 +19,7 @@ void main() {
     expect(c.text, '새 앞  뒤');
   });
   test('backspace and forward delete remove a complete link and preserve neighbours', () {
-    for (final edited in ['앞 원 뒤', '앞 소 뒤']) {
+    for (final edited in ['앞 생 뒤', '앞 각 뒤']) {
       final c = BoundTextController('앞 생각 뒤', [const ElementBinding('id', 2, 4)]);
       c.value = TextEditingValue(text: edited, selection: const TextSelection.collapsed(offset: 3));
       expect(c.text, '앞  뒤');
@@ -28,7 +28,7 @@ void main() {
       c.dispose();
     }
     final c = BoundTextController('앞 생각 뒤 연결 끝', [const ElementBinding('one', 2, 4), const ElementBinding('two', 7, 9)]);
-    c.value = const TextEditingValue(text: '앞 원 뒤 연결 끝');
+    c.value = const TextEditingValue(text: '앞 생 뒤 연결 끝');
     expect(c.text, '앞  뒤 연결 끝');
     expect(c.bindings.single.id, 'two');
     expect(c.bindings.single.start, 5);

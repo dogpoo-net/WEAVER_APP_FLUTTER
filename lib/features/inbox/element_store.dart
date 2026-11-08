@@ -54,7 +54,7 @@ class ElementStore extends ChangeNotifier {
     final record = records[oldText];
     if (record == null) return '이미 삭제된 생각입니다.';
     if (parsed.text != oldText && records.containsKey(parsed.text)) {
-      return '같은 내용의 생각가 이미 있어요.';
+      return '같은 내용의 생각이 이미 있어요.';
     }
     records.remove(oldText);
     record.text = parsed.text;

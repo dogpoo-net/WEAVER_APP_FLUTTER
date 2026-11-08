@@ -26,7 +26,7 @@ void main() {
     expect(snapshot.notes.single.folder, '문단 폴더');
     expect(elements.records['숨긴 생각']!.folder, '생각 폴더');
     expect(elements.visibleWords, ['보이는 생각']);
-    expect(elements.matches('숨긴 생각를 쓴 글').map((hit) => hit.word), ['숨긴 생각']);
+    expect(elements.matches('숨긴 생각을 쓴 글').map((hit) => hit.word), ['숨긴 생각']);
     elements.setHidden('숨긴 생각', false);
     elements.setTagHidden('자료', false);
     expect(elements.visibleWords, ['숨긴 생각', '태그로 숨긴 생각', '보이는 생각']);
