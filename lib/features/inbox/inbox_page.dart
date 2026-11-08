@@ -861,7 +861,6 @@ class _InboxPageState extends State<InboxPage> {
               onTag: (tag) => _acceptQuickAssist(() => _insertQuickTag(tag)),
               onWord: (word) => _acceptQuickAssist(() => _insertQuickElement(word)), child: TextField(
               key: const ValueKey('quick-memo'),
-              onTapOutside: (_) { if (!_desktopQuickMemo) dismissKeyboard(); },
               inputFormatters: [TextInputFormatter.withFunction(_formatQuickMemo)],
               textInputAction: _desktopQuickMemo ? TextInputAction.done : TextInputAction.newline,
               onEditingComplete: _desktopQuickMemo ? () {} : null,

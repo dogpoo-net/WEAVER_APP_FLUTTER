@@ -1,3 +1,4 @@
+import 'features/inbox/keyboard_dismiss.dart';
 import 'dart:convert';
 import 'app_theme.dart';
 import 'features/inbox/workspace_routes.dart';
@@ -126,6 +127,13 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'WEAVER',
+    builder: (context, child) => Actions(actions: <Type, Action<Intent>>{
+      EditableTextTapOutsideIntent: CallbackAction<EditableTextTapOutsideIntent>(onInvoke: (intent) {
+        intent.focusNode.unfocus();
+        dismissKeyboard();
+        return null;
+      }),
+    }, child: child!),
     scaffoldMessengerKey: _messenger,
     navigatorObservers: [workspaceRouteObserver],
     debugShowCheckedModeBanner: false,

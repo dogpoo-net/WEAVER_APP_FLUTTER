@@ -102,7 +102,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
           icon: Icon(_panelOpen ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up),
           label: Text(_panelOpen ? '참고 패널 숨기기' : '참고 패널 올리기'))))), body: DesktopMenuBody(child: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
       final document = Column(children: [TextField(key: const ValueKey('project-name'), controller: _name, decoration: const InputDecoration(labelText: '프로젝트 이름')),
-        const SizedBox(height: 12), Expanded(child: TextField(onTapOutside: (_) => dismissKeyboard(), key: const ValueKey('project-document'), controller: _body, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
+        const SizedBox(height: 12), Expanded(child: TextField(key: const ValueKey('project-document'), controller: _body, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
           textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
           decoration: const InputDecoration(hintText: '연결된 생각을 참고하며 자유롭게 글을 써보세요.', border: OutlineInputBorder())))]);
       final panel = Padding(padding: const EdgeInsets.all(12), child: _referencesPanel());
