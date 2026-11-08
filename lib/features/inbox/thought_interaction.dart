@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 class ThoughtInteraction extends StatefulWidget {
   const ThoughtInteraction({super.key, required this.size, required this.child,
     required this.onMove, required this.onResize, required this.onDrop, required this.onEnd,
-    required this.onTap, required this.onDoubleTap, required this.desktop, this.onLift, this.onActiveChanged});
+    required this.onTap, required this.desktop, this.onLift, this.onActiveChanged});
   final Size size;
   final Widget child;
   final ValueChanged<Offset> onMove, onDrop;
   final void Function(Size size, Offset shift) onResize;
-  final VoidCallback onEnd, onTap, onDoubleTap;
+  final VoidCallback onEnd, onTap;
   final bool desktop;
   final VoidCallback? onLift;
   final ValueChanged<bool>? onActiveChanged;
@@ -33,7 +33,7 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
       }, onPanEnd: (_) => widget.onEnd(), child: const SizedBox.expand()));
   @override
   Widget build(BuildContext context) => GestureDetector(behavior: HitTestBehavior.opaque,
-    onTap: widget.onTap, onDoubleTap: widget.onDoubleTap,
+    onTap: widget.onTap,
     onLongPressStart: widget.onLift == null ? null : (d) {
       _longOffset = d.globalPosition; setState(() => _lifted = true);
       widget.onLift!(); widget.onActiveChanged?.call(true);

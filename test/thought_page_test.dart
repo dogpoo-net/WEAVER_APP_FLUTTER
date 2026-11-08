@@ -8,6 +8,21 @@ import 'package:weaver/features/inbox/memo_box_region.dart';
 
 void main() {
   setUp(() { pageGraphLayout = GraphLayout(); memoBoxes.clear(); });
+  for (final blocks in [false, true]) {
+    testWidgets('single tap opens thought editor without selection actions ($blocks)', (tester) async {
+      elements.clear(); elements.add('바로 수정할 생각');
+      await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
+      await tester.pumpAndSettle();
+      expect(tester.widget<InteractiveViewer>(find.byType(InteractiveViewer)).maxScale, 8);
+      await tester.tap(find.text('바로 수정할 생각'));
+      await tester.pump();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.text('생각 수정'), findsNothing);
+      expect(find.text('연결된 생각 만들기'), findsNothing);
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
   testWidgets('page connects thoughts bidirectionally and creates a thought', (tester) async {
     elements.clear(); final a = elements.add('생각 A #안쪽'); final b = elements.add('생각 B');
     elements.add('상자 밖 생각 #바깥');

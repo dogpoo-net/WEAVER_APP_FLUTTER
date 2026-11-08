@@ -13,7 +13,7 @@ void main() {
         transformationController: view,
         child: Center(child: StatefulBuilder(builder: (context, update) => ThoughtInteraction(
           size: size, desktop: desktop, onMove: (_) {}, onDrop: (_) => drops++, onEnd: () {},
-          onTap: () {}, onDoubleTap: () {}, onResize: (next, shift) => update(() => size = next),
+          onTap: () {}, onResize: (next, shift) => update(() => size = next),
           child: const Text('같은 폰트 크기로 긴 생각의 내용을 계속 표시합니다.', style: TextStyle(fontSize: 14)),
         ))),
       ))));

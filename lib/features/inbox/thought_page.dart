@@ -39,7 +39,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   Timer? _saveTimer;
   late final GraphLayout _layout;
   late final TextEditingController _search;
-  String? _selected, _linkFrom, _draggingId;
+  String? _linkFrom, _draggingId;
   MemoBox? _hoverBox;
   final _liftBoxes = <MemoBox, Rect>{};
   bool _linkMode = false, _centered = false;
@@ -155,7 +155,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       if (!hadPositions && widget.box == null) _separateBoxes();
     }
     if (!hadPositions && _positions.isNotEmpty) _centered = false;
-    if (!records.any((r) => r.id == _selected)) _selected = null;
+    if (!records.any((r) => r.id == _linkFrom)) _linkFrom = null;
     _saveLayout();
   }
   void _arrangeBlocks(List<ElementRecord> records) {
@@ -209,36 +209,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     if (text == null || !mounted) return;
     final r = elements.add(text);
     if (widget.box != null) { moveThoughtToBox(r.id, widget.box!); }
-    if (_selected != null) elements.connect(_selected!, [r.id]);
-    _selected = r.id; _changed();
+    _changed();
   }
   void _connect(String a, String b) {
     if (a == b) return;
     elements.connect(a, [b]); _linkFrom = null; _changed();
   }
-  Future<void> _disconnect() async {
-    final record = elements.records.values.where((r) => r.id == _selected).firstOrNull;
-    if (record == null) return;
-    final targets = elements.records.values.where((r) => record.connections.contains(r.id)).toList();
-    final choice = await showDialog<String>(context: context, builder: (context) => AlertDialog(
-      title: const Text('연결 끊기'),
-      content: SizedBox(width: 360, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        if (targets.isEmpty && record.tags.isEmpty) const Text('연결된 생각이나 태그가 없습니다.'),
-        for (final target in targets) ListTile(title: Text(badgeLabel(target.text), maxLines: 2, overflow: TextOverflow.ellipsis),
-          trailing: const Icon(Icons.link_off), onTap: () => Navigator.pop(context, target.id)),
-        for (final tag in record.tags) ListTile(title: Text('#$tag'), trailing: const Icon(Icons.link_off),
-          onTap: () => Navigator.pop(context, 'tag:$tag')),
-      ]))), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],
-    ));
-    if (choice == null || !mounted) return;
-    if (choice.startsWith('tag:')) {
-      record.tags.remove(choice.substring(4));
-    } else {
-      elements.disconnect(record.id, choice);
-    }
-    _changed();
-  }
-
   @override
   void dispose() {
     _saveLayout(flush: true);
@@ -284,7 +260,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       IconButton(tooltip: '전체 위치 보기', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('사용 안내'),
-          content: const Text('생각·태그를 드래그해 배치하고, 연결 아이콘을 드롭해 연결하세요. 생각을 두 번 누르면 수정할 수 있습니다. 연결 모드에서는 생각 두 개를 차례로 누르세요.'),
+          content: const Text('생각·태그를 드래그해 배치하고, 연결 아이콘을 드롭해 연결하세요. 생각을 누르면 수정할 수 있습니다. 연결 모드에서는 생각 두 개를 차례로 누르세요.'),
           actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))]))),
     ]))]), body: DesktopMenuBody(child: Column(children: [
       if (widget.viewSelector != null) widget.viewSelector!,
@@ -315,7 +291,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         }
         return InteractiveViewer(
         onInteractionEnd: (_) => _saveLayout(flush: true),
-        transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: 2.5,
+        transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: MediaQuery.sizeOf(context).width >= 760 ? 8 : 2.5,
         boundaryMargin: const EdgeInsets.all(500),
         child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds, highlighted: identical(_hoverBox, region.box), rectangular: widget.blocks,
@@ -345,8 +321,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                     elements.disconnect(from, record.id); _linkFrom = null; _changed();
                   } else { _connect(from, record.id); }
                 }
-                  else { setState(() { _selected = record.id; if (_linkMode) _linkFrom = record.id; }); } },
-                onDoubleTap: () => showElementMetadata(context, record.text),
+                  else if (_linkMode) { setState(() => _linkFrom = record.id); }
+                  else { showElementMetadata(context, record.text); } },
                 onMove: (delta) => setState(() { final p = _positions[record.id]! + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
                   final center = _bounds(record.id).center;
                   _hoverBox = regions.where((r) => !r.box.elementIds.contains(record.id) && _inside(r.bounds, center)).firstOrNull?.box;
@@ -377,8 +353,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   _saveLayout(flush: true);
                 }, onEnd: () { setState(() { _liftBoxes.clear(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
                 child: Card(color: wordBackgroundColor(context, record.text),
-                  shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _draggingId == record.id || _selected == record.id ? color.primary : color.outlineVariant, width: 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
-                    color: candidates.isNotEmpty || _selected == record.id || _draggingId == record.id ? color.primary : Colors.transparent, width: _draggingId == record.id ? 3 : 2)),
+                  shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _draggingId == record.id || _linkFrom == record.id ? color.primary : color.outlineVariant, width: 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
+                    color: candidates.isNotEmpty || _linkFrom == record.id || _draggingId == record.id ? color.primary : Colors.transparent, width: _draggingId == record.id ? 3 : 2)),
                   child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(children: [
                     if (widget.blocks && record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 10, 8, 0), child: Align(alignment: Alignment.centerLeft,
                       child: Text(record.tags.map((tag) => '#$tag').join('  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)))),
@@ -405,15 +381,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: candidates.isEmpty ? .3 : .6)))))),
         ])),
       ); })),
-      if (_selected != null) Wrap(alignment: WrapAlignment.center, children: [
-        TextButton.icon(onPressed: () { final r = records.where((r) => r.id == _selected).firstOrNull;
-          if (r != null) showElementMetadata(context, r.text); }, icon: const Icon(Icons.edit_outlined), label: const Text('생각 수정')),
-        TextButton.icon(onPressed: _create, icon: const Icon(Icons.add), label: const Text('연결된 생각 만들기')),
-        TextButton.icon(onPressed: _disconnect, icon: const Icon(Icons.link_off), label: const Text('연결 끊기')),
-      ]),
       ThoughtFilters(tags: _scopeRecords.expand((r) => r.tags).toSet().toList()..sort(), scope: widget.box,
         box: _filterBox, tag: _filterTag, onChanged: _changed,
-        onFilter: (box, tag) => setState(() { _filterBox = box; _filterTag = tag; _selected = null; _linkFrom = null; _centered = false; _sync(); })),
+        onFilter: (box, tag) => setState(() { _filterBox = box; _filterTag = tag; _linkFrom = null; _centered = false; _sync(); })),
     ])));
   }
 }
