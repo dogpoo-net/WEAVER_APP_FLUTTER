@@ -2,7 +2,10 @@
 
 Android/iOS and mobile browsers show location, microphone and gallery controls
 beside the quick memo title. Desktop can view the saved attachments and Geolog.
-The text body is still required; tags and attachments alone do not save a thought.
+An attachment alone can save a thought. Empty text gets a local timestamp and
+attachment kinds (사진, 음성, 위치); tags and links alone still cannot save.
+Thoughts show small attachment indicators; details provide audio playback, photo
+zoom and a recorded-location map.
 
 - Location is opt-in for each draft. Request foreground permission only, capture
   a single high-accuracy position with a 20-second timeout, and store accuracy

@@ -81,3 +81,10 @@ class PhotoDraft {
   final Uint8List bytes;
   final String name;
 }
+
+String attachmentMemoText(DateTime createdAt, {required bool photos, required bool audio, required bool location}) {
+  String two(int value) => value.toString().padLeft(2, '0');
+  final time = createdAt.toLocal();
+  final kinds = [if (photos) '사진', if (audio) '음성', if (location) '위치'];
+  return '${time.year}-${two(time.month)}-${two(time.day)} ${two(time.hour)}:${two(time.minute)}:${two(time.second)} / ${kinds.join(',')} 메모';
+}

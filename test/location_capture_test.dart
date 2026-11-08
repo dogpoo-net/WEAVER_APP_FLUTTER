@@ -57,4 +57,15 @@ void main() {
     expect(location.positions, 1);
     expect(tester.widget<Checkbox>(find.byKey(const ValueKey('quick-location'))).value, isFalse);
   }, variant: TargetPlatformVariant({TargetPlatform.android}));
+  testWidgets('location alone saves with timestamp title and preserves tags', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    await tester.enterText(find.byKey(const ValueKey('quick-memo')), '#산책');
+    await tester.tap(find.byKey(const ValueKey('quick-location'))); await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('저장')); await tester.tap(find.text('저장')); await tester.pumpAndSettle();
+    final record = elements.records.values.singleWhere((r) => r.text.endsWith('/ 위치 메모'));
+    expect(record.text, matches(RegExp(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} / 위치 메모$')));
+    expect(record.tags, contains('산책'));
+    expect(record.location!.latitude, 37.5);
+  }, variant: TargetPlatformVariant({TargetPlatform.android}));
+
 }

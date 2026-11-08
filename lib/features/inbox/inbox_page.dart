@@ -116,10 +116,11 @@ class _InboxPageState extends State<InboxPage> {
     } catch (_) { _captureError('사진을 가져오지 못했습니다. 사진 접근 권한을 확인해주세요.'); }
     finally { if (mounted) setState(() => _photoBusy = false); }
   }
+  bool get _hasCapture => _voiceDraft != null || _photoDrafts.isNotEmpty || _draftLocation != null;
   Future<void> _saveCapture() async {
     if (_captureSaving || _locationBusy || _photoBusy) return;
     final text = parseTaggedInput(_draft.text).text;
-    if (text.isEmpty) { _captureError('사진이나 녹음과 함께 생각 내용을 입력해주세요.'); return; }
+    if (text.isEmpty && !_hasCapture) { _captureError('생각 내용이나 첨부를 추가해주세요.'); return; }
     if (_voiceDraft == null && _photoDrafts.isEmpty) { _save(); return; }
     if (widget.storage == null || _restoreBlocked) { _captureError('저장소를 사용할 수 없습니다. 메모와 첨부는 유지됩니다.'); return; }
     final existing = _editing == null ? elements.records[text] : elements.records[_editing!.content.trim()];
@@ -675,7 +676,7 @@ class _InboxPageState extends State<InboxPage> {
 
   bool _save() {
     _pendingImeSave = false;
-    if (_draft.text.trim().isEmpty) return false;
+    if (_draft.text.trim().isEmpty && !_hasCapture) return false;
     final committed = _draft.value.copyWith(composing: TextRange.empty);
     if (_desktopQuickMemo) {
       _focus.unfocus();
@@ -684,6 +685,10 @@ class _InboxPageState extends State<InboxPage> {
     }
     var body = committed.text;
     for (final link in _draft.bindings.reversed) { body = body.replaceRange(link.start, link.end, ''); }
+    if (parseTaggedInput(body).text.isEmpty && _hasCapture) {
+      final title = attachmentMemoText(DateTime.now(), photos: _photoDrafts.isNotEmpty, audio: _voiceDraft != null, location: _draftLocation != null);
+      body = '$title $body';
+    }
     if (parseTaggedInput(body).text.isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('태그와 함께 생각 내용을 입력해주세요.')));
@@ -1082,7 +1087,7 @@ class _InboxPageState extends State<InboxPage> {
               textStyle: const TextStyle(fontSize: 12), visualDensity: VisualDensity.compact,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            onPressed: _draft.text.trim().isEmpty || _captureSaving || _locationBusy || _photoBusy ? null : (_mobileCapture ? _saveCapture : _save),
+            onPressed: (_draft.text.trim().isEmpty && !_hasCapture) || _captureSaving || _locationBusy || _photoBusy ? null : (_mobileCapture ? _saveCapture : _save),
             icon: const Icon(Icons.arrow_downward_rounded, size: 16),
             label: const Text('저장'),
           )),
