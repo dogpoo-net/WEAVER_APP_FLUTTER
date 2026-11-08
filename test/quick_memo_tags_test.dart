@@ -34,6 +34,9 @@ void main() {
     expect(elements.records['아직 한글 완성 버그가 있음']!.tags, {'위버'});
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     expect(elements.records.containsKey('아직 한글 완성 버그가 있음 버'), isFalse);
+    tester.testTextInput.updateEditingValue(const TextEditingValue(text: '버', selection: TextSelection.collapsed(offset: 1)));
+    await tester.pump();
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant({TargetPlatform.windows}));
   testWidgets('quick memo retains inline hashtags and parses them on save without Enter', (tester) async {

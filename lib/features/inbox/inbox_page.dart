@@ -70,7 +70,7 @@ class _InboxPageState extends State<InboxPage> {
   DateTime? _assistSubmitUntil;
   DateTime? _newlineEchoUntil;
   bool _platformEnterQueued = false;
-  String? _enterEchoText;
+  String? _enterEchoText, _enterEchoSyllable;
   DateTime? _enterEchoUntil, _explicitNewlineUntil;
   bool get _desktopQuickMemo => defaultTargetPlatform == TargetPlatform.windows ||
       defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.linux;
@@ -369,6 +369,8 @@ class _InboxPageState extends State<InboxPage> {
         (value.text == _newlineEchoBefore || value.text == '$_newlineEchoAfter\n' || value.text == '$_newlineEchoAfter\r\n')) {
       return oldValue.copyWith(composing: TextRange.empty);
     }
+    if (oldValue.text.isEmpty && _enterEchoUntil != null && now.isBefore(_enterEchoUntil!) &&
+        (value.text == _enterEchoText || (_enterEchoSyllable != null && value.text == _enterEchoSyllable))) return oldValue;
     if (_pendingImeNewline || (value.composing.isValid && !value.composing.isCollapsed)) return value;
     if (oldValue.text.isEmpty && _enterEchoUntil != null && now.isBefore(_enterEchoUntil!) &&
         (value.text == '$_enterEchoText\n' || value.text == '$_enterEchoText\r\n' || value.text == '\n')) {
@@ -450,7 +452,7 @@ class _InboxPageState extends State<InboxPage> {
         event.physicalKey == PhysicalKeyboardKey.delete)) {
       if (event.logicalKey != LogicalKeyboardKey.enter && event.logicalKey != LogicalKeyboardKey.numpadEnter &&
           event.physicalKey != PhysicalKeyboardKey.enter && event.physicalKey != PhysicalKeyboardKey.numpadEnter) {
-
+        _enterEchoUntil = null; _enterEchoSyllable = null;
       }
       _newlineEchoBefore = null; _newlineEchoAfter = null; _newlineEchoUntil = null;
       _assistSubmitUntil = null; _assistInputBefore = null; _assistCompleted = null;
@@ -490,6 +492,7 @@ class _InboxPageState extends State<InboxPage> {
         _imeNewlineLines = value.text.split('\n').length;
         _explicitNewlineUntil = DateTime.now().add(const Duration(milliseconds: 250));
       } else {
+        _enterEchoSyllable = value.composing.textInside(value.text);
         final committed = value.copyWith(composing: TextRange.empty);
         _pendingImeSave = false;
         _focus.unfocus();

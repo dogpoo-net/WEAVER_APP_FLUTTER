@@ -37,7 +37,7 @@ void main() {
       );
       await tester.pump();
       await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
-      expect(elements.words, isEmpty);
+      expect(elements.words, ['기억']);
       tester.testTextInput.updateEditingValue(
         const TextEditingValue(
           text: '기억',
