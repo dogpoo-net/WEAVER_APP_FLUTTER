@@ -41,6 +41,8 @@ dependencies:
   latlong2: ^0.10.1
   audioplayers: ^6.8.1
   hive_ce_flutter: ^2.5.0
+  image_picker: ^1.2.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

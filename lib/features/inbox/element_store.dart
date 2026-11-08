@@ -1,3 +1,8 @@
+import '../capture/photo_gallery.dart';
+import 'dart:async';
+import '../capture/capture_models.dart';
+import '../capture/media_storage.dart';
+import '../capture/voice_player.dart';
 import 'package:flutter/gestures.dart';
 import 'inline_tags.dart';
 import 'paragraph_tag_input.dart';
@@ -24,6 +29,9 @@ class ElementRecord {
   final Set<String> tags = {};
   final Set<String> connections = {};
   String? folder;
+  ThoughtLocation? location;
+  final List<VoiceAttachment> recordings = [];
+  final List<PhotoAttachment> photos = [];
   bool hiddenFromSearch = false;
   static int _next = 0;
   final String id;
@@ -112,6 +120,9 @@ class ElementStore extends ChangeNotifier {
   void remove(String word) {
     final removed = records.remove(word);
     if (removed == null) return;
+    for (final id in [...removed.recordings.map((clip) => clip.id), ...removed.photos.map((photo) => photo.id)]) {
+      unawaited(MediaStorage.delete(id).catchError((Object _) {}));
+    }
     for (final record in records.values) { record.connections.remove(removed.id); }
     notifyListeners();
   }
@@ -297,6 +308,13 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                   child: Switch.adaptive(value: element.hiddenFromSearch,
                     onChanged: (hidden) => setState(() => elements.setHidden(word, hidden))))),
               )),
+              if (element.location case final location?) Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text('위치 · ${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)} · 정확도 약 ${location.accuracy.round()}m',
+                  style: Theme.of(context).textTheme.bodySmall)),
+              if (element.photos.isNotEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: PhotoGallery(photos: element.photos)),
+              for (final clip in element.recordings) VoicePlayer(key: ValueKey(clip.id),
+                load: () => MediaStorage.read(clip.id), durationMs: clip.durationMs),
               if (element.connections.isNotEmpty) ...[
                 const Divider(key: ValueKey('element-connections-divider'), height: 24, thickness: 1),
                 Text('연결', style: Theme.of(context).textTheme.labelMedium),

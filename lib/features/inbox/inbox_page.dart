@@ -1,3 +1,10 @@
+import '../capture/capture_models.dart';
+import '../capture/location_capture.dart';
+import '../capture/voice_dialog.dart';
+import '../capture/voice_player.dart';
+import '../capture/media_storage.dart';
+import '../capture/photo_gallery.dart';
+import 'package:image_picker/image_picker.dart';
 import 'keyboard_dismiss.dart';
 import 'workspace_routes.dart';
 import 'desktop_menu_frame.dart';
@@ -53,6 +60,95 @@ class _InboxPageState extends State<InboxPage> {
   final _draft = BoundTextController('', const []);
   final _draftTags = <String>{};
   final _draftConnections = <String>{};
+  ThoughtLocation? _draftLocation;
+  VoiceDraft? _voiceDraft;
+  final _photoDrafts = <PhotoDraft>[];
+  VoiceAttachment? _savedVoice;
+  final _savedPhotos = <PhotoAttachment>[];
+  bool _locationBusy = false, _captureSaving = false, _photoBusy = false;
+  int _locationGeneration = 0;
+  bool get _mobileCapture => defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS;
+  void _clearCapture() {
+    _locationGeneration++; _draftLocation = null; _locationBusy = false;
+    _voiceDraft = null; _photoDrafts.clear(); _savedVoice = null; _savedPhotos.clear();
+  }
+  void _captureError(String message) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+  Future<void> _toggleLocation(bool enabled) async {
+    final generation = ++_locationGeneration;
+    if (!enabled) { setState(() { _locationBusy = false; _draftLocation = null; }); return; }
+    setState(() => _locationBusy = true);
+    try {
+      final location = await captureLocation();
+      if (mounted && generation == _locationGeneration) setState(() => _draftLocation = location);
+    } catch (error) {
+      if (mounted && generation == _locationGeneration) _captureError(error is StateError ? error.message.toString() : '위치를 가져오지 못했습니다. 위치 권한과 기기 설정을 확인해주세요.');
+    } finally {
+      if (mounted && generation == _locationGeneration) setState(() => _locationBusy = false);
+    }
+  }
+  Future<void> _recordVoice() async {
+    dismissKeyboard();
+    final draft = await showVoiceRecorder(context);
+    if (draft != null && mounted) setState(() => _voiceDraft = draft);
+  }
+  Future<void> _pickPhotos() async {
+    if (_photoBusy || _photoDrafts.length >= 5) return;
+    setState(() => _photoBusy = true);
+    try {
+      final remaining = 5 - _photoDrafts.length;
+      final picker = ImagePicker();
+      final List<XFile> picked;
+      if (remaining == 1) {
+        final photo = await picker.pickImage(source: ImageSource.gallery, maxWidth: 2048, maxHeight: 2048, imageQuality: 85);
+        picked = photo == null ? [] : [photo];
+      } else {
+        picked = await picker.pickMultiImage(limit: remaining, maxWidth: 2048, maxHeight: 2048, imageQuality: 85);
+      }
+      final photos = <PhotoDraft>[];
+      for (final photo in picked.take(remaining)) {
+        if (await photo.length() > 10 * 1024 * 1024) { _captureError('사진 한 장은 10MB 이하로 선택해주세요.'); continue; }
+        final bytes = await photo.readAsBytes();
+        photos.add(PhotoDraft(bytes, photo.name));
+      }
+      if (mounted) setState(() => _photoDrafts.addAll(photos));
+    } catch (_) { _captureError('사진을 가져오지 못했습니다. 사진 접근 권한을 확인해주세요.'); }
+    finally { if (mounted) setState(() => _photoBusy = false); }
+  }
+  Future<void> _saveCapture() async {
+    if (_captureSaving || _locationBusy || _photoBusy) return;
+    final text = parseTaggedInput(_draft.text).text;
+    if (text.isEmpty) { _captureError('사진이나 녹음과 함께 생각 내용을 입력해주세요.'); return; }
+    if (_voiceDraft == null && _photoDrafts.isEmpty) { _save(); return; }
+    if (widget.storage == null || _restoreBlocked) { _captureError('저장소를 사용할 수 없습니다. 메모와 첨부는 유지됩니다.'); return; }
+    final existing = elements.records[text];
+    if ((existing?.photos.length ?? 0) + _photoDrafts.length > 5) {
+      _captureError('같은 내용의 생각에 이미 첨부된 사진을 포함해 최대 5장까지 저장할 수 있습니다.'); return;
+    }
+    setState(() => _captureSaving = true);
+    final written = <String>[];
+    try {
+      final stamp = DateTime.now().microsecondsSinceEpoch;
+      final voice = _voiceDraft;
+      if (voice != null) {
+        final id = 'voice-$stamp';
+        await MediaStorage.write(id, voice.bytes); written.add(id);
+        _savedVoice = VoiceAttachment(id, voice.durationMs);
+      }
+      for (var i = 0; i < _photoDrafts.length; i++) {
+        final photo = _photoDrafts[i], id = 'photo-$stamp-$i';
+        await MediaStorage.write(id, photo.bytes); written.add(id);
+        _savedPhotos.add(PhotoAttachment(id, photo.name));
+      }
+      if (!mounted) throw StateError('Composer closed');
+      if (!_save()) throw StateError('Memo not saved');
+    } catch (_) {
+      for (final id in written) { try { await MediaStorage.delete(id); } catch (_) {} }
+      _savedVoice = null; _savedPhotos.clear();
+      _captureError('첨부 저장에 실패했습니다. 작성한 메모와 첨부는 유지됩니다. 저장 공간을 확인해주세요.');
+    } finally { if (mounted) setState(() => _captureSaving = false); }
+  }
   final _focus = FocusNode();
   final _bodyKey = GlobalKey();
   final _quickAssistKey = GlobalKey<CaretAssistState>();
@@ -289,6 +385,7 @@ class _InboxPageState extends State<InboxPage> {
     if (yes != true || !mounted) return;
     try {
       await widget.storage?.clear();
+      if (elements.records.values.any((r) => r.recordings.isNotEmpty || r.photos.isNotEmpty)) await MediaStorage.clear();
       if (!mounted) return;
       setState(() {
         projectFolders.clear();
@@ -303,6 +400,7 @@ class _InboxPageState extends State<InboxPage> {
     memoBoxFolders.clear();
         elements.clear();
         ensureUnclassifiedBox();
+        _clearCapture();
         restoreWordColors({});
         _notes.clear();
         _draft.clear();
@@ -575,9 +673,9 @@ class _InboxPageState extends State<InboxPage> {
     _focus.requestFocus();
   }
 
-  void _save() {
+  bool _save() {
     _pendingImeSave = false;
-    if (_draft.text.trim().isEmpty) return;
+    if (_draft.text.trim().isEmpty) return false;
     final committed = _draft.value.copyWith(composing: TextRange.empty);
     if (_desktopQuickMemo) {
       _focus.unfocus();
@@ -589,10 +687,13 @@ class _InboxPageState extends State<InboxPage> {
     if (parseTaggedInput(body).text.isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('태그와 함께 생각 내용을 입력해주세요.')));
-      return;
+      return false;
     }
     final input = [body, ..._draftTags.map((tag) => '#$tag')].join(' ');
     final record = elements.add(input, replaceTags: _editing != null);
+    if (_draftLocation != null || _editing != null) record.location = _draftLocation;
+    if (_savedVoice != null) record.recordings.add(_savedVoice!);
+    record.photos.addAll(_savedPhotos);
     final links = <ElementBinding>[];
     final wantedConnections = {..._draftConnections, ..._draft.bindings.map((link) => link.id)};
     if (_editing != null) {
@@ -610,12 +711,14 @@ class _InboxPageState extends State<InboxPage> {
       _draft.clear();
       _draftTags.clear();
       _draftConnections.clear();
+      _clearCapture();
     });
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('기록함에 담았어요. 다음 생각도 남겨보세요.')));
     _persist();
     if (_desktopQuickMemo) { _focus.requestFocus(); } else { dismissKeyboard(); }
+    return true;
   }
 
   List<Note> get _paragraphNotes => _notes.where((n) => n.project == null && n.paragraphs != null).toList();
@@ -683,7 +786,7 @@ class _InboxPageState extends State<InboxPage> {
       showElementMetadata(context, note.content);
       return;
     }
-    if (_draft.text.isNotEmpty) {
+    if (_draft.text.isNotEmpty || _voiceDraft != null || _photoDrafts.isNotEmpty || _draftLocation != null) {
       final discard = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -704,6 +807,8 @@ class _InboxPageState extends State<InboxPage> {
       if (discard != true || !mounted) return;
     }
     setState(() {
+      _clearCapture();
+      _draftLocation = elements.records[note.content.trim()]?.location;
       _editing = note;
       final tags = elements.records[note.content.trim()]?.tags ?? <String>{};
       _draftTags.clear();
@@ -881,10 +986,24 @@ class _InboxPageState extends State<InboxPage> {
             children: [
               const Icon(Icons.edit_note_rounded),
               const SizedBox(width: 8),
-              Text(
-                _editing == null ? '빠른 메모' : '메모 다듬기',
+              Expanded(child: Text(
+                _editing == null ? '빠른 메모' : '메모 다듬기', maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium,
-              ),
+              )),
+              if (_mobileCapture) ...[
+                Tooltip(message: _draftLocation == null ? '이 메모에 현재 위치 기록' : '위치 기록됨 · 정확도 약 ${_draftLocation!.accuracy.round()}m',
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    SizedBox.square(dimension: 26, child: _locationBusy
+                      ? IconButton(padding: EdgeInsets.zero, tooltip: '위치 요청 취소', onPressed: () => _toggleLocation(false), icon: const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)))
+                      : Checkbox(key: const ValueKey('quick-location'), value: _draftLocation != null,
+                        visualDensity: VisualDensity.compact, onChanged: _captureSaving ? null : (value) => _toggleLocation(value == true))),
+                    const Text('위치 기록', style: TextStyle(fontSize: 11)),
+                  ])),
+                IconButton(tooltip: '녹음 메모', visualDensity: VisualDensity.compact, constraints: const BoxConstraints.tightFor(width: 30, height: 32), padding: EdgeInsets.zero,
+                  onPressed: _captureSaving || _photoBusy ? null : _recordVoice, icon: const Icon(Icons.mic_none, size: 19)),
+                IconButton(tooltip: '사진 첨부 (최대 5장)', visualDensity: VisualDensity.compact, constraints: const BoxConstraints.tightFor(width: 30, height: 32), padding: EdgeInsets.zero,
+                  onPressed: _captureSaving || _photoBusy || _photoDrafts.length >= 5 ? null : _pickPhotos, icon: const Icon(Icons.add_photo_alternate_outlined, size: 19)),
+              ],
             ],
           ),
           const SizedBox(height: 14),
@@ -900,6 +1019,7 @@ class _InboxPageState extends State<InboxPage> {
               onTag: (tag) => _acceptQuickAssist(() => _insertQuickTag(tag)),
               onWord: (word) => _acceptQuickAssist(() => _insertQuickElement(word)), child: TextField(
               key: const ValueKey('quick-memo'),
+              readOnly: _captureSaving,
               inputFormatters: [TextInputFormatter.withFunction(_formatQuickMemo)],
               textInputAction: _desktopQuickMemo ? TextInputAction.done : TextInputAction.newline,
               onEditingComplete: _desktopQuickMemo ? () {} : null,
@@ -921,6 +1041,18 @@ class _InboxPageState extends State<InboxPage> {
           ),
           ),
           const SizedBox(height: 12),
+          if (_voiceDraft case final voice?) Row(children: [
+            Expanded(child: VoicePlayer(key: ObjectKey(voice), load: () async => voice.bytes, durationMs: voice.durationMs)),
+            IconButton(tooltip: '녹음 첨부 제거', onPressed: _captureSaving ? null : () => setState(() => _voiceDraft = null), icon: const Icon(Icons.close, size: 18)),
+          ]),
+          if (_photoDrafts.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 8), child: Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final photo in _photoDrafts) SizedBox.square(dimension: 60, child: Stack(children: [
+              Positioned.fill(child: InkWell(onTap: () => showPhoto(context, photo.bytes), child: ClipRRect(borderRadius: BorderRadius.circular(6),
+                child: Image.memory(photo.bytes, fit: BoxFit.cover, cacheWidth: 180, errorBuilder: (_, error, stack) => const Icon(Icons.broken_image_outlined))))),
+              Positioned(right: 0, top: 0, child: IconButton.filledTonal(tooltip: '사진 첨부 제거', constraints: const BoxConstraints.tightFor(width: 24, height: 24), padding: EdgeInsets.zero,
+                onPressed: _captureSaving ? null : () => setState(() => _photoDrafts.remove(photo)), icon: const Icon(Icons.close, size: 14))),
+            ])),
+          ])),
           if (_draftConnections.isNotEmpty) ...[
             ConstrainedBox(constraints: const BoxConstraints(maxHeight: 66),
               child: SingleChildScrollView(child: Wrap(spacing: 6, runSpacing: 6, children: [
@@ -940,7 +1072,7 @@ class _InboxPageState extends State<InboxPage> {
               textStyle: const TextStyle(fontSize: 12), visualDensity: VisualDensity.compact,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            onPressed: _draft.text.trim().isEmpty ? null : _save,
+            onPressed: _draft.text.trim().isEmpty || _captureSaving || _locationBusy || _photoBusy ? null : (_mobileCapture ? _saveCapture : _save),
             icon: const Icon(Icons.arrow_downward_rounded, size: 16),
             label: const Text('저장'),
           )),

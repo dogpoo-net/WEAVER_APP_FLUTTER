@@ -1,3 +1,4 @@
+import '../capture/capture_models.dart';
 import 'graph_layout.dart';
 import 'element_binding.dart';
 import 'memo_boxes.dart';
@@ -81,6 +82,9 @@ class WorkspaceSnapshot {
             'connections': r.connections.toList(),
             'folder': r.folder,
             'hiddenFromSearch': r.hiddenFromSearch,
+            'location': r.location?.toJson(),
+            'recordings': r.recordings.map((clip) => clip.toJson()).toList(),
+            'photos': r.photos.map((photo) => photo.toJson()).toList(),
           },
         )
         .toList(),
@@ -148,7 +152,10 @@ class WorkspaceSnapshot {
         tags: ((r['tags'] ?? []) as List).cast<String>(),
       )..connections.addAll(((r['connections'] ?? []) as List).cast<String>())
        ..folder = r['folder'] as String?
-       ..hiddenFromSearch = (r['hiddenFromSearch'] as bool?) ?? false;
+       ..hiddenFromSearch = (r['hiddenFromSearch'] as bool?) ?? false
+       ..location = ThoughtLocation.fromJson(r['location'])
+       ..recordings.addAll((r['recordings'] as List? ?? []).map(VoiceAttachment.fromJson))
+       ..photos.addAll((r['photos'] as List? ?? []).map(PhotoAttachment.fromJson));
     }).toList();
     if (records.map((r) => r.text).toSet().length != records.length ||
         records.map((r) => r.id).toSet().length != records.length) {

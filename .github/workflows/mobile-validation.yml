@@ -34,5 +34,34 @@ jobs:
           print(f'::notice title=Analysis::{message}')
           PY
           exit "$result"
-      - run: flutter test --reporter expanded
+      - name: Test
+        run: |
+          set +e
+          flutter test --reporter expanded > /tmp/tests.log 2>&1
+          result=$?
+          cat /tmp/tests.log
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          output = Path('/tmp/tests.log').read_text()
+          blocks = output.split('══╡ EXCEPTION CAUGHT BY ')
+          if 'Some tests failed' in output:
+              for part in blocks[1:] or [output[-12000:]]:
+                  message = part.split('\n════════')[0].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                  print(f'::error title=Test failure::{message}')
+          PYTHON
+          exit "$result"
       - run: flutter build web --release --base-href /WEAVER_APP_FLUTTER/
+      - name: Android build
+        run: |
+          set +e
+          flutter build apk --debug --target-platform android-arm64 > /tmp/android.log 2>&1
+          result=$?
+          cat /tmp/android.log
+          if [ "$result" -ne 0 ]; then
+            python3 - <<'PYTHON'
+          from pathlib import Path
+          message = Path('/tmp/android.log').read_text()[-3500:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          print(f'::error title=Android build::{message}')
+          PYTHON
+          fi
+          exit "$result"
