@@ -1,3 +1,4 @@
+import '../capture/location_preview.dart';
 import '../capture/photo_gallery.dart';
 import 'dart:async';
 import '../capture/capture_models.dart';
@@ -310,8 +311,8 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               )),
               if (element.location case final location?) Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('위치 · ${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)} · 정확도 약 ${location.accuracy.round()}m',
-                  style: Theme.of(context).textTheme.bodySmall)),
+                child: TextButton.icon(onPressed: () => showLocationPreview(context, location),
+                  icon: const Icon(Icons.location_on_outlined, size: 18), label: const Text('지도 보기'))),
               if (element.photos.isNotEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: PhotoGallery(photos: element.photos)),
               for (final clip in element.recordings) VoicePlayer(key: ValueKey(clip.id),
                 load: () => MediaStorage.read(clip.id), durationMs: clip.durationMs),

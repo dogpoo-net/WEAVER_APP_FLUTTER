@@ -1,3 +1,4 @@
+import '../capture/attachment_indicators.dart';
 import 'thought_filters.dart';
 import 'desktop_menu_frame.dart';
 import 'dart:async';
@@ -358,6 +359,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _draggingId == record.id || _linkFrom == record.id ? color.primary : color.outlineVariant, width: 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: candidates.isNotEmpty || _linkFrom == record.id || _draggingId == record.id ? color.primary : Colors.transparent, width: _draggingId == record.id ? 3 : 2)),
                   child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(children: [
+                    if (AttachmentIndicators.hasAttachments(record)) Padding(padding: const EdgeInsets.only(top: 4, right: 6), child: Align(alignment: Alignment.centerRight, child: AttachmentIndicators(record: record))),
                     if (widget.blocks && record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 10, 8, 0), child: Align(alignment: Alignment.centerLeft,
                       child: Text(record.tags.map((tag) => '#$tag').join('  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)))),
                     Expanded(child: Row(children: [

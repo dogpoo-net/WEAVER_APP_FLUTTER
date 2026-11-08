@@ -1,3 +1,5 @@
+import '../capture/attachment_indicators.dart';
+import 'element_store.dart';
 import 'dart:math';
 import 'tag_colors.dart';
 
@@ -135,6 +137,8 @@ class WordBadge extends StatelessWidget {
     return LayoutBuilder(builder: (context, constraints) {
     final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : MediaQuery.sizeOf(context).width - 24;
     final labelColor = tag ? Color(hashtagColors[word.replaceFirst('#', '')] ?? 0xFF90A4AE) : null;
+    final record = tag ? null : elements.records[word];
+    final indicators = record != null && AttachmentIndicators.hasAttachments(record);
     final badge = ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: TextButton(
       onPressed: onTap,
       onLongPress: onLongPress,
@@ -164,8 +168,11 @@ class WordBadge extends StatelessWidget {
         ),
         textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
       ),
-      child: Text.rich(fullText ? TextSpan(text: word) : _badgeExcerpt(context, word, query, maxWidth - 24),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
+        if (indicators) AttachmentIndicators(record: record),
+        Text.rich(fullText ? TextSpan(text: word) : _badgeExcerpt(context, word, query, maxWidth - 24),
         maxLines: fullText ? null : 1, softWrap: fullText, overflow: fullText ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: word),
+      ]),
     ));
     return onDoubleTap == null ? badge : GestureDetector(onDoubleTap: onDoubleTap, child: badge);
     });
