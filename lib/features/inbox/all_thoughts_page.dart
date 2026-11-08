@@ -92,28 +92,6 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         for (final record in related) Padding(padding: const EdgeInsets.only(bottom: 6), child: _badge(record.text, desktop)),
       ]));
   }
-  Future<void> _manageBox() async {
-    final box = _filterBox;
-    if (box == null) return;
-    final selected = {...box.elementIds};
-    var query = '';
-    final result = await showDialog<Set<String>>(context: context, builder: (context) => StatefulBuilder(
-      builder: (context, update) => AlertDialog(title: const Text('상자에 담을 메모'),
-        content: SizedBox(width: 420, height: 360, child: Column(children: [
-          TextField(decoration: const InputDecoration(hintText: '메모에서 찾기', prefixIcon: Icon(Icons.search)),
-            onChanged: (value) => update(() => query = value)),
-          Expanded(child: ListView(children: [for (final record in elements.records.values)
-            if (record.text.toLowerCase().contains(query.toLowerCase())) CheckboxListTile(
-              title: Text(record.text, maxLines: 2, overflow: TextOverflow.ellipsis), value: selected.contains(record.id),
-              onChanged: (checked) => update(() { if (checked == true) { selected.add(record.id); } else { selected.remove(record.id); } })),
-          ])),
-        ])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-          FilledButton(onPressed: () => Navigator.pop(context, selected), child: const Text('담기'))],
-      )));
-    if (!mounted || result == null) return;
-    replaceBoxThoughts(box, result);
-    _changed();
-  }
   @override
   Widget build(BuildContext context) {
     final allRecords = elements.records.values.where((r) => widget.initialBox == null || widget.initialBox!.elementIds.contains(r.id)).toList();
@@ -170,7 +148,6 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
       IconButton(tooltip: '해시태그 만들기', icon: const Icon(Icons.tag), onPressed: () async {
         final tag = await createHashtag(context); if (mounted && tag != null) _changed();
       }),
-      if (_filterBox != null) IconButton(tooltip: '상자에 담을 메모 선택', onPressed: _manageBox, icon: const Icon(Icons.playlist_add)),
     ]),
       body: DesktopMenuBody(child: Column(children: [if (widget.viewSelector != null) widget.viewSelector!, Expanded(child: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
         if (desktop && constraints.maxWidth >= 760) { return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

@@ -239,17 +239,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _changed();
   }
 
-  Future<void> _pick() async {
-    final box = widget.box!;
-    final selected = Set.of(box.elementIds);
-    final accepted = await showDialog<bool>(context: context, builder: (context) => StatefulBuilder(builder: (context, update) => AlertDialog(
-      title: const Text('상자에 생각 담기'), content: SizedBox(width: 400, height: 400, child: ListView(children: [
-        for (final r in elements.records.values) CheckboxListTile(title: Text(badgeLabel(r.text), maxLines: 2, overflow: TextOverflow.ellipsis),
-          value: selected.contains(r.id), onChanged: (yes) => update(() { if (yes == true) { selected.add(r.id); } else { selected.remove(r.id); } }))])),
-      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
-        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('적용'))])));
-    if (accepted == true && mounted) { replaceBoxThoughts(box, selected); _changed(); }
-  }
   @override
   void dispose() {
     _saveLayout(flush: true);
@@ -290,7 +279,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null, leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(widget.box?.name ?? '모든 생각 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
-      if (widget.box != null) IconButton(tooltip: '상자에 생각 담기', onPressed: _pick, icon: const Icon(Icons.playlist_add)),
       IconButton(tooltip: '연결 모드', style: IconButton.styleFrom(backgroundColor: _linkMode ? color.primaryContainer : null, foregroundColor: _linkMode ? color.onPrimaryContainer : null), isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
       IconButton(tooltip: '전체 위치 보기', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),

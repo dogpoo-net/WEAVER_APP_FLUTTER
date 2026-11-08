@@ -39,6 +39,34 @@ void main() {
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant({TargetPlatform.windows}));
+  testWidgets('existing tag completion rejects the native final syllable echo before saving', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    elements.add('기존 생각 #위버');
+    final field = find.byKey(const ValueKey('quick-memo'));
+    const text = '아직 한글 완성 버그가 있음 #위버';
+    await tester.enterText(field, text);
+    tester.testTextInput.updateEditingValue(TextEditingValue(text: text,
+      selection: TextSelection.collapsed(offset: text.length), composing: TextRange(start: text.length - 1, end: text.length)));
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    final controller = tester.widget<TextField>(field).controller!;
+    expect(controller.text, '$text ');
+    expect(elements.records.containsKey('아직 한글 완성 버그가 있음'), isFalse);
+    tester.testTextInput.updateEditingValue(TextEditingValue(text: '$text 버',
+      selection: TextSelection.collapsed(offset: text.length + 2)));
+    await tester.pump();
+    expect(controller.text, '$text ');
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(elements.records['아직 한글 완성 버그가 있음']!.tags, {'위버'});
+    expect(elements.records.containsKey('아직 한글 완성 버그가 있음 버'), isFalse);
+    // A subsequent deliberate key may enter the same syllable normally.
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyQ);
+    await tester.enterText(field, '버');
+    expect(controller.text, '버');
+  }, variant: TargetPlatformVariant({TargetPlatform.windows}));
   testWidgets('quick memo retains inline hashtags and parses them on save without Enter', (tester) async {
     await tester.pumpWidget(const MyApp());
     final memo = find.byKey(const ValueKey('quick-memo'));

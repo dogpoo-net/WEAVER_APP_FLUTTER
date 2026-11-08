@@ -66,7 +66,8 @@ class _InboxPageState extends State<InboxPage> {
   bool _pendingImeNewline = false, _finishingImeNewline = false;
   int _imeNewlineLines = 0;
   String? _newlineEchoBefore, _newlineEchoAfter;
-  TextEditingValue? _assistInputBefore, _assistCompleted;
+  TextEditingValue? _assistInputBefore, _assistCompleted, _lastComposingValue;
+  String? _assistComposingEcho;
   DateTime? _assistSubmitUntil;
   DateTime? _newlineEchoUntil;
   bool _platformEnterQueued = false;
@@ -360,6 +361,12 @@ class _InboxPageState extends State<InboxPage> {
         final end = v.selection.isValid ? v.selection.end : start;
         return v.text.replaceRange(start, end, line);
       }
+      final echo = _assistComposingEcho;
+      final caret = completedAssist.selection.extentOffset;
+      if (echo != null && caret >= 0 && caret <= completedAssist.text.length &&
+          value.text == completedAssist.text.replaceRange(caret, caret, echo)) {
+        return completedAssist;
+      }
       if (value.text == beforeAssist.text || [newline(beforeAssist, '\n'), newline(beforeAssist, '\r\n'),
         newline(completedAssist, '\n'), newline(completedAssist, '\r\n')].contains(value.text)) {
         return completedAssist;
@@ -399,6 +406,12 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   void _imeUpdated() {
+    final value = _draft.value;
+    if (value.composing.isValid && !value.composing.isCollapsed) {
+      _lastComposingValue = value;
+    } else if (_lastComposingValue?.text != value.text) {
+      _lastComposingValue = null;
+    }
     if (_pendingImeNewline && _draft.value.composing.isCollapsed) _finishImeNewline();
     if (_pendingImeSave && _draft.value.composing.isCollapsed) {
       _finishImeSave();
@@ -514,6 +527,9 @@ class _InboxPageState extends State<InboxPage> {
 
   void _acceptQuickAssist(VoidCallback action) {
     final before = _draft.value;
+    final composing = _lastComposingValue;
+    _assistComposingEcho = composing != null && composing.text == before.text
+        ? composing.composing.textInside(composing.text) : null;
     action();
     _pendingImeSave = false;
     _assistInputBefore = before; _assistCompleted = _draft.value;

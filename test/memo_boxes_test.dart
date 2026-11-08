@@ -32,25 +32,11 @@ void main() {
     expect(memoBoxes.single.color, 0xFF64B5F6);
     expect(memoBoxes.single.elementIds, {record.id});
   });
-  testWidgets('picker adds existing memo and removal preserves original', (tester) async {
-    final record = elements.add('보관할 메모');
+  testWidgets('filtered box has no bulk membership picker', (tester) async {
     final box = MemoBox('자료');
-    var saves = 0;
-    await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(initialView: ThoughtView.boxes, notes: const [], initialBox: box, onChanged: () => saves++)));
-    await tester.tap(find.byTooltip('상자에 담을 메모 선택'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(CheckboxListTile));
-    await tester.tap(find.text('담기'));
-    await tester.pumpAndSettle();
-    expect(box.elementIds, {record.id});
-    await tester.tap(find.byTooltip('상자에 담을 메모 선택'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(CheckboxListTile));
-    await tester.tap(find.text('담기'));
-    await tester.pumpAndSettle();
-    expect(box.elementIds, isEmpty);
-    expect(elements.records.containsKey(record.text), isTrue);
-    expect(saves, 2);
+    await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(initialView: ThoughtView.boxes, notes: const [], initialBox: box)));
+    expect(find.byTooltip('상자에 담을 메모 선택'), findsNothing);
+    expect(find.byIcon(Icons.playlist_add), findsNothing);
   });
   testWidgets('mobile zoom reduces badge width and drag adds to box', (tester) async {
     final record = elements.add('보관할 메모');

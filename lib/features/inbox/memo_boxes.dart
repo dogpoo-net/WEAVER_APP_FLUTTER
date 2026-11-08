@@ -16,11 +16,6 @@ void moveThoughtToBox(String id, MemoBox target) {
   for (final box in memoBoxes) { if (!identical(box, target)) box.elementIds.remove(id); }
   target.elementIds.add(id);
 }
-void replaceBoxThoughts(MemoBox target, Iterable<String> ids) {
-  final selected = ids.toSet();
-  target.elementIds.clear();
-  for (final id in selected) { moveThoughtToBox(id, target); }
-}
 void normalizeBoxMemberships() {
   final seen = <String>{};
   for (final box in memoBoxes) { box.elementIds.removeWhere((id) => !seen.add(id)); }
