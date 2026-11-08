@@ -9,6 +9,29 @@ import 'package:weaver/features/inbox/memo_box_region.dart';
 void main() {
   setUp(() { pageGraphLayout = GraphLayout(); memoBoxes.clear(); });
   for (final blocks in [false, true]) {
+    testWidgets('unclassified thoughts stay on the canvas without a box region ($blocks)', (tester) async {
+      elements.clear();
+      final free = elements.add('자유로운 생각');
+      final filed = elements.add('상자 속 생각');
+      final unclassified = ensureUnclassifiedBox();
+      final box = MemoBox('실제 상자', ids: [filed.id]); memoBoxes.add(box);
+      pageGraphLayout.positions[free.id] = const Offset(900, 900);
+      pageGraphLayout.positions[filed.id] = const Offset(1400, 900);
+      await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
+      await tester.pumpAndSettle();
+      expect(find.text('자유로운 생각'), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is MemoBoxRegion && w.box.isUnclassified), findsNothing);
+      expect(find.byWidgetPredicate((w) => w is MemoBoxRegion && identical(w.box, box)), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('thought-filter-box-미분류')));
+      await tester.pumpAndSettle();
+      expect(find.text('자유로운 생각'), findsOneWidget);
+      expect(find.text('상자 속 생각'), findsNothing);
+      expect(find.byType(MemoBoxRegion), findsNothing);
+      expect(unclassified.elementIds, {free.id});
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+  for (final blocks in [false, true]) {
     testWidgets('single tap opens thought editor without selection actions ($blocks)', (tester) async {
       elements.clear(); elements.add('바로 수정할 생각');
       await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));

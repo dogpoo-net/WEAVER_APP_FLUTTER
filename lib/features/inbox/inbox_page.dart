@@ -894,7 +894,7 @@ class _InboxPageState extends State<InboxPage> {
             key: const ValueKey('quick-memo-keyboard'),
             canRequestFocus: false,
             onKeyEvent: _quickMemoKey,
-            child: CaretAssist(key: _quickAssistKey, controller: _draft, focus: _focus, words: elements.visibleWords, showWhenEmpty: false,
+            child: CaretAssist(showShortcutHint: true, key: _quickAssistKey, controller: _draft, focus: _focus, words: elements.visibleWords, showWhenEmpty: false,
               mobileViewportKey: _bodyKey,
               tags: {..._allTags, ..._draftTags}.toList()..sort(), enterSelectsVisible: true,
               onTag: (tag) => _acceptQuickAssist(() => _insertQuickTag(tag)),

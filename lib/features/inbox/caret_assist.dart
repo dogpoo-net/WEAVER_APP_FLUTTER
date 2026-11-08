@@ -27,6 +27,7 @@ class CaretAssist extends StatefulWidget {
     this.tags = const [],
     this.onTag,
     this.enterSelectsVisible = false,
+    this.showShortcutHint = false,
   });
   final TextEditingController controller;
   final FocusNode focus;
@@ -38,6 +39,7 @@ class CaretAssist extends StatefulWidget {
   final GlobalKey? mobileViewportKey;
   final bool showWhenEmpty;
   final bool enterSelectsVisible;
+  final bool showShortcutHint;
   @override
   State<CaretAssist> createState() => CaretAssistState();
 }
@@ -478,7 +480,13 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: height),
-        child: NotificationListener<ScrollNotification>(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (_desktop && widget.showShortcutHint) Padding(
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+            child: Align(alignment: Alignment.centerRight, child: Text('ctrl + space',
+              style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant))),
+          ),
+          Flexible(child: NotificationListener<ScrollNotification>(
           onNotification: (_) => true,
           child: SingleChildScrollView(
             controller: _suggestionScroll,
@@ -515,7 +523,8 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
               ),
             ),
           ),
-        ),
+        )),
+        ]),
       ),
     );
   }

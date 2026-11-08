@@ -130,7 +130,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _tagPositions.removeWhere((tag, _) => !scopeTags.contains(tag));
     var left = 32.0, top = 32.0;
     for (final p in [..._positions.values, ..._tagPositions.values]) { left = math.min(left, p.dx); top = math.min(top, p.dy); }
-    for (final box in _filterBox != null ? [_filterBox!] : (widget.box == null ? memoBoxes : [widget.box!])) {
+    for (final box in _regionBoxes) {
       final bounds = _regionBounds(box, _positions);
       if (bounds != null) { left = math.min(left, bounds.left); top = math.min(top, bounds.top); }
     }
@@ -160,7 +160,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   void _arrangeBlocks(List<ElementRecord> records) {
     final ordered = [...records]..sort((a, b) {
-      String group(ElementRecord r) => '${memoBoxes.where((box) => box.elementIds.contains(r.id)).map((box) => box.name).join('|')}:${(r.tags.toList()..sort()).join('|')}';
+      String group(ElementRecord r) => '${memoBoxes.where((box) => !box.isUnclassified && box.elementIds.contains(r.id)).map((box) => box.name).join('|')}:${(r.tags.toList()..sort()).join('|')}';
       return group(a).compareTo(group(b));
     });
     var index = 0;
@@ -176,12 +176,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     return memoBoxCircleBounds(ids.map((id) => positions[id]!), sizes: {for (final id in ids) positions[id]!: _size(id)});
   }
   bool _inside(Rect bounds, Offset point) => widget.blocks ? bounds.contains(point) : (point - bounds.center).distance <= bounds.width / 2;
+  Iterable<MemoBox> get _regionBoxes => (_filterBox != null ? [_filterBox!] :
+      (widget.box == null ? memoBoxes : [widget.box!])).where((box) => !box.isUnclassified);
   void _separateBoxes() {
     var x = 640.0;
     final assigned = <String>{};
     final top = _tagPositions.values.map((p) => tagBounds(p).bottom + 100).fold(400.0, math.max);
     var bottom = top;
-    for (final box in memoBoxes) {
+    for (final box in memoBoxes.where((box) => !box.isUnclassified)) {
       final ids = box.elementIds.where((id) => _positions.containsKey(id) && !assigned.contains(id)).toList();
       if (ids.isEmpty) continue;
       for (var i = 0; i < ids.length; i++) { _positions[ids[i]] = Offset(x + (i % 3) * 220, 600 + (i ~/ 3) * 140); }
@@ -238,13 +240,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     var sceneWidth = math.max(3000.0, nodeRects.values.map((r) => r.right + 100).fold(0.0, math.max));
     var sceneHeight = math.max(2200.0, nodeRects.values.map((r) => r.bottom + 100).fold(0.0, math.max));
     final regions = <({MemoBox box, Rect bounds})>[];
-    for (final box in _filterBox != null ? [_filterBox!] : (widget.box == null ? memoBoxes : [widget.box!])) {
+    for (final box in _regionBoxes) {
       final bounds = _regionBounds(box, visiblePositions);
       if (bounds != null) regions.add((box: box, bounds: _liftBoxes[box] ?? bounds));
     }
     var emptyX = regions.map((r) => r.bounds.right + 80).fold(
       nodeRects.values.map((r) => r.right + 80).fold(640.0, math.max), math.max);
-    for (final box in _filterBox != null ? [_filterBox!] : (widget.box == null ? memoBoxes : [widget.box!])) {
+    for (final box in _regionBoxes) {
       if (box.elementIds.any(_positions.containsKey)) continue;
       regions.add((box: box, bounds: _emptyBoxBounds.putIfAbsent(box, () => Rect.fromLTWH(emptyX, 440, 260, 260))));
       emptyX += 340;
