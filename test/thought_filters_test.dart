@@ -39,4 +39,29 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+  for (final view in [ThoughtView.diagram, ThoughtView.page]) {
+    testWidgets('canvas filters boxes and tags without navigation ($view)', (tester) async {
+      final first = elements.add('첫 메모 #독서');
+      elements.add('다른 메모 #여행');
+      memoBoxes.add(MemoBox('테스트', ids: [first.id]));
+      await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(initialView: view, notes: const [])));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('thought-filter-box-테스트')));
+      await tester.pumpAndSettle();
+      expect(find.text('첫 메모'), findsOneWidget);
+      expect(find.text('다른 메모'), findsNothing);
+      expect(find.byType(AllThoughtsPage), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('thought-filter-tag-여행')));
+      await tester.pumpAndSettle();
+      expect(find.text('첫 메모'), findsNothing);
+      expect(find.text('다른 메모'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('thought-filter-all')));
+      await tester.pumpAndSettle();
+      expect(find.text('첫 메모'), findsOneWidget);
+      expect(find.text('다른 메모'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
 }
