@@ -2,11 +2,9 @@ import 'workspace_routes.dart';
 import 'desktop_menu_frame.dart';
 import 'graph_layout.dart';
 import 'keyboard_viewport.dart';
-import 'inline_tags.dart';
 import 'limited_rows_wrap.dart';
 import 'caret_assist.dart';
 import 'element_binding.dart';
-import 'paragraph_tag_input.dart';
 import 'memo_boxes.dart';
 import 'tag_colors.dart';
 import '../../app_theme.dart';
@@ -54,7 +52,6 @@ class _InboxPageState extends State<InboxPage> {
   final _draft = BoundTextController('', const []);
   final _draftTags = <String>{};
   final _draftConnections = <String>{};
-  DateTime? _tagCommitUntil;
   final _focus = FocusNode();
   final _bodyKey = GlobalKey();
   final _quickAssistKey = GlobalKey<CaretAssistState>();
@@ -332,19 +329,9 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   void _submitQuickMemo() {
-    if (_tagCommitUntil != null && DateTime.now().isBefore(_tagCommitUntil!)) return;
     if (_assistSubmitUntil != null && DateTime.now().isBefore(_assistSubmitUntil!)) return;
     if (_pendingImeNewline || (_explicitNewlineUntil != null && DateTime.now().isBefore(_explicitNewlineUntil!))) return;
     if (_quickAssistKey.currentState?.acceptVisibleCandidate() == true) return;
-    final tagToken = tagPrefix(_draft.value);
-    if (tagToken.isNotEmpty) {
-      final query = tagToken.substring(1);
-      final candidates = wordSuggestions(_allTags, query);
-      if (candidates.isNotEmpty || query.isNotEmpty) {
-        _acceptQuickAssist(() => _insertQuickTag(candidates.isNotEmpty ? candidates.first : query));
-      }
-      return;
-    }
     if (_draft.text.trim().isEmpty) return;
     _enterEchoText = _draft.text;
     _enterEchoUntil = DateTime.now().add(const Duration(milliseconds: 250));
@@ -462,7 +449,7 @@ class _InboxPageState extends State<InboxPage> {
         event.physicalKey == PhysicalKeyboardKey.delete)) {
       if (event.logicalKey != LogicalKeyboardKey.enter && event.logicalKey != LogicalKeyboardKey.numpadEnter &&
           event.physicalKey != PhysicalKeyboardKey.enter && event.physicalKey != PhysicalKeyboardKey.numpadEnter) {
-        _tagCommitUntil = null;
+
       }
       _newlineEchoBefore = null; _newlineEchoAfter = null; _newlineEchoUntil = null;
       _assistSubmitUntil = null; _assistInputBefore = null; _assistCompleted = null;
@@ -551,9 +538,9 @@ class _InboxPageState extends State<InboxPage> {
     if (!token.startsWith('#')) return;
     final start = _draft.selection.start - token.length;
     setState(() {
-      _draftTags.add(tag);
-      _draft.value = TextEditingValue(text: _draft.text.replaceRange(start, _draft.selection.end, ''),
-        selection: TextSelection.collapsed(offset: start));
+      final replacement = '#$tag ';
+      _draft.value = TextEditingValue(text: _draft.text.replaceRange(start, _draft.selection.end, replacement),
+        selection: TextSelection.collapsed(offset: start + replacement.length));
     });
     _focus.requestFocus();
   }
@@ -679,10 +666,10 @@ class _InboxPageState extends State<InboxPage> {
     setState(() {
       _editing = note;
       final tags = elements.records[note.content.trim()]?.tags ?? <String>{};
-      _draftTags..clear()..addAll(tags);
+      _draftTags.clear();
       _draftConnections..clear()..addAll(elements.records[note.content.trim()]?.connections ?? <String>{});
       _draft.clear();
-      _draft.text = note.content;
+      _draft.text = [note.content, ...tags.map((tag) => '#$tag')].join(' ');
       _draft.bindings = List.of(note.bindings);
       _draft.sync({for (final record in elements.records.values) record.id: record.text});
     });
@@ -858,11 +845,6 @@ class _InboxPageState extends State<InboxPage> {
                 _editing == null ? '빠른 메모' : '메모 다듬기',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
-              if (_draftTags.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Expanded(child: SingleChildScrollView(scrollDirection: Axis.horizontal,
-                  child: InlineTags(tags: _draftTags, onRemove: (tag) => setState(() => _draftTags.remove(tag))))),
-              ],
             ],
           ),
           const SizedBox(height: 14),
@@ -886,16 +868,7 @@ class _InboxPageState extends State<InboxPage> {
               focusNode: _focus,
               minLines: 4,
               maxLines: MediaQuery.sizeOf(context).width < 760 ? 4 : null,
-              onChanged: (_) {
-                final completed = takeCompletedParagraphTags(_draft.value);
-                setState(() {
-                  if (completed.tags.isNotEmpty) {
-                    _tagCommitUntil = DateTime.now().add(const Duration(milliseconds: 500));
-                  }
-                  _draftTags.addAll(completed.tags);
-                  if (completed.tags.isNotEmpty) _draft.value = completed.value;
-                });
-              },
+              onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
                 filled: false,
                 border: InputBorder.none,

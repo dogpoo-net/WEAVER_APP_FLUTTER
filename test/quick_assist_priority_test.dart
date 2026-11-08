@@ -22,7 +22,7 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
-      final completed = '메모 ';
+      final completed = tag ? '메모 #태그 ' : '메모 ';
       expect(tester.widget<TextField>(field).controller!.text, completed);
       expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
       await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
@@ -62,11 +62,11 @@ void main() {
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
     await tester.pumpWidget(MyApp(storage: storage));
     final field = find.byKey(const ValueKey('quick-memo'));
-    await tester.enterText(field, '본문#새태그'); await tester.pumpAndSettle();
+    await tester.enterText(field, '본문 #새태그'); await tester.pumpAndSettle();
     await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field).controller!.text, '본문');
-    expect(find.byTooltip('#새태그 태그 삭제'), findsOneWidget);
-    expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+    expect(find.byTooltip('#새태그 태그 삭제'), findsNothing);
+    expect(elements.records['본문']!.tags, {'새태그'});
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
   testWidgets('a new Backspace after completion removes the element instead of being treated as an echo', (tester) async {
@@ -106,8 +106,8 @@ void main() {
     expect(tester.getBottomLeft(find.byKey(const ValueKey('assist-popup'))).dy, lessThanOrEqualTo(544));
     await tester.enterText(field, '#태'); await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('suggestion-#태그'))); await tester.pumpAndSettle();
-    expect(find.byTooltip('#태그 태그 삭제'), findsOneWidget);
-    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+    expect(find.byTooltip('#태그 태그 삭제'), findsNothing);
+    expect(tester.widget<TextField>(field).controller!.text, '#태그 ');
     expect(tester.takeException(), isNull);
   });
 }

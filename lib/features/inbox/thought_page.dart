@@ -344,8 +344,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 child: Text('#${region.tag}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))))))),
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds, highlighted: identical(_hoverBox, region.box), rectangular: widget.blocks,
             onDrag: (delta) => setState(() {
-              final shift = Offset(math.max(delta.dx, 32 - region.bounds.left), math.max(delta.dy, 32 - region.bounds.top));
-              if (!region.box.elementIds.any(_positions.containsKey)) { _emptyBoxBounds[region.box] = region.bounds.shift(shift); }
+              final empty = !region.box.elementIds.any(_positions.containsKey);
+              final current = empty ? (_emptyBoxBounds[region.box] ?? region.bounds) : (_regionBounds(region.box, _positions) ?? region.bounds);
+              final shift = Offset(math.max(delta.dx, 32 - current.left), math.max(delta.dy, 32 - current.top));
+              if (empty) { _emptyBoxBounds[region.box] = current.shift(shift); }
               for (final id in region.box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
               _saveLayout();
             }), onDragEnd: () => _saveLayout(flush: true)),

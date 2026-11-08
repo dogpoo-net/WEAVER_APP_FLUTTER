@@ -25,8 +25,8 @@ void main() {
     await shortcut(tester); await tester.pumpAndSettle();
     expect(tester.widget<WordBadge>(find.byKey(const ValueKey('suggestion-#독서'))).selected, isTrue);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field).controller!.text, '메모 ');
-    expect(find.byTooltip('#독서 태그 삭제'), findsOneWidget);
+    expect(tester.widget<TextField>(field).controller!.text, '메모 #독서 ');
+    expect(find.byTooltip('#독서 태그 삭제'), findsNothing);
     expect(elements.words, ['원소']);
     expect(tester.takeException(), isNull);
   });
