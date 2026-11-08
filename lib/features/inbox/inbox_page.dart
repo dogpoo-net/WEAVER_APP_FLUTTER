@@ -571,7 +571,11 @@ class _InboxPageState extends State<InboxPage> {
     final input = [body, ..._draftTags.map((tag) => '#$tag')].join(' ');
     final record = elements.add(input, replaceTags: _editing != null);
     final links = <ElementBinding>[];
-    elements.connect(record.id, {..._draftConnections, ..._draft.bindings.map((link) => link.id)});
+    final wantedConnections = {..._draftConnections, ..._draft.bindings.map((link) => link.id)};
+    if (_editing != null) {
+      for (final id in record.connections.difference(wantedConnections).toList()) { elements.disconnect(record.id, id); }
+    }
+    elements.connect(record.id, wantedConnections);
     setState(() {
       if (_editing == null) {
         _notes.insert(0, Note(record.text)..bindings = links);
@@ -898,8 +902,12 @@ class _InboxPageState extends State<InboxPage> {
             ConstrainedBox(constraints: const BoxConstraints(maxHeight: 66),
               child: SingleChildScrollView(child: Wrap(spacing: 6, runSpacing: 6, children: [
                 for (final record in elements.records.values.where((r) => _draftConnections.contains(r.id)))
-                  WordBadge(compact: true, word: record.text, onTap: () => showElementMetadata(context, record.text),
-                    onLongPress: () => setState(() => _draftConnections.remove(record.id))),
+                  ConstrainedBox(constraints: const BoxConstraints(maxWidth: 280), child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Flexible(child: WordBadge(compact: true, word: record.text, onTap: () => showElementMetadata(context, record.text))),
+                    IconButton(key: ValueKey('remove-draft-link-${record.id}'), tooltip: '연결에서 빼기',
+                      constraints: const BoxConstraints.tightFor(width: 28, height: 28), padding: EdgeInsets.zero,
+                      icon: const Icon(Icons.close, size: 16), onPressed: () => setState(() => _draftConnections.remove(record.id))),
+                  ])),
               ]))),
             const SizedBox(height: 8),
           ],
