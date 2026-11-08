@@ -1,9 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/main.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 
 void main() {
+  testWidgets('Enter commits a composing hashtag without leaving its syllable in body', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    final field = find.byKey(const ValueKey('quick-memo'));
+    const text = '아직 한글 완성 버그가 있음 #위버';
+    await tester.enterText(field, text);
+    tester.testTextInput.updateEditingValue(TextEditingValue(text: text,
+      selection: TextSelection.collapsed(offset: text.length), composing: TextRange(start: text.length - 1, end: text.length)));
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(elements.records['아직 한글 완성 버그가 있음']!.tags, {'위버'});
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+    expect(elements.records.containsKey('아직 한글 완성 버그가 있음 버'), isFalse);
+    expect(tester.takeException(), isNull);
+  }, variant: TargetPlatformVariant({TargetPlatform.windows}));
   testWidgets('quick memo retains inline hashtags and parses them on save without Enter', (tester) async {
     await tester.pumpWidget(const MyApp());
     final memo = find.byKey(const ValueKey('quick-memo'));

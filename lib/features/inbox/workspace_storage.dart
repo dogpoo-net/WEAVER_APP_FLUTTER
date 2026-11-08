@@ -260,6 +260,7 @@ class WorkspaceSnapshot {
   void apply() {
     pageGraphLayout = graphLayout ?? GraphLayout();
     memoBoxes..clear()..addAll(boxes);
+    normalizeBoxMemberships();
     memoBoxFolders..clear()..addAll(boxFolders);
     for (final box in boxes) {
       if (box.folder != null && !memoBoxFolders.contains(box.folder)) memoBoxFolders.add(box.folder!);

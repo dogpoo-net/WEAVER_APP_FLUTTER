@@ -34,9 +34,6 @@ class ThoughtFilters extends StatelessWidget {
               _chip(item.name, ValueKey('thought-filter-box-${item.name}'), identical(box, item), () => onFilter(item, null)),
             ]))),
         ])),
-        TextButton.icon(style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6), minimumSize: const Size(0, 30)),
-          icon: const Icon(Icons.add, size: 16), label: const Text('상자 만들기', style: TextStyle(fontSize: 12)),
-          onPressed: () async { final created = await createMemoBox(context); if (created != null && context.mounted) onChanged(); }),
       ])),
       if (tags.isNotEmpty) SizedBox(height: 36, child: Row(children: [
         const Icon(Icons.tag, size: 18), const SizedBox(width: 8),

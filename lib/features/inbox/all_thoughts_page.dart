@@ -1,3 +1,4 @@
+import 'tag_colors.dart';
 import 'desktop_menu_frame.dart';
 import 'thought_filters.dart';
 import 'thought_page.dart';
@@ -64,10 +65,10 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   Widget _badge(String word, bool desktop) {
     final badge = WordBadge(
     word: word, compact: true, fullText: true, query: _query, selected: elements.records[word]?.id == _selectedId,
-    onTap: desktop ? () => _select(word) : () => showElementMetadata(context, word),
+    onTap: desktop ? () {} : () => showElementMetadata(context, word),
     onDoubleTap: desktop ? () { _select(word); showElementMetadata(context, word); } : null,
     );
-    return desktop ? Listener(
+    return desktop ? Listener(key: ValueKey('select-$word'),
       onPointerDown: (event) { if (event.buttons == 1) _select(word); }, child: badge) : badge;
   }
   Widget _tile(ElementRecord record, bool desktop, {double width = 280}) {
@@ -110,13 +111,13 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
           FilledButton(onPressed: () => Navigator.pop(context, selected), child: const Text('담기'))],
       )));
     if (!mounted || result == null) return;
-    box.elementIds..clear()..addAll(result);
+    replaceBoxThoughts(box, result);
     _changed();
   }
   @override
   Widget build(BuildContext context) {
     final allRecords = elements.records.values.where((r) => widget.initialBox == null || widget.initialBox!.elementIds.contains(r.id)).toList();
-    final tags = allRecords.expand((record) => record.tags).toSet().toList()..sort();
+    final tags = {...allRecords.expand((record) => record.tags), if (widget.initialBox == null) ...hashtagColors.keys}.toList()..sort();
     final records = allRecords.where((record) =>
       (_filterBox == null || _filterBox!.elementIds.contains(record.id)) &&
       (_filterTag == null || record.tags.contains(_filterTag)) &&
@@ -163,6 +164,12 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     final footer = ThoughtFilters(tags: tags, scope: widget.initialBox, box: _filterBox, tag: _filterTag,
       onChanged: _changed, onFilter: (box, tag) => _filter(box: box, tag: tag));
     return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null, leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(widget.initialBox?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(),
+      IconButton(tooltip: '메모상자 만들기', icon: const Icon(Icons.inventory_2_outlined), onPressed: () async {
+        final box = await createMemoBox(context); if (mounted && box != null) _changed();
+      }),
+      IconButton(tooltip: '해시태그 만들기', icon: const Icon(Icons.tag), onPressed: () async {
+        final tag = await createHashtag(context); if (mounted && tag != null) _changed();
+      }),
       if (_filterBox != null) IconButton(tooltip: '상자에 담을 메모 선택', onPressed: _manageBox, icon: const Icon(Icons.playlist_add)),
     ]),
       body: DesktopMenuBody(child: Column(children: [if (widget.viewSelector != null) widget.viewSelector!, Expanded(child: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
@@ -202,7 +209,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> {
       Positioned.fill(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [for (final view in ThoughtView.values) Expanded(child: Semantics(selected: view == _view,
         child: TextButton(style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap, shape: const RoundedRectangleBorder(), foregroundColor: view == _view ? colors.onSecondaryContainer : colors.onSurface),
           onPressed: () => setState(() { _previousView = _view; _view = view; }),
-          child: Text(switch (view) { ThoughtView.diagram => '다이어그램', ThoughtView.boxes => '상자', ThoughtView.page => '페이지' })))),
+          child: Text(switch (view) { ThoughtView.diagram => '다이어그램', ThoughtView.boxes => '생각', ThoughtView.page => '메모상자' })))),
       ])),
     ])));
     if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(notes: widget.notes, initialBox: widget.initialBox,

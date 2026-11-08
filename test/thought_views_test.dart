@@ -23,11 +23,11 @@ void main() {
       expect(find.text('안쪽 생각'), findsOneWidget);
       expect(find.text('바깥 생각'), scoped ? findsNothing : findsOneWidget);
       final diagram = Map.of((scoped ? box.layout : pageGraphLayout).positions);
-      await tester.tap(find.text('상자')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('생각')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(find.byType(ThoughtBoxView), findsOneWidget);
       expect(find.byKey(ValueKey('thought-${a.id}')), findsOneWidget);
       expect(find.text('바깥 생각'), scoped ? findsNothing : findsOneWidget);
-      await tester.tap(find.text('페이지')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('메모상자')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(tester.widget<ThoughtPage>(find.byType(ThoughtPage)).blocks, isTrue);
       expect(find.byWidgetPredicate((w) => w is Card && w.shape is RoundedRectangleBorder), findsWidgets);
       expect(find.text('#안쪽'), findsNWidgets(2));

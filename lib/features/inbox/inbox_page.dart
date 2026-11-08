@@ -490,7 +490,13 @@ class _InboxPageState extends State<InboxPage> {
         _imeNewlineLines = value.text.split('\n').length;
         _explicitNewlineUntil = DateTime.now().add(const Duration(milliseconds: 250));
       } else {
-        _pendingImeSave = true;
+        final committed = value.copyWith(composing: TextRange.empty);
+        _pendingImeSave = false;
+        _focus.unfocus();
+        FocusManager.instance.applyFocusChangesIfNeeded();
+        _draft.value = committed;
+        _submitQuickMemo();
+        return KeyEventResult.handled;
       }
       // Commit the final IME value before applying the captured save or newline intent.
       return KeyEventResult.ignored;
@@ -549,7 +555,13 @@ class _InboxPageState extends State<InboxPage> {
   void _save() {
     _pendingImeSave = false;
     if (_draft.text.trim().isEmpty) return;
-    var body = _draft.text;
+    final committed = _draft.value.copyWith(composing: TextRange.empty);
+    if (_desktopQuickMemo) {
+      _focus.unfocus();
+      FocusManager.instance.applyFocusChangesIfNeeded();
+      _draft.value = committed;
+    }
+    var body = committed.text;
     for (final link in _draft.bindings.reversed) { body = body.replaceRange(link.start, link.end, ''); }
     if (parseTaggedInput(body).text.isEmpty) {
       ScaffoldMessenger.of(context)
@@ -593,7 +605,7 @@ class _InboxPageState extends State<InboxPage> {
       .where((n) => n.project == null && n.paragraphs != null)
       .map((n) => Paragraph(n.content, ParagraphRole.body, tags: Set.of(n.tags), bindings: n.paragraphs!.single.bindings)).toList();
 
-  List<String> get _allTags => {...elements.tags, ..._notes.expand((n) => n.project?.tags ?? <String>{}),
+  List<String> get _allTags => {...hashtagColors.keys, ...elements.tags, ..._notes.expand((n) => n.project?.tags ?? <String>{}),
     ..._notes.where((n) => n.project == null && n.paragraphs != null).expand((n) => n.tags)}.toList()..sort();
 
   Future<void> _allThoughts([MemoBox? box]) async {

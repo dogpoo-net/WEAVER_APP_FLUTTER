@@ -7,6 +7,18 @@ import 'package:weaver/features/inbox/all_thoughts_page.dart';
 
 void main() {
   setUp(() { memoBoxes.clear(); memoBoxFolders.clear(); elements.clear(); });
+  test('moving a thought replaces membership and restore removes legacy duplicates', () {
+    final record = elements.add('단일 소속');
+    final first = MemoBox('첫 상자', ids: [record.id]);
+    final second = MemoBox('둘째 상자');
+    memoBoxes.addAll([first, second]);
+    moveThoughtToBox(record.id, second);
+    expect(first.elementIds, isEmpty);
+    expect(second.elementIds, {record.id});
+    first.elementIds.add(record.id);
+    WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([])).apply();
+    expect(memoBoxes.where((box) => box.elementIds.contains(record.id)).length, 1);
+  });
   test('box membership and labels survive restore with stable element identity', () {
     final record = elements.add('보관할 메모');
     memoBoxFolders.add('분류');

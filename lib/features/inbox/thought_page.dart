@@ -208,7 +208,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         FilledButton(onPressed: () { if (parseTaggedInput(draft).text.isNotEmpty) Navigator.pop(context, draft); }, child: const Text('만들기'))]));
     if (text == null || !mounted) return;
     final r = elements.add(text);
-    widget.box?.elementIds.add(r.id);
+    if (widget.box != null) { moveThoughtToBox(r.id, widget.box!); }
     if (_selected != null) elements.connect(_selected!, [r.id]);
     _selected = r.id; _changed();
   }
@@ -248,7 +248,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           value: selected.contains(r.id), onChanged: (yes) => update(() { if (yes == true) { selected.add(r.id); } else { selected.remove(r.id); } }))])),
       actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
         FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('적용'))])));
-    if (accepted == true && mounted) { box.elementIds..clear()..addAll(selected); _changed(); }
+    if (accepted == true && mounted) { replaceBoxThoughts(box, selected); _changed(); }
   }
   @override
   void dispose() {
@@ -381,7 +381,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                     _inside(r.bounds, center)).toList()
                     ..sort((a, b) => a.bounds.width.compareTo(b.bounds.width));
                   if (targets.isNotEmpty) {
-                    targets.first.box.elementIds.add(record.id);
+                    moveThoughtToBox(record.id, targets.first.box);
                     _changed();
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${targets.first.box.name}에 담았습니다.')));
                   }

@@ -11,6 +11,21 @@ class MemoBox {
 }
 final memoBoxes = <MemoBox>[];
 final memoBoxFolders = <String>[];
+/// Moving a thought to a box replaces its previous membership.
+void moveThoughtToBox(String id, MemoBox target) {
+  for (final box in memoBoxes) { if (!identical(box, target)) box.elementIds.remove(id); }
+  target.elementIds.add(id);
+}
+void replaceBoxThoughts(MemoBox target, Iterable<String> ids) {
+  final selected = ids.toSet();
+  target.elementIds.clear();
+  for (final id in selected) { moveThoughtToBox(id, target); }
+}
+void normalizeBoxMemberships() {
+  final seen = <String>{};
+  for (final box in memoBoxes) { box.elementIds.removeWhere((id) => !seen.add(id)); }
+}
+
 class MemoDrag {
   const MemoDrag(this.id);
   final String id;
@@ -42,7 +57,7 @@ class MemoBoxTarget extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DragTarget<MemoDrag>(
     onWillAcceptWithDetails: (details) => !box.elementIds.contains(details.data.id),
-    onAcceptWithDetails: (details) { box.elementIds.add(details.data.id); onChanged(); },
+    onAcceptWithDetails: (details) { moveThoughtToBox(details.data.id, box); onChanged(); },
     builder: (context, candidates, rejected) => Container(
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(12),
         color: candidates.isEmpty ? null : Color(box.color).withValues(alpha: .25)), child: child));

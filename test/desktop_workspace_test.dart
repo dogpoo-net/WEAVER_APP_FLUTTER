@@ -19,7 +19,7 @@ void main() {
     expect(tester.getSize(find.byType(AppBar)).width, 1420);
     expect(tester.getTopLeft(menu).dy, greaterThanOrEqualTo(tester.getBottomRight(find.byType(AppBar)).dy));
     final pinnedWidth = tester.getSize(find.byType(DesktopMenuBody)).width - tester.getSize(menu).width;
-    await tester.tap(find.text('상자')); await tester.pumpAndSettle();
+    await tester.tap(find.text('생각')); await tester.pumpAndSettle();
     expect(tester.widget<WorkspaceMenu>(menu).embedded, isTrue);
     expect(find.byTooltip('메뉴 숨기기'), findsNothing);
     expect(find.byTooltip('메뉴를 모달로 보기'), findsNothing);

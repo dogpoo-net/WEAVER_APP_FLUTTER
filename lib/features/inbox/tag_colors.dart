@@ -33,3 +33,21 @@ Future<Color?> pickHashtagColor(BuildContext context, String tag, Color? selecte
     actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소'))],
   ),
 );
+
+Future<String?> createHashtag(BuildContext context) async {
+  final controller = TextEditingController();
+  final tag = await showDialog<String>(context: context, builder: (context) {
+    void submit() {
+      final value = controller.text.trim().replaceFirst(RegExp(r'^#+'), '').toLowerCase();
+      if (value.isNotEmpty && !RegExp(r'[\s#.,!?;:،؛؟()\[\]{}]').hasMatch(value)) Navigator.pop(context, value);
+    }
+    return AlertDialog(title: const Text('해시태그 만들기'), content: TextField(controller: controller, autofocus: true,
+      decoration: const InputDecoration(labelText: '태그 이름', prefixText: '#'), onSubmitted: (_) => submit()),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')), TextButton(onPressed: submit, child: const Text('만들기'))]);
+  });
+  // The closing route can still paint its TextField during the exit animation.
+  await Future<void>.delayed(const Duration(milliseconds: 300));
+  controller.dispose();
+  if (tag != null) hashtagColors.putIfAbsent(tag, () => 0xFF90A4AE);
+  return tag;
+}

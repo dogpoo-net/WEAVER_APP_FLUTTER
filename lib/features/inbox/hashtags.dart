@@ -6,10 +6,10 @@ class TaggedInput {
 
 TaggedInput parseTaggedInput(String input) {
   final tags = <String>{};
-  final pattern = RegExp(r'(^|\s)#([^\s#.,!?;:،؛؟()\[\]{}]+)', multiLine: true);
+  final pattern = RegExp(r'[ \t]*#([^\s#.,!?;:،؛؟()\[\]{}]+)', multiLine: true);
   final text = input.replaceAllMapped(pattern, (match) {
-    tags.add(match.group(2)!.toLowerCase());
-    return match.group(1)!;
+    tags.add(match.group(1)!.toLowerCase());
+    return '';
   }).trim();
   return TaggedInput(text, tags);
 }

@@ -9,6 +9,14 @@ import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
 
 void main() {
+  test('attached hashtags consume preceding spaces without altering other spacing', () {
+    final input = parseTaggedInput('앞말#위버 뒤말 #독서 다음  내용');
+    expect(input.tags, {'위버', '독서'});
+    expect(input.text, '앞말 뒤말 다음  내용');
+    expect(parseTaggedInput('본문 #위버').text, '본문');
+    expect(parseTaggedInput('본문#위버#독서').tags, {'위버', '독서'});
+  });
+
   testWidgets('tag results include matching paragraphs and projects only', (
     tester,
   ) async {
