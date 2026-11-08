@@ -54,7 +54,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(body: TextButton(
       onPressed: () async { result = await showVoiceRecorder(context); }, child: const Text('열기'))))));
     await tester.tap(find.text('열기')); await tester.pumpAndSettle();
-    await tester.tap(find.text('녹음 시작')); await tester.pump(); await tester.pump();
+    await tester.tap(find.text('녹음 시작')); await tester.pumpAndSettle();
+    expect(find.text('녹음 종료'), findsOneWidget);
     recorder.audio.add(Uint8List(PcmClipBuilder.maxBytes));
     await tester.pumpAndSettle();
     expect(recorder.stops, 1);
