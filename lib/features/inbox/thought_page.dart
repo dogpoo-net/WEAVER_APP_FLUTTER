@@ -1,3 +1,4 @@
+import 'thought_filters.dart';
 import 'desktop_menu_frame.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -31,6 +32,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   final _positions = <String, Offset>{};
   final _tagPositions = <String, Offset>{};
   String _query = '';
+  MemoBox? _filterBox;
+  String? _filterTag;
   bool _unlinkedOnly = false;
   final _view = TransformationController();
   Timer? _saveTimer;
@@ -113,6 +116,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   List<ElementRecord> get _scopeRecords => elements.records.values.where((r) => widget.box == null || widget.box!.elementIds.contains(r.id)).toList();
   List<ElementRecord> get _records => _scopeRecords.where((r) =>
+    (_filterBox == null || _filterBox!.elementIds.contains(r.id)) &&
+    (_filterTag == null || r.tags.contains(_filterTag)) &&
     (!_unlinkedOnly || r.connections.isEmpty) &&
     (_query.isEmpty || r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.toLowerCase().contains(_query)))).toList();
   void _sync() {
@@ -125,7 +130,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _tagPositions.removeWhere((tag, _) => !scopeTags.contains(tag));
     var left = 32.0, top = 32.0;
     for (final p in [..._positions.values, ..._tagPositions.values]) { left = math.min(left, p.dx); top = math.min(top, p.dy); }
-    for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
+    for (final box in _filterBox != null ? [_filterBox!] : (widget.box == null ? memoBoxes : [widget.box!])) {
       final bounds = _regionBounds(box, _positions);
       if (bounds != null) { left = math.min(left, bounds.left); top = math.min(top, bounds.top); }
     }
@@ -268,13 +273,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     var sceneWidth = math.max(3000.0, nodeRects.values.map((r) => r.right + 100).fold(0.0, math.max));
     var sceneHeight = math.max(2200.0, nodeRects.values.map((r) => r.bottom + 100).fold(0.0, math.max));
     final regions = <({MemoBox box, Rect bounds})>[];
-    for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
+    for (final box in _filterBox != null ? [_filterBox!] : (widget.box == null ? memoBoxes : [widget.box!])) {
       final bounds = _regionBounds(box, visiblePositions);
       if (bounds != null) regions.add((box: box, bounds: _liftBoxes[box] ?? bounds));
     }
     var emptyX = regions.map((r) => r.bounds.right + 80).fold(
       nodeRects.values.map((r) => r.right + 80).fold(640.0, math.max), math.max);
-    for (final box in widget.box == null ? memoBoxes : [widget.box!]) {
+    for (final box in _filterBox != null ? [_filterBox!] : (widget.box == null ? memoBoxes : [widget.box!])) {
       if (box.elementIds.any(_positions.containsKey)) continue;
       regions.add((box: box, bounds: _emptyBoxBounds.putIfAbsent(box, () => Rect.fromLTWH(emptyX, 440, 260, 260))));
       emptyX += 340;
@@ -298,7 +303,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
       if (widget.box != null) IconButton(tooltip: '상자에 생각 담기', onPressed: _pick, icon: const Icon(Icons.playlist_add)),
-      IconButton(tooltip: '연결 모드', isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
+      IconButton(tooltip: '연결 모드', style: IconButton.styleFrom(backgroundColor: _linkMode ? color.primaryContainer : null, foregroundColor: _linkMode ? color.onPrimaryContainer : null), isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
       IconButton(tooltip: '전체 위치 보기', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
@@ -316,6 +321,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         FilterChip(showCheckmark: false, visualDensity: VisualDensity.compact, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, padding: EdgeInsets.zero, label: const Text('연결 없음', style: TextStyle(fontSize: 12)), selected: _unlinkedOnly,
           onSelected: (value) => setState(() { _unlinkedOnly = value; _centered = false; _sync(); })),
       ])),
+      if (_linkMode) const Padding(padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Text('생각 두 개를 차례로 눌러 연결하거나 해제하세요.', style: TextStyle(fontSize: 12))),
       Expanded(child: LayoutBuilder(builder: (context, viewport) {
         if (!_centered) {
           _centered = true;
@@ -333,7 +339,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         }
         return InteractiveViewer(
         onInteractionEnd: (_) => _saveLayout(flush: true),
-        transformationController: _view, constrained: false, minScale: .15, maxScale: 2.5,
+        transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: 2.5,
         boundaryMargin: const EdgeInsets.all(500),
         child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
           for (final region in tagRegions) Positioned.fromRect(rect: region.bounds,
@@ -363,7 +369,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
                 }),
                 onActiveChanged: (active) => setState(() { _draggingId = active ? record.id : null; if (!active) _hoverBox = null; }),
-                onTap: () { if (_linkMode && _linkFrom != null) { _connect(_linkFrom!, record.id); }
+                onTap: () { if (_linkMode && _linkFrom != null) {
+                  final from = _linkFrom!;
+                  if (from != record.id && record.connections.contains(from)) {
+                    elements.disconnect(from, record.id); _linkFrom = null; _changed();
+                  } else { _connect(from, record.id); }
+                }
                   else { setState(() { _selected = record.id; if (_linkMode) _linkFrom = record.id; }); } },
                 onDoubleTap: () => showElementMetadata(context, record.text),
                 onMove: (delta) => setState(() { final p = _positions[record.id]! + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
@@ -430,12 +441,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         TextButton.icon(onPressed: _create, icon: const Icon(Icons.add), label: const Text('연결된 생각 만들기')),
         TextButton.icon(onPressed: _disconnect, icon: const Icon(Icons.link_off), label: const Text('연결 끊기')),
       ]),
-      if (!widget.blocks) SizedBox(height: 38, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: [
-        for (final tag in tags) Padding(padding: const EdgeInsets.only(right: 6), child: DragTarget<String>(
-          onAcceptWithDetails: (d) { final r = records.where((r) => r.id == d.data).firstOrNull;
-            if (r != null) { r.tags.add(tag); _changed(); } },
-          builder: (context, candidates, _) => Chip(visualDensity: VisualDensity.compact, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, padding: EdgeInsets.zero, labelPadding: const EdgeInsets.symmetric(horizontal: 5), backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: candidates.isEmpty ? .2 : .5), label: Text('#$tag', style: const TextStyle(fontSize: 11))))),
-      ])),
+      ThoughtFilters(tags: _scopeRecords.expand((r) => r.tags).toSet().toList()..sort(), scope: widget.box,
+        box: _filterBox, tag: _filterTag, onChanged: _changed,
+        onFilter: (box, tag) => setState(() { _filterBox = box; _filterTag = tag; _selected = null; _linkFrom = null; _centered = false; _sync(); })),
     ])));
   }
 }

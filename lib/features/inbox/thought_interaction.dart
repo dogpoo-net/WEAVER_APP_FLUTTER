@@ -20,13 +20,16 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
   Offset _pointer = Offset.zero;
   bool _resized = false, _lifted = false;
   Offset _longOffset = Offset.zero;
+  Size _resizeSize = Size.zero;
   Size _clamp(double w, double h) => Size(w.clamp(170, 640), h.clamp(76, 520));
   Widget _handle(String name, MouseCursor cursor, bool left, bool top, bool horizontal, bool vertical) =>
     MouseRegion(cursor: cursor, child: GestureDetector(key: ValueKey('resize-$name'), behavior: HitTestBehavior.opaque,
+      onPanStart: (_) => _resizeSize = widget.size,
       onPanUpdate: (d) {
-        final next = _clamp(widget.size.width + (horizontal ? d.delta.dx * (left ? -1 : 1) : 0),
-          widget.size.height + (vertical ? d.delta.dy * (top ? -1 : 1) : 0));
-        widget.onResize(next, Offset(left ? widget.size.width - next.width : 0, top ? widget.size.height - next.height : 0));
+        final next = _clamp(_resizeSize.width + (horizontal ? d.delta.dx * (left ? -1 : 1) : 0),
+          _resizeSize.height + (vertical ? d.delta.dy * (top ? -1 : 1) : 0));
+        widget.onResize(next, Offset(left ? _resizeSize.width - next.width : 0, top ? _resizeSize.height - next.height : 0));
+        _resizeSize = next;
       }, onPanEnd: (_) => widget.onEnd(), child: const SizedBox.expand()));
   @override
   Widget build(BuildContext context) => GestureDetector(behavior: HitTestBehavior.opaque,

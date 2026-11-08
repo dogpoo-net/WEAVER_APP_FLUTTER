@@ -1,5 +1,5 @@
 import 'desktop_menu_frame.dart';
-import 'tag_colors.dart';
+import 'thought_filters.dart';
 import 'thought_page.dart';
 import 'memo_boxes.dart';
 import 'dart:math' as math;
@@ -91,18 +91,6 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         for (final record in related) Padding(padding: const EdgeInsets.only(bottom: 6), child: _badge(record.text, desktop)),
       ]));
   }
-  Widget _colorLabel(String label, Color color, VoidCallback onTap) => Tooltip(message: label,
-    child: SizedBox.square(dimension: 24, child: InkWell(onTap: onTap,
-      customBorder: const CircleBorder(), child: Icon(Icons.circle, color: color, size: 14))));
-
-  Widget _filterChip({required Key key, required String label, required Color color,
-    required String colorTooltip, required bool selected, required VoidCallback onFilter, required VoidCallback onColor}) =>
-    Row(mainAxisSize: MainAxisSize.min, children: [
-      _colorLabel(colorTooltip, color, onColor),
-      ChoiceChip(visualDensity: VisualDensity.compact, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, padding: EdgeInsets.zero, key: key, label: Text(label, style: const TextStyle(fontSize: 12)), selected: selected,
-        showCheckmark: false, onSelected: (_) => onFilter()),
-    ]);
-
   Future<void> _manageBox() async {
     final box = _filterBox;
     if (box == null) return;
@@ -172,46 +160,8 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
               alignment: WrapAlignment.center, spacing: 6, runSpacing: 6, children: tiles)));
         }),
       ]))));
-    final footer = SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          SizedBox(height: 38, child: Row(children: [
-            const Padding(padding: EdgeInsetsDirectional.only(end: 8), child: Icon(Icons.inventory_2_outlined, size: 18)),
-            Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
-            Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(
-              visualDensity: VisualDensity.compact, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, padding: EdgeInsets.zero, key: const ValueKey('thought-filter-all'), label: const Text('전체'),
-              selected: _filterBox == null && _filterTag == null, onSelected: (_) => _filter())),
-            if (widget.initialBox == null) for (final box in memoBoxes) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
-              box: box, onChanged: _changed, child: _filterChip(
-                key: ValueKey('thought-filter-box-${box.name}'), label: box.name,
-                color: Color(box.color), colorTooltip: '${box.name} 상자 색상 변경',
-                selected: identical(_filterBox, box), onFilter: () async { await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: widget.notes, initialBox: box, onLayoutChanged: widget.onLayoutChanged, onChanged: () { widget.onChanged?.call(); }))); if (mounted) setState(() {}); }, onColor: () async {
-                  final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
-                  if (!mounted || color == null) return;
-                  box.color = color.toARGB32(); _changed();
-                }))),
-          ])), TextButton.icon(
-            icon: const Icon(Icons.add, size: 18), label: const Text('상자 만들기'),
-            onPressed: () async {
-              final box = await createMemoBox(context);
-              if (mounted && box != null) _changed();
-            }),
-          ])),
-          if (tags.isNotEmpty) SizedBox(height: 36, child: Row(children: [
-            const Padding(padding: EdgeInsetsDirectional.only(end: 8), child: Icon(Icons.tag, size: 18)),
-            Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
-              for (final tag in tags) Padding(padding: const EdgeInsets.only(right: 6), child: _filterChip(
-                key: ValueKey('thought-filter-tag-$tag'), label: '#$tag', selected: _filterTag == tag,
-                colorTooltip: '#$tag 색상 변경', color: hashtagColors.containsKey(tag)
-                  ? Color(hashtagColors[tag]!) : Theme.of(context).colorScheme.outlineVariant,
-                onFilter: () => _filter(tag: tag), onColor: () async {
-                  final current = hashtagColors[tag];
-                  final color = await pickHashtagColor(context, tag, current == null ? null : Color(current));
-                  if (!mounted || color == null) return;
-                  hashtagColors[tag] = color.toARGB32(); _changed();
-                })),
-            ])),
-          ])),
-        ])));
+    final footer = ThoughtFilters(tags: tags, scope: widget.initialBox, box: _filterBox, tag: _filterTag,
+      onChanged: _changed, onFilter: (box, tag) => _filter(box: box, tag: tag));
     return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null, leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(widget.initialBox?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(),
       if (_filterBox != null) IconButton(tooltip: '상자에 담을 메모 선택', onPressed: _manageBox, icon: const Icon(Icons.playlist_add)),
     ]),
@@ -227,7 +177,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   }
 }
 
-enum ThoughtView { diagram, boxes, page }
+enum ThoughtView { boxes, diagram, page }
 
 class AllThoughtsPage extends StatefulWidget {
   const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox, this.initialView = ThoughtView.diagram});
@@ -249,11 +199,11 @@ class _ThoughtViewsState extends State<AllThoughtsPage> {
         duration: const Duration(milliseconds: 200), curve: Curves.easeInOutCubic,
         builder: (context, value, _) => Positioned(left: value * bounds.maxWidth / 3, top: 0, bottom: 0,
           width: bounds.maxWidth / 3, child: ColoredBox(color: colors.secondaryContainer))),
-      Row(children: [for (final view in ThoughtView.values) Expanded(child: Semantics(selected: view == _view,
-        child: TextButton(style: TextButton.styleFrom(shape: const RoundedRectangleBorder(), foregroundColor: view == _view ? colors.onSecondaryContainer : colors.onSurface),
+      Positioned.fill(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [for (final view in ThoughtView.values) Expanded(child: Semantics(selected: view == _view,
+        child: TextButton(style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap, shape: const RoundedRectangleBorder(), foregroundColor: view == _view ? colors.onSecondaryContainer : colors.onSurface),
           onPressed: () => setState(() { _previousView = _view; _view = view; }),
           child: Text(switch (view) { ThoughtView.diagram => '다이어그램', ThoughtView.boxes => '상자', ThoughtView.page => '페이지' })))),
-      ]),
+      ])),
     ])));
     if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(notes: widget.notes, initialBox: widget.initialBox,
       onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector)); }
