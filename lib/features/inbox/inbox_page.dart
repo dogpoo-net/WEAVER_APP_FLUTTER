@@ -370,7 +370,7 @@ class _InboxPageState extends State<InboxPage> {
       return oldValue.copyWith(composing: TextRange.empty);
     }
     if (oldValue.text.isEmpty && _enterEchoUntil != null && now.isBefore(_enterEchoUntil!) &&
-        (value.text == _enterEchoText || (_enterEchoSyllable != null && value.text == _enterEchoSyllable))) return oldValue;
+        (value.text == _enterEchoText || (_enterEchoSyllable != null && value.text == _enterEchoSyllable))) { return oldValue; }
     if (_pendingImeNewline || (value.composing.isValid && !value.composing.isCollapsed)) return value;
     if (oldValue.text.isEmpty && _enterEchoUntil != null && now.isBefore(_enterEchoUntil!) &&
         (value.text == '$_enterEchoText\n' || value.text == '$_enterEchoText\r\n' || value.text == '\n')) {

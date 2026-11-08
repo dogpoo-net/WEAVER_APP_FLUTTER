@@ -30,11 +30,11 @@ void main() {
       selection: TextSelection.collapsed(offset: text.length), composing: TextRange(start: text.length - 1, end: text.length)));
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    tester.testTextInput.updateEditingValue(const TextEditingValue(text: '버', selection: TextSelection.collapsed(offset: 1)));
     await tester.pumpAndSettle();
     expect(elements.records['아직 한글 완성 버그가 있음']!.tags, {'위버'});
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     expect(elements.records.containsKey('아직 한글 완성 버그가 있음 버'), isFalse);
-    tester.testTextInput.updateEditingValue(const TextEditingValue(text: '버', selection: TextSelection.collapsed(offset: 1)));
     await tester.pump();
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     expect(tester.takeException(), isNull);
