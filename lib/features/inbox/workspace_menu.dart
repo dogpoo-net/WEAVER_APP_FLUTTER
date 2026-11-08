@@ -202,6 +202,8 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           icon: const Icon(Icons.push_pin_outlined))),
       if (MediaQuery.sizeOf(context).width < 1000) const SizedBox(height: 8),
       ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), leading: Icon(Icons.bubble_chart_outlined, size: MediaQuery.sizeOf(context).width < 1000 ? 20 : 19), title: Text('모든 생각 보기', style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 14 : 13)),
+        trailing: IconButton(tooltip: '메뉴 닫기', icon: const Icon(Icons.close, size: 18),
+          onPressed: widget.embedded ? widget.onHide : () => Navigator.pop(context)),
         onTap: () => _select(WorkspaceMenu.allThoughts)),
       const Divider(indent: 16, endIndent: 16),
       Expanded(child: SizedBox(key: _viewport, child: Scrollbar(controller: _scroll,

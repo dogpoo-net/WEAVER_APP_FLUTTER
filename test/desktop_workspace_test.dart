@@ -32,8 +32,8 @@ void main() {
     await tester.tap(find.byTooltip('메뉴 열기')); await tester.pumpAndSettle();
     expect(tester.widget<WorkspaceMenu>(menu).embedded, isFalse);
     expect(find.byTooltip('메뉴 고정하기'), findsOneWidget);
-    expect(find.byTooltip('메뉴 닫기'), findsNothing);
-    await tester.tapAt(const Offset(10, 10)); await tester.pumpAndSettle();
+    expect(find.byTooltip('메뉴 닫기'), findsOneWidget);
+    await tester.tap(find.byTooltip('메뉴 닫기')); await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

@@ -284,18 +284,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       regions.add((box: box, bounds: _emptyBoxBounds.putIfAbsent(box, () => Rect.fromLTWH(emptyX, 440, 260, 260))));
       emptyX += 340;
     }
-    final tagRegions = <({String tag, Rect bounds})>[];
-    if (widget.blocks) { for (final tag in tags) {
-      final members = records.where((r) => r.tags.contains(tag) && visiblePositions.containsKey(r.id)).toList();
-      final bounds = memoBoxCircleBounds(members.map((r) => visiblePositions[r.id]!),
-        sizes: {for (final r in members) visiblePositions[r.id]!: _size(r.id)});
-      if (bounds != null) tagRegions.add((tag: tag, bounds: bounds));
-    }
-    }
-    for (final region in tagRegions) {
-      sceneWidth = math.max(sceneWidth, region.bounds.right + 100);
-      sceneHeight = math.max(sceneHeight, region.bounds.bottom + 100);
-    }
     sceneWidth = regions.map((r) => r.bounds.right + 100).fold(sceneWidth, math.max);
     sceneHeight = regions.map((r) => r.bounds.bottom + 100).fold(sceneHeight, math.max);
     final color = Theme.of(context).colorScheme;
@@ -328,7 +316,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             final points = [...visiblePositions.values, ...tagPositions.values,
-              for (final region in [...regions.map((r) => r.bounds), ...tagRegions.map((r) => r.bounds)]) ...[region.topLeft, region.bottomRight]];
+              for (final region in regions.map((r) => r.bounds)) ...[region.topLeft, region.bottomRight]];
             if (points.isEmpty) points.add(const Offset(1400, 1000));
             final left = points.map((p) => p.dx).reduce(math.min), right = points.map((p) => p.dx).reduce(math.max) + 170;
             final top = points.map((p) => p.dy).reduce(math.min), bottom = points.map((p) => p.dy).reduce(math.max) + 76;
@@ -342,12 +330,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: 2.5,
         boundaryMargin: const EdgeInsets.all(500),
         child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
-          for (final region in tagRegions) Positioned.fromRect(rect: region.bounds,
-            child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(shape: BoxShape.circle,
-              color: Color(hashtagColors[region.tag] ?? 0xFF90A4AE).withValues(alpha: .10),
-              border: Border.all(color: Color(hashtagColors[region.tag] ?? 0xFF90A4AE).withValues(alpha: .65), width: 2)),
-              child: Align(alignment: Alignment.topCenter, child: Padding(padding: const EdgeInsets.only(top: 12),
-                child: Text('#${region.tag}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))))))),
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds, highlighted: identical(_hoverBox, region.box), rectangular: widget.blocks,
             onDrag: (delta) => setState(() {
               final empty = !region.box.elementIds.any(_positions.containsKey);
