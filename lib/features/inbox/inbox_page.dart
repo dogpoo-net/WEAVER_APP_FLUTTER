@@ -122,7 +122,7 @@ class _InboxPageState extends State<InboxPage> {
     if (text.isEmpty) { _captureError('사진이나 녹음과 함께 생각 내용을 입력해주세요.'); return; }
     if (_voiceDraft == null && _photoDrafts.isEmpty) { _save(); return; }
     if (widget.storage == null || _restoreBlocked) { _captureError('저장소를 사용할 수 없습니다. 메모와 첨부는 유지됩니다.'); return; }
-    final existing = elements.records[text];
+    final existing = _editing == null ? elements.records[text] : elements.records[_editing!.content.trim()];
     if ((existing?.photos.length ?? 0) + _photoDrafts.length > 5) {
       _captureError('같은 내용의 생각에 이미 첨부된 사진을 포함해 최대 5장까지 저장할 수 있습니다.'); return;
     }
@@ -690,7 +690,17 @@ class _InboxPageState extends State<InboxPage> {
       return false;
     }
     final input = [body, ..._draftTags.map((tag) => '#$tag')].join(' ');
-    final record = elements.add(input, replaceTags: _editing != null);
+    final editing = _editing;
+    ElementRecord record;
+    if (editing != null) {
+      final original = elements.records[editing.content.trim()];
+      if (original == null) { _captureError('이미 삭제된 생각입니다.'); return false; }
+      final error = elements.update(original.text, input);
+      if (error != null) { _captureError(error); return false; }
+      record = original;
+    } else {
+      record = elements.add(input);
+    }
     if (_draftLocation != null || _editing != null) record.location = _draftLocation;
     if (_savedVoice != null) record.recordings.add(_savedVoice!);
     record.photos.addAll(_savedPhotos);

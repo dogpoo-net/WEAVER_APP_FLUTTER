@@ -39,6 +39,17 @@ void main() {
     expect(restored.tags, {'여행'});
     expect(snapshot.contains('base64'), isFalse);
   });
+  test('editing a thought preserves attachment and location identity', () {
+    final record = elements.add('수정 전');
+    record.location = ThoughtLocation(37, 127, 20, DateTime.utc(2026));
+    record.recordings.add(const VoiceAttachment('voice-original', 1200));
+    record.photos.add(const PhotoAttachment('photo-original', '사진.jpg'));
+    expect(elements.update('수정 전', '수정 후 #사진'), isNull);
+    expect(elements.records['수정 후'], same(record));
+    expect(record.photos.single.id, 'photo-original');
+    expect(record.recordings.single.id, 'voice-original');
+    expect(record.location!.longitude, 127);
+  });
   test('legacy snapshots have no attachments and invalid coordinates are rejected', () {
     elements.add('기존 생각');
     final snapshot = jsonDecode(WorkspaceSnapshot.encode([])) as Map<String, dynamic>;

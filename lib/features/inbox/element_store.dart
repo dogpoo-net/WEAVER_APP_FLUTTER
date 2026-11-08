@@ -189,9 +189,9 @@ class ElementStore extends ChangeNotifier {
 
 final elements = ElementStore();
 
-void showElementMetadata(BuildContext context, String word) {
+Future<void> showElementMetadata(BuildContext context, String word) async {
   if (!elements.records.containsKey(word)) return;
-  showDialog<void>(
+  await showDialog<void>(
     context: context,
     builder: (_) => _ElementMetadata(word: word),
   );
