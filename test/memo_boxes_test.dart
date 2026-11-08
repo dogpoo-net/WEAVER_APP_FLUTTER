@@ -7,6 +7,17 @@ import 'package:weaver/features/inbox/all_thoughts_page.dart';
 
 void main() {
   setUp(() { memoBoxes.clear(); memoBoxFolders.clear(); elements.clear(); });
+  test('existing unclassified box becomes the default without duplicate labels', () {
+    final record = elements.add('기존 미분류 생각');
+    final legacy = MemoBox('미분류', color: 0xFF64B5F6, ids: [record.id]);
+    memoBoxes.add(legacy);
+    final box = ensureUnclassifiedBox();
+    expect(memoBoxes, [box]);
+    expect(box.isUnclassified, isTrue);
+    expect(box.color, legacy.color);
+    expect(box.layout, same(legacy.layout));
+    expect(box.elementIds, {record.id});
+  });
   test('unclassified follows membership and survives restore', () {
     final record = elements.add('분류할 생각');
     final unclassified = ensureUnclassifiedBox();

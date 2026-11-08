@@ -20,7 +20,9 @@ final memoBoxFolders = <String>[];
 MemoBox ensureUnclassifiedBox() {
   final existing = memoBoxes.where((box) => box.isUnclassified).firstOrNull;
   if (existing != null) return existing;
-  final box = MemoBox('미분류', isUnclassified: true);
+  final legacy = memoBoxes.where((box) => box.name == '미분류').firstOrNull;
+  final box = MemoBox('미분류', isUnclassified: true, color: legacy?.color ?? 0xFF90A4AE, layout: legacy?.layout);
+  if (legacy != null) memoBoxes.remove(legacy);
   memoBoxes.insert(0, box);
   return box;
 }

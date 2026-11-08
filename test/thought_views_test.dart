@@ -20,7 +20,7 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(notes: const [], initialBox: scoped ? box : null)));
       await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(find.byType(ThoughtBoxView), findsOneWidget);
-      await tester.tap(find.text('다이어그램')); await tester.pumpAndSettle();
+      await tester.tap(find.text('다이어그램')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(find.byType(ThoughtPage), findsOneWidget);
       expect(find.text('안쪽 생각'), findsOneWidget);
       expect(find.text('바깥 생각'), scoped ? findsNothing : findsOneWidget);
