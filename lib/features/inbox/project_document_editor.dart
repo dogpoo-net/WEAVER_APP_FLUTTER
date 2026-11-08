@@ -1,3 +1,4 @@
+import 'keyboard_dismiss.dart';
 import 'workspace_routes.dart';
 import 'desktop_menu_frame.dart';
 import 'package:flutter/material.dart';
@@ -88,7 +89,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('계속 작성')),
       TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('나가기'))]));
     if (discard == true && mounted) { setState(() => _dirty = false); WidgetsBinding.instance.addPostFrameCallback((_) { if (context.mounted) Navigator.pop(context); }); }
-  }, child: Scaffold(appBar: AppBar(title: WorkspaceTitle(widget.project?.name ?? '프로젝트 만들기'), actions: [const DesktopMenuAction(), TextButton(onPressed: _save, child: const Text('저장')),
+  }, child: Scaffold(appBar: AppBar(title: WorkspaceTitle(widget.project?.name ?? '프로젝트 만들기'), actions: [const KeyboardDismissAction(), const DesktopMenuAction(), TextButton(onPressed: _save, child: const Text('저장')),
     if (widget.project != null) IconButton(tooltip: '프로젝트 폴더', icon: const Icon(Icons.folder_outlined), onPressed: () async {
       final folder = await showDialog<String>(context: context, builder: (context) => SimpleDialog(title: const Text('프로젝트 폴더'), children: [for (final folder in ['', ...projectFolders])
         SimpleDialogOption(onPressed: () => Navigator.pop(context, folder), child: Text(folder.isEmpty ? '폴더 밖으로' : folder))]));
@@ -101,7 +102,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
           icon: Icon(_panelOpen ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up),
           label: Text(_panelOpen ? '참고 패널 숨기기' : '참고 패널 올리기'))))), body: DesktopMenuBody(child: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
       final document = Column(children: [TextField(key: const ValueKey('project-name'), controller: _name, decoration: const InputDecoration(labelText: '프로젝트 이름')),
-        const SizedBox(height: 12), Expanded(child: TextField(key: const ValueKey('project-document'), controller: _body, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
+        const SizedBox(height: 12), Expanded(child: TextField(onTapOutside: (_) => dismissKeyboard(), key: const ValueKey('project-document'), controller: _body, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
           textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
           decoration: const InputDecoration(hintText: '연결된 생각을 참고하며 자유롭게 글을 써보세요.', border: OutlineInputBorder())))]);
       final panel = Padding(padding: const EdgeInsets.all(12), child: _referencesPanel());

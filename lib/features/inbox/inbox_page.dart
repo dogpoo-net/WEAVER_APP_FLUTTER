@@ -1,3 +1,4 @@
+import 'keyboard_dismiss.dart';
 import 'workspace_routes.dart';
 import 'desktop_menu_frame.dart';
 import 'graph_layout.dart';
@@ -575,7 +576,7 @@ class _InboxPageState extends State<InboxPage> {
       context,
     ).showSnackBar(const SnackBar(content: Text('기록함에 담았어요. 다음 생각도 남겨보세요.')));
     _persist();
-    _focus.requestFocus();
+    if (_desktopQuickMemo) { _focus.requestFocus(); } else { dismissKeyboard(); }
   }
 
   List<Note> get _paragraphNotes => _notes.where((n) => n.project == null && n.paragraphs != null).toList();
@@ -860,6 +861,7 @@ class _InboxPageState extends State<InboxPage> {
               onTag: (tag) => _acceptQuickAssist(() => _insertQuickTag(tag)),
               onWord: (word) => _acceptQuickAssist(() => _insertQuickElement(word)), child: TextField(
               key: const ValueKey('quick-memo'),
+              onTapOutside: (_) { if (!_desktopQuickMemo) dismissKeyboard(); },
               inputFormatters: [TextInputFormatter.withFunction(_formatQuickMemo)],
               textInputAction: _desktopQuickMemo ? TextInputAction.done : TextInputAction.newline,
               onEditingComplete: _desktopQuickMemo ? () {} : null,
@@ -1089,6 +1091,7 @@ class _InboxPageState extends State<InboxPage> {
           icon: const Icon(Icons.grid_view_rounded),
         ),
         actions: [
+          const KeyboardDismissAction(),
           IconButton(
             tooltip: '테마 선택',
             onPressed: _showTheme,
