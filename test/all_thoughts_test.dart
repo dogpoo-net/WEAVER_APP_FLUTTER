@@ -60,7 +60,7 @@ void main() {
   testWidgets('all thoughts filters case-insensitively, focuses the badge match, and preserves original metadata', (tester) async {
     const phrase = '앞부분의 긴 글귀가 이어집니다 다른 설명도 한참 이어집니다 Dart 검색할 중간 내용 그리고 뒷부분의 긴 글귀가 계속 이어집니다';
     elements.add(phrase);
-    elements.add('다른 원소');
+    elements.add('다른 생각');
     await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: TargetPlatform.android),
       home: const AllThoughtsPage(initialView: ThoughtView.boxes, notes: [])));
     final search = find.byKey(const ValueKey('all-thoughts-search'));
@@ -79,7 +79,7 @@ void main() {
     await tester.enterText(search, '없는 검색어');
     await tester.pumpAndSettle();
     expect(find.byType(WordBadge), findsNothing);
-    expect(find.text('일치하는 원소가 없어요.'), findsOneWidget);
+    expect(find.text('일치하는 생각가 없어요.'), findsOneWidget);
     await tester.enterText(search, '');
     await tester.pumpAndSettle();
     expect(find.byType(WordBadge), findsNWidgets(2));

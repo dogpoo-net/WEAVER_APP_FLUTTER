@@ -7,12 +7,12 @@ import 'package:weaver/features/inbox/element_store.dart';
 
 void main() {
   test('linked ranges reject internal edits but allow surrounding edits and atomic removal', () {
-    final c = BoundTextController('앞 원소 뒤', [const ElementBinding('id', 2, 4)]);
+    final c = BoundTextController('앞 생각 뒤', [const ElementBinding('id', 2, 4)]);
     c.value = const TextEditingValue(text: '앞 원수 뒤');
-    expect(c.text, '앞 원소 뒤');
+    expect(c.text, '앞 생각 뒤');
     c.value = const TextEditingValue(text: '앞 원가소 뒤');
-    expect(c.text, '앞 원소 뒤');
-    c.value = const TextEditingValue(text: '새 앞 원소 뒤');
+    expect(c.text, '앞 생각 뒤');
+    c.value = const TextEditingValue(text: '새 앞 생각 뒤');
     expect(c.bindings.single.start, 4);
     c.value = const TextEditingValue(text: '새 앞  뒤');
     expect(c.bindings, isEmpty);
@@ -20,14 +20,14 @@ void main() {
   });
   test('backspace and forward delete remove a complete link and preserve neighbours', () {
     for (final edited in ['앞 원 뒤', '앞 소 뒤']) {
-      final c = BoundTextController('앞 원소 뒤', [const ElementBinding('id', 2, 4)]);
+      final c = BoundTextController('앞 생각 뒤', [const ElementBinding('id', 2, 4)]);
       c.value = TextEditingValue(text: edited, selection: const TextSelection.collapsed(offset: 3));
       expect(c.text, '앞  뒤');
       expect(c.bindings, isEmpty);
       expect(c.selection.extentOffset, 2);
       c.dispose();
     }
-    final c = BoundTextController('앞 원소 뒤 연결 끝', [const ElementBinding('one', 2, 4), const ElementBinding('two', 7, 9)]);
+    final c = BoundTextController('앞 생각 뒤 연결 끝', [const ElementBinding('one', 2, 4), const ElementBinding('two', 7, 9)]);
     c.value = const TextEditingValue(text: '앞 원 뒤 연결 끝');
     expect(c.text, '앞  뒤 연결 끝');
     expect(c.bindings.single.id, 'two');
@@ -43,16 +43,16 @@ void main() {
     expect(c.bindings.single.end, 5);
   });
   test('multiple links follow source updates without changing ordinary matching text', () {
-    final c = BoundTextController('원소 / 원소 / 원소', [const ElementBinding('id', 0, 2), const ElementBinding('id', 5, 7)]);
-    c.sync({'id': '긴 원소'});
-    expect(c.text, '긴 원소 / 긴 원소 / 원소');
+    final c = BoundTextController('생각 / 생각 / 생각', [const ElementBinding('id', 0, 2), const ElementBinding('id', 5, 7)]);
+    c.sync({'id': '긴 생각'});
+    expect(c.text, '긴 생각 / 긴 생각 / 생각');
     expect(c.bindings.map((b) => b.start), [0, 7]);
     expect(c.bindings.map((b) => b.end), [4, 11]);
   });
   test('paragraph bindings survive backup and legacy paragraphs remain plain text', () {
     elements.clear();
-    final record = elements.add('원소');
-    final note = Note('원소')..bindings = [ElementBinding(record.id, 0, 2)]..paragraphs = [Paragraph('원소', ParagraphRole.body,
+    final record = elements.add('생각');
+    final note = Note('생각')..bindings = [ElementBinding(record.id, 0, 2)]..paragraphs = [Paragraph('생각', ParagraphRole.body,
       bindings: [ElementBinding(record.id, 0, 2)])];
     final restored = WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([note]));
     expect(restored.notes.single.paragraphs!.single.bindings.single.id, record.id);

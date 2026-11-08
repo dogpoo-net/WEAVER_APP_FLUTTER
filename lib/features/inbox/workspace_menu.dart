@@ -54,7 +54,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     _Kind.box => memoBoxFolders, _Kind.element => widget.elementFolders, _Kind.tag => widget.tagFolders,
   };
   String _label(_Kind kind) => switch (kind) {
-    _Kind.project => '프로젝트', _Kind.paragraph => '문단', _Kind.box => '메모상자', _Kind.element => '원소', _Kind.tag => '해시태그',
+    _Kind.project => '프로젝트', _Kind.paragraph => '문단', _Kind.box => '메모상자', _Kind.element => '생각', _Kind.tag => '해시태그',
   };
   void _sync() {
     _placements = {for (final kind in _Kind.values) kind: List.generate(_items(kind).length, (i) {

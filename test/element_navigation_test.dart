@@ -35,7 +35,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('프로젝트 사용'), findsNothing);
     expect(find.text('사용 위치'), findsNothing);
-    expect(find.text('함께 쓰인 원소'), findsNothing);
+    expect(find.text('함께 쓰인 생각'), findsNothing);
     expect(find.byType(ProjectPage), findsNothing);
     expect(tester.widget<TextField>(find.byKey(const ValueKey('element-editor'))).controller!.text, '기억');
     expect(tester.takeException(), isNull);

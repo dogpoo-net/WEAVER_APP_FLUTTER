@@ -25,9 +25,9 @@ void main() {
     tester,
   ) async {
     elements.add('작은 생각');
-    elements.add('다른 원소');
+    elements.add('다른 생각');
     elements.sources['standalone'] = [
-      ElementSource('독립 문단', '작은 생각 작은 생각 다른 원소'),
+      ElementSource('독립 문단', '작은 생각 작은 생각 다른 생각'),
     ];
     final project = WritingProject(
       [const Paragraph('작은 생각', ParagraphRole.body)],
@@ -37,7 +37,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: ProjectPage(project: project)));
     expect(find.byKey(const ValueKey('project-document')), findsOneWidget);
     expect(find.byWidgetPredicate((w) => w is WordBadge && w.word == '작은 생각'), findsOneWidget);
-    expect(find.text('글로벌 원소 저장'), findsNothing);
+    expect(find.text('글로벌 생각 저장'), findsNothing);
     await tester.tap(find.byWidgetPredicate((w) => w is WordBadge && w.word == '작은 생각'));
     await tester.pumpAndSettle();
     expect(find.text('프로젝트 사용'), findsNothing);

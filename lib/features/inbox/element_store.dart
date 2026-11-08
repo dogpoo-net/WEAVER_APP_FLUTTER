@@ -50,11 +50,11 @@ class ElementStore extends ChangeNotifier {
   void Function(String oldText, String newText)? onRenamed;
   String? update(String oldText, String input, {Iterable<String>? tags}) {
     final parsed = parseTaggedInput(input);
-    if (parsed.text.isEmpty) return '원소 내용을 입력해주세요.';
+    if (parsed.text.isEmpty) return '생각 내용을 입력해주세요.';
     final record = records[oldText];
-    if (record == null) return '이미 삭제된 원소입니다.';
+    if (record == null) return '이미 삭제된 생각입니다.';
     if (parsed.text != oldText && records.containsKey(parsed.text)) {
-      return '같은 내용의 원소가 이미 있어요.';
+      return '같은 내용의 생각가 이미 있어요.';
     }
     records.remove(oldText);
     record.text = parsed.text;
@@ -280,8 +280,8 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                 maxLines: 6,
                 keyboardType: TextInputType.multiline,
                 decoration: InputDecoration(
-                  labelText: '원소 내용',
-                  hintText: '원소 내용 #태그',
+                  labelText: '생각 내용',
+                  hintText: '생각 내용 #태그',
                   errorText: _error,
                 ),
                 onChanged: (_) {

@@ -13,9 +13,9 @@ void main() {
     () {
       final original = elements.add('생각 #기존');
       final color = exportWordColors()['생각'];
-      elements.add('다른 원소');
+      elements.add('다른 생각');
       expect(elements.update('생각', '#태그'), isNotNull);
-      expect(elements.update('생각', '다른 원소'), isNotNull);
+      expect(elements.update('생각', '다른 생각'), isNotNull);
       expect(elements.records['생각'], same(original));
       expect(elements.update('생각', '새로운 생각 #수정'), isNull);
       expect(elements.records['새로운 생각'], same(original));

@@ -183,7 +183,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final words = List.generate(24, (i) => '원소${i.toString().padLeft(2, '0')}');
+    final words = List.generate(24, (i) => '생각${i.toString().padLeft(2, '0')}');
     await tester.pumpWidget(MaterialApp(home: ParagraphEditor(words: words)));
     final field = find.byKey(const ValueKey('paragraph-0'));
     await tester.enterText(field, '원');

@@ -29,7 +29,7 @@ void main() {
     final dialog = find.byType(AlertDialog);
     expect(tester.getSize(dialog).width, greaterThan(330));
     final editor = find.byKey(const ValueKey('element-editor'));
-    final label = find.text('원소 내용');
+    final label = find.text('생각 내용');
     final scroll = find.descendant(of: dialog, matching: find.byType(SingleChildScrollView));
     expect(tester.getTopLeft(label).dy, greaterThanOrEqualTo(tester.getTopLeft(scroll).dy));
     expect(tester.getTopLeft(label).dy, greaterThan(tester.getBottomRight(find.byKey(const ValueKey('element-tags'))).dy));
@@ -37,7 +37,7 @@ void main() {
     final date = find.byKey(const ValueKey('element-created-at'));
     expect(tester.getTopLeft(date).dy, greaterThan(tester.getBottomRight(find.text('비활성')).dy));
     expect(find.byKey(const ValueKey('element-connections-divider')), findsOneWidget);
-    for (final removed in ['검색에서 숨기기', '메인과 원소 어시스트에 표시하지 않습니다.', '생성일', '프로젝트 사용', '사용 위치', '함께 쓰인 원소', '원소 삭제']) {
+    for (final removed in ['검색에서 숨기기', '메인과 생각 어시스트에 표시하지 않습니다.', '생성일', '프로젝트 사용', '사용 위치', '함께 쓰인 생각', '원소 삭제']) {
       expect(find.text(removed), findsNothing);
     }
     expect(tester.widget<AlertDialog>(dialog).actions!.length, 3);

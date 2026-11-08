@@ -205,7 +205,7 @@ class _InboxPageState extends State<InboxPage> {
         const SingleActivator(LogicalKeyboardKey.numpadEnter): () => finish(folderName.trim()),
         const SingleActivator(LogicalKeyboardKey.escape): () => finish(null),
       }, child: AlertDialog(
-        title: Text(tag ? '해시태그 폴더 만들기' : kind == 'paragraph' ? '문단 폴더 만들기' : kind == 'box' ? '메모상자 폴더 만들기' : kind == 'element' ? '원소 폴더 만들기' : '폴더 만들기'),
+        title: Text(tag ? '해시태그 폴더 만들기' : kind == 'paragraph' ? '문단 폴더 만들기' : kind == 'box' ? '메모상자 폴더 만들기' : kind == 'element' ? '생각 폴더 만들기' : '폴더 만들기'),
         content: TextField(onChanged: (value) => folderName = value, autofocus: true,
           decoration: const InputDecoration(labelText: '폴더 이름'), textInputAction: TextInputAction.done,
           onSubmitted: (value) => finish(value.trim())),
@@ -271,7 +271,7 @@ class _InboxPageState extends State<InboxPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('모든 데이터를 초기화할까요?'),
-        content: const Text('원소·문단·프로젝트·폴더와 이 브라우저에 저장된 앱 데이터를 삭제합니다.'),
+        content: const Text('생각·문단·프로젝트·폴더와 이 브라우저에 저장된 앱 데이터를 삭제합니다.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -553,7 +553,7 @@ class _InboxPageState extends State<InboxPage> {
     for (final link in _draft.bindings.reversed) { body = body.replaceRange(link.start, link.end, ''); }
     if (parseTaggedInput(body).text.isEmpty) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('태그와 함께 원소 내용을 입력해주세요.')));
+          .showSnackBar(const SnackBar(content: Text('태그와 함께 생각 내용을 입력해주세요.')));
       return;
     }
     final input = [body, ..._draftTags.map((tag) => '#$tag')].join(' ');

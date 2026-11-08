@@ -9,7 +9,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      final words = List.generate(count, (i) => '가나다라마바사아자차카타파하원소$i');
+      final words = List.generate(count, (i) => '가나다라마바사아자차카타파하생각$i');
       await tester.pumpWidget(MaterialApp(home: ParagraphEditor(words: words)));
       await tester.tap(find.byKey(const ValueKey('paragraph-0')));
       await tester.pumpAndSettle();

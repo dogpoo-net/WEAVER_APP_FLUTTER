@@ -50,12 +50,12 @@ class _TagPageState extends State<TagPage> {
               padding: const EdgeInsets.all(24),
               children: [
                 SwitchListTile.adaptive(contentPadding: EdgeInsets.zero,
-                  title: const Text('이 태그의 원소 검색 숨기기'),
-                  subtitle: const Text('메인과 원소 어시스트에서만 숨깁니다.'),
+                  title: const Text('이 태그의 생각 검색 숨기기'),
+                  subtitle: const Text('메인과 생각 어시스트에서만 숨깁니다.'),
                   value: hiddenSearchTags.contains(widget.tag),
                   onChanged: (hidden) => setState(() => elements.setTagHidden(widget.tag, hidden))),
                 Text(
-                  '원소 ${words.length}',
+                  '생각 ${words.length}',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 12),

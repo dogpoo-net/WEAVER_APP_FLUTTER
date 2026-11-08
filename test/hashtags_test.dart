@@ -79,7 +79,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(tag);
     await tester.pumpAndSettle();
-    expect(find.text('원소 1'), findsOneWidget);
+    expect(find.text('생각 1'), findsOneWidget);
     expect(find.text('작은 생각'), findsOneWidget);
     expect(find.text('생각 0'), findsOneWidget);
     expect(find.text('프로젝트 0'), findsOneWidget);

@@ -14,11 +14,11 @@ Future<void> shortcut(WidgetTester tester) async {
 void main() {
   testWidgets('hash opens tags and Control Space adds a tag without saving memo text', (tester) async {
     await tester.pumpWidget(const MyApp());
-    elements.add('원소 #독서 #기억');
+    elements.add('생각 #독서 #기억');
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '#'); await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('suggestion-#독서')), findsOneWidget);
-    expect(find.byKey(const ValueKey('suggestion-원소')), findsNothing);
+    expect(find.byKey(const ValueKey('suggestion-생각')), findsNothing);
     await tester.enterText(field, '메모 #독'); await tester.pumpAndSettle();
     await tester.sendKeyEvent(LogicalKeyboardKey.controlLeft); await tester.pumpAndSettle();
     expect(tester.widgetList<WordBadge>(find.byType(WordBadge)).any((b) => b.selected), isFalse);
@@ -27,7 +27,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
     expect(tester.widget<TextField>(field).controller!.text, '메모 #독서 ');
     expect(find.byTooltip('#독서 태그 삭제'), findsNothing);
-    expect(elements.words, ['원소']);
+    expect(elements.words, ['생각']);
     expect(tester.takeException(), isNull);
   });
   testWidgets('paragraph tag suggestions include saved paragraph-only tags and work by tap', (tester) async {

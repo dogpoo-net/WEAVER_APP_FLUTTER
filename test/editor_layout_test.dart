@@ -37,7 +37,7 @@ void main() {
     expect(popup.bottom, closeTo(524, 1));
     expect(tester.getRect(find.byKey(const ValueKey('paragraph-1'))).bottom,
       lessThanOrEqualTo(popup.top));
-    expect(find.text('원소 어시스트'), findsNothing);
+    expect(find.text('생각 어시스트'), findsNothing);
     expect(find.byTooltip('후보 닫기'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -101,7 +101,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: ParagraphEditor(
-          words: List.generate(40, (i) => '원소${i.toString().padLeft(2, '0')}'),
+          words: List.generate(40, (i) => '생각${i.toString().padLeft(2, '0')}'),
         ),
       ),
     );
@@ -120,20 +120,20 @@ void main() {
       matching: find.byType(Scrollable),
     );
     await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('suggestion-원소39')),
+      find.byKey(const ValueKey('suggestion-생각39')),
       100,
       scrollable: scroll,
     );
     await tester.pumpAndSettle();
     expect(tester.getRect(popup), bounds);
-    await tester.tap(find.byKey(const ValueKey('suggestion-원소39')));
+    await tester.tap(find.byKey(const ValueKey('suggestion-생각39')));
     await tester.pumpAndSettle();
     expect(
       tester
           .widget<TextField>(find.byKey(const ValueKey('paragraph-0')))
           .controller!
           .text,
-      '원소39',
+      '생각39',
     );
     expect(tester.takeException(), isNull);
   });
