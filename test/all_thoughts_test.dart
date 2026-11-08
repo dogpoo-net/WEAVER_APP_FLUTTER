@@ -25,6 +25,22 @@ void main() {
     elements.connect(elements.records['관찰']!.id, [elements.records['질문']!.id]);
   }
 
+  testWidgets('clicking a related thought does not select the rearranged previous thought on release', (tester) async {
+    elements.clear();
+    final a = elements.add('선택할 첫 생각'); final b = elements.add('연결된 둘째 생각');
+    elements.connect(a.id, [b.id]);
+    tester.view.physicalSize = const Size(1400, 1000); tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: TargetPlatform.linux), home: const AllThoughtsPage(initialView: ThoughtView.boxes, notes: [])));
+    await tester.tap(find.byKey(ValueKey('thought-${a.id}'))); await tester.pumpAndSettle();
+    final relations = find.byKey(const ValueKey('thought-relations'));
+    final peer = find.descendant(of: relations, matching: find.byWidgetPredicate((w) => w is WordBadge && w.word == b.text));
+    final gesture = await tester.startGesture(tester.getCenter(peer));
+    await tester.pump();
+    await gesture.up(); await tester.pumpAndSettle();
+    expect(tester.widgetList<WordBadge>(find.descendant(of: relations, matching: find.byType(WordBadge))).where((b) => b.selected).single.word, b.text);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('desktop single click shows related elements and double click opens metadata', (tester) async {
     records();
     tester.view.physicalSize = const Size(1400, 1000);

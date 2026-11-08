@@ -5,6 +5,22 @@ import 'package:weaver/main.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 
 void main() {
+  testWidgets('draft connection X removes only the pending link', (tester) async {
+    await tester.pumpWidget(const MyApp());
+    final target = elements.add('참고생각');
+    final field = find.byKey(const ValueKey('quick-memo'));
+    await tester.enterText(field, '작성한본문 참고생');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('suggestion-참고생각')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ValueKey('remove-draft-link-${target.id}')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('저장'));
+    await tester.tap(find.text('저장')); await tester.pumpAndSettle();
+    expect(elements.records['작성한본문']!.connections, isEmpty);
+    expect(elements.records['참고생각'], same(target));
+    expect(target.connections, isEmpty);
+  });
   testWidgets('Enter commits a composing hashtag without leaving its syllable in body', (tester) async {
     await tester.pumpWidget(const MyApp());
     final field = find.byKey(const ValueKey('quick-memo'));
