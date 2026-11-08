@@ -57,6 +57,10 @@ void main() {
       selection: TextSelection.collapsed(offset: text.length + 2)));
     await tester.pump();
     expect(controller.text, '$text ');
+    tester.testTextInput.updateEditingValue(TextEditingValue(text: '$text 버\n',
+      selection: TextSelection.collapsed(offset: text.length + 3)));
+    await tester.pump();
+    expect(controller.text, '$text ');
     await tester.pump(const Duration(milliseconds: 600));
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();

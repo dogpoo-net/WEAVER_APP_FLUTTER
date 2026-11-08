@@ -363,9 +363,11 @@ class _InboxPageState extends State<InboxPage> {
       }
       final echo = _assistComposingEcho;
       final caret = completedAssist.selection.extentOffset;
-      if (echo != null && caret >= 0 && caret <= completedAssist.text.length &&
-          value.text == completedAssist.text.replaceRange(caret, caret, echo)) {
-        return completedAssist;
+      if (echo != null && caret >= 0 && caret <= completedAssist.text.length) {
+        final echoed = completedAssist.text.replaceRange(caret, caret, echo);
+        if (value.text == echoed || value.text == '$echoed\n' || value.text == '$echoed\r\n') {
+          return completedAssist;
+        }
       }
       if (value.text == beforeAssist.text || [newline(beforeAssist, '\n'), newline(beforeAssist, '\r\n'),
         newline(completedAssist, '\n'), newline(completedAssist, '\r\n')].contains(value.text)) {
