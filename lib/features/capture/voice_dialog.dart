@@ -64,7 +64,7 @@ class _VoiceRecorderDialogState extends State<VoiceRecorderDialog> with WidgetsB
     _timer?.cancel();
     setState(() { _busy = true; _recording = false; });
     try {
-      await _recorder.stop();
+      await _recorder.stop().timeout(const Duration(seconds: 5));
       await _streamDone?.future.timeout(const Duration(seconds: 2));
       await _stream?.cancel();
       final draft = _buffer.finish();

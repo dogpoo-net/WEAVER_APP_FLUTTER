@@ -6,6 +6,7 @@ import '../inbox/desktop_menu_frame.dart';
 import '../inbox/element_store.dart';
 import '../inbox/memo_boxes.dart';
 import '../inbox/thought_filters.dart';
+import '../inbox/workspace_routes.dart';
 
 class GeologPage extends StatefulWidget {
   const GeologPage({super.key, this.box, this.viewSelector, required this.onChanged});
@@ -60,7 +61,9 @@ class _GeologPageState extends State<GeologPage> {
       final location = record.location!;
       groups.putIfAbsent('${location.latitude.toStringAsFixed(5)},${location.longitude.toStringAsFixed(5)}', () => []).add(record);
     }
-    return Scaffold(appBar: AppBar(title: Text(widget.box?.name ?? '모든 생각 보기', style: const TextStyle(fontSize: 18)), actions: [
+    return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null,
+      leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(widget.box?.name ?? '모든 생각 보기'), actions: [
+      const DesktopMenuAction(),
       IconButton(tooltip: '위치 전체 보기', onPressed: records.isEmpty ? null : () => _fit(records), icon: const Icon(Icons.center_focus_strong)),
     ]), body: DesktopMenuBody(child: Column(children: [
       if (widget.viewSelector != null) widget.viewSelector!,
@@ -78,8 +81,8 @@ class _GeologPageState extends State<GeologPage> {
           children: [
             TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'net.dogpoo.weaver', maxNativeZoom: 19,
               errorTileCallback: (_, error, stack) => _tileFailed()),
-            MarkerLayer(markers: [for (final group in groups.values) Marker(point: _point(group.first), width: 132, height: 68,
-              child: Semantics(button: true, label: group.first.text, child: InkWell(onTap: () => _open(group), child: Column(children: [
+            MarkerLayer(markers: [for (final group in groups.values) Marker(point: _point(group.first), width: 132, height: 68, alignment: Alignment.topCenter, rotate: true,
+              child: Semantics(button: true, label: group.first.text, child: InkWell(onTap: () => _open(group), child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
                 Material(elevation: 2, borderRadius: BorderRadius.circular(8), color: Theme.of(context).colorScheme.primaryContainer,
                   child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), child: Text(group.length > 1 ? '${group.length}개의 생각' : group.first.text,
                     maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)))),
