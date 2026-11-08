@@ -133,12 +133,12 @@ class _InboxPageState extends State<InboxPage> {
       final voice = _voiceDraft;
       if (voice != null) {
         final id = 'voice-$stamp';
-        await MediaStorage.write(id, voice.bytes); written.add(id);
+        written.add(id); await MediaStorage.write(id, voice.bytes);
         _savedVoice = VoiceAttachment(id, voice.durationMs);
       }
       for (var i = 0; i < _photoDrafts.length; i++) {
         final photo = _photoDrafts[i], id = 'photo-$stamp-$i';
-        await MediaStorage.write(id, photo.bytes); written.add(id);
+        written.add(id); await MediaStorage.write(id, photo.bytes);
         _savedPhotos.add(PhotoAttachment(id, photo.name));
       }
       if (!mounted) throw StateError('Composer closed');

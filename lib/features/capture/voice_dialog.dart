@@ -21,7 +21,7 @@ class _VoiceRecorderDialogState extends State<VoiceRecorderDialog> with WidgetsB
   Timer? _timer;
   PcmClipBuilder _buffer = PcmClipBuilder();
   VoiceDraft? _draft;
-  bool _recording = false, _busy = false;
+  bool _recording = false, _busy = false, _backgrounded = false;
   int _seconds = 0;
   String? _error;
   @override
@@ -36,11 +36,11 @@ class _VoiceRecorderDialogState extends State<VoiceRecorderDialog> with WidgetsB
     setState(() { _busy = true; _error = null; });
     try {
       if (!await _recorder.hasPermission()) throw StateError('마이크 권한을 허용해주세요.');
-      if (!mounted) return;
+      if (!mounted || _backgrounded) return;
       _buffer = PcmClipBuilder(); _streamDone = Completer<void>();
       final stream = await _recorder.startStream(const RecordConfig(
         encoder: AudioEncoder.pcm16bits, sampleRate: PcmClipBuilder.sampleRate, numChannels: 1));
-      if (!mounted) { await _recorder.cancel(); return; }
+      if (!mounted || _backgrounded) { await _recorder.cancel(); return; }
       setState(() { _recording = true; _seconds = 0; _draft = null; });
       _stream = stream.listen((chunk) {
         _buffer.add(chunk);
@@ -75,8 +75,9 @@ class _VoiceRecorderDialogState extends State<VoiceRecorderDialog> with WidgetsB
   }
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _backgrounded = false;
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.detached) {
-      unawaited(_stop());
+      _backgrounded = true; unawaited(_stop());
     }
   }
   @override
@@ -89,6 +90,8 @@ class _VoiceRecorderDialogState extends State<VoiceRecorderDialog> with WidgetsB
     content: Column(mainAxisSize: MainAxisSize.min, children: [
       Text(_recording ? '${(_seconds ~/ 60).toString().padLeft(2, '0')}:${(_seconds % 60).toString().padLeft(2, '0')} / 01:00' : '최대 1분', style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 16),
+      if (_busy) const Padding(padding: EdgeInsets.only(bottom: 12),
+        child: SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2))),
       if (_draft != null) VoicePlayer(key: ObjectKey(_draft), load: () async => _draft!.bytes, durationMs: _draft!.durationMs),
       if (_error != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
       FilledButton.tonalIcon(onPressed: _busy ? null : (_recording ? _stop : _start),

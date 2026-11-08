@@ -14,6 +14,10 @@ Future<ThoughtLocation> captureLocation() async {
   try {
     final position = await Geolocator.getCurrentPosition(locationSettings:
       const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 20)));
+    if (!position.latitude.isFinite || !position.longitude.isFinite || position.latitude.abs() > 90 ||
+        position.longitude.abs() > 180 || !position.accuracy.isFinite || position.accuracy < 0) {
+      throw StateError('유효한 위치를 얻지 못했습니다. 잠시 후 다시 시도해주세요.');
+    }
     return ThoughtLocation(position.latitude, position.longitude, position.accuracy, position.timestamp);
   } on TimeoutException {
     throw StateError('현재 위치를 찾지 못했습니다. 위치 기록을 다시 켜서 시도해주세요.');
