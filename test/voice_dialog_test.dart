@@ -23,7 +23,12 @@ class FakeRecorder extends RecordPlatform {
     return audio.stream;
   }
   @override
-  Future<String?> stop(String id) async { stops++; await audio.close(); return null; }
+  Future<String?> stop(String id) async {
+    stops++;
+    // Native stop and EventChannel completion arrive independently.
+    unawaited(audio.close());
+    return null;
+  }
   @override
   Future<void> dispose(String id) async { await states.close(); }
   @override
