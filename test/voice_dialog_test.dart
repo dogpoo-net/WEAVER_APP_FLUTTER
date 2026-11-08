@@ -54,6 +54,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(recorder.stops, 1);
     expect(result, isNull);
+    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, '메모에 첨부')).onPressed, isNotNull,
+      reason: tester.widgetList<Text>(find.byType(Text)).map((w) => w.data).join(' | '));
     await tester.tap(find.text('메모에 첨부')); await tester.pumpAndSettle();
     expect(result!.durationMs, 60000);
     expect(String.fromCharCodes(result!.bytes.take(4)), 'RIFF');
