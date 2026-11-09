@@ -5,7 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 /// OAuth public client ID, never a client secret. Android uses the web client
 /// as serverClientId; its own client is registered with package + signing SHA-1.
-const defaultGoogleWebClientId = '195209189504-9gr6uvbdgsim1eagbk4fhtv4or2eg87m.apps.googleusercontent.com';
+const defaultGoogleWebClientId = '905636849457-6ohbrffa2dalid9vbl479jat2rr7njoe.apps.googleusercontent.com';
 const _configuredGoogleWebClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
 const googleWebClientId = _configuredGoogleWebClientId == ''
     ? defaultGoogleWebClientId : _configuredGoogleWebClientId;
