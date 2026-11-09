@@ -10,11 +10,13 @@ class ThoughtFilters extends StatelessWidget {
   final String? tag;
   final void Function(MemoBox? box, String? tag) onFilter;
   final VoidCallback onChanged;
-  Widget _chip(String label, Key key, bool selected, VoidCallback onTap, {Widget? avatar}) => ChoiceChip(
-    key: key, avatar: avatar, label: Text(label, style: const TextStyle(fontSize: 12)), selected: selected,
+  Widget _chip(String label, Key key, bool selected, VoidCallback onTap, {Widget? avatar}) => Stack(alignment: Alignment.centerLeft, children: [ChoiceChip(
+    key: key, avatar: avatar == null ? null : const SizedBox.square(dimension: 24), label: Text(label, style: const TextStyle(fontSize: 12)), selected: selected,
     showCheckmark: false, visualDensity: VisualDensity.compact,
     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, padding: EdgeInsets.zero,
-    onSelected: (_) => onTap());
+    onSelected: (_) => onTap()),
+    if (avatar != null) Positioned(left: 2, child: avatar),
+  ]);
   Widget _color(String tooltip, Color color, VoidCallback onTap) => Tooltip(message: tooltip,
     child: SizedBox.square(dimension: 24, child: InkWell(onTap: onTap, customBorder: const CircleBorder(),
       child: Icon(Icons.circle, size: 14, color: color))));
