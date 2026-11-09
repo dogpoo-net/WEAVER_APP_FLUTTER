@@ -153,7 +153,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
                 ],
               ]);
             } else if (rows.isEmpty) {
-              child = Padding(padding: const EdgeInsets.all(40), child: Text(allRecords.isEmpty ? '아직 생각이 없어요.' : '일치하는 생각이 없어요.'));
+              child = Padding(padding: const EdgeInsets.all(40), child: Text(allRecords.isEmpty ? '아직 생각이 없어요.' : _filterBox != null && _query.isEmpty ? '이 상자에 담긴 메모가 없어요.' : '일치하는 생각이 없어요.'));
             } else {
               final items = rows[index - 1];
               child = Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(
