@@ -409,6 +409,7 @@ class _InboxPageState extends State<InboxPage> {
         TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('계속'))])) == true;
 
   Future<void> _uploadBackup() async {
+    if (_captureSaving || _locationBusy || _photoBusy) throw const BackupFailure('메모와 첨부 처리 완료 후 다시 시도해주세요.');
     final auth = GoogleAuthScope.maybeOf(context);
     final identity = auth?.identity;
     final storage = widget.storage;
@@ -425,6 +426,7 @@ class _InboxPageState extends State<InboxPage> {
     } finally { api.close(); }
   }
   Future<void> _downloadBackup() async {
+    if (_captureSaving || _locationBusy || _photoBusy) throw const BackupFailure('메모와 첨부 처리 완료 후 다시 시도해주세요.');
     final auth = GoogleAuthScope.maybeOf(context);
     final identity = auth?.identity;
     final storage = widget.storage;
@@ -454,6 +456,8 @@ class _InboxPageState extends State<InboxPage> {
         showClosedThoughts = imported.closed;
       });
       widget.onSettingsImported?.call(); desktopMenu.refresh();
+      // Existing editors and diagrams hold references to the replaced objects.
+      Navigator.of(context).popUntil((route) => route.isFirst);
       _captureError('서버 데이터를 가져왔습니다.');
     } finally {
       api.close();
