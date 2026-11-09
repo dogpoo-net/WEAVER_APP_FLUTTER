@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -12,7 +14,8 @@ const googleWebClientId = _configuredGoogleWebClientId == ''
 
 class GoogleIdentity {
   const GoogleIdentity({required this.id, required this.email, required this.idToken});
-  final String id, email, idToken;
+  final String id, email;
+  final String? idToken;
   // Keep credentials in memory only. The future backend must verify this token
   // before issuing its own session; client-side identity is not API authorization.
 }
@@ -52,9 +55,7 @@ class SdkGoogleAuthClient implements GoogleAuthClient {
           _changes.add(null);
       }
     }, onError: (Object error) => _changes.addError(error));
-    // A lightweight attempt can return null on web; events are authoritative.
-    final attempt = _sdk.attemptLightweightAuthentication();
-    if (attempt != null) unawaited(attempt.then<void>((_) {}, onError: (Object _) {}));
+    // Explicit sign-in only: logging out must not silently sign in again.
   }
   @override
   Future<void> signIn() async { await _sdk.authenticate(); }
@@ -65,21 +66,62 @@ class SdkGoogleAuthClient implements GoogleAuthClient {
 }
 
 class GoogleAuthController extends ChangeNotifier {
-  GoogleAuthController(this.client);
+  GoogleAuthController(this.client, {this.preferences});
+  static const rememberedAccountKey = 'weaver.test-login.v1';
+  final SharedPreferences? preferences;
   final GoogleAuthClient client;
   GoogleIdentity? identity;
   bool ready = false, busy = false;
   String? error;
-  bool _disposed = false;
+  bool _disposed = false, _loggingOut = false;
+  int _generation = 0;
+  Future<void> _sessionWrite = Future.value();
   StreamSubscription<GoogleIdentity?>? _subscription;
   Future<void>? _initializing;
   void _changed() { if (!_disposed) notifyListeners(); }
   Future<void> initialize() => _initializing ??= _initialize();
   Future<void> _initialize() async {
+    // Deliberately a non-expiring test account marker, not an OAuth session.
+    // Do not persist ID tokens or ask Google to refresh this local marker.
+    try {
+      final raw = preferences?.getString(rememberedAccountKey);
+      if (raw != null) {
+        final data = jsonDecode(raw);
+        if (data is Map && data['id'] is String && (data['id'] as String).isNotEmpty &&
+            data['email'] is String && (data['email'] as String).isNotEmpty) {
+          identity = GoogleIdentity(id: data['id'] as String, email: data['email'] as String, idToken: null);
+          _changed();
+          return;
+        }
+      }
+    } catch (_) { /* Invalid local markers require a real Google sign-in. */ }
+    await _initializeSdk();
+  }
+  Future<void>? _sdkInitializing;
+  Future<void> _initializeSdk() => _sdkInitializing ??= _startSdk();
+  Future<void> _startSdk() async {
     if (!client.configured) { _changed(); return; }
     busy = true; _changed();
     _subscription = client.changes.listen((value) {
-      identity = value; error = null; busy = false; _changed();
+      if (value == null || _loggingOut || _disposed) return;
+      final generation = _generation;
+      final write = _sessionWrite.catchError((Object _) {}).then((_) async {
+        if (generation != _generation || _disposed) return;
+        try {
+          if (preferences != null && !await preferences!.setString(rememberedAccountKey,
+              jsonEncode({'id': value.id, 'email': value.email}))) {
+            throw StateError('Account persistence failed');
+          }
+          if (generation != _generation || _disposed) return;
+          identity = value; error = null; busy = false; _changed();
+        } catch (_) {
+          if (generation == _generation && !_disposed) {
+            error = '로그인 상태를 기기에 저장하지 못했습니다. 다시 시도해주세요.';
+            busy = false; _changed();
+          }
+        }
+      });
+      _sessionWrite = write;
     }, onError: _failure);
     try { await client.initialize(); ready = true; }
     catch (_) { error = 'Google 로그인을 준비하지 못했습니다. 연결 및 OAuth 설정을 확인해 주세요.'; }
@@ -98,12 +140,23 @@ class GoogleAuthController extends ChangeNotifier {
     finally { busy = false; _changed(); }
   }
   Future<void> signOut() async {
-    if (busy) return;
-    busy = true; _changed();
-    try { await client.signOut(); identity = null; error = null; }
-    catch (_) { error = '로그아웃하지 못했습니다. 다시 시도해 주세요.'; }
-    finally { busy = false; _changed(); }
+    if (_loggingOut) return;
+    _loggingOut = true; _generation++; busy = true; _changed();
+    try {
+      await _sessionWrite;
+      if (preferences != null && !await preferences!.remove(rememberedAccountKey)) {
+        throw StateError('Account removal failed');
+      }
+      identity = null; error = null; _changed();
+      // Local logout must work even if Google's network/provider is unavailable.
+      if (ready) {
+        try { await client.signOut().timeout(const Duration(seconds: 5)); } catch (_) {}
+      }
+    } catch (_) { error = '로그인 상태를 지우지 못했습니다. 다시 로그아웃해주세요.'; }
+    finally { _loggingOut = false; busy = false; _changed(); }
+    if (identity == null && !ready && !_disposed) await _initializeSdk();
   }
+
   @override
   void dispose() {
     _disposed = true;

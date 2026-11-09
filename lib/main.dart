@@ -53,7 +53,7 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _auth = GoogleAuthController(widget.authClient ?? SdkGoogleAuthClient());
+    _auth = GoogleAuthController(widget.authClient ?? SdkGoogleAuthClient(), preferences: widget.storage?.preferences);
     if (widget.requireLogin) _auth.initialize();
     elements.clear();
     showClosedThoughts = widget.storage?.preferences.getBool(closedThoughtsPreference) ?? true;
