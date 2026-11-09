@@ -10,6 +10,7 @@ import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/trash_page.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
+import 'package:weaver/features/inbox/word_badge.dart';
 import 'package:weaver/features/sync/workspace_backup.dart';
 
 class MemoryMedia implements BackupMedia {
@@ -27,7 +28,7 @@ class MemoryMedia implements BackupMedia {
   Future<void> delete(String id) async { files.remove(id); }
 }
 void main() {
-  setUp(() { elements.clear(); memoBoxes.clear(); SharedPreferences.setMockInitialValues({}); });
+  setUp(() { elements.clear(); memoBoxes.clear(); restoreWordColors({}); SharedPreferences.setMockInitialValues({}); });
   test('trash preserves identity, tags, dates, photos and audio across reload', () {
     final a = elements.add('사진 생각 #자료')
       ..photos.add(const PhotoAttachment('photo', '사진.jpg'))
@@ -76,15 +77,17 @@ void main() {
     expect(media.files['existing'], [7]);
   });
   test('API uses confirmed account and JSON string contract; checks application errors', () async {
+    elements.add('한글 본문');
     final backup = WorkspaceBackup(WorkspaceSnapshot.encode([]), {});
     final requests = <http.Request>[];
     final api = WeaverBackupApi(client: MockClient((request) async {
       requests.add(request);
-      if (request.url.path.endsWith('insertWeaverTestData')) return http.Response('{"code":0,"msg":"ok"}', 200);
-      return http.Response(jsonEncode({'code': '0', 'DATA': backup.encode(), 'msg': 'ok'}), 200);
+      if (request.url.path.endsWith('insertWeaverTestData')) return http.Response('{"code":0,"msg":"ok"}', 200, headers: {'content-type': 'application/json; charset=utf-8'});
+      return http.Response(jsonEncode({'code': '0', 'DATA': backup.encode(), 'msg': 'ok'}), 200, headers: {'content-type': 'application/json; charset=utf-8'});
     }));
     await api.upload('owner@example.com', backup);
-    await api.download('owner@example.com');
+    final downloaded = await api.download('owner@example.com');
+    expect(WorkspaceSnapshot.decode(downloaded.workspace).records.single.text, '한글 본문');
     expect(requests.every((r) => r.method == 'POST'), isTrue);
     final upload = jsonDecode(requests.first.body) as Map;
     expect(upload.keys.toSet(), {'account', 'jsonData'});
