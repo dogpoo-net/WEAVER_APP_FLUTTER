@@ -109,46 +109,64 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
       (_filterTag == null || record.tags.contains(_filterTag)) &&
       (record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.toLowerCase().contains(_query.toLowerCase().replaceFirst(RegExp(r'^#'), ''))))).toList();
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
-    final grid = SingleChildScrollView(key: const ValueKey('all-thoughts-grid'), padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-      child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1000), child: Column(children: [
-        Row(children: [
-          Expanded(child: Text(_query.isEmpty && _filterBox == null && _filterTag == null ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.bodyMedium)),
-          if (!desktop) ...[
-          IconButton(tooltip: '확대', onPressed: _columns > 1 ? () => setState(() => _columns--) : null, icon: const Icon(Icons.zoom_in)),
-          Text('${(200 / _columns).round()}%', style: Theme.of(context).textTheme.bodyMedium),
-          IconButton(tooltip: '축소', onPressed: _columns < 6 ? () => setState(() => _columns++) : null, icon: const Icon(Icons.zoom_out)),
-          ],
-        ]),
-        if (desktop) const SizedBox(height: 8),
-        if (records.isEmpty) Padding(padding: const EdgeInsets.all(40),
-          child: Text(allRecords.isEmpty ? '아직 생각이 없어요.' : _filterBox != null && _query.isEmpty ? '이 상자에 담긴 메모가 없어요.' : '일치하는 생각이 없어요.')),
-        LayoutBuilder(builder: (context, constraints) {
-          final maxWidth = desktop ? math.min(480.0, constraints.maxWidth)
-            : (constraints.maxWidth * 2 / _columns).clamp(48.0, constraints.maxWidth);
-          final tiles = <Widget>[];
-          for (final record in records) {
-            final textWidth = _textWidths.putIfAbsent(record.text, () {
-              final painter = TextPainter(text: TextSpan(text: record.text,
-                style: DefaultTextStyle.of(context).style.merge(const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
-                textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
-              final width = painter.width;
-              painter.dispose();
-              return width;
-            });
-            final width = (textWidth + 24).clamp(32.0, maxWidth);
-            tiles.add(_tile(record, desktop, width: width));
-          }
-          return GestureDetector(
-            onScaleStart: desktop ? null : (_) => _scaleColumns = _columns,
-            onScaleUpdate: desktop ? null : (details) {
-              if (details.pointerCount < 2) return;
-              final next = (_scaleColumns / details.scale).round().clamp(1, 6);
-              if (next != _columns) setState(() => _columns = next);
-            },
-            child: SizedBox(width: constraints.maxWidth, child: Wrap(
-              alignment: WrapAlignment.center, spacing: 6, runSpacing: 6, children: tiles)));
-        }),
-      ]))));
+    final grid = LayoutBuilder(builder: (context, bounds) {
+      final available = math.min(1000.0, math.max(0.0, bounds.maxWidth - 24));
+      final maxWidth = desktop ? math.min(480.0, available)
+        : (available * 2 / _columns).clamp(math.min(48.0, available), available);
+      final rows = <List<({ElementRecord record, double width})>>[];
+      var row = <({ElementRecord record, double width})>[];
+      var used = 0.0;
+      for (final record in records) {
+        final textWidth = _textWidths.putIfAbsent(record.text, () {
+          final painter = TextPainter(text: TextSpan(text: record.text,
+            style: DefaultTextStyle.of(context).style.merge(const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
+            textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
+          final width = painter.width; painter.dispose(); return width;
+        });
+        final width = (textWidth + 24).clamp(math.min(32.0, maxWidth), maxWidth);
+        if (row.isNotEmpty && used + 6 + width > available) {
+          rows.add(row); row = []; used = 0;
+        }
+        used += (row.isEmpty ? 0 : 6) + width;
+        row.add((record: record, width: width));
+      }
+      if (row.isNotEmpty) rows.add(row);
+      return GestureDetector(
+        onScaleStart: desktop ? null : (_) => _scaleColumns = _columns,
+        onScaleUpdate: desktop ? null : (details) {
+          if (details.pointerCount < 2) return;
+          final next = (_scaleColumns / details.scale).round().clamp(1, 6);
+          if (next != _columns) setState(() => _columns = next);
+        },
+        child: ListView.builder(key: const ValueKey('all-thoughts-grid'),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          itemCount: 1 + (rows.isEmpty ? 1 : rows.length),
+          itemBuilder: (context, index) {
+            Widget child;
+            if (index == 0) {
+              child = Row(children: [
+                Expanded(child: Text(_query.isEmpty && _filterBox == null && _filterTag == null ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.bodyMedium)),
+                if (!desktop) ...[
+                  IconButton(tooltip: '확대', onPressed: _columns > 1 ? () => setState(() => _columns--) : null, icon: const Icon(Icons.zoom_in)),
+                  Text('${(200 / _columns).round()}%', style: Theme.of(context).textTheme.bodyMedium),
+                  IconButton(tooltip: '축소', onPressed: _columns < 6 ? () => setState(() => _columns++) : null, icon: const Icon(Icons.zoom_out)),
+                ],
+              ]);
+            } else if (rows.isEmpty) {
+              child = Padding(padding: const EdgeInsets.all(40), child: Text(allRecords.isEmpty ? '아직 생각이 없어요.' : '일치하는 생각이 없어요.'));
+            } else {
+              final items = rows[index - 1];
+              child = Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(
+                mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start,
+                children: [for (var i = 0; i < items.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 6),
+                  _tile(items[i].record, desktop, width: items[i].width),
+                ]],
+              ));
+            }
+            return Center(child: SizedBox(width: available, child: child));
+          }));
+    });
     final footer = ThoughtFilters(tags: tags, box: _filterBox, tag: _filterTag,
       onChanged: _changed, onFilter: (box, tag) => _filter(box: box, tag: tag));
     return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filterBox?.name ?? '모든 생각 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(

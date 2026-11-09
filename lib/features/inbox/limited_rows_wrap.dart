@@ -25,6 +25,26 @@ class _LimitedRowsRenderWrap extends RenderWrap {
   bool? _lastOverflow;
   set maxRows(int value) { if (_maxRows != value) { _maxRows = value; markNeedsLayout(); } }
   @override
+  void paint(PaintingContext context, Offset offset) {
+    var child = firstChild;
+    while (child != null) {
+      final data = child.parentData! as WrapParentData;
+      if (data.offset.dy >= size.height) break;
+      context.paintChild(child, offset + data.offset);
+      child = data.nextSibling;
+    }
+  }
+  @override
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    var child = firstChild;
+    while (child != null) {
+      final data = child.parentData! as WrapParentData;
+      if (data.offset.dy >= size.height) break;
+      visitor(child);
+      child = data.nextSibling;
+    }
+  }
+  @override
   void performLayout() {
     super.performLayout();
     var child = firstChild;
