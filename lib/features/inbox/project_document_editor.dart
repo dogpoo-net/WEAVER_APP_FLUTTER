@@ -137,7 +137,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
           onPressed: () => setState(() => _panelOpen = !_panelOpen),
           icon: Icon(_panelOpen ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up, size: 16),
           label: Text(_panelOpen ? '참고 패널 숨기기' : '참고 패널 올리기'))))), body: DesktopMenuBody(child: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
-      final document = Column(children: [TextField(key: const ValueKey('project-name'), controller: _name, style: const TextStyle(fontSize: 13), decoration: const InputDecoration(labelText: '프로젝트 이름', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8))),
+      final document = Column(children: [TextField(key: const ValueKey('project-name'), controller: _name, style: const TextStyle(fontSize: 13), decoration: const InputDecoration(hintText: '프로젝트 이름', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8))),
         if (_projectLinks.isNotEmpty) SizedBox(height: 32, child: ListView(scrollDirection: Axis.horizontal, children: [
           for (final linked in _linkCandidates.where((p) => _projectLinks.contains(p.id))) Padding(padding: const EdgeInsets.only(right: 4),
             child: InputChip(key: ValueKey('project-link-${linked.id}'), visualDensity: VisualDensity.compact,
