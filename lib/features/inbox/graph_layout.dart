@@ -8,6 +8,7 @@ class GraphLayout {
   final positions = <String, Offset>{};
   final sizes = <String, Offset>{};
   final tags = <String, Offset>{};
+  final folderPositions = <String, Offset>{};
   List<double>? viewport;
   String query = '';
   bool unlinkedOnly = false;
@@ -17,6 +18,7 @@ class GraphLayout {
     positions..clear()..addAll(other.positions);
     sizes..clear()..addAll(other.sizes);
     tags..clear()..addAll(other.tags);
+    folderPositions..clear()..addAll(other.folderPositions);
     viewport = other.viewport?.toList();
     query = other.query;
     unlinkedOnly = other.unlinkedOnly;
@@ -27,6 +29,7 @@ class GraphLayout {
     'positions': {for (final e in positions.entries) e.key: [e.value.dx, e.value.dy]},
     'tags': {for (final e in tags.entries) e.key: [e.value.dx, e.value.dy]},
     'sizes': {for (final e in sizes.entries) e.key: [e.value.dx, e.value.dy]},
+    'folderPositions': {for (final e in folderPositions.entries) e.key: [e.value.dx, e.value.dy]},
     'viewport': viewport,
     'query': query,
     'unlinkedOnly': unlinkedOnly,
@@ -49,6 +52,7 @@ class GraphLayout {
     readPoints(data['positions'], layout.positions);
     readPoints(data['tags'], layout.tags);
     readPoints(data['sizes'], layout.sizes);
+    readPoints(data['folderPositions'], layout.folderPositions);
     layout.sizes.updateAll((id, p) => Offset(p.dx.clamp(170, 640), p.dy.clamp(76, 520)));
     final matrix = data['viewport'];
     if (matrix is List && matrix.length == 16 && matrix.every((n) => n is num && n.isFinite)) {

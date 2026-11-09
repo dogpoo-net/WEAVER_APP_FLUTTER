@@ -58,6 +58,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     _Kind.project => '프로젝트', _Kind.paragraph => '문단', _Kind.box => '메모상자', _Kind.element => '생각', _Kind.tag => '해시태그',
   };
   void _sync() {
+    normalizeMemoFolders();
     _placements = {};
     for (final kind in _Kind.values) {
       final items = _items(kind);
@@ -166,6 +167,32 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       color: candidates.isEmpty ? Colors.transparent : Theme.of(context).colorScheme.secondaryContainer,
       borderRadius: BorderRadius.circular(12), child: child),
   );
+  Widget _folderDrop(String? folder, Widget child) => DragTarget<MemoFolderDrag>(
+    key: ValueKey('drop-folder-${folder ?? "outside"}'),
+    onWillAcceptWithDetails: (d) => canMoveMemoFolder(d.data.name, folder),
+    onAcceptWithDetails: (d) { setState(() => moveMemoFolder(d.data.name, folder)); widget.onBoxChanged?.call(); },
+    builder: (context, candidates, rejected) => ColoredBox(color: candidates.isEmpty ? Colors.transparent : Theme.of(context).colorScheme.secondaryContainer, child: child));
+  Widget _boxFolder(String folder) {
+    final label = Row(children: [const Icon(Icons.folder_outlined, size: 20), const SizedBox(width: 8), Expanded(child: Text(folder))]);
+    final feedback = Material(child: Padding(padding: const EdgeInsets.all(12), child: Text(folder)));
+    final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
+    final title = desktop
+      ? Draggable<MemoFolderDrag>(key: ValueKey('folder-drag-$folder'), data: MemoFolderDrag(folder), feedback: feedback,
+          onDragStarted: _startDrag, onDragUpdate: (d) => _pointer = d.globalPosition,
+          onDragEnd: (_) { _autoScroll?.cancel(); _pointer = null; }, child: label)
+      : LongPressDraggable<MemoFolderDrag>(key: ValueKey('folder-drag-$folder'), data: MemoFolderDrag(folder), feedback: feedback,
+          onDragStarted: _startDrag, onDragUpdate: (d) => _pointer = d.globalPosition,
+          onDragEnd: (_) { _autoScroll?.cancel(); _pointer = null; }, child: label);
+    return _folderDrop(folder, _target(_Kind.box, folder, ExpansionTile(
+      key: PageStorageKey('box-$folder'), title: title,
+      childrenPadding: const EdgeInsetsDirectional.only(start: 16),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+      collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+      expansionAnimationStyle: const AnimationStyle(duration: Duration(milliseconds: 200), curve: Curves.easeInOutCubic),
+      children: [for (final child in memoBoxFolders.where((f) => memoFolderParent(f) == folder)) _boxFolder(child),
+        for (var i = 0; i < memoBoxes.length; i++) if (memoBoxes[i].folder == folder) _item(_Kind.box, i, nested: true)],
+    )));
+  }
   Widget _heading(_Kind kind) => Padding(padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 12, 4),
     child: Row(children: [
       Expanded(child: Text(_label(kind), style: Theme.of(context).textTheme.labelMedium)),
@@ -183,7 +210,8 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     final folders = _folders(kind), items = _items(kind);
     final placements = _placements[kind]!;
     return [
-      for (final folder in folders) _target(kind, folder, ExpansionTile(
+      if (kind == _Kind.box) ...[for (final folder in folders.where((f) => memoFolderParent(f) == null)) _boxFolder(folder)],
+      if (kind != _Kind.box) for (final folder in folders) _target(kind, folder, ExpansionTile(
         key: PageStorageKey('${kind.name}-$folder'), leading: const Icon(Icons.folder_outlined), title: Text(folder),
         childrenPadding: const EdgeInsetsDirectional.only(start: 16),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
@@ -197,7 +225,8 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       for (var i = 0; i < items.length; i++)
         if (placements[i] == null || !folders.contains(placements[i])) _item(kind, i),
       if (items.isEmpty) Padding(padding: const EdgeInsets.all(16), child: Text('아직 ${_label(kind)}${kind == _Kind.paragraph ? '이' : '가'} 없어요')),
-      if (kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.box || kind == _Kind.tag)
+      if (kind == _Kind.box) _folderDrop(null, _target(kind, null, const SizedBox(height: 18, width: double.infinity), targetId: 'drop-box-outside')),
+      if (kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.tag)
         _target(kind, null, const SizedBox(height: 14, width: double.infinity),
           targetId: kind == _Kind.tag ? 'drop-tag-unfiled' : 'drop-${kind.name}-outside'),
     ];

@@ -190,7 +190,7 @@ class _InboxPageState extends State<InboxPage> {
     hashtagColors.clear();
     memoBoxes.clear();
     pageGraphLayout = GraphLayout();
-    memoBoxFolders.clear();
+    memoBoxFolders.clear(); memoBoxFolderParents.clear();
     elements.addListener(_elementDeleted);
     elements.onRenamed = _elementRenamed;
     try {
@@ -292,6 +292,7 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   Future<void> _createFolder({bool tag = false, String? kind}) async {
+    if (kind == 'box') { if (await createMemoFolder(context) && mounted) { setState(() {}); await _persist(); } return; }
     var folderName = '';
     var closed = false;
     final name = await showDialog<String>(context: context, builder: (dialogContext) {
@@ -399,7 +400,7 @@ class _InboxPageState extends State<InboxPage> {
     hashtagColors.clear();
     memoBoxes.clear();
     pageGraphLayout = GraphLayout();
-    memoBoxFolders.clear();
+    memoBoxFolders.clear(); memoBoxFolderParents.clear();
         elements.clear();
         ensureUnclassifiedBox();
         _clearCapture();

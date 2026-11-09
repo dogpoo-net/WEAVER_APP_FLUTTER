@@ -42,8 +42,10 @@ class WorkspaceSnapshot {
     this.boxes = const [],
     this.boxFolders = const [],
     this.graphLayout,
+    this.boxFolderParents = const {},
   ]);
   final GraphLayout? graphLayout;
+  final Map<String, String> boxFolderParents;
   final List<String> folders;
   final List<MemoBox> boxes;
   final List<String> boxFolders;
@@ -64,6 +66,7 @@ class WorkspaceSnapshot {
     'version': 1,
     'graphLayout': pageGraphLayout.toJson(),
     'memoBoxFolders': memoBoxFolders,
+    'memoBoxFolderParents': memoBoxFolderParents,
     'memoBoxes': [for (final box in memoBoxes) {'name': box.name, 'isUnclassified': box.isUnclassified, 'color': box.color, 'folder': box.folder, 'ids': box.elementIds.toList(), 'layout': box.layout.toJson()}],
     'folders': projectFolders,
     'paragraphFolders': paragraphFolders,
@@ -264,6 +267,7 @@ class WorkspaceSnapshot {
       [for (final box in (data['memoBoxes'] ?? []) as List) MemoBox(box['name'] as String, isUnclassified: box['isUnclassified'] == true, color: box['color'] as int, folder: box['folder'] as String?, ids: List<String>.from(box['ids']), layout: GraphLayout.fromJson(box['layout']))],
       List<String>.from(data['memoBoxFolders'] ?? []),
       GraphLayout.fromJson(data['graphLayout']),
+      Map<String, String>.from(data['memoBoxFolderParents'] ?? {}),
     );
   }
 
@@ -272,6 +276,8 @@ class WorkspaceSnapshot {
     memoBoxes..clear()..addAll(boxes);
     normalizeBoxMemberships();
     memoBoxFolders..clear()..addAll(boxFolders);
+    memoBoxFolderParents..clear()..addAll(boxFolderParents);
+    normalizeMemoFolders();
     for (final box in boxes) {
       if (box.folder != null && !memoBoxFolders.contains(box.folder)) memoBoxFolders.add(box.folder!);
     }

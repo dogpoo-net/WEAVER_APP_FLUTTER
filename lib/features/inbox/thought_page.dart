@@ -1,3 +1,4 @@
+import 'memo_folder_region.dart';
 import 'thought_settings.dart';
 import '../capture/attachment_indicators.dart';
 import 'thought_filters.dart';
@@ -259,12 +260,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     if (reset != true || !mounted) return;
     setState(() {
       _positions.clear(); _tagPositions.clear(); _emptyBoxBounds.clear(); _liftBoxes.clear();
-      _layout.sizes.clear(); _layout.viewport = null;
+      _layout.sizes.clear(); _layout.folderPositions.clear(); _layout.viewport = null;
       _draggingId = null; _hoverBox = null; _linkFrom = null; _linkMode = false;
       _filterBox = null; _filterTag = null; _query = ''; _search.clear(); _unlinkedOnly = false;
       _centered = false; _sync();
     });
     _saveLayout(flush: true);
+  }
+  Future<void> _editFolders() async {
+    if (await editMemoFolders(context) && mounted) _changed();
   }
   void _storeChanged() { if (mounted && _routeVisible && _appActive) setState(_sync); }
   void _changed() { widget.onChanged(); setState(_sync); }
@@ -320,12 +324,19 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     }
     sceneWidth = regions.map((r) => r.bounds.right + 100).fold(sceneWidth, math.max);
     sceneHeight = regions.map((r) => r.bounds.bottom + 100).fold(sceneHeight, math.max);
+    final folders = widget.blocks ? memoFolderRegions({for (final r in regions) r.box: r.bounds}, _layout.folderPositions) : <String, Rect>{};
+    if (widget.box != null || _filterBox != null) {
+      folders.removeWhere((name, _) => !regions.any((r) => r.box.folder != null && memoFolderContains(name, r.box.folder!)));
+    }
+    sceneWidth = folders.values.map((r) => r.right + 100).fold(sceneWidth, math.max);
+    sceneHeight = folders.values.map((r) => r.bottom + 100).fold(sceneHeight, math.max);
     final color = Theme.of(context).colorScheme;
     return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(widget.box?.name ?? '모든 생각 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
       IconButton(tooltip: '연결 모드', style: IconButton.styleFrom(backgroundColor: _linkMode ? color.primaryContainer : null, foregroundColor: _linkMode ? color.onPrimaryContainer : null), isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
+      if (widget.blocks) IconButton(tooltip: '메모상자 폴더', icon: const Icon(Icons.folder_open_outlined), onPressed: _editFolders),
       IconButton(tooltip: '배치 초기화', onPressed: _resetArrangement, icon: const Icon(Icons.restart_alt)),
       IconButton(tooltip: '전체 위치 보기', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
@@ -349,7 +360,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             final points = [...visiblePositions.values, ...tagPositions.values,
-              for (final region in regions.map((r) => r.bounds)) ...[region.topLeft, region.bottomRight]];
+              for (final region in [...regions.map((r) => r.bounds), ...folders.values]) ...[region.topLeft, region.bottomRight]];
             if (points.isEmpty) points.add(const Offset(1400, 1000));
             final left = points.map((p) => p.dx).reduce(math.min), right = points.map((p) => p.dx).reduce(math.max) + 170;
             final top = points.map((p) => p.dy).reduce(math.min), bottom = points.map((p) => p.dy).reduce(math.max) + 76;
@@ -363,6 +374,18 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: MediaQuery.sizeOf(context).width >= 760 ? 12 : 8,
         boundaryMargin: const EdgeInsets.all(double.infinity),
         child: RepaintBoundary(child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
+          for (final folder in folders.entries) MemoFolderRegion(key: ValueKey('folder-region-${folder.key}'), name: folder.key, bounds: folder.value,
+            onEdit: _editFolders, onEnd: () => _saveLayout(flush: true), onMove: (delta) => setState(() {
+              final shift = Offset(math.max(delta.dx, 32 - folder.value.left), math.max(delta.dy, 32 - folder.value.top));
+              for (final box in memoBoxes.where((b) => b.folder != null && memoFolderContains(folder.key, b.folder!))) {
+                for (final id in box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
+                if (_emptyBoxBounds.containsKey(box)) _emptyBoxBounds[box] = _emptyBoxBounds[box]!.shift(shift);
+              }
+              for (final name in memoBoxFolders.where((f) => memoFolderContains(folder.key, f))) {
+                if (_layout.folderPositions.containsKey(name)) _layout.folderPositions[name] = _layout.folderPositions[name]! + shift;
+              }
+              _saveLayout();
+            })),
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds, highlighted: identical(_hoverBox, region.box), rectangular: widget.blocks,
             onDrag: (delta) => setState(() {
               final empty = !region.box.elementIds.any(_positions.containsKey);
