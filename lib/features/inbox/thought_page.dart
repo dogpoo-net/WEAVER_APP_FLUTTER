@@ -43,6 +43,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   late final GraphLayout _layout;
   late final TextEditingController _search;
   String? _linkFrom, _draggingId;
+  final _thoughtDragOrigins = <String, Offset>{};
   MemoBox? _hoverBox;
   final _liftBoxes = <MemoBox, Rect>{};
   bool _linkMode = false, _centered = false;
@@ -413,7 +414,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 onLift: () => setState(() {
                   _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
                 }),
-                onActiveChanged: (active) => setState(() { _draggingId = active ? record.id : null; if (!active) _hoverBox = null; }),
+                onActiveChanged: (active) => setState(() { if (active) _thoughtDragOrigins.putIfAbsent(record.id, () => _positions[record.id]!); _draggingId = active ? record.id : null; if (!active) _hoverBox = null; }),
                 onTap: () { if (_linkMode && _linkFrom != null) {
                   final from = _linkFrom!;
                   if (from != record.id && record.connections.contains(from)) {
@@ -440,6 +441,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 onDrop: (pointer) {
                   final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
                   final center = scene?.globalToLocal(pointer) ?? _bounds(record.id).center;
+                  if (widget.blocks && folders.values.any((bounds) => bounds.contains(center)) &&
+                      !regions.any((region) => _inside(region.bounds, center))) {
+                    final origin = _thoughtDragOrigins[record.id];
+                    if (origin != null) _positions[record.id] = origin;
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('생각은 메모상자 안에 담아주세요. 폴더에는 직접 넣을 수 없습니다.')));
+                    return;
+                  }
                   final detached = <MemoBox>{};
                   for (final entry in _liftBoxes.entries) {
                     if (!_inside(entry.value, center)) {
@@ -458,7 +466,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   }
                   if (detached.isNotEmpty) _changed();
                   _saveLayout(flush: true);
-                }, onEnd: () { setState(() { _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
+                }, onEnd: () { setState(() { _thoughtDragOrigins.remove(record.id); _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
                 child: Card(color: wordBackgroundColor(context, record.text),
                   shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _draggingId == record.id || _linkFrom == record.id ? color.primary : color.outlineVariant, width: 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: _linkFrom == record.id || _draggingId == record.id ? color.primary : Colors.transparent, width: _draggingId == record.id ? 3 : 2)),

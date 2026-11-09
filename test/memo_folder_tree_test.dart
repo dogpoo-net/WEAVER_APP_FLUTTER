@@ -6,6 +6,7 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/memo_folder_region.dart';
 import 'package:weaver/features/inbox/memo_box_region.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
+import 'package:weaver/features/inbox/thought_interaction.dart';
 import 'package:weaver/features/inbox/workspace_menu.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
 
@@ -41,7 +42,7 @@ void main() {
   });
   testWidgets('folder canvas encloses shared boxes but never owns thoughts', (tester) async {
     final thought = elements.add('자료 메모'), loose = elements.add('폴더에 넣을 수 없는 메모');
-    memoBoxFolders.addAll(['상위', '하위']); moveMemoFolder('하위', '상위');
+    memoBoxFolders.addAll(['상위', '하위', '빈폴더']); moveMemoFolder('하위', '상위');
     final box = MemoBox('자료', folder: '하위', ids: [thought.id]); memoBoxes.add(box);
     await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
     await tester.pumpAndSettle();
@@ -57,6 +58,14 @@ void main() {
     expect(box.elementIds, {thought.id});
     expect(memoBoxes.any((b) => !b.isUnclassified && b.elementIds.contains(loose.id)), isFalse);
     expect(memoBoxes.where((b) => !b.isUnclassified).length, 1);
+    final interaction = tester.widget<ThoughtInteraction>(find.ancestor(of: find.text(loose.text), matching: find.byType(ThoughtInteraction)).first);
+    final origin = pageGraphLayout.blockLayout.positions[loose.id]!;
+    interaction.onActiveChanged!(true);
+    interaction.onMove(const Offset(100, 100)); await tester.pump();
+    final empty = find.byKey(const ValueKey('folder-region-빈폴더'));
+    interaction.onDrop(tester.getCenter(empty)); interaction.onEnd(); await tester.pumpAndSettle();
+    expect(pageGraphLayout.blockLayout.positions[loose.id], origin);
+    expect(box.elementIds, {thought.id});
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
