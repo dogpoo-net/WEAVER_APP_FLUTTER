@@ -52,7 +52,7 @@ void main() {
     expect(outer.bounds.contains(inner.bounds.topLeft), isTrue);
     expect(inner.bounds.contains(region.bounds.topLeft), isTrue);
     expect(find.descendant(of: find.byType(MemoFolderRegion), matching: find.byType(DragTarget<MemoDrag>)), findsNothing);
-    outer.onMove(const Offset(40, 30)); await tester.pumpAndSettle();
+    outer.onMove(const Offset(40, 30)); outer.onEnd(); await tester.pumpAndSettle();
     final moved = tester.widget<MemoBoxRegion>(find.byKey(const ValueKey('box-region-자료')));
     expect(moved.bounds.topLeft, region.bounds.topLeft + const Offset(40, 30));
     expect(box.elementIds, {thought.id});
