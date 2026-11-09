@@ -16,7 +16,7 @@ class _CountPaint extends CustomPainter {
 }
 
 void main() {
-  testWidgets('desktop tab highlight moves over 200ms and then stops', (tester) async {
+  testWidgets('desktop content switches immediately while tab highlight animates', (tester) async {
     elements.clear(); memoBoxes.clear();
     await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: TargetPlatform.linux),
       home: const AllThoughtsPage(notes: [])));
@@ -27,9 +27,9 @@ void main() {
     await tester.tap(find.text('다이어그램'));
     await tester.pump();
     expect(tester.getTopLeft(highlight).dx, closeTo(start, .1));
+    expect(find.byType(ThoughtBoxView), findsNothing);
+    expect(find.byType(ThoughtPage), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.byType(ThoughtBoxView), findsOneWidget);
-    expect(find.byType(ThoughtPage), findsNothing);
     final middle = tester.getTopLeft(highlight).dx;
     expect(middle, greaterThan(start)); expect(middle, lessThan(start + width));
     await tester.pump(const Duration(milliseconds: 120));
