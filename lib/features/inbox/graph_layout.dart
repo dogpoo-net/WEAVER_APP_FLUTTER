@@ -54,7 +54,7 @@ class GraphLayout {
     if (matrix is List && matrix.length == 16 && matrix.every((n) => n is num && n.isFinite)) {
       final values = matrix.map((n) => (n as num).toDouble()).toList();
       // Only accept InteractiveViewer's uniform scale and translation matrix.
-      if (values[0] >= .15 && values[0] <= 2.5 && values[5] == values[0] &&
+      if (values[0] >= .15 && values[0] <= 12 && values[5] == values[0] &&
           values[10] > 0 && values[15] == 1 &&
           [1, 2, 3, 4, 6, 7, 8, 9, 11, 14].every((i) => values[i] == 0)) {
         layout.viewport = values;

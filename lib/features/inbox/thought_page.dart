@@ -44,7 +44,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   String? _linkFrom, _draggingId;
   MemoBox? _hoverBox;
   final _liftBoxes = <MemoBox, Rect>{};
-  bool _linkMode = false, _centered = false;
+  bool _linkMode = false, _centered = false, _panMode = false;
   bool _routeVisible = true, _appActive = true;
   ModalRoute<dynamic>? _route;
   Size _size(String id) { final p = _layout.sizes[id]; return p == null ? (widget.blocks ? const Size(230, 110) : graphThoughtSize) : Size(p.dx, p.dy); }
@@ -264,6 +264,22 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _positions[id] = Offset(640 + (i % 6) * 250, bottom + 120 + (i ~/ 6) * 160); i++;
     }
   }
+  Future<void> _resetArrangement() async {
+    final reset = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+      title: const Text('배치 초기화'),
+      content: const Text('현재 보기의 위치·크기·확대 배율을 초기화하고 다시 정리할까요? 생각 내용, 연결, 상자 분류는 유지됩니다.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+        FilledButton.tonal(onPressed: () => Navigator.pop(context, true), child: const Text('초기화'))]));
+    if (reset != true || !mounted) return;
+    setState(() {
+      _positions.clear(); _tagPositions.clear(); _emptyBoxBounds.clear(); _liftBoxes.clear();
+      _layout.sizes.clear(); _layout.viewport = null;
+      _draggingId = null; _hoverBox = null; _linkFrom = null; _linkMode = false; _panMode = false;
+      _filterBox = null; _filterTag = null; _query = ''; _search.clear(); _unlinkedOnly = false;
+      _centered = false; _sync();
+    });
+    _saveLayout(flush: true);
+  }
   void _storeChanged() { if (mounted && _routeVisible && _appActive) setState(_sync); }
   void _changed() { widget.onChanged(); setState(_sync); }
   Future<void> _create() async {
@@ -324,6 +340,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
       IconButton(tooltip: '연결 모드', style: IconButton.styleFrom(backgroundColor: _linkMode ? color.primaryContainer : null, foregroundColor: _linkMode ? color.onPrimaryContainer : null), isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
+      IconButton(tooltip: '화면 이동', isSelected: _panMode, style: IconButton.styleFrom(backgroundColor: _panMode ? color.primaryContainer : null), onPressed: () => setState(() { _panMode = !_panMode; _liftBoxes.clear(); _draggingId = null; _hoverBox = null; }), icon: const Icon(Icons.pan_tool_outlined)),
+      IconButton(tooltip: '배치 초기화', onPressed: _resetArrangement, icon: const Icon(Icons.restart_alt)),
       IconButton(tooltip: '전체 위치 보기', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('사용 안내'),
@@ -359,8 +377,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         return InteractiveViewer(
         onInteractionEnd: (_) => _saveLayout(flush: true),
         transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: MediaQuery.sizeOf(context).width >= 760 ? 12 : 8,
-        boundaryMargin: const EdgeInsets.all(500),
-        child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
+        boundaryMargin: const EdgeInsets.all(double.infinity),
+        child: IgnorePointer(ignoring: _panMode, child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds, highlighted: identical(_hoverBox, region.box), rectangular: widget.blocks,
             onDrag: (delta) => setState(() {
               final empty = !region.box.elementIds.any(_positions.containsKey);
@@ -376,6 +394,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               }
               if (empty) { _emptyBoxBounds[region.box] = current.shift(shift); }
               for (final id in region.box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
+              _separateOverlappingBoxes(preferred: region.box, pushLoose: true);
               _saveLayout();
             }), onDragEnd: () => _saveLayout(flush: true)),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
@@ -460,7 +479,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               if (r != null) { r.tags.add(tag); _changed(); }
             }, builder: (context, candidates, _) => Tooltip(message: '#$tag', child: Chip(side: BorderSide(color: Color(hashtagColors[tag] ?? 0xFF90A4AE), width: 2.5), label: Text('#$tag', maxLines: 1, overflow: TextOverflow.ellipsis),
               backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: candidates.isEmpty ? .3 : .6)))))),
-        ])),
+        ]))),
       ); })),
       ThoughtFilters(tags: _scopeRecords.expand((r) => r.tags).toSet().toList()..sort(), scope: widget.box,
         box: _filterBox, tag: _filterTag, onChanged: _changed,

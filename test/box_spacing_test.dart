@@ -25,6 +25,20 @@ void main() {
       expect(regions[0].bounds.inflate(24).overlaps(regions[1].bounds), isFalse);
       await tester.pumpWidget(const SizedBox());
     });
+    testWidgets('dragging a box pushes loose thoughts outside ($blocks)', (tester) async {
+      final a = elements.add('상자 안'), loose = elements.add('상자 밖');
+      memoBoxes.add(MemoBox('이동 상자', ids: [a.id]));
+      final layout = blocks ? pageGraphLayout.blockLayout : pageGraphLayout;
+      layout.positions.addAll({a.id: const Offset(640, 500), loose.id: const Offset(1000, 500)});
+      await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
+      await tester.pumpAndSettle();
+      tester.widget<MemoBoxRegion>(find.byType(MemoBoxRegion)).onDrag!(const Offset(360, 0));
+      await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
+      final bounds = tester.widget<MemoBoxRegion>(find.byType(MemoBoxRegion)).bounds;
+      expect(bounds.inflate(32).overlaps(layout.positions[loose.id]! & const Size(230, 110)), isFalse);
+      expect(layout.positions[loose.id], isNot(const Offset(1000, 500)));
+      await tester.pumpWidget(const SizedBox());
+    });
     testWidgets('growing a box pushes another box and loose thoughts outside ($blocks)', (tester) async {
       final a = elements.add('확장할 생각'), b = elements.add('이웃 생각'), loose = elements.add('미분류 생각');
       memoBoxes.addAll([MemoBox('확장 상자', ids: [a.id]), MemoBox('이웃 상자', ids: [b.id])]);

@@ -31,7 +31,7 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
           _resizeSize.height + (vertical ? d.delta.dy * (top ? -1 : 1) : 0));
         widget.onResize(next, Offset(left ? _resizeSize.width - next.width : 0, top ? _resizeSize.height - next.height : 0));
         _resizeSize = next;
-      }, onPanEnd: (_) => widget.onEnd(), child: const SizedBox.expand()));
+      }, onPanEnd: (_) => widget.onEnd(), onPanCancel: widget.onEnd, child: const SizedBox.expand()));
   @override
   Widget build(BuildContext context) => GestureDetector(behavior: HitTestBehavior.opaque,
     onTap: widget.onTap,

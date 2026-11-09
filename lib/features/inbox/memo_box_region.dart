@@ -31,7 +31,7 @@ class MemoBoxRegion extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Positioned.fromRect(rect: bounds, child: ClipPath(clipper: _RegionClipper(rectangular),
     child: GestureDetector(behavior: HitTestBehavior.opaque,
-      onPanUpdate: (d) => onDrag?.call(d.delta), onPanEnd: (_) => onDragEnd?.call(),
+      onPanUpdate: (d) => onDrag?.call(d.delta), onPanEnd: (_) => onDragEnd?.call(), onPanCancel: onDragEnd,
       child: DecoratedBox(decoration: BoxDecoration(shape: rectangular ? BoxShape.rectangle : BoxShape.circle, borderRadius: rectangular ? BorderRadius.circular(24) : null,
         color: Color(box.color).withValues(alpha: highlighted ? .16 : .10),
         border: Border.all(color: Color(box.color).withValues(alpha: .7), width: highlighted ? 3 : 1.5)),

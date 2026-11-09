@@ -19,7 +19,7 @@ void renameWordColor(String oldText, String newText) {
 const starterWords = ['관찰', '질문', '연결', '기억', '성장'];
 
 Color wordBackgroundColor(BuildContext context, String word) {
-  if (elements.records[word]?.hiddenFromSearch == true) return Theme.of(context).brightness == Brightness.dark ? const Color(0xFF424242) : const Color(0xFFE0E0E0);
+  if (elements.records[word]?.hiddenFromSearch == true) return Theme.of(context).brightness == Brightness.dark ? const Color(0xFF343434) : const Color(0xFFC2C2C2);
   final hue = _wordHues.putIfAbsent(word, () => _random.nextDouble() * 360);
   return HSLColor.fromAHSL(
     1,
@@ -41,7 +41,7 @@ Widget elementBadge(BuildContext context, String word) => Chip(
 );
 
 Color wordColor(BuildContext context, String word) {
-  if (elements.records[word]?.hiddenFromSearch == true) return Theme.of(context).brightness == Brightness.dark ? const Color(0xFFE0E0E0) : const Color(0xFF424242);
+  if (elements.records[word]?.hiddenFromSearch == true) return Theme.of(context).brightness == Brightness.dark ? const Color(0xFF9E9E9E) : const Color(0xFF303030);
   final hue = _wordHues.putIfAbsent(word, () => _random.nextDouble() * 360);
   return HSLColor.fromAHSL(
     1,
