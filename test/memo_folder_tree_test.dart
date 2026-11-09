@@ -30,7 +30,7 @@ void main() {
       body: WorkspaceMenu(embedded: true, projects: const [], onBoxChanged: () => changes++))));
     await tester.pumpAndSettle();
     final target = tester.widget<DragTarget<MemoFolderDrag>>(find.byKey(const ValueKey('drop-folder-부모')));
-    const details = DragTargetDetails(data: MemoFolderDrag('자식'), offset: Offset.zero);
+    final details = DragTargetDetails(data: const MemoFolderDrag('자식'), offset: Offset.zero);
     expect(target.onWillAcceptWithDetails!(details), isTrue);
     target.onAcceptWithDetails!(details); await tester.pumpAndSettle();
     expect(memoFolderParent('자식'), '부모'); expect(changes, 1);

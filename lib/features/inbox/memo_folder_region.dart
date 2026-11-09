@@ -17,7 +17,7 @@ Map<String, Rect> memoFolderRegions(Map<MemoBox, Rect> boxes, Map<String, Offset
   return {for (final key in ordered) key: result[key]!};
 }
 
-/// A background group, deliberately not a DragTarget<MemoDrag> or a MemoBox.
+/// A background group, deliberately not a `DragTarget<MemoDrag>` or a `MemoBox`.
 class MemoFolderRegion extends StatelessWidget {
   const MemoFolderRegion({super.key, required this.name, required this.bounds, required this.onMove, required this.onEnd, required this.onEdit});
   final String name;
@@ -33,5 +33,5 @@ class MemoFolderRegion extends StatelessWidget {
       child: Align(alignment: Alignment.topLeft, child: TextButton.icon(onPressed: onEdit,
         icon: const Icon(Icons.folder_outlined, size: 16), label: Text(name, style: const TextStyle(fontSize: 12)),
         style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12), minimumSize: const Size(0, 30), tapTargetSize: MaterialTapTargetSize.shrinkWrap))),
-  ));
+  )));
 }
