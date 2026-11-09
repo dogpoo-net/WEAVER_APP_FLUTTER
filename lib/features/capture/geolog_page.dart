@@ -68,7 +68,11 @@ class _GeologPageState extends State<GeologPage> {
     ]), body: DesktopMenuBody(child: Column(children: [
       if (widget.viewSelector != null) widget.viewSelector!,
       Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 8), child: TextField(
-        key: const ValueKey('geolog-search'), decoration: const InputDecoration(isDense: true, hintText: '생각·해시태그 찾기', prefixIcon: Icon(Icons.search)),
+        key: const ValueKey('geolog-search'),
+        style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 13 : 14),
+        decoration: const InputDecoration(isDense: true, hintText: '생각·해시태그 찾기',
+          prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 36),
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
         onChanged: (value) => setState(() => _query = value.toLowerCase().trim()))),
       if (_tileError && records.isNotEmpty) MaterialBanner(content: const Text('지도를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.'), actions: [
         TextButton(onPressed: () => setState(() { _tileError = false; _mapRevision++; }), child: const Text('다시 시도')),

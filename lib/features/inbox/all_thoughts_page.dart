@@ -104,17 +104,19 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
     final grid = SingleChildScrollView(key: const ValueKey('all-thoughts-grid'), padding: EdgeInsets.all(desktop ? 24 : 8),
       child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1000), child: Column(children: [
-        Text(_query.isEmpty && _filterBox == null && _filterTag == null ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 6),
         TextField(key: const ValueKey('all-thoughts-search'),
           onChanged: (value) => setState(() => _query = value),
           decoration: const InputDecoration(hintText: '생각에서 찾기', prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 34, minHeight: 32), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), isDense: true)),
         const SizedBox(height: 12),
-        if (!desktop) Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+        Row(children: [
+          Expanded(child: Text(_query.isEmpty && _filterBox == null && _filterTag == null ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.bodyMedium)),
+          if (!desktop) ...[
           IconButton(tooltip: '확대', onPressed: _columns > 1 ? () => setState(() => _columns--) : null, icon: const Icon(Icons.zoom_in)),
-          Text('${(200 / _columns).round()}%'),
+          Text('${(200 / _columns).round()}%', style: Theme.of(context).textTheme.bodyMedium),
           IconButton(tooltip: '축소', onPressed: _columns < 6 ? () => setState(() => _columns++) : null, icon: const Icon(Icons.zoom_out)),
+          ],
         ]),
+        if (desktop) const SizedBox(height: 8),
         if (records.isEmpty) Padding(padding: const EdgeInsets.all(40),
           child: Text(allRecords.isEmpty ? '아직 생각이 없어요.' : _filterBox != null && _query.isEmpty ? '이 상자에 담긴 메모가 없어요.' : '일치하는 생각이 없어요.')),
         LayoutBuilder(builder: (context, constraints) {
