@@ -338,9 +338,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null, leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(widget.box?.name ?? '모든 생각 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
-      IconButton(tooltip: '연결 모드', style: IconButton.styleFrom(backgroundColor: _linkMode ? color.primaryContainer : null, foregroundColor: _linkMode ? color.onPrimaryContainer : null), isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
+      IconButton(tooltip: '연결 모드', style: IconButton.styleFrom(backgroundColor: _linkMode ? color.primaryContainer : null, foregroundColor: _linkMode ? color.onPrimaryContainer : null), isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; _panMode = false; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
-      IconButton(tooltip: '화면 이동', isSelected: _panMode, style: IconButton.styleFrom(backgroundColor: _panMode ? color.primaryContainer : null), onPressed: () => setState(() { _panMode = !_panMode; _liftBoxes.clear(); _draggingId = null; _hoverBox = null; }), icon: const Icon(Icons.pan_tool_outlined)),
+      IconButton(tooltip: '화면 이동', isSelected: _panMode, style: IconButton.styleFrom(backgroundColor: _panMode ? color.primaryContainer : null), onPressed: () => setState(() { _panMode = !_panMode; _linkMode = false; _linkFrom = null; _liftBoxes.clear(); _draggingId = null; _hoverBox = null; }), icon: const Icon(Icons.pan_tool_outlined)),
       IconButton(tooltip: '배치 초기화', onPressed: _resetArrangement, icon: const Icon(Icons.restart_alt)),
       IconButton(tooltip: '전체 위치 보기', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
