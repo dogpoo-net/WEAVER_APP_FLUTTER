@@ -35,8 +35,8 @@ void main() {
   testWidgets('settings persist visibility and logout has no handler', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();
-    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => TextButton(
-      onPressed: () => showThoughtSettings(context, preferences), child: const Text('설정')))));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (context) => TextButton(
+      onPressed: () => showThoughtSettings(context, preferences), child: const Text('설정'))))));
     await tester.tap(find.text('설정')); await tester.pumpAndSettle();
     expect(tester.widget<ListTile>(find.widgetWithText(ListTile, '로그아웃')).onTap, isNull);
     await tester.tap(find.text('닫힌 생각 조회')); await tester.pumpAndSettle();

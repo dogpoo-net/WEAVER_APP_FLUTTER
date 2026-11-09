@@ -13,10 +13,14 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
     content: SizedBox(width: 360, child: Column(mainAxisSize: MainAxisSize.min, children: [
       SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('닫힌 생각 조회'), value: showClosedThoughts,
         onChanged: (value) async {
-          if (preferences != null && !await preferences.setBool(closedThoughtsPreference, value)) return;
-          if (!context.mounted) return;
-          update(() => showClosedThoughts = value);
-          elements.refreshVisibility();
+          try {
+            if (preferences != null && !await preferences.setBool(closedThoughtsPreference, value)) throw StateError('Settings save failed');
+            showClosedThoughts = value;
+            elements.refreshVisibility();
+            if (context.mounted) update(() {});
+          } catch (_) {
+            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('환경설정을 저장하지 못했습니다.')));
+          }
         }),
       const ListTile(contentPadding: EdgeInsets.zero, title: Text('로그아웃', style: TextStyle(color: Color(0xFFD64550)))),
       const Divider(),
