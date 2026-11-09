@@ -125,6 +125,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final records = _records;
     final scope = _scopeRecords;
     final hadPositions = _positions.isNotEmpty;
+    final newIds = scope.where((r) => !_positions.containsKey(r.id)).map((r) => r.id).toSet();
     final scopeIds = scope.map((r) => r.id).toSet();
     _positions.removeWhere((id, _) => !scopeIds.contains(id));
     final scopeTags = scope.expand((r) => r.tags).map((tag) => 'tag:$tag').toSet();
@@ -155,6 +156,19 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         sizes: {for (final id in _positions.keys) id: _size(id)});
       if (!hadPositions && widget.box == null) _separateBoxes();
     }
+    _separateOverlappingBoxes();
+    if (hadPositions || widget.blocks) {
+      final loose = newIds.where((id) => !memoBoxes.any((box) => !box.isUnclassified && box.elementIds.contains(id))).toList();
+      final occupied = [
+        for (final id in _positions.keys.where((id) => !loose.contains(id))) _bounds(id),
+        for (final box in _allRegionBoxes) if (_boxBounds(box) case final bounds?) bounds,
+        if (!widget.blocks) for (final point in _tagPositions.values) tagBounds(point),
+      ];
+      final y = occupied.map((r) => r.bottom).fold(400.0, math.max) + 120;
+      for (var i = 0; i < loose.length; i++) {
+        _positions[loose[i]] = Offset(640 + (i % 5) * 290, y + (i ~/ 5) * 180);
+      }
+    }
     if (!hadPositions && _positions.isNotEmpty) _centered = false;
     if (!records.any((r) => r.id == _linkFrom)) _linkFrom = null;
     _saveLayout();
@@ -179,6 +193,40 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   bool _inside(Rect bounds, Offset point) => widget.blocks ? bounds.contains(point) : (point - bounds.center).distance <= bounds.width / 2;
   Iterable<MemoBox> get _regionBoxes => (_filterBox != null ? [_filterBox!] :
       (widget.box == null ? memoBoxes : [widget.box!])).where((box) => !box.isUnclassified);
+  Iterable<MemoBox> get _allRegionBoxes => (widget.box == null ? memoBoxes : [widget.box!]).where((box) => !box.isUnclassified);
+  Rect? _boxBounds(MemoBox box) => _liftBoxes[box] ?? _regionBounds(box, _positions) ?? _emptyBoxBounds[box];
+  Rect _placeEmptyBox(double x) {
+    var bounds = Rect.fromLTWH(x, 440, 260, 260);
+    final occupied = [for (final box in _allRegionBoxes) if (_boxBounds(box) case final rect?) rect,
+      for (final id in _positions.keys) _bounds(id)];
+    while (occupied.any((other) => bounds.inflate(24).overlaps(other))) {
+      final bottom = occupied.where((other) => bounds.inflate(24).overlaps(other)).map((other) => other.bottom).reduce(math.max);
+      bounds = bounds.shift(Offset(0, bottom + 48 - bounds.top));
+    }
+    return bounds;
+  }
+  bool _boxCollides(MemoBox moving, Rect proposed) => _allRegionBoxes.any((other) =>
+    !identical(other, moving) && _boxBounds(other) != null && proposed.inflate(24).overlaps(_boxBounds(other)!));
+  bool _memberCollides(String id) => _allRegionBoxes.any((box) => box.elementIds.contains(id) &&
+    _boxBounds(box) != null && _boxCollides(box, _boxBounds(box)!));
+  void _separateOverlappingBoxes() {
+    final placed = <Rect>[];
+    for (final box in _allRegionBoxes) {
+      final original = _boxBounds(box);
+      if (original == null) continue;
+      var bounds = original;
+      while (placed.any((other) => bounds.inflate(24).overlaps(other))) {
+        final bottom = placed.where((other) => bounds.inflate(24).overlaps(other)).map((other) => other.bottom).reduce(math.max);
+        bounds = bounds.shift(Offset(0, bottom + 48 - bounds.top));
+      }
+      final shift = bounds.topLeft - original.topLeft;
+      if (shift != Offset.zero) {
+        for (final id in box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
+        if (!box.elementIds.any(_positions.containsKey)) _emptyBoxBounds[box] = bounds;
+      }
+      placed.add(bounds);
+    }
+  }
   void _separateBoxes() {
     var x = 640.0;
     final assigned = <String>{};
@@ -249,7 +297,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       nodeRects.values.map((r) => r.right + 80).fold(640.0, math.max), math.max);
     for (final box in _regionBoxes) {
       if (box.elementIds.any(_positions.containsKey)) continue;
-      regions.add((box: box, bounds: _emptyBoxBounds.putIfAbsent(box, () => Rect.fromLTWH(emptyX, 440, 260, 260))));
+      regions.add((box: box, bounds: _emptyBoxBounds.putIfAbsent(box, () => _placeEmptyBox(emptyX))));
       emptyX += 340;
     }
     sceneWidth = regions.map((r) => r.bounds.right + 100).fold(sceneWidth, math.max);
@@ -301,7 +349,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onDrag: (delta) => setState(() {
               final empty = !region.box.elementIds.any(_positions.containsKey);
               final current = empty ? (_emptyBoxBounds[region.box] ?? region.bounds) : (_regionBounds(region.box, _positions) ?? region.bounds);
-              final shift = Offset(math.max(delta.dx, 32 - current.left), math.max(delta.dy, 32 - current.top));
+              var shift = Offset(math.max(delta.dx, 32 - current.left), math.max(delta.dy, 32 - current.top));
+              if (_boxCollides(region.box, current.shift(shift))) {
+                var low = 0.0, high = 1.0;
+                for (var i = 0; i < 12; i++) {
+                  final mid = (low + high) / 2;
+                  if (_boxCollides(region.box, current.shift(shift * mid))) { high = mid; } else { low = mid; }
+                }
+                shift *= low;
+              }
               if (empty) { _emptyBoxBounds[region.box] = current.shift(shift); }
               for (final id in region.box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
               _saveLayout();
@@ -326,13 +382,20 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 }
                   else if (_linkMode) { setState(() => _linkFrom = record.id); }
                   else { showElementMetadata(context, record.text); } },
-                onMove: (delta) => setState(() { final p = _positions[record.id]! + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
+                onMove: (delta) => setState(() { final previous = _positions[record.id]!; final p = previous + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
+                  if (_liftBoxes.isEmpty && _memberCollides(record.id)) _positions[record.id] = previous;
                   final center = _bounds(record.id).center;
                   _hoverBox = regions.where((r) => !r.box.elementIds.contains(record.id) && _inside(r.bounds, center)).firstOrNull?.box;
                   _saveLayout(); }),
                 onResize: (size, shift) => setState(() {
+                  final oldSize = _layout.sizes[record.id], oldPosition = _positions[record.id]!;
                   _layout.sizes[record.id] = Offset(size.width, size.height);
-                  final p = _positions[record.id]! + shift; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy)); _saveLayout();
+                  final p = _positions[record.id]! + shift; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
+                  if (_memberCollides(record.id)) {
+                    _positions[record.id] = oldPosition;
+                    if (oldSize == null) { _layout.sizes.remove(record.id); } else { _layout.sizes[record.id] = oldSize; }
+                  }
+                  _saveLayout();
                 }),
                 onDrop: (pointer) {
                   final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
@@ -354,7 +417,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   }
                   if (detached.isNotEmpty) _changed();
                   _saveLayout(flush: true);
-                }, onEnd: () { setState(() { _liftBoxes.clear(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
+                }, onEnd: () { setState(() { _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
                 child: Card(color: wordBackgroundColor(context, record.text),
                   shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _draggingId == record.id || _linkFrom == record.id ? color.primary : color.outlineVariant, width: 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: candidates.isNotEmpty || _linkFrom == record.id || _draggingId == record.id ? color.primary : Colors.transparent, width: _draggingId == record.id ? 3 : 2)),
