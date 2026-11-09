@@ -42,7 +42,7 @@ void main() {
     tester.view.physicalSize = const Size(1420, 1000); tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const MyApp()); await tester.pumpAndSettle();
-    await tester.tap(find.text('프로젝트 생성')); await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('프로젝트 생성')); await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('project-document')), '계속 쓸 본문');
     await tester.pump();
     await tester.pageBack(); await tester.pumpAndSettle();

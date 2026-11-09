@@ -88,7 +88,7 @@ class _GeologPageState extends State<GeologPage> {
                     maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)))),
                 Icon(Icons.location_on, color: Theme.of(context).colorScheme.primary, size: 28),
               ]))))]),
-            SimpleAttributionWidget(source: const Text('OpenStreetMap contributors'), onTap: () => launchUrl(Uri.parse('https://www.openstreetmap.org/copyright'), mode: LaunchMode.externalApplication)),
+            SimpleAttributionWidget(source: const Text('© OpenStreetMap contributors', style: TextStyle(fontSize: 10)), onTap: () => launchUrl(Uri.parse('https://www.openstreetmap.org/copyright'), mode: LaunchMode.externalApplication)),
           ])),
       ThoughtFilters(tags: _scope.expand((r) => r.tags).toSet().toList()..sort(), scope: widget.box, box: _filterBox, tag: _tag,
         onChanged: () { widget.onChanged(); setState(() {}); }, onFilter: (box, tag) => setState(() { _filterBox = box; _tag = tag; })),

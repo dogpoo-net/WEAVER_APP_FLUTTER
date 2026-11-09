@@ -13,7 +13,7 @@ Future<void> showLocationPreview(BuildContext context, ThoughtLocation location)
         TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'net.dogpoo.weaver', maxNativeZoom: 19),
         MarkerLayer(markers: [Marker(point: LatLng(location.latitude, location.longitude), alignment: Alignment.topCenter,
           child: Icon(Icons.location_on, size: 40, color: Theme.of(context).colorScheme.primary))]),
-        SimpleAttributionWidget(source: const Text('OpenStreetMap contributors'),
+        SimpleAttributionWidget(source: const Text('© OpenStreetMap contributors', style: TextStyle(fontSize: 10)),
           onTap: () => launchUrl(Uri.parse('https://www.openstreetmap.org/copyright'), mode: LaunchMode.externalApplication)),
       ])),
       Padding(padding: const EdgeInsets.all(12), child: Text('${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)} · 정확도 약 ${location.accuracy.round()}m')),

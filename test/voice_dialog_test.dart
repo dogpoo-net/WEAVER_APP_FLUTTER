@@ -8,7 +8,7 @@ import 'package:weaver/features/capture/voice_dialog.dart';
 
 class FakeRecorder extends RecordPlatform {
   bool permitted = true;
-  int stops = 0;
+  int stops = 0, cancellations = 0;
   final audio = StreamController<Uint8List>();
   final states = StreamController<RecordState>.broadcast();
   @override
@@ -29,6 +29,8 @@ class FakeRecorder extends RecordPlatform {
     unawaited(audio.close());
     return null;
   }
+  @override
+  Future<void> cancel(String id) async { cancellations++; unawaited(audio.close()); }
   @override
   Future<void> dispose(String id) async { await states.close(); }
   @override
@@ -67,4 +69,19 @@ void main() {
     expect(String.fromCharCodes(result!.bytes.take(4)), 'RIFF');
     expect(tester.takeException(), isNull);
   });
+  testWidgets('outside dismissal during recording cancels capture without an attachment', (tester) async {
+    VoiceDraft? result;
+    var closed = false;
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(body: TextButton(
+      onPressed: () async { result = await showVoiceRecorder(context); closed = true; }, child: const Text('열기'))))));
+    await tester.tap(find.text('열기')); await tester.pumpAndSettle();
+    await tester.tap(find.text('녹음 시작')); await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(5, 5)); await tester.pumpAndSettle();
+    expect(find.byType(VoiceRecorderDialog), findsNothing);
+    expect(closed, isTrue);
+    expect(result, isNull);
+    expect(recorder.cancellations, greaterThanOrEqualTo(1));
+    expect(tester.takeException(), isNull);
+  });
+
 }

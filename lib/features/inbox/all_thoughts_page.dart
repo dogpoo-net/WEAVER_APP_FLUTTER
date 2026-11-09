@@ -95,8 +95,8 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   }
   @override
   Widget build(BuildContext context) {
-    final allRecords = elements.records.values.where((r) => widget.initialBox == null || widget.initialBox!.elementIds.contains(r.id)).toList();
-    final tags = {...allRecords.expand((record) => record.tags), if (widget.initialBox == null) ...hashtagColors.keys}.toList()..sort();
+    final allRecords = elements.records.values.toList();
+    final tags = {...allRecords.expand((record) => record.tags), ...hashtagColors.keys}.toList()..sort();
     final records = allRecords.where((record) =>
       (_filterBox == null || _filterBox!.elementIds.contains(record.id)) &&
       (_filterTag == null || record.tags.contains(_filterTag)) &&
@@ -140,9 +140,9 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
               alignment: WrapAlignment.center, spacing: 6, runSpacing: 6, children: tiles)));
         }),
       ]))));
-    final footer = ThoughtFilters(tags: tags, scope: widget.initialBox, box: _filterBox, tag: _filterTag,
+    final footer = ThoughtFilters(tags: tags, box: _filterBox, tag: _filterTag,
       onChanged: _changed, onFilter: (box, tag) => _filter(box: box, tag: tag));
-    return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null, leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(widget.initialBox?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(),
+    return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null, leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(_filterBox?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(),
       IconButton(tooltip: '메모상자 만들기', icon: const Icon(Icons.inventory_2_outlined), onPressed: () async {
         final box = await createMemoBox(context); if (mounted && box != null) _changed();
       }),

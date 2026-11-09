@@ -6,6 +6,18 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 
 void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); });
+  testWidgets('opening a box selects it but allows switching to every other box', (tester) async {
+    final first = elements.add('첫 상자 생각'), second = elements.add('다른 상자 생각');
+    final one = MemoBox('하나', ids: [first.id]), two = MemoBox('둘', ids: [second.id]);
+    memoBoxes.addAll([one, two]);
+    await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(notes: const [], initialBox: one)));
+    await tester.pumpAndSettle();
+    expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('thought-filter-box-하나'))).selected, isTrue);
+    expect(find.byKey(ValueKey('thought-${second.id}')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('thought-filter-box-둘'))); await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('thought-${second.id}')), findsOneWidget);
+    expect(find.byKey(ValueKey('thought-${first.id}')), findsNothing);
+  });
   testWidgets('default thought view filters unclassified without navigation', (tester) async {
     final free = elements.add('미분류 생각');
     final filed = elements.add('상자 속 생각');

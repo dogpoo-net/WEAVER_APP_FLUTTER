@@ -6,7 +6,7 @@ import 'capture_models.dart';
 import 'voice_player.dart';
 
 Future<VoiceDraft?> showVoiceRecorder(BuildContext context) => showDialog<VoiceDraft>(
-  context: context, barrierDismissible: false, builder: (_) => const VoiceRecorderDialog());
+  context: context, barrierDismissible: true, builder: (_) => const VoiceRecorderDialog());
 
 class VoiceRecorderDialog extends StatefulWidget {
   const VoiceRecorderDialog({super.key});
@@ -82,15 +82,19 @@ class _VoiceRecorderDialogState extends State<VoiceRecorderDialog> with WidgetsB
       _backgrounded = true; unawaited(_stop());
     }
   }
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this); _timer?.cancel(); _stream?.cancel(); _state?.cancel(); _recorder.dispose(); super.dispose();
+  Future<void> _releaseRecorder() async {
+    try { await _recorder.cancel(); } catch (_) { /* Nothing may have started. */ }
+    await _recorder.dispose();
   }
   @override
-  Widget build(BuildContext context) => PopScope(canPop: !_busy && !_recording, child: AlertDialog(
-    title: const Text('녹음 메모'),
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this); _timer?.cancel(); _stream?.cancel(); _state?.cancel(); unawaited(_releaseRecorder()); super.dispose();
+  }
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Row(children: [const Expanded(child: Text('음성 메모')), Text('최대 1분', style: Theme.of(context).textTheme.labelSmall)]),
     content: Column(mainAxisSize: MainAxisSize.min, children: [
-      Text(_recording ? '${(_seconds ~/ 60).toString().padLeft(2, '0')}:${(_seconds % 60).toString().padLeft(2, '0')} / 01:00' : '최대 1분', style: Theme.of(context).textTheme.titleLarge),
+      Text(_recording ? '${(_seconds ~/ 60).toString().padLeft(2, '0')}:${(_seconds % 60).toString().padLeft(2, '0')} / 01:00' : '00:00', style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 16),
       if (_busy) const Padding(padding: EdgeInsets.only(bottom: 12),
         child: SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2))),
@@ -100,11 +104,8 @@ class _VoiceRecorderDialogState extends State<VoiceRecorderDialog> with WidgetsB
         icon: Icon(_recording ? Icons.stop : Icons.mic), label: Text(_recording ? '녹음 종료' : _draft == null ? '녹음 시작' : '다시 녹음')),
     ]),
     actions: [
-      TextButton(onPressed: _busy ? null : () async {
-        if (_recording) await _stop();
-        if (context.mounted) Navigator.pop(context);
-      }, child: const Text('취소')),
-      FilledButton(onPressed: _busy || _recording || _draft == null ? null : () => Navigator.pop(context, _draft), child: const Text('메모에 첨부')),
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+      FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), textStyle: const TextStyle(fontSize: 12)), onPressed: _busy || _recording || _draft == null ? null : () => Navigator.pop(context, _draft), child: const Text('메모에 첨부')),
     ],
-  ));
+  );
 }

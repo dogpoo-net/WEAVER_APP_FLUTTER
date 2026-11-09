@@ -40,7 +40,7 @@ void main() {
     await tester.enterText(field, '남겨둘 생각 #기록');
     await tester.tap(find.byKey(const ValueKey('quick-location'))); await tester.pumpAndSettle();
     expect(tester.widget<TextField>(field).controller!.text, '남겨둘 생각 #기록');
-    expect(tester.widget<Checkbox>(find.byKey(const ValueKey('quick-location'))).value, isFalse);
+    expect(tester.widget<IconButton>(find.byKey(const ValueKey('quick-location'))).isSelected, isFalse);
     expect(location.positions, 0);
     await tester.ensureVisible(find.text('저장')); await tester.tap(find.text('저장')); await tester.pumpAndSettle();
     expect(elements.records['남겨둘 생각']!.location, isNull);
@@ -55,7 +55,7 @@ void main() {
     expect(elements.records['위치가 있는 생각']!.location!.latitude, 37.5);
     expect(elements.records['위치가 있는 생각']!.location!.accuracy, 25);
     expect(location.positions, 1);
-    expect(tester.widget<Checkbox>(find.byKey(const ValueKey('quick-location'))).value, isFalse);
+    expect(tester.widget<IconButton>(find.byKey(const ValueKey('quick-location'))).isSelected, isFalse);
   }, variant: TargetPlatformVariant({TargetPlatform.android}));
   testWidgets('location alone saves with timestamp title and preserves tags', (tester) async {
     await tester.pumpWidget(const MyApp());
