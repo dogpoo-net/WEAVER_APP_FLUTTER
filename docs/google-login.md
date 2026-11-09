@@ -8,6 +8,8 @@
 2. **웹 애플리케이션** OAuth 클라이언트를 생성한다. 승인된 JavaScript 원본에 `https://dogpoo-net.github.io`를 등록한다(저장소 경로 제외). 로컬 테스트는 고정 포트의 `http://localhost:포트`를 별도로 등록한다.
 3. 현재 사용자가 제공한 웹 클라이언트 ID를 기본값으로 설정했다. 일반 API 키나 비밀키가 아니며 공개 가능한 식별자이다. 전용 클라이언트로 변경할 때 웹 클라이언트 ID를 GitHub 저장소 Actions 변수 `GOOGLE_WEB_CLIENT_ID`에 설정한다. Pages workflow가 빌드에 전달한다.
 4. **Android** OAuth 클라이언트를 같은 프로젝트에 생성한다. 패키지는 `net.dogpoo.weaver`, SHA-1은 실제 서명 인증서의 지문이다. 디버그, 배포 서명, Play 앱 서명이 다르면 각각 등록한다. 현재 Gradle release는 debug signing이므로 실제 배포 전에 정식 서명 설정이 필요하다.
+Windows에서는 `android` 폴더에서 `.\gradlew signingReport`로 서명 지문을 확인할 수 있다. macOS/Linux는 `./gradlew signingReport`를 사용한다.
+
 5. Android 빌드에도 동일한 **웹** 클라이언트 ID를 전달한다. 플러그인은 이것을 `serverClientId`로 사용한다. Android 클라이언트 ID를 여기에 넣지 않는다. Firebase나 google-services.json은 이 방식에서 필수가 아니다.
 
 ```sh
