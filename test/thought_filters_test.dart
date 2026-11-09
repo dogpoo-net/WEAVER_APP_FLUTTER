@@ -7,7 +7,7 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 
 void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); });
-  testWidgets('attachment filters combine and search stays fixed while scrolling', (tester) async {
+  testWidgets('attachment filters use OR and search stays fixed while scrolling', (tester) async {
     final photo = elements.add('사진만')..photos.add(const PhotoAttachment('p', 'photo'));
     final voice = elements.add('음성만')..recordings.add(const VoiceAttachment('v', 1000));
     final both = elements.add('둘 다')
@@ -25,10 +25,23 @@ void main() {
     expect(find.byKey(ValueKey('thought-${photo.id}')), findsOneWidget);
     expect(find.byKey(ValueKey('thought-${voice.id}')), findsNothing);
     await tester.tap(find.byTooltip('음성 있는 생각')); await tester.pumpAndSettle();
-    expect(find.byKey(ValueKey('thought-${photo.id}')), findsNothing);
+    expect(find.byKey(ValueKey('thought-${photo.id}')), findsOneWidget);
+    expect(find.byKey(ValueKey('thought-${voice.id}')), findsOneWidget);
+    expect(find.text('스크롤할 긴 생각 0'), findsNothing);
     expect(find.byKey(ValueKey('thought-${both.id}')), findsOneWidget);
     await tester.tap(find.byTooltip('사진 있는 생각')); await tester.pumpAndSettle();
     expect(find.byKey(ValueKey('thought-${voice.id}')), findsOneWidget);
+  });
+  testWidgets('unclassified title is left aligned and help replaces tag creation', (tester) async {
+    final box = MemoBox('미분류'); memoBoxes.add(box);
+    await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(notes: const [], initialBox: box)));
+    await tester.pumpAndSettle();
+    expect(tester.widget<AppBar>(find.byType(AppBar)).centerTitle, isFalse);
+    expect(find.byTooltip('해시태그 만들기'), findsNothing);
+    await tester.tap(find.byTooltip('사용 안내')); await tester.pumpAndSettle();
+    expect(find.text('생각 보기 안내'), findsOneWidget);
+    await tester.tap(find.text('닫기')); await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
   });
   testWidgets('thought search matches hashtag with or without hash prefix', (tester) async {
     final tagged = elements.add('산책 기록 #여행');

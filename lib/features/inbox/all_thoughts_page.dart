@@ -100,8 +100,9 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     final allRecords = elements.records.values.toList();
     final tags = {...allRecords.expand((record) => record.tags), ...hashtagColors.keys}.toList()..sort();
     final records = allRecords.where((record) => canBrowseThought(record) &&
-      (!_photosOnly || record.photos.isNotEmpty) &&
-      (!_audioOnly || record.recordings.isNotEmpty) &&
+      ((!_photosOnly && !_audioOnly) ||
+        (_photosOnly && record.photos.isNotEmpty) ||
+        (_audioOnly && record.recordings.isNotEmpty)) &&
       (_filterBox == null || _filterBox!.elementIds.contains(record.id)) &&
       (_filterTag == null || record.tags.contains(_filterTag)) &&
       (record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.toLowerCase().contains(_query.toLowerCase().replaceFirst(RegExp(r'^#'), ''))))).toList();
@@ -144,7 +145,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
       ]))));
     final footer = ThoughtFilters(tags: tags, box: _filterBox, tag: _filterTag,
       onChanged: _changed, onFilter: (box, tag) => _filter(box: box, tag: tag));
-    return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null, leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(_filterBox?.name ?? '모든 생각 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
+    return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filterBox?.name ?? '모든 생각 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
       IconButton(tooltip: '사진 있는 생각', isSelected: _photosOnly,
@@ -157,9 +158,10 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
       IconButton(tooltip: '메모상자 만들기', icon: const Icon(Icons.inventory_2_outlined), onPressed: () async {
         final box = await createMemoBox(context); if (mounted && box != null) _changed();
       }),
-      IconButton(tooltip: '해시태그 만들기', icon: const Icon(Icons.tag), onPressed: () async {
-        final tag = await createHashtag(context); if (mounted && tag != null) _changed();
-      }),
+      IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
+        context: context, builder: (context) => AlertDialog(title: const Text('생각 보기 안내'),
+          content: const Text('생각이나 해시태그로 검색하고, 아래의 메모상자·태그를 눌러 분류별로 볼 수 있습니다.\n\n사진·음성 버튼을 켜면 해당 첨부가 있는 생각을 보여줍니다. 둘 다 켜면 사진 또는 음성이 있는 생각을 보여줍니다.\n\n생각을 메모상자로 드래그해 정리하세요. 모바일에서는 길게 눌러 드래그할 수 있습니다. 해시태그는 생각 본문에 #태그를 입력해 추가합니다.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))]))),
     ]))]),
       body: DesktopMenuBody(child: Column(children: [if (widget.viewSelector != null) widget.viewSelector!,
         Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 0), child: TextField(key: const ValueKey('all-thoughts-search'),
