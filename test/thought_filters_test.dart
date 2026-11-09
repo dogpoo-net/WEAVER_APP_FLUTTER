@@ -6,6 +6,18 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 
 void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); });
+  testWidgets('thought search matches hashtag with or without hash prefix', (tester) async {
+    final tagged = elements.add('산책 기록 #여행');
+    final other = elements.add('집에서 읽기 #독서');
+    await tester.pumpWidget(const MaterialApp(home: AllThoughtsPage(notes: [])));
+    await tester.pumpAndSettle();
+    for (final query in ['여행', '#여행']) {
+      await tester.enterText(find.byKey(const ValueKey('all-thoughts-search')), query); await tester.pumpAndSettle();
+      expect(find.byKey(ValueKey('thought-${tagged.id}')), findsOneWidget);
+      expect(find.byKey(ValueKey('thought-${other.id}')), findsNothing);
+    }
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('opening a box selects it but allows switching to every other box', (tester) async {
     final first = elements.add('첫 상자 생각'), second = elements.add('다른 상자 생각');
     final one = MemoBox('하나', ids: [first.id]), two = MemoBox('둘', ids: [second.id]);

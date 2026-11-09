@@ -69,7 +69,7 @@ class _GeologPageState extends State<GeologPage> {
       IconButton(tooltip: '위치 전체 보기', onPressed: records.isEmpty ? null : () => _fit(records), icon: const Icon(Icons.center_focus_strong)),
     ]), body: DesktopMenuBody(child: Column(children: [
       if (widget.viewSelector != null) widget.viewSelector!,
-      Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 8), child: TextField(
+      Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 0), child: TextField(
         key: const ValueKey('geolog-search'),
         style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 13 : 14),
         decoration: const InputDecoration(isDense: true, hintText: '생각·해시태그 찾기',

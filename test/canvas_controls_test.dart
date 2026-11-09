@@ -13,6 +13,8 @@ void main() {
       elements.add('넓게 표시할 생각');
       await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
       await tester.pumpAndSettle();
+      expect(tester.widget<Text>(find.text('넓게 표시할 생각')).maxLines, 3);
+      expect(tester.widget<AppBar>(find.byType(AppBar)).centerTitle, isFalse);
       final before = tester.getRect(find.byType(InteractiveViewer));
       expect(find.descendant(of: find.byType(ThoughtInteraction), matching: find.byIcon(Icons.link)), findsNothing);
       expect(find.byType(Draggable<String>), findsNothing);

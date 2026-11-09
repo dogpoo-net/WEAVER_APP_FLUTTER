@@ -47,7 +47,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   bool _linkMode = false, _centered = false;
   bool _routeVisible = true, _appActive = true;
   ModalRoute<dynamic>? _route;
-  Size _size(String id) { final p = _layout.sizes[id]; return p == null ? (widget.blocks ? const Size(230, 110) : graphThoughtSize) : Size(p.dx, p.dy); }
+  Size _size(String id) { final p = _layout.sizes[id]; return p == null ? (widget.blocks ? const Size(230, 128) : graphThoughtSize) : Size(p.dx, p.dy); }
   Rect _bounds(String id) => _positions[id]! & _size(id);
   @override
   void initState() {
@@ -207,7 +207,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     return bounds;
   }
   bool _boxCollides(MemoBox moving, Rect proposed) => _allRegionBoxes.any((other) =>
-    !identical(other, moving) && _boxBounds(other) != null && proposed.inflate(24).overlaps(_boxBounds(other)!));
+    !identical(other, moving) && _boxBounds(other) != null && memoBoxRegionsOverlap(proposed, _boxBounds(other)!, rectangular: widget.blocks));
   bool _memberCollides(String id) => _allRegionBoxes.any((box) => box.elementIds.contains(id) &&
     _boxBounds(box) != null && _boxCollides(box, _boxBounds(box)!));
   void _separateOverlappingBoxes() {
@@ -216,8 +216,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final original = _boxBounds(box);
       if (original == null) continue;
       var bounds = original;
-      while (placed.any((other) => bounds.inflate(24).overlaps(other))) {
-        final bottom = placed.where((other) => bounds.inflate(24).overlaps(other)).map((other) => other.bottom).reduce(math.max);
+      while (placed.any((other) => memoBoxRegionsOverlap(bounds, other, rectangular: widget.blocks))) {
+        final bottom = placed.where((other) => memoBoxRegionsOverlap(bounds, other, rectangular: widget.blocks)).map((other) => other.bottom).reduce(math.max);
         bounds = bounds.shift(Offset(0, bottom + 48 - bounds.top));
       }
       final shift = bounds.topLeft - original.topLeft;
@@ -237,7 +237,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final ids = box.elementIds.where((id) => _positions.containsKey(id) && !assigned.contains(id)).toList();
       if (ids.isEmpty) continue;
       for (var i = 0; i < ids.length; i++) { _positions[ids[i]] = Offset(x + (i % 3) * 220, 600 + (i ~/ 3) * 140); }
-      final bounds = memoBoxCircleBounds(ids.map((id) => _positions[id]!))!;
+      final bounds = _regionBounds(box, _positions)!;
       final shift = Offset(x - bounds.left, math.max(0, top - bounds.top));
       for (final id in ids) { _positions[id] = _positions[id]! + shift; }
       final moved = bounds.shift(shift);
@@ -320,7 +320,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     sceneWidth = regions.map((r) => r.bounds.right + 100).fold(sceneWidth, math.max);
     sceneHeight = regions.map((r) => r.bounds.bottom + 100).fold(sceneHeight, math.max);
     final color = Theme.of(context).colorScheme;
-    return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null, leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(widget.box?.name ?? '모든 생각 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
+    return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(widget.box?.name ?? '모든 생각 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
       IconButton(tooltip: '연결 모드', style: IconButton.styleFrom(backgroundColor: _linkMode ? color.primaryContainer : null, foregroundColor: _linkMode ? color.onPrimaryContainer : null), isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
@@ -442,7 +442,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                     if (AttachmentIndicators.hasAttachments(record)) Padding(padding: const EdgeInsets.only(top: 4, right: 6), child: Align(alignment: Alignment.centerRight, child: AttachmentIndicators(record: record))),
                     if (widget.blocks && record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 10, 8, 0), child: Align(alignment: Alignment.centerLeft,
                       child: Text(record.tags.map((tag) => '#$tag').join('  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)))),
-                    Expanded(child: Padding(padding: const EdgeInsets.all(8), child: Text(badgeLabel(record.text), maxLines: ((_size(record.id).height - 24 - (widget.blocks && record.tags.isNotEmpty ? 24 : 0)) / 22).floor().clamp(1, 20),
+                    Expanded(child: Padding(padding: const EdgeInsets.all(8), child: Text(badgeLabel(record.text), maxLines: !_layout.sizes.containsKey(record.id) ? 3 : ((_size(record.id).height - 24 - (widget.blocks && record.tags.isNotEmpty ? 24 : 0)) / 22).floor().clamp(1, 20),
                       overflow: TextOverflow.ellipsis, style: TextStyle(color: wordColor(context, record.text))))),
                   ])))),
             ),

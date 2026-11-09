@@ -1147,7 +1147,7 @@ class _InboxPageState extends State<InboxPage> {
             isDense: true,
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 8),
         if (visible.isEmpty && records.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 12),
@@ -1331,11 +1331,13 @@ class _InboxPageState extends State<InboxPage> {
                           '기록함',
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 4),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: [
+                            TextButton.icon(onPressed: _allThoughts, icon: const Icon(Icons.bubble_chart_outlined, size: 18),
+                              label: const Text('모든 생각 보기')),
                             TextButton.icon(
                               onPressed: () => _allThoughts(ensureUnclassifiedBox()),
                               icon: const Icon(

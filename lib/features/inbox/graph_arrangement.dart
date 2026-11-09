@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-const graphThoughtSize = Size(170, 76);
+const graphThoughtSize = Size(170, 104);
 const graphTagSize = Size(178, 48);
 const _columns = 6;
 const _pitchX = 250.0;

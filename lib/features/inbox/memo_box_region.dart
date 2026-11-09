@@ -21,6 +21,9 @@ Rect? memoBoxCircleBounds(Iterable<Offset> positions, {Map<Offset, Size> sizes =
   return Rect.fromCircle(center: center, radius: radius + 32);
 }
 
+bool memoBoxRegionsOverlap(Rect a, Rect b, {required bool rectangular, double gap = 24}) =>
+  rectangular ? a.inflate(gap).overlaps(b) : (a.center - b.center).distance < (a.width + b.width) / 2 + gap;
+
 class MemoBoxRegion extends StatelessWidget {
   const MemoBoxRegion({super.key, required this.box, required this.bounds, this.onDrag, this.onDragEnd, this.highlighted = false, this.rectangular = false});
   final MemoBox box;
