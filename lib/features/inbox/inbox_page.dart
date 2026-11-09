@@ -1130,12 +1130,15 @@ class _InboxPageState extends State<InboxPage> {
         const SizedBox(height: 16),
         TextField(
           key: const ValueKey('note-search'),
+          style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 13 : 14),
           onChanged: (value) => setState(() {
             _query = value; _memoRows = 5; _paragraphLimit = 5; _projectLimit = 5; _memoHasMore = false;
           }),
           decoration: const InputDecoration(
             hintText: '메모에서 찾기',
-            prefixIcon: Icon(Icons.search),
+            prefixIcon: Icon(Icons.search, size: 18),
+            prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 36),
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             isDense: true,
           ),
         ),
