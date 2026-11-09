@@ -74,6 +74,8 @@ InlineSpan _badgeExcerpt(BuildContext context, String word, String query, double
   final text = badgeLabel(word);
   if (text.isEmpty) return const TextSpan(text: '');
   final match = _badgeMatch(text, query);
+  // Let the text renderer ellipsize ordinary labels in a single layout pass.
+  if (match == null) return TextSpan(text: text);
   final boundaries = <int>[0];
   for (final character in text.characters) { boundaries.add(boundaries.last + character.length); }
   InlineSpan span(int first, int last) {

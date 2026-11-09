@@ -1352,18 +1352,18 @@ class _InboxPageState extends State<InboxPage> {
                                     Expanded(
                                       child: Padding(
                                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                                        child: _list(),
+                                        child: RepaintBoundary(child: _list()),
                                       ),
                                     ),
                                     const SizedBox(width: 24),
-                                    Expanded(child: _composer(composerHeight)),
+                                    Expanded(child: RepaintBoundary(child: _composer(composerHeight))),
                                   ],
                                 )
                               : Column(
                                   children: [
-                                    _composer(composerHeight),
+                                    RepaintBoundary(child: _composer(composerHeight)),
                                     const SizedBox(height: 24),
-                                    _list(),
+                                    RepaintBoundary(child: _list()),
                                   ],
                                 ),
                         ),
