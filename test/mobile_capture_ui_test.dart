@@ -10,7 +10,7 @@ void main() {
     testWidgets('capture controls are mobile only and fit a narrow composer ($platform)', (tester) async {
       tester.view.physicalSize = const Size(360, 800); tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(const MyApp()); await tester.pumpAndSettle();
+      await tester.pumpWidget(const MyApp(requireLogin: false, )); await tester.pumpAndSettle();
       final expected = platform == TargetPlatform.windows ? findsNothing : findsOneWidget;
       expect(find.byKey(const ValueKey('quick-location')), expected);
       expect(find.byTooltip('음성 메모'), expected);
@@ -20,7 +20,7 @@ void main() {
     }, variant: TargetPlatformVariant({platform}));
   }
   testWidgets('home links to unclassified thoughts and photo menu is anchored to icon', (tester) async {
-    await tester.pumpWidget(const MyApp()); await tester.pumpAndSettle();
+    await tester.pumpWidget(const MyApp(requireLogin: false, )); await tester.pumpAndSettle();
     final photo = find.byKey(const ValueKey('quick-photo-menu'));
     final button = tester.getRect(photo);
     await tester.tap(photo); await tester.pumpAndSettle();

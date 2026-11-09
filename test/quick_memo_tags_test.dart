@@ -6,7 +6,7 @@ import 'package:weaver/features/inbox/element_store.dart';
 
 void main() {
   testWidgets('draft connection X removes only the pending link', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     final target = elements.add('참고생각');
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '작성한본문 참고생');
@@ -22,7 +22,7 @@ void main() {
     expect(target.connections, isEmpty);
   });
   testWidgets('Enter commits a composing hashtag without leaving its syllable in body', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     final field = find.byKey(const ValueKey('quick-memo'));
     const text = '아직 한글 완성 버그가 있음 #위버';
     await tester.enterText(field, text);
@@ -40,7 +40,7 @@ void main() {
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant({TargetPlatform.windows}));
   testWidgets('existing tag completion rejects the native final syllable echo before saving', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     elements.add('기존 생각 #위버');
     final field = find.byKey(const ValueKey('quick-memo'));
     const text = '아직 한글 완성 버그가 있음 #위버';
@@ -72,7 +72,7 @@ void main() {
     expect(controller.text, '버');
   }, variant: TargetPlatformVariant({TargetPlatform.windows}));
   testWidgets('quick memo retains inline hashtags and parses them on save without Enter', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     final memo = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(memo, '기록할 생각 #독서 ');
     await tester.pumpAndSettle();

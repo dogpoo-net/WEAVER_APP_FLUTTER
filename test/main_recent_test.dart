@@ -21,7 +21,7 @@ void main() {
     elements.clear();
     for (var i = 0; i < 22; i++) { elements.add('테스트 메모 내용이 길게 이어집니다 $i'); }
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
-    await tester.pumpWidget(MyApp(storage: WorkspaceStorage(await SharedPreferences.getInstance())));
+    await tester.pumpWidget(MyApp(requireLogin: false, storage: WorkspaceStorage(await SharedPreferences.getInstance())));
     await tester.pumpAndSettle();
     final badges = find.byKey(const ValueKey('recent-memo-badges'));
     final before = tester.getSize(badges).height;
@@ -44,7 +44,7 @@ void main() {
     }
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode(notes)});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
-    await tester.pumpWidget(MyApp(storage: storage)); await tester.pumpAndSettle();
+    await tester.pumpWidget(MyApp(requireLogin: false, storage: storage)); await tester.pumpAndSettle();
     expect(find.widgetWithText(ListTile, '문단0'), findsNothing);
     expect(find.widgetWithText(ListTile, '프로젝트0'), findsNothing);
     expect(find.text('문단6'), findsOneWidget);

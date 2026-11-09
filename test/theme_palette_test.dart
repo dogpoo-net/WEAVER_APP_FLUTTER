@@ -5,7 +5,7 @@ import 'package:weaver/main.dart';
 
 void main() {
   testWidgets('color sets switch independently and retain the draft', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     await tester.enterText(find.byType(TextField).first, '이어 쓰는 생각');
     final originalDark = Theme.of(tester.element(find.byType(Scaffold).first)).colorScheme;
 

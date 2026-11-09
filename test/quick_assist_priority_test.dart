@@ -12,7 +12,7 @@ void main() {
       elements.clear(); elements.add('독서 #태그');
       SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
       final storage = WorkspaceStorage(await SharedPreferences.getInstance());
-      await tester.pumpWidget(MyApp(storage: storage));
+      await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
       final field = find.byKey(const ValueKey('quick-memo'));
       final input = tag ? '메모 #태' : '메모 독';
       await tester.enterText(field, input); await tester.pumpAndSettle();
@@ -41,7 +41,7 @@ void main() {
     elements.clear(); elements.add('첫생각'); elements.add('다른생각');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
-    await tester.pumpWidget(MyApp(storage: storage));
+    await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
     final field = find.byKey(const ValueKey('quick-memo'));
     for (final text in ['본문 첫', '본문 다']) {
       await tester.enterText(field, text); await tester.pumpAndSettle();
@@ -60,7 +60,7 @@ void main() {
     elements.clear();
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
-    await tester.pumpWidget(MyApp(storage: storage));
+    await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '본문 #새태그'); await tester.pumpAndSettle();
     await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
@@ -73,7 +73,7 @@ void main() {
     elements.clear(); elements.add('독서');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
-    await tester.pumpWidget(MyApp(storage: storage));
+    await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '독'); await tester.pumpAndSettle();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
@@ -86,7 +86,7 @@ void main() {
     elements.clear(); elements.add('독서');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
-    await tester.pumpWidget(MyApp(storage: storage));
+    await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '독'); await tester.pumpAndSettle();
     await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
@@ -99,7 +99,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio); addTearDown(tester.view.resetViewInsets);
     elements.clear(); elements.add('독서 #태그');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
-    await tester.pumpWidget(MyApp(storage: WorkspaceStorage(await SharedPreferences.getInstance())));
+    await tester.pumpWidget(MyApp(requireLogin: false, storage: WorkspaceStorage(await SharedPreferences.getInstance())));
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '독'); await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('suggestion-독서')), findsOneWidget);

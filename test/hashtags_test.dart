@@ -70,7 +70,7 @@ void main() {
   testWidgets('tag saved with element appears in menu and opens related list', (
     tester,
   ) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     await tester.enterText(find.byType(TextField).first, '작은 생각 #독서');
     await tester.pump();
     await tester.ensureVisible(find.text('저장'));

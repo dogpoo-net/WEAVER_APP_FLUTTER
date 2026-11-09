@@ -11,7 +11,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     expect(
       tester.widget<WorkspaceMenu>(find.byType(WorkspaceMenu)).embedded,
       isTrue,
@@ -39,7 +39,7 @@ void main() {
   });
 
   testWidgets('menu separates browsing categories and paragraph writing stays on main', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     await tester.tap(find.byTooltip('메뉴 열기'));
     await tester.pumpAndSettle();
     expect(find.text('메인'), findsNothing);

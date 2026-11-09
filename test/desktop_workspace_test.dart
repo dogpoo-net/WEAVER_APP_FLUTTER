@@ -9,7 +9,7 @@ void main() {
   testWidgets('desktop menu stays pinned across views and floats only on request', (tester) async {
     tester.view.physicalSize = const Size(1420, 1000); tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const MyApp()); await tester.pumpAndSettle();
+    await tester.pumpWidget(const MyApp(requireLogin: false, )); await tester.pumpAndSettle();
     final menu = find.byType(WorkspaceMenu);
     await tester.tap(find.descendant(of: menu, matching: find.text('모든 생각 보기')));
     await tester.pumpAndSettle();
@@ -41,7 +41,7 @@ void main() {
   testWidgets('home navigation respects an unsaved project', (tester) async {
     tester.view.physicalSize = const Size(1420, 1000); tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const MyApp()); await tester.pumpAndSettle();
+    await tester.pumpWidget(const MyApp(requireLogin: false, )); await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('프로젝트 생성')); await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('project-document')), '계속 쓸 본문');
     await tester.pump();

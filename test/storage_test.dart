@@ -55,7 +55,7 @@ void main() {
   });
   testWidgets('saved notes survive a fresh app instance', (tester) async {
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
-    await tester.pumpWidget(MyApp(storage: storage));
+    await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
     await tester.enterText(find.byType(TextField).first, '저장된 구절');
     await tester.pump();
     await tester.ensureVisible(find.text('저장'));
@@ -63,7 +63,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(storage.read(), isNotNull);
     await tester.pumpWidget(const SizedBox());
-    await tester.pumpWidget(MyApp(storage: storage));
+    await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
     await tester.pumpAndSettle();
     expect(find.text('저장된 구절'), findsOneWidget);
     await tester.tap(find.byTooltip('메뉴 열기'));
@@ -86,7 +86,7 @@ void main() {
     );
     expect(elements.words, isEmpty);
     await tester.pumpWidget(const SizedBox());
-    await tester.pumpWidget(MyApp(storage: storage));
+    await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
     await tester.pumpAndSettle();
     expect(find.text('저장된 구절'), findsNothing);
   });

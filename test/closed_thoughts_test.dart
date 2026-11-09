@@ -14,7 +14,7 @@ void main() {
     elements.add('생각 열림');
     elements.add('생각 닫힘').hiddenFromSearch = true;
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
-    await tester.pumpWidget(MyApp(storage: WorkspaceStorage(await SharedPreferences.getInstance())));
+    await tester.pumpWidget(MyApp(requireLogin: false, storage: WorkspaceStorage(await SharedPreferences.getInstance())));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('note-search')), '생각'); await tester.pumpAndSettle();
     final badges = tester.widgetList<WordBadge>(find.byType(WordBadge)).map((b) => b.word).toList();

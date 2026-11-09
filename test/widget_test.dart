@@ -7,7 +7,7 @@ void main() {
   testWidgets('phrase elements remain visible and available to assist', (
     tester,
   ) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     await tester.enterText(find.byType(TextField).first, '작은 생각');
     await tester.pump();
     await tester.ensureVisible(find.text('저장'));
@@ -28,7 +28,7 @@ void main() {
   testWidgets('theme switch retains draft and applies both palettes', (
     tester,
   ) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     await tester.enterText(find.byType(TextField).first, '작성 중인 생각');
     for (final entry in {
       '다크': Brightness.dark,
@@ -51,7 +51,7 @@ void main() {
     }
   });
   testWidgets('capture, search and edit preserve Markdown', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     expect(
       tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
       isNull,
@@ -83,7 +83,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     await tester.tap(find.byType(TextField).first);
     await tester.pump();
     expect(tester.takeException(), isNull);

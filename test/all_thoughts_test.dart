@@ -121,7 +121,7 @@ void main() {
   });
 
   testWidgets('main and menu expose all thoughts', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     expect(find.text('모든 생각 보기'), findsOneWidget);
     await tester.tap(find.byTooltip('메뉴 열기'));
     await tester.pumpAndSettle();

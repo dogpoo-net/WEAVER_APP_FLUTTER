@@ -1,3 +1,4 @@
+import '../auth/google_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'element_store.dart';
@@ -22,7 +23,12 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
             if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('환경설정을 저장하지 못했습니다.')));
           }
         }),
-      const ListTile(contentPadding: EdgeInsets.zero, title: Text('로그아웃', style: TextStyle(color: Color(0xFFD64550)))),
+      ListTile(contentPadding: EdgeInsets.zero, title: const Text('로그아웃', style: TextStyle(color: Color(0xFFD64550))),
+        onTap: GoogleAuthScope.maybeOf(context)?.identity == null ? null : () async {
+          final auth = GoogleAuthScope.maybeOf(context)!;
+          await auth.signOut();
+          if (context.mounted && auth.error != null) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(auth.error!)));
+        }),
       const Divider(),
       ListTile(contentPadding: EdgeInsets.zero, title: const Text('오픈소스 사용 정보'), trailing: const Icon(Icons.chevron_right),
         onTap: () => showLicensePage(context: context, applicationName: 'WEAVER')),

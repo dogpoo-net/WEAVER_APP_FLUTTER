@@ -1,3 +1,5 @@
+import 'features/auth/google_auth.dart';
+import 'features/auth/login_page.dart';
 import 'features/inbox/thought_settings.dart';
 import 'features/inbox/keyboard_dismiss.dart';
 import 'dart:convert';
@@ -34,13 +36,16 @@ Future<void> main() async {
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key, this.storage});
+  const MyApp({super.key, this.storage, this.requireLogin = true, this.authClient});
   final WorkspaceStorage? storage;
+  final bool requireLogin;
+  final GoogleAuthClient? authClient;
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
+  late final GoogleAuthController _auth;
   ThemeMode _mode = ThemeMode.dark;
   LightPalette _lightPalette = LightPalette.neutral;
   DarkPalette _darkPalette = DarkPalette.classic;
@@ -48,6 +53,8 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    _auth = GoogleAuthController(widget.authClient ?? SdkGoogleAuthClient());
+    if (widget.requireLogin) _auth.initialize();
     elements.clear();
     showClosedThoughts = widget.storage?.preferences.getBool(closedThoughtsPreference) ?? true;
     try {
@@ -61,6 +68,9 @@ class _MyAppState extends State<MyApp> {
       }
     } catch (_) { /* Invalid settings fall back to the default theme. */ }
   }
+
+  @override
+  void dispose() { _auth.dispose(); super.dispose(); }
 
   void _persistTheme() {
     widget.storage?.writeTheme(jsonEncode({'mode': _mode.name, 'palette': _lightPalette.name, 'darkPalette': _darkPalette.name})).catchError((Object _) {
@@ -127,7 +137,8 @@ class _MyAppState extends State<MyApp> {
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
+  Widget build(BuildContext context) => GoogleAuthScope(controller: _auth, child: ListenableBuilder(listenable: _auth, builder: (context, _) => MaterialApp(
+    key: ValueKey(widget.requireLogin ? _auth.identity?.id : 'local-test'),
     title: 'WEAVER',
     builder: (context, child) => Actions(actions: <Type, Action<Intent>>{
       EditableTextTapOutsideIntent: CallbackAction<EditableTextTapOutsideIntent>(onInvoke: (intent) {
@@ -142,7 +153,7 @@ class _MyAppState extends State<MyApp> {
     theme: _theme(Brightness.light),
     darkTheme: _theme(Brightness.dark),
     themeMode: _mode,
-    home: InboxPage(
+    home: widget.requireLogin && _auth.identity == null ? LoginPage(auth: _auth) : InboxPage(
       storage: widget.storage,
       themeMode: _mode,
       lightPalette: _lightPalette,
@@ -156,5 +167,5 @@ class _MyAppState extends State<MyApp> {
       },
       onThemeChanged: (mode) { setState(() => _mode = mode); _persistTheme(); },
     ),
-  );
+  )));
 }

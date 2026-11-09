@@ -12,7 +12,7 @@ void main() {
     elements.clear(); final source = elements.add('생각');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
-    await tester.pumpWidget(MyApp(storage: storage));
+    await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.tap(field); await tester.pumpAndSettle();
     bool selected() => tester.widgetList<WordBadge>(find.byType(WordBadge)).any((b) => b.word == source.text && b.selected);

@@ -6,7 +6,7 @@ import 'package:weaver/features/inbox/element_store.dart';
 
 void main() {
   testWidgets('platform newline and delayed key echo never leave a blank line', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '플랫폼 입력');
     tester.testTextInput.updateEditingValue(const TextEditingValue(text: '플랫폼 입력\n', selection: TextSelection.collapsed(offset: 7)));
@@ -25,7 +25,7 @@ void main() {
   testWidgets(
     'one enter commits Korean composition and saves once',
     (tester) async {
-      await tester.pumpWidget(const MyApp());
+      await tester.pumpWidget(const MyApp(requireLogin: false, ));
       final field = find.byKey(const ValueKey('quick-memo'));
       await tester.tap(field);
       tester.testTextInput.updateEditingValue(
@@ -72,7 +72,7 @@ void main() {
   for (final modifier in [LogicalKeyboardKey.shiftLeft, LogicalKeyboardKey.altLeft]) {
     for (final nativeNewline in [false, true]) {
       testWidgets('Korean IME modifier Enter inserts exactly one newline ($modifier, native=$nativeNewline)', (tester) async {
-        await tester.pumpWidget(const MyApp());
+        await tester.pumpWidget(const MyApp(requireLogin: false, ));
         final field = find.byKey(const ValueKey('quick-memo'));
         await tester.tap(field);
         tester.testTextInput.updateEditingValue(const TextEditingValue(text: '가',
@@ -112,7 +112,7 @@ void main() {
       }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
     }
     testWidgets('Korean IME still composing on modifier Enter key-up inserts newline ($modifier)', (tester) async {
-      await tester.pumpWidget(const MyApp());
+      await tester.pumpWidget(const MyApp(requireLogin: false, ));
       final field = find.byKey(const ValueKey('quick-memo'));
       await tester.tap(field);
       tester.testTextInput.updateEditingValue(const TextEditingValue(text: '한글',
@@ -130,7 +130,7 @@ void main() {
   testWidgets(
     'desktop enter saves; shift and alt enter insert newline',
     (tester) async {
-      await tester.pumpWidget(const MyApp());
+      await tester.pumpWidget(const MyApp(requireLogin: false, ));
       final field = find.byKey(const ValueKey('quick-memo'));
       await tester.enterText(field, '첫째');
       await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);

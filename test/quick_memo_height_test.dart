@@ -9,7 +9,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(const MyApp());
+      await tester.pumpWidget(const MyApp(requireLogin: false, ));
       final field = find.byKey(const ValueKey('quick-memo'));
       final initialHeight = tester.getSize(field).height;
       await tester.enterText(field, List.filled(40, '기록할 생각').join('\n'));

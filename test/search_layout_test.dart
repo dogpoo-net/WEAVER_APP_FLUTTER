@@ -15,7 +15,7 @@ void main() {
       ..paragraphs = [Paragraph('저장된 문단 $i', ParagraphRole.body)]);
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode(notes)});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
-    await tester.pumpWidget(MyApp(storage: storage));
+    await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
     await tester.pumpAndSettle();
     final search = find.byKey(const ValueKey('note-search'));
     final before = tester.getRect(search);

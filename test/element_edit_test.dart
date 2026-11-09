@@ -29,7 +29,7 @@ void main() {
     (tester) async {
       SharedPreferences.setMockInitialValues({});
       final storage = WorkspaceStorage(await SharedPreferences.getInstance());
-      await tester.pumpWidget(MyApp(storage: storage));
+      await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
       await tester.enterText(find.byKey(const ValueKey('quick-memo')), '생각');
       await tester.pump();
       await tester.ensureVisible(find.text('저장'));

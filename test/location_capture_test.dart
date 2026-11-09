@@ -35,7 +35,7 @@ void main() {
   });
   testWidgets('denied location preserves draft and can save a normal thought', (tester) async {
     location.permission = LocationPermission.denied;
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '남겨둘 생각 #기록');
     await tester.tap(find.byKey(const ValueKey('quick-location'))); await tester.pumpAndSettle();
@@ -47,7 +47,7 @@ void main() {
     expect(elements.records['남겨둘 생각']!.tags, {'기록'});
   }, variant: TargetPlatformVariant({TargetPlatform.android}));
   testWidgets('opt-in location attaches coordinates and resets for the next thought', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     expect(location.positions, 0);
     await tester.enterText(find.byKey(const ValueKey('quick-memo')), '위치가 있는 생각');
     await tester.tap(find.byKey(const ValueKey('quick-location'))); await tester.pumpAndSettle();
@@ -58,7 +58,7 @@ void main() {
     expect(tester.widget<IconButton>(find.byKey(const ValueKey('quick-location'))).isSelected, isFalse);
   }, variant: TargetPlatformVariant({TargetPlatform.android}));
   testWidgets('location alone saves with timestamp title and preserves tags', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     await tester.enterText(find.byKey(const ValueKey('quick-memo')), '#산책');
     await tester.tap(find.byKey(const ValueKey('quick-location'))); await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('저장')); await tester.tap(find.text('저장')); await tester.pumpAndSettle();

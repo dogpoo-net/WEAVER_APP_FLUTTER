@@ -13,7 +13,7 @@ Future<void> shortcut(WidgetTester tester) async {
 }
 void main() {
   testWidgets('hash opens tags and Control Space adds a tag without saving memo text', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     elements.add('생각 #독서 #기억');
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '#'); await tester.pumpAndSettle();
@@ -41,7 +41,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
   testWidgets('Control commits Hangul composing and Control Space opens empty memo assist', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     elements.add('관찰');
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '관'); await tester.pumpAndSettle();

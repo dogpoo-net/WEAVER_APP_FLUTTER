@@ -37,7 +37,7 @@ void main() {
     elements.add('보이는 생각');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([]), 'weaver.showClosedThoughts.v1': false});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
-    await tester.pumpWidget(MyApp(storage: storage));
+    await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
     await tester.pumpAndSettle();
     expect(find.byWidgetPredicate((w) => w is WordBadge && w.word == '숨긴 생각'), findsNothing);
     expect(find.byWidgetPredicate((w) => w is WordBadge && w.word == '보이는 생각'), findsOneWidget);
@@ -52,7 +52,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     await tester.ensureVisible(find.byTooltip('폴더 만들기'));
     await tester.tap(find.byTooltip('폴더 만들기'));
     await tester.pumpAndSettle();

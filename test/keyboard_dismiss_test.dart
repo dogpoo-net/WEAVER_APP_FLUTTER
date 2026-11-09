@@ -5,7 +5,7 @@ import 'package:weaver/main.dart';
 
 void main() {
   testWidgets('outside touch dismisses ordinary and form fields on any route', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     final navigator = tester.state<NavigatorState>(find.byType(Navigator).first);
     final plain = TextEditingController(text: '일반 입력');
     final form = TextEditingController(text: '폼 입력');
@@ -35,7 +35,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetViewInsets);
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '작성 중인 생각 #기록');
     await tester.pumpAndSettle();

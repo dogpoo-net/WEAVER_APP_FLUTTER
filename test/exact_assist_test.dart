@@ -53,7 +53,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
   testWidgets('quick memo completes existing phrases without saving on assist enter', (tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const MyApp(requireLogin: false, ));
     elements.add('작은 생각');
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '오늘 작은'); await tester.pumpAndSettle();
