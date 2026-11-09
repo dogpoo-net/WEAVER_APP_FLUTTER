@@ -123,7 +123,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
             textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
           final width = painter.width; painter.dispose(); return width;
         });
-        final width = (textWidth + 24).clamp(math.min(32.0, maxWidth), maxWidth);
+        final width = (textWidth + 24).clamp(math.min(32.0, maxWidth), maxWidth).toDouble();
         if (row.isNotEmpty && used + 6 + width > available) {
           rows.add(row); row = []; used = 0;
         }
