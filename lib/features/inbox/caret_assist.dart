@@ -274,7 +274,10 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
 
   ScrollNotificationObserverState? _scrollObserver;
   void _scrolled(ScrollNotification notification) {
-    _update();
+    // Mobile assistance is fixed to the viewport. Scrolling neither changes
+    // its position nor the query; input and viewport changes update it separately.
+    if (!_desktop || _entry == null || !widget.focus.hasFocus) return;
+    _update(refreshMatches: false);
   }
 
   @override
@@ -368,7 +371,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     }
   }
 
-  void _update() {
+  void _update({bool refreshMatches = true}) {
     if (_dismissed != null && _dismissed != widget.controller.text) _dismissed = null;
     if (_explicitOpenText != widget.controller.text) _explicitOpenText = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -395,7 +398,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
         return;
       }
       final value = widget.controller.value;
-      _refreshMatches(value);
+      if (refreshMatches) _refreshMatches(value);
       if (_matches.isEmpty || (!widget.showWhenEmpty && !_tagMode && _query.isEmpty && _explicitOpenText == null)) {
         _controlling = false;
         _controlValue = null;
@@ -544,8 +547,8 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) =>
       NotificationListener<ScrollNotification>(
-        onNotification: (_) {
-          _update();
+        onNotification: (notification) {
+          _scrolled(notification);
           return false;
         },
         child: Focus(
