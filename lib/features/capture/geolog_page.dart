@@ -1,3 +1,4 @@
+import '../inbox/word_badge.dart';
 import '../inbox/thought_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -89,18 +90,18 @@ class _GeologPageState extends State<GeologPage> {
             MarkerLayer(markers: [for (final group in groups.values) Marker(point: _point(group.first), width: 132, height: 84, alignment: Alignment.topCenter, rotate: true,
               child: Semantics(button: true, label: group.first.text, child: InkWell(onTap: () => _open(group), child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
                 Material(elevation: 2, surfaceTintColor: Colors.transparent, borderRadius: BorderRadius.circular(8),
-                  color: (group.every((r) => r.hiddenFromSearch) ? Theme.of(context).colorScheme.surfaceContainerHighest : Theme.of(context).colorScheme.primaryContainer).withValues(alpha: .88),
+                  color: (group.every((r) => r.hiddenFromSearch) ? wordBackgroundColor(context, group.first.text) : Theme.of(context).colorScheme.primaryContainer).withValues(alpha: .88),
                   child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), child: Column(mainAxisSize: MainAxisSize.min, children: [
                     if (group.any((record) => record.recordings.isNotEmpty || record.photos.isNotEmpty))
                       Padding(padding: const EdgeInsets.only(bottom: 2), child: Row(mainAxisSize: MainAxisSize.min, children: [
                         if (group.any((record) => record.recordings.isNotEmpty))
-                          Icon(Icons.volume_up_outlined, size: 13, semanticLabel: '음성 메모 포함', color: Theme.of(context).colorScheme.onPrimaryContainer),
+                          Icon(Icons.volume_up_outlined, size: 13, semanticLabel: '음성 메모 포함', color: group.every((r) => r.hiddenFromSearch) ? wordColor(context, group.first.text) : Theme.of(context).colorScheme.onPrimaryContainer),
                         if (group.any((record) => record.recordings.isNotEmpty) && group.any((record) => record.photos.isNotEmpty)) const SizedBox(width: 4),
                         if (group.any((record) => record.photos.isNotEmpty))
-                          Icon(Icons.image_outlined, size: 13, semanticLabel: '사진 포함', color: Theme.of(context).colorScheme.onPrimaryContainer),
+                          Icon(Icons.image_outlined, size: 13, semanticLabel: '사진 포함', color: group.every((r) => r.hiddenFromSearch) ? wordColor(context, group.first.text) : Theme.of(context).colorScheme.onPrimaryContainer),
                       ])),
                     Text(group.length > 1 ? '${group.length}개의 생각' : group.first.text,
-                      maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onPrimaryContainer)),
+                      maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: group.every((r) => r.hiddenFromSearch) ? wordColor(context, group.first.text) : Theme.of(context).colorScheme.onPrimaryContainer)),
                   ]))),
                 Icon(Icons.location_on, color: group.every((r) => r.hiddenFromSearch) ? Colors.grey : const Color(0xFFB52D39), size: 28,
                   shadows: const [Shadow(color: Colors.white, blurRadius: 3)]),
