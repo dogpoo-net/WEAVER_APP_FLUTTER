@@ -10,7 +10,7 @@ class WritingProject {
     List<String> words, {
     required this.name,
     this.folder, String? id,
-  }) : id = id ?? 'project-${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(1 << 32)}', words = List.of(words);
+  }) : id = id ?? 'project-${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(0x7fffffff)}', words = List.of(words);
   final String id;
   final Set<String> linkedProjectIds = {};
   String? document;

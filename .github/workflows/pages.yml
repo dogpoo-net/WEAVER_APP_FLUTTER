@@ -63,6 +63,21 @@ jobs:
           PYTHON
           fi
           exit "$result"
+      - name: Test legacy workspace restore in Chrome
+        shell: bash
+        run: |
+          set +e
+          flutter test --platform chrome --no-pub --reporter expanded test/legacy_workspace_web_test.dart > "$RUNNER_TEMP/legacy-web.log" 2>&1
+          result=$?
+          cat "$RUNNER_TEMP/legacy-web.log"
+          python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+          output = (Path(os.environ['RUNNER_TEMP']) / 'legacy-web.log').read_text()
+          message = output[-14000:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          print(f'::notice title=Legacy Chrome restore test::{message}')
+          PYTHON
+          exit "$result"
       - name: Build project Pages site
         env:
           GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
