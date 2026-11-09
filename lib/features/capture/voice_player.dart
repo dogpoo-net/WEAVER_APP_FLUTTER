@@ -1,3 +1,4 @@
+import 'playback_source.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
@@ -12,6 +13,7 @@ class VoicePlayer extends StatefulWidget {
 }
 class _VoicePlayerState extends State<VoicePlayer> {
   AudioPlayer? _player;
+  PlaybackSource? _playbackSource;
   StreamSubscription<void>? _completed;
   bool _playing = false, _busy = false;
   String? _error;
@@ -30,15 +32,23 @@ class _VoicePlayerState extends State<VoicePlayer> {
           _player = AudioPlayer();
           _completed = _player!.onPlayerComplete.listen((_) { if (mounted) setState(() => _playing = false); });
         }
-        await _player!.play(BytesSource(bytes, mimeType: 'audio/wav'));
+        if (_playbackSource == null) {
+          final source = await PlaybackSource.create(bytes);
+          if (!mounted) { await source.dispose(); return; }
+          _playbackSource = source;
+        }
+        await _player!.play(_playbackSource!.source);
         if (mounted) setState(() => _playing = true);
       }
     } catch (_) {
       if (mounted) setState(() => _error = '녹음 파일을 재생하지 못했습니다.');
     } finally { if (mounted) setState(() => _busy = false); }
   }
+  Future<void> _release() async {
+    try { await _player?.dispose(); } finally { await _playbackSource?.dispose(); }
+  }
   @override
-  void dispose() { _completed?.cancel(); _player?.dispose(); super.dispose(); }
+  void dispose() { _completed?.cancel(); unawaited(_release()); super.dispose(); }
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
     Row(mainAxisSize: MainAxisSize.min, children: [

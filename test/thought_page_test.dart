@@ -36,7 +36,7 @@ void main() {
       elements.clear(); elements.add('바로 수정할 생각');
       await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
       await tester.pumpAndSettle();
-      expect(tester.widget<InteractiveViewer>(find.byType(InteractiveViewer)).maxScale, 8);
+      expect(tester.widget<InteractiveViewer>(find.byType(InteractiveViewer)).maxScale, 12);
       await tester.tap(find.text('바로 수정할 생각'));
       await tester.pump();
       expect(find.byType(AlertDialog), findsOneWidget);

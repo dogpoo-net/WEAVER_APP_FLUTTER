@@ -21,12 +21,14 @@ void main() {
         await tester.drag(find.byKey(const ValueKey('resize-right-bottom')), const Offset(90, 60));
       } else {
         final center = tester.getCenter(find.byType(ThoughtInteraction));
-        final a = await tester.startGesture(center - const Offset(30, 0), pointer: 1);
-        final b = await tester.startGesture(center + const Offset(30, 0), pointer: 2);
+        // Both fingers start just outside the visible card border.
+        final distance = size.width / 2 + 6;
+        final a = await tester.startGesture(center - Offset(distance, 0), pointer: 1);
+        final b = await tester.startGesture(center + Offset(distance, 0), pointer: 2);
         await tester.pump();
         for (var step = 1; step <= 4; step++) {
-          await a.moveTo(center - Offset(30 + step * 12, 0));
-          await b.moveTo(center + Offset(30 + step * 12, 0));
+          await a.moveTo(center - Offset(distance + step * 12, 0));
+          await b.moveTo(center + Offset(distance + step * 12, 0));
           await tester.pump(const Duration(milliseconds: 16));
         }
         await a.up(); await b.up();

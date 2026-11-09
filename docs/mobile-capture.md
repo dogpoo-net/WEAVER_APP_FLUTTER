@@ -1,7 +1,8 @@
 # Mobile thought attachments
 
 Android/iOS and mobile browsers show location, microphone and gallery controls
-beside the quick memo title. Desktop can view the saved attachments and Geolog.
+beside the quick memo title. Location uses a selected icon toggle; gallery choices
+open beside the photo icon (the subsequent OS picker controls its own placement). Desktop can view the saved attachments and Geolog.
 An attachment alone can save a thought. Empty text gets a local timestamp and
 attachment kinds (사진, 음성, 위치); tags and links alone still cannot save.
 Thoughts show small attachment indicators; details provide audio playback, photo
@@ -13,7 +14,10 @@ zoom and a recorded-location map.
 - Voice recording starts only after pressing Start in the dialog. Mono 16-kHz
   signed 16-bit PCM is capped at 60 seconds by both timer and byte count, then
   wrapped in WAV. Leaving the foreground or receiving an audio interruption
-  stops capture. The dialog permits replay, re-recording and cancellation.
+  stops capture. The dialog permits replay, re-recording and cancellation, including tapping
+  outside while recording. Cancelling releases the recorder; unsaved capture
+  bytes never enter persistent storage. Native replay uses an owned temporary
+  directory removed when its player closes.
 - Up to five photos per thought. The picker requests a maximum 2048-pixel image
   and 85% quality; a returned file over 10 MiB is rejected. Gallery access only;
   no camera permission is requested.

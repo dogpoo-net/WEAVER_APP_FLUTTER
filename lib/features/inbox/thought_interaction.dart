@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 class ThoughtInteraction extends StatefulWidget {
+  static const hitPadding = 12.0;
   const ThoughtInteraction({super.key, required this.size, required this.child,
     required this.onMove, required this.onResize, required this.onDrop, required this.onEnd,
     required this.onTap, required this.desktop, this.onLift, this.onActiveChanged});
@@ -57,19 +58,20 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
       } else if (!_resized) { widget.onMove(d.focalPointDelta); }
     },
     onScaleEnd: (_) { if (!_resized) widget.onDrop(_pointer); widget.onActiveChanged?.call(false); widget.onEnd(); },
-    child: SizedBox(width: widget.size.width, height: widget.size.height, child: Stack(fit: StackFit.expand, children: [
+    child: Padding(padding: const EdgeInsets.all(ThoughtInteraction.hitPadding),
+      child: SizedBox(width: widget.size.width, height: widget.size.height, child: Stack(fit: StackFit.expand, children: [
       AnimatedScale(scale: _lifted ? 1.04 : 1, duration: const Duration(milliseconds: 100), child: widget.child),
       if (widget.desktop) ...[
-        Positioned(left: 0, top: 10, bottom: 10, width: 8, child: _handle('left', SystemMouseCursors.resizeLeftRight, true, false, true, false)),
-        Positioned(right: 0, top: 10, bottom: 10, width: 8, child: _handle('right', SystemMouseCursors.resizeLeftRight, false, false, true, false)),
-        Positioned(top: 0, left: 10, right: 10, height: 8, child: _handle('top', SystemMouseCursors.resizeUpDown, false, true, false, true)),
-        Positioned(bottom: 0, left: 10, right: 10, height: 8, child: _handle('bottom', SystemMouseCursors.resizeUpDown, false, false, false, true)),
+        Positioned(left: 0, top: 10, bottom: 10, width: 12, child: _handle('left', SystemMouseCursors.resizeLeftRight, true, false, true, false)),
+        Positioned(right: 0, top: 10, bottom: 10, width: 12, child: _handle('right', SystemMouseCursors.resizeLeftRight, false, false, true, false)),
+        Positioned(top: 0, left: 10, right: 10, height: 12, child: _handle('top', SystemMouseCursors.resizeUpDown, false, true, false, true)),
+        Positioned(bottom: 0, left: 10, right: 10, height: 12, child: _handle('bottom', SystemMouseCursors.resizeUpDown, false, false, false, true)),
         for (final left in [true, false]) for (final top in [true, false]) Positioned(
-          left: left ? 0 : null, right: left ? null : 0, top: top ? 0 : null, bottom: top ? null : 0, width: 12, height: 12,
+          left: left ? 0 : null, right: left ? null : 0, top: top ? 0 : null, bottom: top ? null : 0, width: 18, height: 18,
           child: _handle('${left ? 'left' : 'right'}-${top ? 'top' : 'bottom'}',
             left == top ? SystemMouseCursors.resizeUpLeftDownRight : SystemMouseCursors.resizeUpRightDownLeft,
             left, top, true, true)),
       ],
-    ])),
+    ]))),
   );
 }

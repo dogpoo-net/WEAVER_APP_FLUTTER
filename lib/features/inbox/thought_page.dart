@@ -294,7 +294,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         }
         return InteractiveViewer(
         onInteractionEnd: (_) => _saveLayout(flush: true),
-        transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: MediaQuery.sizeOf(context).width >= 760 ? 8 : 2.5,
+        transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: MediaQuery.sizeOf(context).width >= 760 ? 12 : 8,
         boundaryMargin: const EdgeInsets.all(500),
         child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds, highlighted: identical(_hoverBox, region.box), rectangular: widget.blocks,
@@ -311,7 +311,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             {for (final r in records) r.id: {...r.connections, if (!widget.blocks) ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
           if (records.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
             icon: const Icon(Icons.add), label: Text(_query.isNotEmpty || _unlinkedOnly ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
-          for (final record in records) Positioned(left: _positions[record.id]!.dx, top: _positions[record.id]!.dy,
+          for (final record in records) Positioned(left: _positions[record.id]!.dx - ThoughtInteraction.hitPadding, top: _positions[record.id]!.dy - ThoughtInteraction.hitPadding,
             child: DragTarget<String>(onWillAcceptWithDetails: (d) => d.data != record.id,
               onAcceptWithDetails: (d) => _connect(d.data, record.id), builder: (context, candidates, _) => ThoughtInteraction(size: _size(record.id), desktop: MediaQuery.sizeOf(context).width >= 760,
                 onLift: () => setState(() {
