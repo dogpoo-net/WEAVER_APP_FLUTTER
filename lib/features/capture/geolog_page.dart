@@ -90,7 +90,7 @@ class _GeologPageState extends State<GeologPage> {
             MarkerLayer(markers: [for (final group in groups.values) Marker(point: _point(group.first), width: 132, height: 84, alignment: Alignment.topCenter, rotate: true,
               child: Semantics(button: true, label: group.first.text, child: InkWell(onTap: () => _open(group), child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
                 Material(elevation: 2, surfaceTintColor: Colors.transparent, borderRadius: BorderRadius.circular(8),
-                  color: (group.every((r) => r.hiddenFromSearch) ? wordBackgroundColor(context, group.first.text) : Theme.of(context).colorScheme.primaryContainer).withValues(alpha: .88),
+                  color: (group.every((r) => r.hiddenFromSearch) ? wordBackgroundColor(context, group.first.text) : Theme.of(context).colorScheme.primaryContainer).withValues(alpha: .60),
                   child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), child: Column(mainAxisSize: MainAxisSize.min, children: [
                     if (group.any((record) => record.recordings.isNotEmpty || record.photos.isNotEmpty))
                       Padding(padding: const EdgeInsets.only(bottom: 2), child: Row(mainAxisSize: MainAxisSize.min, children: [

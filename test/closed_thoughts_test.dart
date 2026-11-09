@@ -29,7 +29,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: AllThoughtsPage(notes: [])));
     await tester.pumpAndSettle();
     expect(find.text('보관된 생각'), findsNothing);
-    await tester.tap(find.text('닫힌 생각 보기')); await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('닫힌 생각 보기')); await tester.pumpAndSettle();
     expect(find.text('보관된 생각'), findsOneWidget);
   });
   testWidgets('settings persist visibility and logout has no handler', (tester) async {

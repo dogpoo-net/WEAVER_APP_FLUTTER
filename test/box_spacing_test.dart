@@ -25,7 +25,7 @@ void main() {
       expect(regions[0].bounds.inflate(24).overlaps(regions[1].bounds), isFalse);
       await tester.pumpWidget(const SizedBox());
     });
-    testWidgets('dragging a box pushes loose thoughts outside ($blocks)', (tester) async {
+    testWidgets('dragging a box leaves loose thoughts in place ($blocks)', (tester) async {
       final a = elements.add('상자 안'), loose = elements.add('상자 밖');
       memoBoxes.add(MemoBox('이동 상자', ids: [a.id]));
       final layout = blocks ? pageGraphLayout.blockLayout : pageGraphLayout;
@@ -34,12 +34,10 @@ void main() {
       await tester.pumpAndSettle();
       tester.widget<MemoBoxRegion>(find.byType(MemoBoxRegion)).onDrag!(const Offset(360, 0));
       await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
-      final bounds = tester.widget<MemoBoxRegion>(find.byType(MemoBoxRegion)).bounds;
-      expect(bounds.inflate(32).overlaps(layout.positions[loose.id]! & const Size(230, 110)), isFalse);
-      expect(layout.positions[loose.id], isNot(const Offset(1000, 500)));
+      expect(layout.positions[loose.id], const Offset(1000, 500));
       await tester.pumpWidget(const SizedBox());
     });
-    testWidgets('growing a box pushes another box and loose thoughts outside ($blocks)', (tester) async {
+    testWidgets('resizing cannot push neighboring boxes or loose thoughts ($blocks)', (tester) async {
       final a = elements.add('확장할 생각'), b = elements.add('이웃 생각'), loose = elements.add('미분류 생각');
       memoBoxes.addAll([MemoBox('확장 상자', ids: [a.id]), MemoBox('이웃 상자', ids: [b.id])]);
       final layout = blocks ? pageGraphLayout.blockLayout : pageGraphLayout;
@@ -52,9 +50,8 @@ void main() {
       final regions = tester.widgetList<MemoBoxRegion>(find.byType(MemoBoxRegion)).toList();
       expect(regions[0].bounds.inflate(24).overlaps(regions[1].bounds), isFalse);
       expect(layout.positions[a.id], const Offset(640, 500));
-      expect(layout.positions[b.id], isNot(const Offset(1100, 500)));
-      expect(regions.any((region) => region.bounds.inflate(32).contains(layout.positions[loose.id]!)), isFalse);
-      expect(layout.positions[loose.id], isNot(const Offset(900, 550)));
+      expect(layout.positions[b.id], const Offset(1100, 500));
+      expect(layout.positions[loose.id], const Offset(900, 550));
       await tester.pumpWidget(const SizedBox());
     });
     testWidgets('new unclassified thoughts leave existing positions intact ($blocks)', (tester) async {

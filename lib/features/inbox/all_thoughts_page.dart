@@ -108,8 +108,6 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         TextField(key: const ValueKey('all-thoughts-search'),
           onChanged: (value) => setState(() => _query = value),
           decoration: const InputDecoration(hintText: '생각에서 찾기', prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 34, minHeight: 32), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), isDense: true)),
-        Align(alignment: Alignment.centerLeft, child: TextButton(onPressed: () => showClosedThoughtsDialog(context),
-          style: TextButton.styleFrom(textStyle: const TextStyle(fontSize: 12)), child: const Text('닫힌 생각 보기'))),
         Row(children: [
           Expanded(child: Text(_query.isEmpty && _filterBox == null && _filterTag == null ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.bodyMedium)),
           if (!desktop) ...[
@@ -147,6 +145,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     final footer = ThoughtFilters(tags: tags, box: _filterBox, tag: _filterTag,
       onChanged: _changed, onFilter: (box, tag) => _filter(box: box, tag: tag));
     return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null, leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(_filterBox?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(),
+      IconButton(tooltip: '닫힌 생각 보기', icon: const Icon(Icons.archive_outlined), onPressed: () => showClosedThoughtsDialog(context)),
       IconButton(tooltip: '메모상자 만들기', icon: const Icon(Icons.inventory_2_outlined), onPressed: () async {
         final box = await createMemoBox(context); if (mounted && box != null) _changed();
       }),

@@ -8,13 +8,13 @@ import 'package:weaver/features/inbox/thought_page.dart';
 void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); pageGraphLayout = GraphLayout(); });
   for (final blocks in [false, true]) {
-    testWidgets('pan mode moves viewport over cards at minimum zoom without moving contents ($blocks)', (tester) async {
+    testWidgets('empty canvas pans at minimum zoom without moving contents ($blocks)', (tester) async {
       final record = elements.add('위치 유지');
       await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
       await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       final layout = blocks ? pageGraphLayout.blockLayout : pageGraphLayout;
       final before = layout.positions[record.id];
-      await tester.tap(find.byTooltip('화면 이동')); await tester.pumpAndSettle();
+      expect(find.byTooltip('화면 이동'), findsNothing);
       final viewer = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
       viewer.transformationController!.value = Matrix4.diagonal3Values(.15, .15, 1);
       await tester.pump();

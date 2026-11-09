@@ -11,14 +11,15 @@ class ThoughtFilters extends StatelessWidget {
   final void Function(MemoBox? box, String? tag) onFilter;
   final VoidCallback onChanged;
   Widget _chip(String label, Key key, bool selected, VoidCallback onTap, {Widget? avatar}) => Stack(alignment: Alignment.centerLeft, children: [ChoiceChip(
-    key: key, avatar: avatar == null ? null : const SizedBox.square(dimension: 24), label: Text(label, style: const TextStyle(fontSize: 12)), selected: selected,
+    key: key, avatar: avatar == null ? null : const SizedBox.square(dimension: 20), label: Text(label, style: const TextStyle(fontSize: 12)), selected: selected,
+    labelPadding: const EdgeInsets.only(left: 2, right: 8),
     showCheckmark: false, visualDensity: VisualDensity.compact,
     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, padding: EdgeInsets.zero,
     onSelected: (_) => onTap()),
     if (avatar != null) Positioned(left: 2, child: avatar),
   ]);
   Widget _color(String tooltip, Color color, VoidCallback onTap) => Tooltip(message: tooltip,
-    child: SizedBox.square(dimension: 24, child: InkWell(onTap: onTap, customBorder: const CircleBorder(),
+    child: SizedBox.square(dimension: 20, child: InkWell(onTap: onTap, customBorder: const CircleBorder(),
       child: Icon(Icons.circle, size: 14, color: color))));
   @override
   Widget build(BuildContext context) => SafeArea(top: false, child: Padding(
@@ -34,7 +35,7 @@ class ThoughtFilters extends StatelessWidget {
       SizedBox(height: 38, child: Row(children: [
         const Icon(Icons.inventory_2_outlined, size: 18), const SizedBox(width: 8),
         Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
-          for (final item in scope == null ? memoBoxes : [scope!]) Padding(padding: const EdgeInsets.only(left: 6), child: MemoBoxTarget(
+          for (final item in scope == null ? memoBoxes : [scope!]) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
             box: item, onChanged: onChanged, child: _chip(item.name, ValueKey('thought-filter-box-${item.name}'), identical(box, item), () => onFilter(item, null), avatar: _color('${item.name} 상자 색상 변경', Color(item.color), () async {
                 final color = await pickHashtagColor(context, item.name, Color(item.color), prefix: '');
                 if (color != null && context.mounted) { item.color = color.toARGB32(); onChanged(); }
