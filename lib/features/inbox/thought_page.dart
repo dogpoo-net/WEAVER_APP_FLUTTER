@@ -161,7 +161,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final loose = newIds.where((id) => !memoBoxes.any((box) => !box.isUnclassified && box.elementIds.contains(id))).toList();
       final occupied = [
         for (final id in _positions.keys.where((id) => !loose.contains(id))) _bounds(id),
-        for (final box in _allRegionBoxes) if (_boxBounds(box) case final bounds?) bounds,
+        for (final box in _allRegionBoxes) ?_boxBounds(box),
         if (!widget.blocks) for (final point in _tagPositions.values) tagBounds(point),
       ];
       final y = occupied.map((r) => r.bottom).fold(400.0, math.max) + 120;
@@ -197,7 +197,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   Rect? _boxBounds(MemoBox box) => _liftBoxes[box] ?? _regionBounds(box, _positions) ?? _emptyBoxBounds[box];
   Rect _placeEmptyBox(double x) {
     var bounds = Rect.fromLTWH(x, 440, 260, 260);
-    final occupied = [for (final box in _allRegionBoxes) if (_boxBounds(box) case final rect?) rect,
+    final occupied = [for (final box in _allRegionBoxes) ?_boxBounds(box),
       for (final id in _positions.keys) _bounds(id)];
     while (occupied.any((other) => bounds.inflate(24).overlaps(other))) {
       final bottom = occupied.where((other) => bounds.inflate(24).overlaps(other)).map((other) => other.bottom).reduce(math.max);
