@@ -30,7 +30,7 @@ import 'tag_page.dart';
 import 'paragraph_editor.dart';
 import 'word_badge.dart';
 import 'project_page.dart';
-import 'project_builder.dart';
+import 'project_document_editor.dart';
 import 'all_thoughts_page.dart';
 import 'workspace_menu.dart';
 import 'element_store.dart';
@@ -747,10 +747,6 @@ class _InboxPageState extends State<InboxPage> {
     _persist();
   }
 
-  List<Paragraph> get _availableParagraphs => _notes
-      .where((n) => n.project == null && n.paragraphs != null)
-      .map((n) => Paragraph(n.content, ParagraphRole.body, tags: Set.of(n.tags), bindings: n.paragraphs!.single.bindings)).toList();
-
   List<String> get _allTags => {...hashtagColors.keys, ...elements.tags, ..._notes.expand((n) => n.project?.tags ?? <String>{}),
     ..._notes.where((n) => n.project == null && n.paragraphs != null).expand((n) => n.tags)}.toList()..sort();
 
@@ -760,12 +756,10 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   Future<void> _createProject() async {
-    final available = _availableParagraphs;
-    final words = elements.visibleWords;
     final project = await Navigator.push<WritingProject>(
       context,
       MaterialPageRoute(
-        builder: (_) => ProjectBuilder(available: available, words: words),
+        builder: (_) => const DesktopMenuFrame(child: ProjectDocumentEditor()),
       ),
     );
     if (project == null || !mounted) return;
@@ -782,7 +776,7 @@ class _InboxPageState extends State<InboxPage> {
       context,
       MaterialPageRoute(
         builder: (_) =>
-            ProjectPage(project: note.project!, available: _availableParagraphs, onChanged: _persist),
+            ProjectPage(project: note.project!, onChanged: _persist),
       ),
     );
     if (!mounted) return;

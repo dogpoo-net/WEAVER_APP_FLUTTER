@@ -26,6 +26,7 @@ class ThoughtBoxView extends StatefulWidget {
 class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   String? _selectedId;
   String _query = '';
+  final _textWidths = <String, double>{};
   bool _photosOnly = false, _audioOnly = false;
   MemoBox? _filterBox;
   String? _filterTag;
@@ -36,12 +37,13 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   int _scaleColumns = 2;
   void _changed() { setState(() {}); widget.onChanged?.call(); }
   ModalRoute<dynamic>? _route;
-  void _refresh() { if (mounted) setState(() {}); }
+  void _refresh() { _textWidths.clear(); if (mounted) setState(() {}); }
   @override
   void initState() { super.initState(); _filterBox = widget.initialBox; elements.addListener(_refresh); }
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _textWidths.clear();
     final route = ModalRoute.of(context);
     if (route != null && route != _route) {
       workspaceRouteObserver.unsubscribe(this);
@@ -125,11 +127,15 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
             : (constraints.maxWidth * 2 / _columns).clamp(48.0, constraints.maxWidth);
           final tiles = <Widget>[];
           for (final record in records) {
-            final painter = TextPainter(text: TextSpan(text: record.text,
-              style: DefaultTextStyle.of(context).style.merge(const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
-              textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
-            final width = (painter.width + 24).clamp(32.0, maxWidth);
-            painter.dispose();
+            final textWidth = _textWidths.putIfAbsent(record.text, () {
+              final painter = TextPainter(text: TextSpan(text: record.text,
+                style: DefaultTextStyle.of(context).style.merge(const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
+                textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
+              final width = painter.width;
+              painter.dispose();
+              return width;
+            });
+            final width = (textWidth + 24).clamp(32.0, maxWidth);
             tiles.add(_tile(record, desktop, width: width));
           }
           return GestureDetector(

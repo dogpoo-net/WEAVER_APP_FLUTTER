@@ -58,14 +58,18 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     _Kind.project => '프로젝트', _Kind.paragraph => '문단', _Kind.box => '메모상자', _Kind.element => '생각', _Kind.tag => '해시태그',
   };
   void _sync() {
-    _placements = {for (final kind in _Kind.values) kind: List.generate(_items(kind).length, (i) {
+    _placements = {};
+    for (final kind in _Kind.values) {
+      final items = _items(kind);
       final names = switch (kind) {
         _Kind.project => widget.projectFolderNames, _Kind.paragraph => widget.paragraphFolderNames,
         _Kind.box => memoBoxes.map((box) => box.folder).toList(), _Kind.element => widget.elementFolderNames, _Kind.tag => <String?>[],
       };
-      return kind == _Kind.tag ? widget.tagFolderNames[widget.tags[i]] : (i < names.length ? names[i] : null);
-    })};
+      _placements[kind] = List.generate(items.length, (i) => kind == _Kind.tag
+        ? widget.tagFolderNames[items[i]] : (i < names.length ? names[i] : null));
+    }
   }
+
   @override
   void initState() { super.initState(); _sync(); }
   @override

@@ -73,7 +73,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _saveTimer?.cancel(); _saveTimer = null;
       _flushLayout();
     } else {
-      _saveTimer ??= Timer(const Duration(milliseconds: 250), () {
+      _saveTimer?.cancel();
+      _saveTimer = Timer(const Duration(milliseconds: 250), () {
         _saveTimer = null;
         _flushLayout();
       });
@@ -361,7 +362,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         onInteractionEnd: (_) => _saveLayout(flush: true),
         transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: MediaQuery.sizeOf(context).width >= 760 ? 12 : 8,
         boundaryMargin: const EdgeInsets.all(double.infinity),
-        child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
+        child: RepaintBoundary(child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds, highlighted: identical(_hoverBox, region.box), rectangular: widget.blocks,
             onDrag: (delta) => setState(() {
               final empty = !region.box.elementIds.any(_positions.containsKey);
@@ -456,7 +457,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               onPanEnd: (_) => _saveLayout(flush: true), onPanCancel: () => _saveLayout(flush: true),
               child: Tooltip(message: '#$tag', child: Chip(side: BorderSide(color: Color(hashtagColors[tag] ?? 0xFF90A4AE), width: 2.5), label: Text('#$tag', maxLines: 1, overflow: TextOverflow.ellipsis),
               backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: .3))))),
-        ])),
+        ]))),
       ); })),
         if (_linkMode) Positioned(top: 8, left: 12, right: 12, child: IgnorePointer(child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),

@@ -15,6 +15,27 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
+  testWidgets('viewport persistence waits for movement to settle and flushes on exit', (tester) async {
+    elements.add('배치 저장 테스트');
+    var saves = 0;
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {}, onLayoutChanged: () => saves++)));
+    await tester.pumpAndSettle();
+    saves = 0;
+    final controller = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer)).transformationController!;
+    for (var i = 1; i <= 10; i++) {
+      controller.value = Matrix4.identity()..setTranslationRaw(i.toDouble(), 0, 0);
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(saves, 0);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(saves, 1);
+    expect(pageGraphLayout.viewport![12], 10);
+    controller.value = Matrix4.identity()..setTranslationRaw(30, 0, 0);
+    await tester.pumpWidget(const SizedBox());
+    expect(pageGraphLayout.viewport![12], 30);
+    expect(saves, 2);
+  });
+
   test('layouts persist independently in the existing browser snapshot', () async {
     final r = elements.add('같은 생각');
     pageGraphLayout.positions[r.id] = const Offset(100, 200);
