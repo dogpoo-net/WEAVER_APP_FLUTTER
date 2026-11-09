@@ -226,6 +226,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
   @override
   void dispose() { _tabPosition.dispose(); super.dispose(); }
   late ThoughtView _view = widget.initialView;
+  late ThoughtView _displayedView = widget.initialView;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -238,16 +239,18 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
           onPressed: () {
             if (_view == view) return;
             setState(() => _view = view);
-            _tabPosition.animateTo(view.index.toDouble(), duration: const Duration(milliseconds: 200), curve: Curves.easeInOutCubic);
+            _tabPosition.animateTo(view.index.toDouble(), duration: const Duration(milliseconds: 200), curve: Curves.easeInOutCubic).then((_) {
+              if (mounted && _view == view) setState(() => _displayedView = view);
+            });
           },
           child: Text(switch (view) { ThoughtView.diagram => '다이어그램', ThoughtView.boxes => '생각', ThoughtView.page => '메모상자', ThoughtView.geolog => '지오로그' })))),
       ])),
     ])));
-    if (_view == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(box: widget.initialBox,
+    if (_displayedView == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(box: widget.initialBox,
       viewSelector: selector, onChanged: () => widget.onChanged?.call())); }
-    if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(notes: widget.notes, initialBox: widget.initialBox,
+    if (_displayedView == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(notes: widget.notes, initialBox: widget.initialBox,
       onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector)); }
-    return DesktopMenuFrame(child: ThoughtPage(key: ValueKey(_view), box: widget.initialBox, blocks: _view == ThoughtView.page,
+    return DesktopMenuFrame(child: ThoughtPage(key: ValueKey(_displayedView), box: widget.initialBox, blocks: _displayedView == ThoughtView.page,
       onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, viewSelector: selector));
   }
 }

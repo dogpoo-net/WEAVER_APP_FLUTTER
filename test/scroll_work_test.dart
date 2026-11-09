@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/all_thoughts_page.dart';
+import 'package:weaver/features/inbox/thought_page.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/limited_rows_wrap.dart';
 import 'package:weaver/features/inbox/memo_boxes.dart';
@@ -27,12 +28,15 @@ void main() {
     await tester.pump();
     expect(tester.getTopLeft(highlight).dx, closeTo(start, .1));
     await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(ThoughtBoxView), findsOneWidget);
+    expect(find.byType(ThoughtPage), findsNothing);
     final middle = tester.getTopLeft(highlight).dx;
     expect(middle, greaterThan(start)); expect(middle, lessThan(start + width));
     await tester.pump(const Duration(milliseconds: 120));
     expect(tester.getTopLeft(highlight).dx, closeTo(start + width, .1));
     await tester.pumpAndSettle();
     expect(tester.binding.hasScheduledFrame, isFalse);
+    expect(find.byType(ThoughtPage), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
