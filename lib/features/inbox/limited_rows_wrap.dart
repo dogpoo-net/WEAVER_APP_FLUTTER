@@ -35,7 +35,7 @@ class _LimitedRowsRenderWrap extends RenderWrap {
   bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
     for (final child in _visible.reversed) {
       if (result.addWithPaintOffset(offset: (child.parentData! as WrapParentData).offset,
-        position: position, hitTest: (result, transformed) => child.hitTest(result, position: transformed))) return true;
+        position: position, hitTest: (result, transformed) => child.hitTest(result, position: transformed))) { return true; }
     }
     return false;
   }
