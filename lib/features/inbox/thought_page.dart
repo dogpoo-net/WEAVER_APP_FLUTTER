@@ -117,18 +117,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       setState(_sync);
     }
   }
-  List<ElementRecord> get _scopeRecords {
-    final ids = widget.box?.subtreeElementIds;
-    return elements.records.values.where((r) => ids == null || ids.contains(r.id)).toList();
-  }
-  List<ElementRecord> get _records {
-    final ids = _filterBox?.subtreeElementIds;
-    return _scopeRecords.where((r) => canBrowseThought(r) &&
-    (ids == null || ids.contains(r.id)) &&
+  List<ElementRecord> get _scopeRecords => elements.records.values.where((r) => widget.box == null || widget.box!.elementIds.contains(r.id)).toList();
+  List<ElementRecord> get _records => _scopeRecords.where((r) => canBrowseThought(r) &&
+    (_filterBox == null || _filterBox!.elementIds.contains(r.id)) &&
     (_filterTag == null || r.tags.contains(_filterTag)) &&
     (!_unlinkedOnly || r.connections.isEmpty) &&
     (_query.isEmpty || r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.toLowerCase().contains(_query)))).toList();
-  }
   void _sync() {
     final records = _records;
     final scope = _scopeRecords;
@@ -194,31 +188,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   Rect? _regionBounds(MemoBox box, Map<String, Offset> positions) {
     final ids = box.elementIds.where(positions.containsKey).toList();
-    if (ids.isEmpty && (!widget.blocks || box.children.isEmpty)) return null;
-    if (widget.blocks) {
-      final parts = <Rect>[for (final id in ids) positions[id]! & _size(id),
-        for (final child in box.children) _liftBoxes[child] ?? _regionBounds(child, positions) ?? _emptyBoxBounds.putIfAbsent(child,
-          () => Rect.fromLTWH(640 + memoBoxes.indexOf(child) * 340, 440, 260, 260))];
-      return parts.isEmpty ? null : parts.reduce((a, b) => a.expandToInclude(b)).inflate(32);
-    }
+    if (ids.isEmpty) return null;
+    if (widget.blocks) return ids.map((id) => positions[id]! & _size(id)).reduce((a, b) => a.expandToInclude(b)).inflate(32);
     return memoBoxCircleBounds(ids.map((id) => positions[id]!), sizes: {for (final id in ids) positions[id]!: _size(id)});
   }
   bool _inside(Rect bounds, Offset point) => widget.blocks ? bounds.contains(point) : (point - bounds.center).distance <= bounds.width / 2;
-  Set<String> _boxMembers(MemoBox box) => widget.blocks ? box.subtreeElementIds : box.elementIds;
-  Iterable<MemoBox> _withChildren(Iterable<MemoBox> boxes) {
-    final result = {for (final box in boxes) box, if (widget.blocks) ...memoBoxes.where((candidate) => boxes.any((box) => box.isAncestorOf(candidate)))}.where((b) => !b.isUnclassified).toList();
-    result.sort((a, b) => a.depth.compareTo(b.depth));
-    return result;
-  }
-  Iterable<MemoBox> get _regionBoxes => _withChildren(_filterBox != null ? [_filterBox!] : (widget.box == null ? memoBoxes : [widget.box!]));
-  Iterable<MemoBox> get _allRegionBoxes => _withChildren(widget.box == null ? memoBoxes : [widget.box!]);
-  void _moveBox(MemoBox box, Offset shift) {
-    for (final id in _boxMembers(box).where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
-    for (final member in [box, if (widget.blocks) ...memoBoxes.where(box.isAncestorOf)]) {
-      final bounds = _emptyBoxBounds[member];
-      if (bounds != null) _emptyBoxBounds[member] = bounds.shift(shift);
-    }
-  }
+  Iterable<MemoBox> get _regionBoxes => (_filterBox != null ? [_filterBox!] :
+      (widget.box == null ? memoBoxes : [widget.box!])).where((box) => !box.isUnclassified);
+  Iterable<MemoBox> get _allRegionBoxes => (widget.box == null ? memoBoxes : [widget.box!]).where((box) => !box.isUnclassified);
   Rect? _boxBounds(MemoBox box) => _liftBoxes[box] ?? _regionBounds(box, _positions) ?? _emptyBoxBounds[box];
   Rect _placeEmptyBox(double x) {
     var bounds = Rect.fromLTWH(x, 440, 260, 260);
@@ -231,31 +208,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     return bounds;
   }
   bool _boxCollides(MemoBox moving, Rect proposed) => _allRegionBoxes.any((other) =>
-    !identical(other, moving) && (!widget.blocks || (!moving.isAncestorOf(other) && !other.isAncestorOf(moving))) && _boxBounds(other) != null && memoBoxRegionsOverlap(proposed, _boxBounds(other)!, rectangular: widget.blocks));
+    !identical(other, moving) && _boxBounds(other) != null && memoBoxRegionsOverlap(proposed, _boxBounds(other)!, rectangular: widget.blocks));
   bool _memberCollides(String id) => _allRegionBoxes.any((box) => box.elementIds.contains(id) &&
     _boxBounds(box) != null && _boxCollides(box, _boxBounds(box)!));
   void _separateOverlappingBoxes() {
-    if (widget.blocks) {
-      for (var depth = 3; depth >= 1; depth--) {
-        final placed = <({MemoBox box, Rect bounds})>[];
-        for (final box in _allRegionBoxes.where((b) => b.depth == depth)) {
-          final original = _boxBounds(box);
-          if (original == null) continue;
-          var bounds = original;
-          final occupied = [
-            ...placed.where((other) => other.box.parentName == box.parentName).map((r) => r.bounds),
-            if (box.parent != null) for (final id in box.parent!.elementIds.where(_positions.containsKey)) _bounds(id),
-          ];
-          while (occupied.any((other) => bounds.inflate(24).overlaps(other))) {
-            final bottom = occupied.where((other) => bounds.inflate(24).overlaps(other)).map((r) => r.bottom).reduce(math.max);
-            bounds = bounds.shift(Offset(0, bottom + 48 - bounds.top));
-          }
-          _moveBox(box, bounds.topLeft - original.topLeft);
-          placed.add((box: box, bounds: bounds));
-        }
-      }
-      return;
-    }
     final placed = <Rect>[];
     for (final box in _allRegionBoxes) {
       final original = _boxBounds(box);
@@ -358,7 +314,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     var emptyX = regions.map((r) => r.bounds.right + 80).fold(
       nodeRects.values.map((r) => r.right + 80).fold(640.0, math.max), math.max);
     for (final box in _regionBoxes) {
-      if (_regionBounds(box, visiblePositions) != null) continue;
+      if (box.elementIds.any(_positions.containsKey)) continue;
       regions.add((box: box, bounds: _emptyBoxBounds.putIfAbsent(box, () => _placeEmptyBox(emptyX))));
       emptyX += 340;
     }
@@ -370,9 +326,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
       IconButton(tooltip: '연결 모드', style: IconButton.styleFrom(backgroundColor: _linkMode ? color.primaryContainer : null, foregroundColor: _linkMode ? color.onPrimaryContainer : null), isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
       IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
-      if (widget.blocks) IconButton(tooltip: '메모상자 구조', icon: const Icon(Icons.account_tree_outlined), onPressed: () async {
-        if (await editBoxHierarchy(context) && mounted) { _changed(); }
-      }),
       IconButton(tooltip: '배치 초기화', onPressed: _resetArrangement, icon: const Icon(Icons.restart_alt)),
       IconButton(tooltip: '전체 위치 보기', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
@@ -412,7 +365,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         child: RepaintBoundary(child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds, highlighted: identical(_hoverBox, region.box), rectangular: widget.blocks,
             onDrag: (delta) => setState(() {
-              final empty = _regionBounds(region.box, _positions) == null;
+              final empty = !region.box.elementIds.any(_positions.containsKey);
               final current = empty ? (_emptyBoxBounds[region.box] ?? region.bounds) : (_regionBounds(region.box, _positions) ?? region.bounds);
               var shift = Offset(math.max(delta.dx, 32 - current.left), math.max(delta.dy, 32 - current.top));
               if (_boxCollides(region.box, current.shift(shift))) {
@@ -423,8 +376,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 }
                 shift *= low;
               }
-              if (empty) _emptyBoxBounds.putIfAbsent(region.box, () => current);
-              _moveBox(region.box, shift);
+              if (empty) { _emptyBoxBounds[region.box] = current.shift(shift); }
+              for (final id in region.box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
               _saveLayout();
             }), onDragEnd: () => _saveLayout(flush: true)),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
@@ -435,7 +388,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           for (final record in records) Positioned(left: _positions[record.id]!.dx - ThoughtInteraction.hitPadding, top: _positions[record.id]!.dy - ThoughtInteraction.hitPadding,
             child: ThoughtInteraction(size: _size(record.id), desktop: MediaQuery.sizeOf(context).width >= 760,
                 onLift: () => setState(() {
-                  _liftBoxes..clear()..addEntries(regions.where((r) => _boxMembers(r.box).contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
+                  _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
                 }),
                 onActiveChanged: (active) => setState(() { _draggingId = active ? record.id : null; if (!active) _hoverBox = null; }),
                 onTap: () { if (_linkMode && _linkFrom != null) {

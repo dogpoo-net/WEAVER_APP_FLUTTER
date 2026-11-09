@@ -88,7 +88,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     final selected = _selected;
     if (selected == null) { return const Center(child: Text('생각을 클릭하면 연결된 생각을 보여줍니다.')); }
     final related = elements.records.values.where((r) => selected.connections.contains(r.id) &&
-      (widget.initialBox == null || widget.initialBox!.subtreeElementIds.contains(r.id)));
+      (widget.initialBox == null || widget.initialBox!.elementIds.contains(r.id)));
     return SingleChildScrollView(key: const ValueKey('thought-relations'), padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         const Text('연결된 생각', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
@@ -101,12 +101,11 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   Widget build(BuildContext context) {
     final allRecords = elements.records.values.toList();
     final tags = {...allRecords.expand((record) => record.tags), ...hashtagColors.keys}.toList()..sort();
-    final filterIds = _filterBox?.subtreeElementIds;
     final records = allRecords.where((record) => canBrowseThought(record) &&
       ((!_photosOnly && !_audioOnly) ||
         (_photosOnly && record.photos.isNotEmpty) ||
         (_audioOnly && record.recordings.isNotEmpty)) &&
-      (filterIds == null || filterIds.contains(record.id)) &&
+      (_filterBox == null || _filterBox!.elementIds.contains(record.id)) &&
       (_filterTag == null || record.tags.contains(_filterTag)) &&
       (record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.toLowerCase().contains(_query.toLowerCase().replaceFirst(RegExp(r'^#'), ''))))).toList();
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);

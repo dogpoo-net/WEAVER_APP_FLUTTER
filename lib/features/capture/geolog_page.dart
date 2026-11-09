@@ -28,16 +28,11 @@ class _GeologPageState extends State<GeologPage> {
   @override
   void initState() { super.initState(); elements.addListener(_changed); }
   void _changed() { if (mounted) setState(() {}); }
-  List<ElementRecord> get _scope {
-    final ids = widget.box?.subtreeElementIds;
-    return elements.records.values.where((r) => ids == null || ids.contains(r.id)).toList();
-  }
-  List<ElementRecord> get _records {
-    final ids = _filterBox?.subtreeElementIds;
-    return _scope.where((r) => canBrowseThought(r) && r.location != null &&
-    (ids == null || ids.contains(r.id)) && (_tag == null || r.tags.contains(_tag)) &&
+  List<ElementRecord> get _scope => elements.records.values.where((r) =>
+    widget.box == null || widget.box!.elementIds.contains(r.id)).toList();
+  List<ElementRecord> get _records => _scope.where((r) => canBrowseThought(r) && r.location != null &&
+    (_filterBox == null || _filterBox!.elementIds.contains(r.id)) && (_tag == null || r.tags.contains(_tag)) &&
     (r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.contains(_query.replaceFirst('#', ''))))).toList();
-  }
   LatLng _point(ElementRecord record) => LatLng(record.location!.latitude, record.location!.longitude);
   void _fit(List<ElementRecord> records) {
     if (records.isEmpty) return;
