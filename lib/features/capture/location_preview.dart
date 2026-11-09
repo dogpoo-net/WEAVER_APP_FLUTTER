@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'map_attribution.dart';
 import 'capture_models.dart';
 
 Future<void> showLocationPreview(BuildContext context, ThoughtLocation location) => showDialog<void>(
@@ -13,8 +13,7 @@ Future<void> showLocationPreview(BuildContext context, ThoughtLocation location)
         TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'net.dogpoo.weaver', maxNativeZoom: 19),
         MarkerLayer(markers: [Marker(point: LatLng(location.latitude, location.longitude), alignment: Alignment.topCenter,
           child: Icon(Icons.location_on, size: 40, color: Theme.of(context).colorScheme.primary))]),
-        SimpleAttributionWidget(source: const Text('© OpenStreetMap contributors', style: TextStyle(fontSize: 10)),
-          onTap: () => launchUrl(Uri.parse('https://www.openstreetmap.org/copyright'), mode: LaunchMode.externalApplication)),
+        const MapAttribution(),
       ])),
       Padding(padding: const EdgeInsets.all(12), child: Text('${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)} · 정확도 약 ${location.accuracy.round()}m')),
     ]))));
