@@ -18,11 +18,11 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
       await tester.pumpAndSettle();
       var regions = tester.widgetList<MemoBoxRegion>(find.byType(MemoBoxRegion)).toList();
-      expect(regions[0].bounds.inflate(24).overlaps(regions[1].bounds), isFalse);
+      expect(memoBoxRegionsOverlap(regions[0].bounds, regions[1].bounds, rectangular: blocks), isFalse);
       regions[1].onDrag!(regions[0].bounds.center - regions[1].bounds.center);
       await tester.pumpAndSettle();
       regions = tester.widgetList<MemoBoxRegion>(find.byType(MemoBoxRegion)).toList();
-      expect(regions[0].bounds.inflate(24).overlaps(regions[1].bounds), isFalse);
+      expect(memoBoxRegionsOverlap(regions[0].bounds, regions[1].bounds, rectangular: blocks), isFalse);
       await tester.pumpWidget(const SizedBox());
     });
     testWidgets('dragging a box leaves loose thoughts in place ($blocks)', (tester) async {
@@ -48,7 +48,7 @@ void main() {
       interaction.onResize(const Size(640, 400), Offset.zero);
       await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       final regions = tester.widgetList<MemoBoxRegion>(find.byType(MemoBoxRegion)).toList();
-      expect(regions[0].bounds.inflate(24).overlaps(regions[1].bounds), isFalse);
+      expect(memoBoxRegionsOverlap(regions[0].bounds, regions[1].bounds, rectangular: blocks), isFalse);
       expect(layout.positions[a.id], const Offset(640, 500));
       expect(layout.positions[b.id], const Offset(1100, 500));
       expect(layout.positions[loose.id], const Offset(900, 550));
