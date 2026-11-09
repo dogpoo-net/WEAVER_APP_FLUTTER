@@ -26,6 +26,19 @@ void main() {
     expect(loaded.depth, 3); expect(loaded.path, '큰 상자 / 중간 / 작은');
     expect(loaded.elementIds, {record.id});
   });
+  testWidgets('child boxes do not cover thoughts directly owned by their parent', (tester) async {
+    final own = elements.add('상위에 직접 담은 생각'), nested = elements.add('하위 생각');
+    final root = MemoBox('부모', ids: [own.id]);
+    final child = MemoBox('자식', parentName: root.name, ids: [nested.id]);
+    memoBoxes.addAll([root, child]);
+    pageGraphLayout.blockLayout.positions[own.id] = const Offset(640, 400);
+    pageGraphLayout.blockLayout.positions[nested.id] = const Offset(700, 400);
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpAndSettle();
+    final region = tester.widget<MemoBoxRegion>(find.byKey(const ValueKey('box-region-자식')));
+    expect(region.bounds.overlaps(pageGraphLayout.blockLayout.positions[own.id]! & const Size(230, 120)), isFalse);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('nested rectangles enclose children and drag together', (tester) async {
     final record = elements.add('작은 상자 안');
     final root = MemoBox('상위'), child = MemoBox('중간', parentName: '상위'), leaf = MemoBox('하위', parentName: '중간', ids: [record.id]);

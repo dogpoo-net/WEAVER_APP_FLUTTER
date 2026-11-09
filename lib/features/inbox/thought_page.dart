@@ -242,9 +242,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           final original = _boxBounds(box);
           if (original == null) continue;
           var bounds = original;
-          final siblings = placed.where((other) => other.box.parentName == box.parentName);
-          while (siblings.any((other) => bounds.inflate(24).overlaps(other.bounds))) {
-            final bottom = siblings.where((other) => bounds.inflate(24).overlaps(other.bounds)).map((r) => r.bounds.bottom).reduce(math.max);
+          final occupied = [
+            ...placed.where((other) => other.box.parentName == box.parentName).map((r) => r.bounds),
+            if (box.parent != null) for (final id in box.parent!.elementIds.where(_positions.containsKey)) _bounds(id),
+          ];
+          while (occupied.any((other) => bounds.inflate(24).overlaps(other))) {
+            final bottom = occupied.where((other) => bounds.inflate(24).overlaps(other)).map((r) => r.bottom).reduce(math.max);
             bounds = bounds.shift(Offset(0, bottom + 48 - bounds.top));
           }
           _moveBox(box, bounds.topLeft - original.topLeft);
