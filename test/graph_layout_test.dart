@@ -1,3 +1,4 @@
+import 'package:weaver/features/inbox/thought_interaction.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -80,7 +81,8 @@ void main() {
       // throttled save. Leaving the page must flush those latest coordinates.
       Offset renderedPosition(String text) {
         final node = tester.widget<Positioned>(find.ancestor(of: find.text(text), matching: find.byType(Positioned)).first);
-        return Offset(node.left!, node.top!);
+        // Positioned includes the extra touch area; saved coordinates belong to the card.
+        return Offset(node.left! + ThoughtInteraction.hitPadding, node.top! + ThoughtInteraction.hitPadding);
       }
       final positions = {a.id: renderedPosition('생각 A'), b.id: renderedPosition('생각 B')};
       final tags = Map.of(layout.tags);
@@ -91,6 +93,7 @@ void main() {
       await tester.pumpAndSettle();
       final restored = inBox ? memoBoxes.single.layout : pageGraphLayout;
       expect(restored.positions, positions);
+      expect({a.id: renderedPosition('생각 A'), b.id: renderedPosition('생각 B')}, positions);
       expect(restored.tags, tags);
       expect(tester.widget<InteractiveViewer>(find.byType(InteractiveViewer)).transformationController!.value.storage, matrix);
       await tester.enterText(find.byKey(const ValueKey('graph-search')), '생각 B');
