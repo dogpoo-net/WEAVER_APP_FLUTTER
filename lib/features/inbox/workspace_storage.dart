@@ -64,7 +64,7 @@ class WorkspaceSnapshot {
     'version': 1,
     'graphLayout': pageGraphLayout.toJson(),
     'memoBoxFolders': memoBoxFolders,
-    'memoBoxes': [for (final box in memoBoxes) {'name': box.name, 'isUnclassified': box.isUnclassified, 'color': box.color, 'folder': box.folder, 'ids': box.elementIds.toList(), 'layout': box.layout.toJson()}],
+    'memoBoxes': [for (final box in memoBoxes) {'name': box.name, 'isUnclassified': box.isUnclassified, 'color': box.color, 'folder': box.folder, 'parentName': box.parentName, 'ids': box.elementIds.toList(), 'layout': box.layout.toJson()}],
     'folders': projectFolders,
     'paragraphFolders': paragraphFolders,
     'elementFolders': elementFolders,
@@ -102,6 +102,8 @@ class WorkspaceSnapshot {
                 ? null
                 : {
                     'name': n.project!.name,
+                    'id': n.project!.id,
+                    'linkedProjectIds': n.project!.linkedProjectIds.toList(),
                     'folder': n.project!.folder,
                     'words': n.project!.words,
                     'document': n.project!.document,
@@ -182,10 +184,11 @@ class WorkspaceSnapshot {
         note.project = WritingProject(
           paragraphs(p['paragraphs']),
           (p['words'] as List).cast<String>(),
-          name: p['name'] as String,
+          name: p['name'] as String, id: p['id'] as String?,
           folder: p['folder'] as String?,
         );
         note.project!.document = p['document'] as String?;
+        note.project!.linkedProjectIds.addAll(List<String>.from(p['linkedProjectIds'] ?? []));
         note.project!.tags.addAll(List<String>.from(p['tags'] ?? []));
         note.paragraphs = note.project!.paragraphs;
         note.content = note.project!.content;
@@ -258,7 +261,7 @@ class WorkspaceSnapshot {
       elementFolderNames,
       List<String>.from(data['hiddenSearchTags'] ?? []),
       tagColors,
-      [for (final box in (data['memoBoxes'] ?? []) as List) MemoBox(box['name'] as String, isUnclassified: box['isUnclassified'] == true, color: box['color'] as int, folder: box['folder'] as String?, ids: List<String>.from(box['ids']), layout: GraphLayout.fromJson(box['layout']))],
+      [for (final box in (data['memoBoxes'] ?? []) as List) MemoBox(box['name'] as String, isUnclassified: box['isUnclassified'] == true, color: box['color'] as int, folder: box['folder'] as String?, parentName: box['parentName'] as String?, ids: List<String>.from(box['ids']), layout: GraphLayout.fromJson(box['layout']))],
       List<String>.from(data['memoBoxFolders'] ?? []),
       GraphLayout.fromJson(data['graphLayout']),
     );
@@ -267,6 +270,7 @@ class WorkspaceSnapshot {
   void apply() {
     pageGraphLayout = graphLayout ?? GraphLayout();
     memoBoxes..clear()..addAll(boxes);
+    normalizeBoxHierarchy();
     normalizeBoxMemberships();
     memoBoxFolders..clear()..addAll(boxFolders);
     for (final box in boxes) {

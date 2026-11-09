@@ -759,7 +759,7 @@ class _InboxPageState extends State<InboxPage> {
     final project = await Navigator.push<WritingProject>(
       context,
       MaterialPageRoute(
-        builder: (_) => const DesktopMenuFrame(child: ProjectDocumentEditor()),
+        builder: (_) => DesktopMenuFrame(child: ProjectDocumentEditor(projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: _persist)),
       ),
     );
     if (project == null || !mounted) return;
@@ -776,7 +776,7 @@ class _InboxPageState extends State<InboxPage> {
       context,
       MaterialPageRoute(
         builder: (_) =>
-            ProjectPage(project: note.project!, onChanged: _persist),
+            ProjectPage(project: note.project!, projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: _persist),
       ),
     );
     if (!mounted) return;

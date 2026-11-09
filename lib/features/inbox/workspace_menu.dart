@@ -148,6 +148,18 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       childWhenDragging: Opacity(opacity: .35, child: tile), onDragStarted: _startDrag,
       onDragUpdate: update, onDragEnd: end, child: child);
   }
+  Widget _boxTree(int index, {bool nested = false}) {
+    final box = memoBoxes[index];
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      DragTarget<_MenuDrag>(key: ValueKey('nest-box-${box.name}'),
+        onWillAcceptWithDetails: (d) => d.data.kind == _Kind.box && canParentBox(memoBoxes[d.data.index], box),
+        onAcceptWithDetails: (d) { setState(() => setBoxParent(memoBoxes[d.data.index], box)); widget.onBoxChanged?.call(); },
+        builder: (context, candidates, rejected) => ColoredBox(color: candidates.isEmpty ? Colors.transparent : Theme.of(context).colorScheme.secondaryContainer,
+          child: _item(_Kind.box, index, nested: nested))),
+      for (final child in box.children) Padding(padding: const EdgeInsetsDirectional.only(start: 16),
+        child: _boxTree(memoBoxes.indexOf(child), nested: true)),
+    ]);
+  }
   Widget _target(_Kind kind, String? folder, Widget child, {String? targetId}) => DragTarget<_MenuDrag>(
     key: ValueKey(targetId ?? 'drop-${kind.name}-${folder ?? 'unfiled'}'),
     onWillAcceptWithDetails: (d) => d.data.kind == kind,
@@ -155,7 +167,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       final index = d.data.index;
       setState(() => _placements[kind]![index] = folder);
       switch (kind) {
-        case _Kind.box: memoBoxes[index].folder = folder; widget.onBoxChanged?.call();
+        case _Kind.box: memoBoxes[index].parentName = null; memoBoxes[index].folder = folder; widget.onBoxChanged?.call();
         case _Kind.project: widget.onProjectMoved?.call(index, folder);
         case _Kind.paragraph: widget.onParagraphMoved?.call(index, folder);
         case _Kind.element: widget.onElementMoved?.call(index, folder);
@@ -190,12 +202,12 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
         expansionAnimationStyle: const AnimationStyle(duration: Duration(milliseconds: 200),
           reverseDuration: Duration(milliseconds: 200), curve: Curves.easeInOutCubic, reverseCurve: Curves.easeInOutCubic),
-        children: [for (var i = 0; i < items.length; i++) if (placements[i] == folder) _item(kind, i, nested: true)],
+        children: [for (var i = 0; i < items.length; i++) if (placements[i] == folder && (kind != _Kind.box || memoBoxes[i].parent == null)) (kind == _Kind.box ? _boxTree(i, nested: true) : _item(kind, i, nested: true))],
       )),
       if (folders.isNotEmpty && kind == _Kind.element) _target(kind, null, const ListTile(dense: true,
         leading: Icon(Icons.folder_open_outlined, size: 18), title: Text('미분류'))),
       for (var i = 0; i < items.length; i++)
-        if (placements[i] == null || !folders.contains(placements[i])) _item(kind, i),
+        if ((placements[i] == null || !folders.contains(placements[i])) && (kind != _Kind.box || memoBoxes[i].parent == null)) (kind == _Kind.box ? _boxTree(i) : _item(kind, i)),
       if (items.isEmpty) Padding(padding: const EdgeInsets.all(16), child: Text('아직 ${_label(kind)}${kind == _Kind.paragraph ? '이' : '가'} 없어요')),
       if (kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.box || kind == _Kind.tag)
         _target(kind, null, const SizedBox(height: 14, width: double.infinity),
