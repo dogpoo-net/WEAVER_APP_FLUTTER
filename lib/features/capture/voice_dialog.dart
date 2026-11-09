@@ -104,7 +104,7 @@ class _VoiceRecorderDialogState extends State<VoiceRecorderDialog> with WidgetsB
         icon: Icon(_recording ? Icons.stop : Icons.mic), label: Text(_recording ? '녹음 종료' : _draft == null ? '녹음 시작' : '다시 녹음')),
     ]),
     actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+      TextButton(style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), textStyle: const TextStyle(fontSize: 12)), onPressed: () => Navigator.pop(context), child: const Text('취소')),
       FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), textStyle: const TextStyle(fontSize: 12)), onPressed: _busy || _recording || _draft == null ? null : () => Navigator.pop(context, _draft), child: const Text('메모에 첨부')),
     ],
   );
