@@ -14,12 +14,13 @@ import 'package:weaver/features/sync/workspace_backup.dart';
 
 class MemoryMedia implements BackupMedia {
   final files = <String, Uint8List>{};
-  bool fail = false;
+  int? failAfter;
+  int writes = 0;
   @override
   Future<Uint8List?> read(String id) async => files[id];
   @override
   Future<void> write(String id, Uint8List bytes) async {
-    if (fail) throw StateError('Disk full');
+    if (failAfter != null && writes++ >= failAfter!) throw StateError('Disk full');
     files[id] = bytes;
   }
   @override
@@ -47,7 +48,7 @@ void main() {
   });
   test('JSON backup transfers attachment bytes and stages without overwriting local files', () async {
     final media = MemoryMedia()..files['photo'] = Uint8List.fromList([1, 2, 3]);
-    elements.add('첨부')..photos.add(const PhotoAttachment('photo', 'original.jpg'));
+    elements.add('첨부').photos.add(const PhotoAttachment('photo', 'original.jpg'));
     final captured = await WorkspaceBackup.capture(WorkspaceSnapshot.encode([]), media);
     final decoded = WorkspaceBackup.decode(captured.encode());
     expect(decoded.media['photo'], [1, 2, 3]);
@@ -59,11 +60,20 @@ void main() {
     expect(media.files['photo'], [9]);
   });
   test('missing attachments prevent incomplete backups and restore', () async {
-    elements.add('첨부')..photos.add(const PhotoAttachment('missing', '사진'));
+    elements.add('첨부').photos.add(const PhotoAttachment('missing', '사진'));
     final raw = WorkspaceSnapshot.encode([]);
     await expectLater(WorkspaceBackup.capture(raw, MemoryMedia()), throwsA(isA<BackupFailure>()));
     expect(() => WorkspaceBackup.decode(raw), throwsA(isA<BackupFailure>()));
     expect(elements.words, ['첨부']);
+  });
+  test('partially staged attachments are cleaned up on failure without changing originals', () async {
+    final media = MemoryMedia()..files['existing'] = Uint8List.fromList([7]);
+    elements.add('첨부').photos.addAll([const PhotoAttachment('one', '1.jpg'), const PhotoAttachment('two', '2.jpg')]);
+    final backup = WorkspaceBackup(WorkspaceSnapshot.encode([]), {'one': Uint8List.fromList([1]), 'two': Uint8List.fromList([2])});
+    media.failAfter = 1;
+    await expectLater(backup.stage(media), throwsStateError);
+    expect(media.files.keys, ['existing']);
+    expect(media.files['existing'], [7]);
   });
   test('API uses confirmed account and JSON string contract; checks application errors', () async {
     final backup = WorkspaceBackup(WorkspaceSnapshot.encode([]), {});

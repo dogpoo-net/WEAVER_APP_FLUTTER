@@ -21,8 +21,10 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
       update(() => busy = true);
       try { await action(); }
       catch (error) {
-        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
-          error is BackupFailure ? error.message : '데이터 작업을 완료하지 못했습니다. 현재 데이터를 확인하고 다시 시도해주세요.')));
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
+            error is BackupFailure ? error.message : '데이터 작업을 완료하지 못했습니다. 현재 데이터를 확인하고 다시 시도해주세요.')));
+        }
       } finally { if (context.mounted) update(() => busy = false); }
     }
     final auth = GoogleAuthScope.maybeOf(context);

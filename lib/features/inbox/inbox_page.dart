@@ -1,4 +1,3 @@
-import 'dart:convert';
 import '../auth/google_auth.dart';
 import '../sync/workspace_backup.dart';
 import 'trash_page.dart';
@@ -484,9 +483,12 @@ class _InboxPageState extends State<InboxPage> {
     );
     if (yes != true || !mounted) return;
     try {
+      final hasMedia = [...elements.records.values, ...elements.trash.values].any((r) => r.recordings.isNotEmpty || r.photos.isNotEmpty) ||
+          (widget.storage?.preferences.getStringList(_mediaCleanupKey)?.isNotEmpty ?? false) ||
+          widget.storage?.preferences.getString('${WorkspaceStorage.key}.beforeImport') != null;
+      if (hasMedia) await MediaStorage.clear();
       await widget.storage?.clear();
       await widget.storage?.preferences.remove(_mediaCleanupKey);
-      if ([...elements.records.values, ...elements.trash.values].any((r) => r.recordings.isNotEmpty || r.photos.isNotEmpty)) await MediaStorage.clear();
       if (!mounted) return;
       setState(() {
         projectFolders.clear();

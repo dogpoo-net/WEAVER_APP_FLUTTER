@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../capture/media_storage.dart';
 import '../inbox/workspace_storage.dart';
@@ -87,7 +88,7 @@ class WorkspaceBackup {
   /// Remap media IDs so staging an import cannot overwrite local/backup files.
   Future<WorkspaceBackup> stage(BackupMedia store) async {
     final data = jsonDecode(workspace) as Map<String, dynamic>;
-    final prefix = 'import-${DateTime.now().microsecondsSinceEpoch}';
+    final prefix = 'import-${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(0x7fffffff)}';
     final names = <String, String>{};
     var index = 0;
     for (final id in media.keys) { names[id] = '$prefix-${index++}'; }
