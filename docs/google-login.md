@@ -6,7 +6,7 @@
 
 1. Google Cloud에서 동의 화면을 설정한다. 테스트 상태라면 테스트 사용자도 등록한다.
 2. **웹 애플리케이션** OAuth 클라이언트를 생성한다. 승인된 JavaScript 원본에 `https://dogpoo-net.github.io`를 등록한다(저장소 경로 제외). 로컬 테스트는 고정 포트의 `http://localhost:포트`를 별도로 등록한다.
-3. 웹 클라이언트 ID를 GitHub 저장소 Actions 변수 `GOOGLE_WEB_CLIENT_ID`에 설정한다. Pages workflow가 빌드에 전달한다.
+3. 현재 사용자가 제공한 웹 클라이언트 ID를 기본값으로 설정했다. 일반 API 키나 비밀키가 아니며 공개 가능한 식별자이다. 전용 클라이언트로 변경할 때 웹 클라이언트 ID를 GitHub 저장소 Actions 변수 `GOOGLE_WEB_CLIENT_ID`에 설정한다. Pages workflow가 빌드에 전달한다.
 4. **Android** OAuth 클라이언트를 같은 프로젝트에 생성한다. 패키지는 `net.dogpoo.weaver`, SHA-1은 실제 서명 인증서의 지문이다. 디버그, 배포 서명, Play 앱 서명이 다르면 각각 등록한다. 현재 Gradle release는 debug signing이므로 실제 배포 전에 정식 서명 설정이 필요하다.
 5. Android 빌드에도 동일한 **웹** 클라이언트 ID를 전달한다. 플러그인은 이것을 `serverClientId`로 사용한다. Android 클라이언트 ID를 여기에 넣지 않는다. Firebase나 google-services.json은 이 방식에서 필수가 아니다.
 
@@ -16,7 +16,7 @@ flutter build appbundle --dart-define=GOOGLE_WEB_CLIENT_ID=YOUR_WEB_CLIENT_ID.ap
 flutter build apk --dart-define=GOOGLE_WEB_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
 ```
 
-ID 미설정 상태에서는 로그인 안내와 비활성 버튼을 표시하고 작업 화면을 열지 않는다. 기존 데이터는 삭제하지 않는다. 실제 계정 로그인은 클라이언트 ID와 원본/서명 등록 후 확인해야 한다. iOS 로그인은 이번 범위에 포함하지 않는다.
+OAuth가 미구성된 클라이언트에서는 로그인 안내와 비활성 버튼을 표시하고 작업 화면을 열지 않는다. 현재 기본 ID를 사용하려면 Google Cloud에서 WEAVER 원본을 허용해야 한다. 기존 데이터는 삭제하지 않는다. 실제 계정 로그인은 클라이언트 ID와 원본/서명 등록 후 확인해야 한다. iOS 로그인은 이번 범위에 포함하지 않는다.
 
 ## 현재 인증 경계
 
@@ -31,3 +31,5 @@ ID 미설정 상태에서는 로그인 안내와 비활성 버튼을 표시하�
 - 테마와 캔버스 배치의 동기화 범위 결정.
 
 엔드포인트가 아직 없으므로 현재는 서버 전송이나 동기화 완료 표시를 하지 않는다. 로컬 저장은 유지하며, 서버 계약 확정 후 인증 교환 → 계정별 저장 분리 → 최초 가져오기 → 동작별 증분 동기화 순서로 연결한다.
+
+기존 포럼의 웹 클라이언트를 재사용할 수 있으나 동의 화면/관리 범위를 분리하려면 WEAVER 전용 클라이언트가 권장된다. GIS 버튼 방식이므로 `/oauth` 라우트나 redirect URL은 이번 앱에 추가하지 않는다. 클라이언트 비밀키는 앱/워크플로/저장소에 넣지 않는다.
