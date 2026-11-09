@@ -80,8 +80,8 @@ InlineSpan _badgeExcerpt(BuildContext context, String word, String query, double
   for (final character in text.characters) { boundaries.add(boundaries.last + character.length); }
   InlineSpan span(int first, int last) {
     final start = boundaries[first], end = boundaries[last];
-    final from = match == null ? end : match.start.clamp(start, end);
-    final to = match == null ? end : match.end.clamp(from, end);
+    final from = match.start.clamp(start, end);
+    final to = match.end.clamp(from, end);
     return TextSpan(children: [
       if (start > 0) const TextSpan(text: '…'),
       TextSpan(text: text.substring(start, from)),
@@ -100,12 +100,12 @@ InlineSpan _badgeExcerpt(BuildContext context, String word, String query, double
     return fits;
   }
   if (fits(0, boundaries.length - 1)) return span(0, boundaries.length - 1);
-  var first = match == null ? 0 : boundaries.indexOf(match.start);
-  var last = match == null ? 1 : boundaries.indexOf(match.end);
+  var first = boundaries.indexOf(match.start);
+  var last = boundaries.indexOf(match.end);
   while (last > first + 1 && !fits(first, last)) { last--; }
   while (true) {
     var expanded = false;
-    if (match != null && first > 0 && fits(first - 1, last)) { first--; expanded = true; }
+    if (first > 0 && fits(first - 1, last)) { first--; expanded = true; }
     if (last < boundaries.length - 1 && fits(first, last + 1)) { last++; expanded = true; }
     if (!expanded) break;
   }
