@@ -40,6 +40,10 @@ void main() {
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     await tester.pumpAndSettle();
     expect(tester.getBottomRight(toggle).dy, lessThanOrEqualTo(544));
+    expect(tester.getSize(toggle).height, lessThanOrEqualTo(30));
+    expect(tester.getSize(find.byKey(const ValueKey('project-name'))).height, lessThanOrEqualTo(42));
+    expect(tester.getSize(find.byKey(const ValueKey('project-tag-search'))).height, lessThanOrEqualTo(38));
+    expect(tester.getSize(find.byKey(const ValueKey('project-document'))).height, greaterThan(80));
     await tester.tap(toggle); await tester.pumpAndSettle(); expect(panel, findsNothing);
     expect(tester.widget<TextField>(find.byKey(const ValueKey('project-document'))).controller!.text, draft.document);
     expect(tester.takeException(), isNull);

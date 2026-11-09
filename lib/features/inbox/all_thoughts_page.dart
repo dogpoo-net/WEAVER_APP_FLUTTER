@@ -101,11 +101,12 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   Widget build(BuildContext context) {
     final allRecords = elements.records.values.toList();
     final tags = {...allRecords.expand((record) => record.tags), ...hashtagColors.keys}.toList()..sort();
+    final filterIds = _filterBox?.subtreeElementIds;
     final records = allRecords.where((record) => canBrowseThought(record) &&
       ((!_photosOnly && !_audioOnly) ||
         (_photosOnly && record.photos.isNotEmpty) ||
         (_audioOnly && record.recordings.isNotEmpty)) &&
-      (_filterBox == null || _filterBox!.subtreeElementIds.contains(record.id)) &&
+      (filterIds == null || filterIds.contains(record.id)) &&
       (_filterTag == null || record.tags.contains(_filterTag)) &&
       (record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.toLowerCase().contains(_query.toLowerCase().replaceFirst(RegExp(r'^#'), ''))))).toList();
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);

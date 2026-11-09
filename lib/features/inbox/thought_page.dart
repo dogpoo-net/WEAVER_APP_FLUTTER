@@ -117,12 +117,18 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       setState(_sync);
     }
   }
-  List<ElementRecord> get _scopeRecords => elements.records.values.where((r) => widget.box == null || widget.box!.subtreeElementIds.contains(r.id)).toList();
-  List<ElementRecord> get _records => _scopeRecords.where((r) => canBrowseThought(r) &&
-    (_filterBox == null || _filterBox!.subtreeElementIds.contains(r.id)) &&
+  List<ElementRecord> get _scopeRecords {
+    final ids = widget.box?.subtreeElementIds;
+    return elements.records.values.where((r) => ids == null || ids.contains(r.id)).toList();
+  }
+  List<ElementRecord> get _records {
+    final ids = _filterBox?.subtreeElementIds;
+    return _scopeRecords.where((r) => canBrowseThought(r) &&
+    (ids == null || ids.contains(r.id)) &&
     (_filterTag == null || r.tags.contains(_filterTag)) &&
     (!_unlinkedOnly || r.connections.isEmpty) &&
     (_query.isEmpty || r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.toLowerCase().contains(_query)))).toList();
+  }
   void _sync() {
     final records = _records;
     final scope = _scopeRecords;
@@ -191,7 +197,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     if (ids.isEmpty && (!widget.blocks || box.children.isEmpty)) return null;
     if (widget.blocks) {
       final parts = <Rect>[for (final id in ids) positions[id]! & _size(id),
-        for (final child in box.children) _regionBounds(child, positions) ?? _emptyBoxBounds.putIfAbsent(child,
+        for (final child in box.children) _liftBoxes[child] ?? _regionBounds(child, positions) ?? _emptyBoxBounds.putIfAbsent(child,
           () => Rect.fromLTWH(640 + memoBoxes.indexOf(child) * 340, 440, 260, 260))];
       return parts.isEmpty ? null : parts.reduce((a, b) => a.expandToInclude(b)).inflate(32);
     }
@@ -426,7 +432,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           for (final record in records) Positioned(left: _positions[record.id]!.dx - ThoughtInteraction.hitPadding, top: _positions[record.id]!.dy - ThoughtInteraction.hitPadding,
             child: ThoughtInteraction(size: _size(record.id), desktop: MediaQuery.sizeOf(context).width >= 760,
                 onLift: () => setState(() {
-                  _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
+                  _liftBoxes..clear()..addEntries(regions.where((r) => _boxMembers(r.box).contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
                 }),
                 onActiveChanged: (active) => setState(() { _draggingId = active ? record.id : null; if (!active) _hoverBox = null; }),
                 onTap: () { if (_linkMode && _linkFrom != null) {
