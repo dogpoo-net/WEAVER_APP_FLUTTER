@@ -12,7 +12,27 @@ class TrashPage extends StatefulWidget {
 }
 class _TrashPageState extends State<TrashPage> {
   String _query = '';
+  bool _emptying = false;
+  Future<void> _emptyTrash() async {
+    if (_emptying || elements.trash.isEmpty) return;
+    final ids = elements.trash.keys.toList();
+    final yes = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+      title: const Text('휴지통을 비울까요?'),
+      content: Text('검색 결과와 관계없이 휴지통의 생각 ${ids.length}개와 첨부파일을 영구 삭제합니다. 서버 백업은 유지됩니다.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('모두 삭제'))]));
+    if (yes != true || !mounted) return;
+    setState(() => _emptying = true);
+    final delete = widget.onDelete;
+    try {
+      for (final id in ids) { await delete(id); }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('휴지통을 비웠습니다.')));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('일부 항목을 삭제하지 못했습니다. 남은 항목을 다시 삭제해주세요.')));
+    } finally { if (mounted) setState(() => _emptying = false); }
+  }
   Future<void> _open(ElementRecord record) async {
+    if (_emptying) return;
     var busy = false;
     await showDialog<void>(context: context, builder: (dialogContext) => StatefulBuilder(
       builder: (context, update) => PopScope(canPop: !busy, child: AlertDialog(
@@ -43,8 +63,12 @@ class _TrashPageState extends State<TrashPage> {
       ))));
   }
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const WorkspaceTitle('휴지통'), centerTitle: false, actions: const [DesktopMenuAction()]),
+  Widget build(BuildContext context) => PopScope(canPop: !_emptying, child: Scaffold(
+    appBar: AppBar(title: const WorkspaceTitle('휴지통'), centerTitle: false, actions: [
+      ListenableBuilder(listenable: elements, builder: (context, _) => TextButton.icon(
+        onPressed: _emptying || elements.trash.isEmpty ? null : _emptyTrash,
+        icon: const Icon(Icons.delete_sweep_outlined, size: 18), label: const Text('휴지통 비우기'))),
+      const DesktopMenuAction()]),
     body: DesktopMenuBody(child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 960),
       child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
         TextField(key: const ValueKey('trash-search'), onChanged: (value) => setState(() => _query = value.trim().toLowerCase()),
@@ -52,6 +76,7 @@ class _TrashPageState extends State<TrashPage> {
             prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 32),
             isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8))),
         const SizedBox(height: 8),
+        if (_emptying) const LinearProgressIndicator(),
         Expanded(child: ListenableBuilder(listenable: elements, builder: (context, _) {
           final records = elements.trash.values.where((r) => r.text.toLowerCase().contains(_query) ||
             r.tags.any((tag) => tag.toLowerCase().contains(_query.replaceFirst('#', '')))).toList()
@@ -62,5 +87,5 @@ class _TrashPageState extends State<TrashPage> {
         })),
       ])),
     ))),
-  );
+  ));
 }
