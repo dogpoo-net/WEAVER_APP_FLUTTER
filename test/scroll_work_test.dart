@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/all_thoughts_page.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
@@ -13,6 +14,19 @@ class _CountPaint extends CustomPainter {
   void paint(Canvas canvas, Size size) => onPaint();
   @override
   bool shouldRepaint(covariant _CountPaint oldDelegate) => true;
+}
+
+class _CountLayout extends SingleChildRenderObjectWidget {
+  const _CountLayout(this.onLayout, {required super.child});
+  final VoidCallback onLayout;
+  @override
+  RenderObject createRenderObject(BuildContext context) => _LayoutCounter(onLayout);
+}
+class _LayoutCounter extends RenderProxyBox {
+  _LayoutCounter(this.onLayout);
+  final VoidCallback onLayout;
+  @override
+  void performLayout() { onLayout(); super.performLayout(); }
 }
 
 void main() {
@@ -56,6 +70,27 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
     elements.clear(); memoBoxes.clear();
+  });
+
+  testWidgets('recent rows stop layout after the first hidden item and expand correctly', (tester) async {
+    var layouts = 0, rows = 5;
+    bool? overflow;
+    late StateSetter update;
+    await tester.pumpWidget(Directionality(textDirection: TextDirection.ltr,
+      child: StatefulBuilder(builder: (context, setState) {
+        update = setState;
+        return Align(alignment: Alignment.topLeft, child: SizedBox(width: 100,
+          child: LimitedRowsWrap(maxRows: rows, onOverflowChanged: (value) => overflow = value,
+            children: [for (var i = 0; i < 1000; i++) _CountLayout(() => layouts++,
+              child: const SizedBox(width: 90, height: 30))])));
+      })));
+    expect(layouts, 6);
+    expect(overflow, isTrue);
+    expect(tester.getSize(find.byType(LimitedRowsWrap)).height, 174);
+    update(() => rows = 10); await tester.pump();
+    expect(layouts, lessThanOrEqualTo(17));
+    expect(tester.getSize(find.byType(LimitedRowsWrap)).height, 354);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('hidden recent rows do not issue paint calls', (tester) async {

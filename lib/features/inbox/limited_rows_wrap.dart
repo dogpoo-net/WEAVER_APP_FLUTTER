@@ -24,44 +24,64 @@ class _LimitedRowsRenderWrap extends RenderWrap {
   ValueChanged<bool>? onOverflowChanged;
   bool? _lastOverflow;
   set maxRows(int value) { if (_maxRows != value) { _maxRows = value; markNeedsLayout(); } }
+  final _visible = <RenderBox>[];
   @override
   void paint(PaintingContext context, Offset offset) {
-    var child = firstChild;
-    while (child != null) {
-      final data = child.parentData! as WrapParentData;
-      if (data.offset.dy >= size.height) break;
-      context.paintChild(child, offset + data.offset);
-      child = data.nextSibling;
+    for (final child in _visible) {
+      context.paintChild(child, offset + (child.parentData! as WrapParentData).offset);
     }
+  }
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    for (final child in _visible.reversed) {
+      if (result.addWithPaintOffset(offset: (child.parentData! as WrapParentData).offset,
+        position: position, hitTest: (result, transformed) => child.hitTest(result, position: transformed))) return true;
+    }
+    return false;
   }
   @override
   void visitChildrenForSemantics(RenderObjectVisitor visitor) {
-    var child = firstChild;
-    while (child != null) {
-      final data = child.parentData! as WrapParentData;
-      if (data.offset.dy >= size.height) break;
-      visitor(child);
-      child = data.nextSibling;
-    }
+    for (final child in _visible) { visitor(child); }
   }
   @override
   void performLayout() {
-    super.performLayout();
+    _visible.clear();
+    final rows = <List<RenderBox>>[];
+    final widths = <double>[], heights = <double>[];
+    var row = <RenderBox>[];
+    var width = 0.0, height = 0.0;
     var child = firstChild;
-    var rows = 0;
-    double? previousTop;
-    var bottom = 0.0;
+    var overflow = false;
+    final childConstraints = BoxConstraints(maxWidth: constraints.maxWidth);
     while (child != null) {
-      final data = child.parentData! as WrapParentData;
-      if (previousTop == null || (data.offset.dy - previousTop).abs() > .1) {
-        rows++; previousTop = data.offset.dy;
+      child.layout(childConstraints, parentUsesSize: true);
+      final nextWidth = width + (row.isEmpty ? 0 : spacing) + child.size.width;
+      if (row.isNotEmpty && nextWidth > constraints.maxWidth) {
+        rows.add(row); widths.add(width); heights.add(height);
+        if (rows.length >= _maxRows) { overflow = true; row = []; break; }
+        row = []; width = 0; height = 0;
       }
-      if (rows > _maxRows) break;
-      bottom = math.max(bottom, data.offset.dy + child.size.height);
-      child = data.nextSibling;
+      width += (row.isEmpty ? 0 : spacing) + child.size.width;
+      height = math.max(height, child.size.height);
+      row.add(child);
+      child = (child.parentData! as WrapParentData).nextSibling;
     }
-    size = constraints.constrain(Size(size.width, bottom));
-    final overflow = rows > _maxRows;
+    if (row.isNotEmpty) { rows.add(row); widths.add(width); heights.add(height); }
+    size = constraints.constrain(Size(
+      widths.fold(0.0, math.max),
+      heights.fold(0.0, (sum, h) => sum + h) + math.max(0, rows.length - 1) * runSpacing));
+    var y = 0.0;
+    for (var i = 0; i < rows.length; i++) {
+      var x = 0.0;
+      for (final item in rows[i]) {
+        (item.parentData! as WrapParentData).offset = Offset(
+          textDirection == TextDirection.rtl ? size.width - x - item.size.width : x, y);
+        x += item.size.width + spacing;
+        _visible.add(item);
+      }
+      y += heights[i] + runSpacing;
+    }
+    markNeedsSemanticsUpdate();
     if (_lastOverflow != overflow) {
       _lastOverflow = overflow;
       WidgetsBinding.instance.addPostFrameCallback((_) { if (attached) onOverflowChanged?.call(overflow); });
