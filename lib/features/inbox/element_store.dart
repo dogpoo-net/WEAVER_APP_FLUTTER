@@ -1,6 +1,5 @@
 import '../capture/location_preview.dart';
 import '../capture/photo_gallery.dart';
-import 'dart:async';
 import '../capture/capture_models.dart';
 import '../capture/media_storage.dart';
 import '../capture/voice_player.dart';
@@ -34,6 +33,7 @@ class ElementRecord {
   final List<VoiceAttachment> recordings = [];
   final List<PhotoAttachment> photos = [];
   bool hiddenFromSearch = false;
+  DateTime? deletedAt;
   static int _next = 0;
   final String id;
   String text;
@@ -121,13 +121,13 @@ class ElementStore extends ChangeNotifier {
   void remove(String word) {
     final removed = records.remove(word);
     if (removed == null) return;
-    for (final id in [...removed.recordings.map((clip) => clip.id), ...removed.photos.map((photo) => photo.id)]) {
-      unawaited(MediaStorage.delete(id).catchError((Object _) {}));
-    }
+    removed.deletedAt = DateTime.now();
+    trash[removed.id] = removed;
     for (final record in records.values) { record.connections.remove(removed.id); }
     notifyListeners();
   }
 
+  final Map<String, ElementRecord> trash = {};
   final Map<String, ElementRecord> records = {};
   final Map<Object, List<ElementSource>> sources = {};
   ElementRecord add(String text, {bool replaceTags = false}) {
@@ -184,6 +184,7 @@ class ElementStore extends ChangeNotifier {
 
   void clear() {
     records.clear();
+    trash.clear();
     hiddenSearchTags.clear();
     sources.clear();
   }
@@ -355,7 +356,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               context: context,
               builder: (dialogContext) => AlertDialog(
                 title: const Text('생각을 삭제할까요?'),
-                content: const Text('생각 목록과 연결에서 삭제합니다. 프로젝트의 글은 유지됩니다.'),
+                content: const Text('휴지통으로 이동합니다. 프로젝트의 글은 유지됩니다.'),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(dialogContext, false),

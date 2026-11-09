@@ -1,3 +1,7 @@
+import 'dart:convert';
+import '../auth/google_auth.dart';
+import '../sync/workspace_backup.dart';
+import 'trash_page.dart';
 import 'thought_settings.dart';
 import '../capture/capture_models.dart';
 import '../capture/location_capture.dart';
@@ -39,6 +43,7 @@ class InboxPage extends StatefulWidget {
   const InboxPage({
     super.key,
     this.storage,
+    this.onSettingsImported,
     required this.themeMode,
     this.lightPalette = LightPalette.neutral,
     this.onLightPaletteChanged,
@@ -47,6 +52,7 @@ class InboxPage extends StatefulWidget {
     required this.onThemeChanged,
   });
   final WorkspaceStorage? storage;
+  final VoidCallback? onSettingsImported;
   final ThemeMode themeMode;
   final LightPalette lightPalette;
   final DarkPalette darkPalette;
@@ -218,6 +224,7 @@ class _InboxPageState extends State<InboxPage> {
       _storageError = '브라우저 저장 데이터를 읽지 못했습니다. 기존 데이터는 보존되며 새 저장은 중단됩니다.';
     }
     ensureUnclassifiedBox();
+    if (!_restoreBlocked) _cleanupDeletedMedia().catchError((Object _) {});
   }
 
   void _elementRenamed(String oldText, String newText) {
@@ -367,6 +374,96 @@ class _InboxPageState extends State<InboxPage> {
     }
   }
 
+  static const _mediaCleanupKey = 'weaver.pendingMediaDeletion.v1';
+  Future<void> _cleanupDeletedMedia() async {
+    final preferences = widget.storage?.preferences;
+    if (preferences == null) return;
+    final pending = preferences.getStringList(_mediaCleanupKey) ?? [];
+    if (pending.isEmpty) return;
+    final referenced = {for (final r in [...elements.records.values, ...elements.trash.values])
+      ...[...r.photos.map((p) => p.id), ...r.recordings.map((c) => c.id)]};
+    final failed = <String>[];
+    for (final id in pending) {
+      if (referenced.contains(id)) continue;
+      try { await MediaStorage.delete(id); } catch (_) { failed.add(id); }
+    }
+    await preferences.setStringList(_mediaCleanupKey, failed);
+  }
+  Future<void> _purgeThought(String id) async {
+    final storage = widget.storage;
+    if (storage == null || _restoreBlocked) throw StateError('Storage unavailable');
+    final record = elements.trash[id];
+    if (record == null) return;
+    final files = {...(storage.preferences.getStringList(_mediaCleanupKey) ?? []),
+      ...record.photos.map((p) => p.id), ...record.recordings.map((c) => c.id)};
+    if (!await storage.preferences.setStringList(_mediaCleanupKey, files.toList())) throw StateError('Cleanup save failed');
+    elements.trash.remove(id);
+    final boxes = [for (final box in memoBoxes) if (box.elementIds.remove(id)) box];
+    try { await storage.write(WorkspaceSnapshot.encode(_notes)); }
+    catch (_) { elements.trash[id] = record; for (final box in boxes) { box.elementIds.add(id); } rethrow; }
+    elements.refreshVisibility();
+    await _cleanupDeletedMedia();
+  }
+  Future<bool> _confirmTransfer(String title, String message) async => await showDialog<bool>(
+    context: context, builder: (context) => AlertDialog(title: Text(title), content: Text(message),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('계속'))])) == true;
+
+  Future<void> _uploadBackup() async {
+    final auth = GoogleAuthScope.maybeOf(context);
+    final identity = auth?.identity;
+    final storage = widget.storage;
+    if (identity == null || storage == null || _restoreBlocked) throw const BackupFailure('로그인과 로컬 저장 상태를 확인해주세요.');
+    if (!await _confirmTransfer('서버에 데이터를 저장할까요?', '${identity.email} 계정의 기존 서버 백업을 현재 데이터로 덮어씁니다. 사진·음성·위치와 휴지통도 포함됩니다.')) return;
+    final api = WeaverBackupApi();
+    try {
+      for (final note in _notes.where((n) => n.project != null)) { note.content = note.project!.content; }
+      final backup = await WorkspaceBackup.capture(WorkspaceSnapshot.encode(_notes), DeviceBackupMedia(),
+        theme: storage.readTheme(), graphs: encodeGraphLayouts({for (final box in memoBoxes) box.name: box.layout}), closed: showClosedThoughts);
+      if (!mounted || auth!.identity?.id != identity.id) throw const BackupFailure('로그인 계정이 변경되어 저장을 중단했습니다.');
+      await api.upload(identity.email, backup);
+      if (mounted) _captureError('서버에 데이터를 저장했습니다.');
+    } finally { api.close(); }
+  }
+  Future<void> _downloadBackup() async {
+    final auth = GoogleAuthScope.maybeOf(context);
+    final identity = auth?.identity;
+    final storage = widget.storage;
+    if (identity == null || storage == null) throw const BackupFailure('로그인과 로컬 저장 상태를 확인해주세요.');
+    final api = WeaverBackupApi();
+    final media = DeviceBackupMedia();
+    WorkspaceBackup? staged;
+    var committed = false;
+    try {
+      final backup = await api.download(identity.email);
+      if (!mounted || auth!.identity?.id != identity.id) throw const BackupFailure('로그인 계정이 변경되어 가져오기를 중단했습니다.');
+      if (!await _confirmTransfer('현재 데이터를 덮어쓸까요?', '${identity.email} 계정의 서버 데이터로 현재 생각·프로젝트·상자·휴지통과 설정을 교체합니다. 작성 중인 입력도 비워집니다.')) return;
+      final imported = await backup.stage(media);
+      staged = imported;
+      if (!mounted || auth.identity?.id != identity.id) throw const BackupFailure('로그인 계정이 변경되어 가져오기를 중단했습니다.');
+      await storage.replaceFromBackup(imported.workspace, graphs: imported.graphs, theme: imported.theme, closed: imported.closed);
+      committed = true;
+      if (!mounted) return;
+      final snapshot = WorkspaceSnapshot.decode(imported.workspace);
+      setState(() {
+        snapshot.apply();
+        _notes..clear()..addAll(snapshot.notes);
+        if (imported.graphs != null) restoreGraphLayouts(imported.graphs!, {for (final box in memoBoxes) box.name: box.layout});
+        ensureUnclassifiedBox();
+        _draft.clear(); _draftTags.clear(); _draftConnections.clear(); _clearCapture(); _editing = null;
+        _restoreBlocked = false; _storageError = null;
+        showClosedThoughts = imported.closed;
+      });
+      widget.onSettingsImported?.call(); desktopMenu.refresh();
+      _captureError('서버 데이터를 가져왔습니다.');
+    } finally {
+      api.close();
+      if (!committed && staged != null) {
+        for (final id in staged.media.keys) { try { await media.delete(id); } catch (_) {} }
+      }
+    }
+  }
+
   Future<void> _reset() async {
     final yes = await showDialog<bool>(
       context: context,
@@ -388,7 +485,8 @@ class _InboxPageState extends State<InboxPage> {
     if (yes != true || !mounted) return;
     try {
       await widget.storage?.clear();
-      if (elements.records.values.any((r) => r.recordings.isNotEmpty || r.photos.isNotEmpty)) await MediaStorage.clear();
+      await widget.storage?.preferences.remove(_mediaCleanupKey);
+      if ([...elements.records.values, ...elements.trash.values].any((r) => r.recordings.isNotEmpty || r.photos.isNotEmpty)) await MediaStorage.clear();
       if (!mounted) return;
       setState(() {
         projectFolders.clear();
@@ -881,7 +979,7 @@ class _InboxPageState extends State<InboxPage> {
     List<String> tags,
   ) async {
     if (!mounted || choice == null || choice == -1) return;
-    if (choice == WorkspaceMenu.settings) { await showThoughtSettings(context, widget.storage?.preferences); return; }
+    if (choice == WorkspaceMenu.settings) { await showThoughtSettings(context, widget.storage?.preferences, onUpload: _uploadBackup, onDownload: _downloadBackup, onReset: _reset); return; }
     if (choice == WorkspaceMenu.createBoxFolder) { await _createFolder(kind: 'box'); return; }
     if (choice == WorkspaceMenu.createBox) {
       final box = await createMemoBox(context);
@@ -914,8 +1012,8 @@ class _InboxPageState extends State<InboxPage> {
       await _createProject();
       return;
     }
-    if (choice == WorkspaceMenu.resetData) {
-      await _reset();
+    if (choice == WorkspaceMenu.trash) {
+      await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => TrashPage(onDelete: _purgeThought)));
       return;
     }
     if (choice == WorkspaceMenu.createFolder) {

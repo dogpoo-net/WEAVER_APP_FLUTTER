@@ -67,7 +67,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          flutter test --platform chrome --no-pub --reporter expanded test/legacy_workspace_web_test.dart > "$RUNNER_TEMP/legacy-web.log" 2>&1
+          flutter test --platform chrome --no-pub --reporter expanded test/legacy_workspace_web_test.dart test/backup_trash_test.dart > "$RUNNER_TEMP/legacy-web.log" 2>&1
           result=$?
           cat "$RUNNER_TEMP/legacy-web.log"
           python3 - <<'PYTHON'

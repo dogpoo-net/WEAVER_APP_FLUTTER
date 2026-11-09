@@ -26,7 +26,7 @@ class WorkspaceMenu extends StatefulWidget {
   final VoidCallback? onHide, onPin, onFloat;
   static const allThoughts = -1000006, createParagraph = -2;
   static const settings = -1000009;
-  static const createProject = -1000002, resetData = -1000003;
+  static const createProject = -1000002, trash = -1000003;
   static const createFolder = -1000000, createTagFolder = -1000001;
   static const createParagraphFolder = -1000004, createElementFolder = -1000005;
   static int paragraphChoice(int index) => -2000000 - index;
@@ -260,8 +260,8 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         ]),
       ))),
       const Divider(indent: 16, endIndent: 16),
-      ListTile(dense: true, leading: const Icon(Icons.delete_outline, size: 18), title: const Text('데이터 초기화'),
-        onTap: () => _select(WorkspaceMenu.resetData)),
+      ListTile(dense: true, leading: const Icon(Icons.delete_outline, size: 18), title: const Text('휴지통'),
+        onTap: () => _select(WorkspaceMenu.trash)),
       ListTile(dense: true, leading: const Icon(Icons.settings_outlined, size: 18), title: const Text('환경설정'),
         onTap: () => _select(WorkspaceMenu.settings)),
     ]);

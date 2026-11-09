@@ -43,7 +43,9 @@ class WorkspaceSnapshot {
     this.boxFolders = const [],
     this.graphLayout,
     this.boxFolderParents = const {},
+    this.trashRecords = const [],
   ]);
+  final List<ElementRecord> trashRecords;
   final GraphLayout? graphLayout;
   final Map<String, String> boxFolderParents;
   final List<String> folders;
@@ -62,6 +64,19 @@ class WorkspaceSnapshot {
     'bindings': p.bindings.map((link) => link.toJson()).toList(),
     'tags': p.tags.toList(),
   };
+  static Map<String, dynamic> recordJson(ElementRecord r) => {
+            'id': r.id,
+            'text': r.text,
+            'createdAt': r.createdAt.toIso8601String(),
+            'tags': r.tags.toList(),
+            'connections': r.connections.toList(),
+            'folder': r.folder,
+            'hiddenFromSearch': r.hiddenFromSearch,
+            'location': r.location?.toJson(),
+            'recordings': r.recordings.map((clip) => clip.toJson()).toList(),
+            'photos': r.photos.map((photo) => photo.toJson()).toList(),
+            'deletedAt': r.deletedAt?.toIso8601String(),
+          };
   static String encode(List<Note> notes) => jsonEncode({
     'version': 1,
     'graphLayout': pageGraphLayout.toJson(),
@@ -75,22 +90,8 @@ class WorkspaceSnapshot {
     'hashtagFolders': hashtagFolders,
     'hashtagColors': hashtagColors,
     'hashtagFolderAssignments': hashtagFolderAssignments,
-    'elements': elements.records.values
-        .map(
-          (r) => {
-            'id': r.id,
-            'text': r.text,
-            'createdAt': r.createdAt.toIso8601String(),
-            'tags': r.tags.toList(),
-            'connections': r.connections.toList(),
-            'folder': r.folder,
-            'hiddenFromSearch': r.hiddenFromSearch,
-            'location': r.location?.toJson(),
-            'recordings': r.recordings.map((clip) => clip.toJson()).toList(),
-            'photos': r.photos.map((photo) => photo.toJson()).toList(),
-          },
-        )
-        .toList(),
+    'elements': elements.records.values.map(recordJson).toList(),
+    'trash': elements.trash.values.map(recordJson).toList(),
     'colors': exportWordColors(),
     'notes': notes
         .map(
@@ -147,7 +148,7 @@ class WorkspaceSnapshot {
           ),
         )
         .toList();
-    final records = (data['elements'] as List).map((r) {
+    List<ElementRecord> readRecords(List<dynamic> raw) => raw.map((r) {
       final text = r['text'] as String;
       if (text.trim().isEmpty) throw const FormatException('Empty element');
       return ElementRecord.restored(
@@ -160,8 +161,14 @@ class WorkspaceSnapshot {
        ..hiddenFromSearch = (r['hiddenFromSearch'] as bool?) ?? false
        ..location = ThoughtLocation.fromJson(r['location'])
        ..recordings.addAll((r['recordings'] as List? ?? []).map(VoiceAttachment.fromJson))
-       ..photos.addAll((r['photos'] as List? ?? []).map(PhotoAttachment.fromJson));
+       ..photos.addAll((r['photos'] as List? ?? []).map(PhotoAttachment.fromJson))
+       ..deletedAt = r['deletedAt'] == null ? null : DateTime.parse(r['deletedAt'] as String);
     }).toList();
+    final records = readRecords(data['elements'] as List);
+    final trashRecords = readRecords((data['trash'] ?? []) as List);
+    if ([...records, ...trashRecords].map((r) => r.id).toSet().length != records.length + trashRecords.length) {
+      throw const FormatException('Duplicate thought IDs');
+    }
     if (records.map((r) => r.text).toSet().length != records.length ||
         records.map((r) => r.id).toSet().length != records.length) {
       throw const FormatException('Duplicate elements');
@@ -268,6 +275,7 @@ class WorkspaceSnapshot {
       List<String>.from(data['memoBoxFolders'] ?? []),
       GraphLayout.fromJson(data['graphLayout']),
       Map<String, String>.from(data['memoBoxFolderParents'] ?? {}),
+      trashRecords,
     );
   }
 
@@ -294,6 +302,7 @@ class WorkspaceSnapshot {
     paragraphFolders..clear()..addAll(paragraphFolderList);
     elementFolders..clear()..addAll(elementFolderList);
     elements.clear();
+    elements.trash.addEntries(trashRecords.map((r) => MapEntry(r.id, r)));
     hiddenSearchTags.addAll(hiddenTagList);
     for (final record in records) {
       elements.records[record.text] = record;
@@ -333,10 +342,36 @@ class WorkspaceStorage {
   }
   Future<void> _pending = Future.value();
   String? read() => preferences.getString(key);
+  Future<void> replaceFromBackup(String workspace, {String? graphs, String? theme, required bool closed}) {
+    WorkspaceSnapshot.decode(workspace);
+    final task = _pending.catchError((Object _) {}).then((_) async {
+      const closedKey = 'weaver.showClosedThoughts.v1';
+      final before = <String, Object?>{for (final k in [key, graphKey, themeKey, closedKey]) k: preferences.get(k)};
+      if (!await preferences.setString('$key.beforeImport', jsonEncode(before))) throw StateError('Backup failed');
+      Future<void> put(String k, Object? value) async {
+        final ok = value == null ? await preferences.remove(k) : value is bool
+          ? await preferences.setBool(k, value) : await preferences.setString(k, value as String);
+        if (!ok) throw StateError('Import save failed');
+      }
+      try {
+        await put(graphKey, graphs);
+        if (theme != null) await put(themeKey, theme);
+        await put(closedKey, closed);
+        await put(key, workspace);
+      } catch (_) {
+        for (final entry in before.entries) { await put(entry.key, entry.value); }
+        rethrow;
+      }
+    });
+    _pending = task;
+    return task;
+  }
+
   Future<void> clear() {
     final task = _pending.catchError((Object _) {}).then((_) async {
       if (!await preferences.remove(key)) throw StateError('Clear failed');
       if (!await preferences.remove(graphKey)) throw StateError('Graph clear failed');
+      await preferences.remove('$key.beforeImport');
       if (!await preferences.remove('$key.previous')) {
         throw StateError('Clear backup failed');
       }

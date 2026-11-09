@@ -68,12 +68,16 @@ void main() {
     expect(find.text('저장된 구절'), findsOneWidget);
     await tester.tap(find.byTooltip('메뉴 열기'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('환경설정'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('데이터 초기화'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('취소'));
     await tester.pumpAndSettle();
     expect(storage.read(), isNotNull);
     await tester.tap(find.byTooltip('메뉴 열기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('환경설정'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('데이터 초기화'));
     await tester.pumpAndSettle();

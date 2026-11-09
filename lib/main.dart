@@ -57,6 +57,9 @@ class _MyAppState extends State<MyApp> {
     if (widget.requireLogin) _auth.initialize();
     elements.clear();
     showClosedThoughts = widget.storage?.preferences.getBool(closedThoughtsPreference) ?? true;
+    _restoreTheme();
+  }
+  void _restoreTheme() {
     try {
       final raw = widget.storage?.readTheme();
       if (raw != null) {
@@ -155,6 +158,7 @@ class _MyAppState extends State<MyApp> {
     themeMode: _mode,
     home: widget.requireLogin && _auth.identity == null ? LoginPage(auth: _auth) : InboxPage(
       storage: widget.storage,
+      onSettingsImported: () => setState(_restoreTheme),
       themeMode: _mode,
       lightPalette: _lightPalette,
       darkPalette: _darkPalette,
