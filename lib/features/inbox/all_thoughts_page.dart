@@ -215,25 +215,31 @@ class AllThoughtsPage extends StatefulWidget {
   @override
   State<AllThoughtsPage> createState() => _ThoughtViewsState();
 }
-class _ThoughtViewsState extends State<AllThoughtsPage> {
+class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProviderStateMixin {
+  late final AnimationController _tabPosition;
   @override
   void initState() {
     super.initState();
     ensureUnclassifiedBox();
+    _tabPosition = AnimationController(vsync: this, upperBound: ThoughtView.values.length - 1.0, value: widget.initialView.index.toDouble());
   }
+  @override
+  void dispose() { _tabPosition.dispose(); super.dispose(); }
   late ThoughtView _view = widget.initialView;
-  late ThoughtView _previousView = widget.initialView;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final selector = SizedBox(height: 36, width: double.infinity, child: LayoutBuilder(builder: (context, bounds) => Stack(children: [
-      TweenAnimationBuilder<double>(key: ValueKey(_view), tween: Tween(begin: _previousView.index.toDouble(), end: _view.index.toDouble()),
-        duration: const Duration(milliseconds: 200), curve: Curves.easeInOutCubic,
-        builder: (context, value, _) => Positioned(left: value * bounds.maxWidth / ThoughtView.values.length, top: 0, bottom: 0,
-          width: bounds.maxWidth / ThoughtView.values.length, child: ColoredBox(color: colors.secondaryContainer))),
+      AnimatedBuilder(animation: _tabPosition,
+        builder: (context, _) => Positioned(left: _tabPosition.value * bounds.maxWidth / ThoughtView.values.length, top: 0, bottom: 0,
+          width: bounds.maxWidth / ThoughtView.values.length, child: ColoredBox(key: const ValueKey('thought-tab-highlight'), color: colors.secondaryContainer))),
       Positioned.fill(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [for (final view in ThoughtView.values) Expanded(child: Semantics(selected: view == _view,
         child: TextButton(style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap, shape: const RoundedRectangleBorder(), foregroundColor: view == _view ? colors.onSecondaryContainer : colors.onSurface),
-          onPressed: () => setState(() { _previousView = _view; _view = view; }),
+          onPressed: () {
+            if (_view == view) return;
+            setState(() => _view = view);
+            _tabPosition.animateTo(view.index.toDouble(), duration: const Duration(milliseconds: 200), curve: Curves.easeInOutCubic);
+          },
           child: Text(switch (view) { ThoughtView.diagram => '다이어그램', ThoughtView.boxes => '생각', ThoughtView.page => '메모상자', ThoughtView.geolog => '지오로그' })))),
       ])),
     ])));

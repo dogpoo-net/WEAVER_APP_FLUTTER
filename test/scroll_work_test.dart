@@ -15,6 +15,27 @@ class _CountPaint extends CustomPainter {
 }
 
 void main() {
+  testWidgets('desktop tab highlight moves over 200ms and then stops', (tester) async {
+    elements.clear(); memoBoxes.clear();
+    await tester.pumpWidget(MaterialApp(theme: ThemeData(platform: TargetPlatform.linux),
+      home: const AllThoughtsPage(notes: [])));
+    await tester.pumpAndSettle();
+    final highlight = find.byKey(const ValueKey('thought-tab-highlight'));
+    final start = tester.getTopLeft(highlight).dx;
+    final width = tester.getSize(highlight).width;
+    await tester.tap(find.text('다이어그램'));
+    await tester.pump();
+    expect(tester.getTopLeft(highlight).dx, closeTo(start, .1));
+    await tester.pump(const Duration(milliseconds: 100));
+    final middle = tester.getTopLeft(highlight).dx;
+    expect(middle, greaterThan(start)); expect(middle, lessThan(start + width));
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(tester.getTopLeft(highlight).dx, closeTo(start + width, .1));
+    await tester.pumpAndSettle();
+    expect(tester.binding.hasScheduledFrame, isFalse);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('a thousand thoughts only mount nearby rows', (tester) async {
     elements.clear(); memoBoxes.clear();
     for (var i = 0; i < 1000; i++) { elements.add('생각 $i: 화면 밖에는 생성하지 않는 긴 메모'); }
