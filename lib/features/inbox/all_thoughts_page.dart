@@ -26,6 +26,7 @@ class ThoughtBoxView extends StatefulWidget {
 class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   String? _selectedId;
   String _query = '';
+  bool _photosOnly = false, _audioOnly = false;
   MemoBox? _filterBox;
   String? _filterTag;
   void _filter({MemoBox? box, String? tag}) => setState(() {
@@ -99,16 +100,14 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     final allRecords = elements.records.values.toList();
     final tags = {...allRecords.expand((record) => record.tags), ...hashtagColors.keys}.toList()..sort();
     final records = allRecords.where((record) => canBrowseThought(record) &&
+      (!_photosOnly || record.photos.isNotEmpty) &&
+      (!_audioOnly || record.recordings.isNotEmpty) &&
       (_filterBox == null || _filterBox!.elementIds.contains(record.id)) &&
       (_filterTag == null || record.tags.contains(_filterTag)) &&
       (record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.toLowerCase().contains(_query.toLowerCase().replaceFirst(RegExp(r'^#'), ''))))).toList();
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
-    final grid = SingleChildScrollView(key: const ValueKey('all-thoughts-grid'), padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+    final grid = SingleChildScrollView(key: const ValueKey('all-thoughts-grid'), padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1000), child: Column(children: [
-        TextField(key: const ValueKey('all-thoughts-search'),
-          style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 13 : 14),
-          onChanged: (value) => setState(() => _query = value.trim()),
-          decoration: const InputDecoration(hintText: '생각·해시태그 찾기', prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 36), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), isDense: true)),
         Row(children: [
           Expanded(child: Text(_query.isEmpty && _filterBox == null && _filterTag == null ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.bodyMedium)),
           if (!desktop) ...[
@@ -145,7 +144,15 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
       ]))));
     final footer = ThoughtFilters(tags: tags, box: _filterBox, tag: _filterTag,
       onChanged: _changed, onFilter: (box, tag) => _filter(box: box, tag: tag));
-    return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null, leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(_filterBox?.name ?? '모든 생각 보기'), actions: [const DesktopMenuAction(),
+    return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null, leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(_filterBox?.name ?? '모든 생각 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
+      IconButton(tooltip: '사진 있는 생각', isSelected: _photosOnly,
+        style: IconButton.styleFrom(backgroundColor: _photosOnly ? Theme.of(context).colorScheme.primaryContainer : null),
+        icon: const Icon(Icons.image_outlined), onPressed: () => setState(() => _photosOnly = !_photosOnly)),
+      IconButton(tooltip: '음성 있는 생각', isSelected: _audioOnly,
+        style: IconButton.styleFrom(backgroundColor: _audioOnly ? Theme.of(context).colorScheme.primaryContainer : null),
+        icon: const Icon(Icons.volume_up_outlined), onPressed: () => setState(() => _audioOnly = !_audioOnly)),
       IconButton(tooltip: '닫힌 생각 보기', icon: const Icon(Icons.archive_outlined), onPressed: () => showClosedThoughtsDialog(context)),
       IconButton(tooltip: '메모상자 만들기', icon: const Icon(Icons.inventory_2_outlined), onPressed: () async {
         final box = await createMemoBox(context); if (mounted && box != null) _changed();
@@ -153,8 +160,13 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
       IconButton(tooltip: '해시태그 만들기', icon: const Icon(Icons.tag), onPressed: () async {
         final tag = await createHashtag(context); if (mounted && tag != null) _changed();
       }),
-    ]),
-      body: DesktopMenuBody(child: Column(children: [if (widget.viewSelector != null) widget.viewSelector!, Expanded(child: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
+    ]))]),
+      body: DesktopMenuBody(child: Column(children: [if (widget.viewSelector != null) widget.viewSelector!,
+        Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 0), child: TextField(key: const ValueKey('all-thoughts-search'),
+          style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 13 : 14),
+          onChanged: (value) => setState(() => _query = value.trim()),
+          decoration: const InputDecoration(hintText: '생각·해시태그 찾기', prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 36), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), isDense: true))),
+        Expanded(child: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
         if (desktop && constraints.maxWidth >= 760) { return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(child: grid), const VerticalDivider(width: 1), SizedBox(width: 320, child: _relations(desktop)),
         ]); }

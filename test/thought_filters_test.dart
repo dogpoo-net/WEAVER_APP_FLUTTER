@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:weaver/features/capture/capture_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/all_thoughts_page.dart';
 import 'package:weaver/features/inbox/element_store.dart';
@@ -6,6 +7,29 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 
 void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); });
+  testWidgets('attachment filters combine and search stays fixed while scrolling', (tester) async {
+    final photo = elements.add('사진만')..photos.add(const PhotoAttachment('p', 'photo'));
+    final voice = elements.add('음성만')..recordings.add(const VoiceAttachment('v', 1000));
+    final both = elements.add('둘 다')
+      ..photos.add(const PhotoAttachment('p2', 'photo'))
+      ..recordings.add(const VoiceAttachment('v2', 1000));
+    for (var i = 0; i < 100; i++) { elements.add('스크롤할 긴 생각 $i'); }
+    await tester.pumpWidget(const MaterialApp(home: AllThoughtsPage(notes: [])));
+    await tester.pumpAndSettle();
+    final search = find.byKey(const ValueKey('all-thoughts-search'));
+    final top = tester.getTopLeft(search);
+    await tester.drag(find.byKey(const ValueKey('all-thoughts-grid')), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(search), top);
+    await tester.tap(find.byTooltip('사진 있는 생각')); await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('thought-${photo.id}')), findsOneWidget);
+    expect(find.byKey(ValueKey('thought-${voice.id}')), findsNothing);
+    await tester.tap(find.byTooltip('음성 있는 생각')); await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('thought-${photo.id}')), findsNothing);
+    expect(find.byKey(ValueKey('thought-${both.id}')), findsOneWidget);
+    await tester.tap(find.byTooltip('사진 있는 생각')); await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('thought-${voice.id}')), findsOneWidget);
+  });
   testWidgets('thought search matches hashtag with or without hash prefix', (tester) async {
     final tagged = elements.add('산책 기록 #여행');
     final other = elements.add('집에서 읽기 #독서');
