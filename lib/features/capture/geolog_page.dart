@@ -81,12 +81,24 @@ class _GeologPageState extends State<GeologPage> {
           children: [
             TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'net.dogpoo.weaver', maxNativeZoom: 19,
               errorTileCallback: (_, error, stack) => _tileFailed()),
-            MarkerLayer(markers: [for (final group in groups.values) Marker(point: _point(group.first), width: 132, height: 68, alignment: Alignment.topCenter, rotate: true,
+            MarkerLayer(markers: [for (final group in groups.values) Marker(point: _point(group.first), width: 132, height: 84, alignment: Alignment.topCenter, rotate: true,
               child: Semantics(button: true, label: group.first.text, child: InkWell(onTap: () => _open(group), child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-                Material(elevation: 2, borderRadius: BorderRadius.circular(8), color: Theme.of(context).colorScheme.primaryContainer,
-                  child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), child: Text(group.length > 1 ? '${group.length}개의 생각' : group.first.text,
-                    maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)))),
-                Icon(Icons.location_on, color: Theme.of(context).colorScheme.primary, size: 28),
+                Material(elevation: 2, surfaceTintColor: Colors.transparent, borderRadius: BorderRadius.circular(8),
+                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: .88),
+                  child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    if (group.any((record) => record.recordings.isNotEmpty || record.photos.isNotEmpty))
+                      Padding(padding: const EdgeInsets.only(bottom: 2), child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (group.any((record) => record.recordings.isNotEmpty))
+                          Icon(Icons.volume_up_outlined, size: 13, semanticLabel: '음성 메모 포함', color: Theme.of(context).colorScheme.onPrimaryContainer),
+                        if (group.any((record) => record.recordings.isNotEmpty) && group.any((record) => record.photos.isNotEmpty)) const SizedBox(width: 4),
+                        if (group.any((record) => record.photos.isNotEmpty))
+                          Icon(Icons.image_outlined, size: 13, semanticLabel: '사진 포함', color: Theme.of(context).colorScheme.onPrimaryContainer),
+                      ])),
+                    Text(group.length > 1 ? '${group.length}개의 생각' : group.first.text,
+                      maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onPrimaryContainer)),
+                  ]))),
+                const Icon(Icons.location_on, color: Color(0xFFB52D39), size: 28,
+                  shadows: [Shadow(color: Colors.white, blurRadius: 3)]),
               ]))))]),
             const MapAttribution(),
           ])),
