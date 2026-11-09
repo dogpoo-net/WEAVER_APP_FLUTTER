@@ -10,8 +10,8 @@ class ThoughtFilters extends StatelessWidget {
   final String? tag;
   final void Function(MemoBox? box, String? tag) onFilter;
   final VoidCallback onChanged;
-  Widget _chip(String label, Key key, bool selected, VoidCallback onTap) => ChoiceChip(
-    key: key, label: Text(label, style: const TextStyle(fontSize: 12)), selected: selected,
+  Widget _chip(String label, Key key, bool selected, VoidCallback onTap, {Widget? avatar}) => ChoiceChip(
+    key: key, avatar: avatar, label: Text(label, style: const TextStyle(fontSize: 12)), selected: selected,
     showCheckmark: false, visualDensity: VisualDensity.compact,
     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, padding: EdgeInsets.zero,
     onSelected: (_) => onTap());
@@ -20,32 +20,34 @@ class ThoughtFilters extends StatelessWidget {
       child: Icon(Icons.circle, size: 14, color: color))));
   @override
   Widget build(BuildContext context) => SafeArea(top: false, child: Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), child: Column(mainAxisSize: MainAxisSize.min, children: [
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), child: Row(children: [
+      ChoiceChip(key: const ValueKey('thought-filter-all'), selected: box == null && tag == null,
+        showCheckmark: false, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: EdgeInsets.zero, labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        label: SizedBox(height: tags.isNotEmpty ? 66 : 30, child: const Center(child: Text('전체', style: TextStyle(fontSize: 12)))),
+        onSelected: (_) => onFilter(null, null)),
+      const SizedBox(width: 8),
+      Expanded(child: Column(mainAxisSize: MainAxisSize.min, children: [
       SizedBox(height: 38, child: Row(children: [
         const Icon(Icons.inventory_2_outlined, size: 18), const SizedBox(width: 8),
         Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
-          _chip('전체', const ValueKey('thought-filter-all'), box == null && tag == null, () => onFilter(null, null)),
           for (final item in scope == null ? memoBoxes : [scope!]) Padding(padding: const EdgeInsets.only(left: 6), child: MemoBoxTarget(
-            box: item, onChanged: onChanged, child: Row(children: [
-              _color('${item.name} 상자 색상 변경', Color(item.color), () async {
+            box: item, onChanged: onChanged, child: _chip(item.name, ValueKey('thought-filter-box-${item.name}'), identical(box, item), () => onFilter(item, null), avatar: _color('${item.name} 상자 색상 변경', Color(item.color), () async {
                 final color = await pickHashtagColor(context, item.name, Color(item.color), prefix: '');
                 if (color != null && context.mounted) { item.color = color.toARGB32(); onChanged(); }
-              }),
-              _chip(item.name, ValueKey('thought-filter-box-${item.name}'), identical(box, item), () => onFilter(item, null)),
-            ]))),
+              })))),
         ])),
       ])),
       if (tags.isNotEmpty) SizedBox(height: 36, child: Row(children: [
         const Icon(Icons.tag, size: 18), const SizedBox(width: 8),
         Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [for (final item in tags)
-          Padding(padding: const EdgeInsets.only(right: 6), child: Row(children: [
-            _color('#$item 색상 변경', Color(hashtagColors[item] ?? 0xFF90A4AE), () async {
+          Padding(padding: const EdgeInsets.only(right: 6), child: _chip('#$item', ValueKey('thought-filter-tag-$item'), tag == item, () => onFilter(null, item), avatar: _color('#$item 색상 변경', Color(hashtagColors[item] ?? 0xFF90A4AE), () async {
               final color = await pickHashtagColor(context, item, Color(hashtagColors[item] ?? 0xFF90A4AE));
               if (color != null && context.mounted) { hashtagColors[item] = color.toARGB32(); onChanged(); }
-            }),
-            _chip('#$item', ValueKey('thought-filter-tag-$item'), tag == item, () => onFilter(null, item)),
-          ])),
+            }))),
         ])),
+      ])),
       ])),
     ])));
 }

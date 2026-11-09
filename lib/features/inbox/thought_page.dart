@@ -214,7 +214,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   void _separateOverlappingBoxes({MemoBox? preferred, bool pushLoose = false}) {
     final placed = <Rect>[];
-    final ordered = [if (preferred != null) preferred, ..._allRegionBoxes.where((box) => !identical(box, preferred))];
+    final ordered = [?preferred, ..._allRegionBoxes.where((box) => !identical(box, preferred))];
     for (final box in ordered) {
       final original = _boxBounds(box);
       if (original == null) continue;
