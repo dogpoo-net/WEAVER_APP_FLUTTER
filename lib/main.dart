@@ -1,3 +1,4 @@
+import 'features/inbox/thought_settings.dart';
 import 'features/inbox/keyboard_dismiss.dart';
 import 'dart:convert';
 import 'app_theme.dart';
@@ -48,6 +49,7 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     elements.clear();
+    showClosedThoughts = widget.storage?.preferences.getBool(closedThoughtsPreference) ?? true;
     try {
       final raw = widget.storage?.readTheme();
       if (raw != null) {

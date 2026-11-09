@@ -32,10 +32,10 @@ void main() {
     expect(elements.visibleWords, ['숨긴 생각', '태그로 숨긴 생각', '보이는 생각']);
   });
 
-  testWidgets('hidden elements disappear from main and assist without deleting their text', (tester) async {
+  testWidgets('closed thoughts can be excluded from main and remain excluded from assist', (tester) async {
     elements.add('숨긴 생각').hiddenFromSearch = true;
     elements.add('보이는 생각');
-    SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
+    SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([]), 'weaver.showClosedThoughts.v1': false});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
     await tester.pumpWidget(MyApp(storage: storage));
     await tester.pumpAndSettle();

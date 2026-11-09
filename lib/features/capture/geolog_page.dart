@@ -1,3 +1,4 @@
+import '../inbox/thought_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -28,7 +29,7 @@ class _GeologPageState extends State<GeologPage> {
   void _changed() { if (mounted) setState(() {}); }
   List<ElementRecord> get _scope => elements.records.values.where((r) =>
     widget.box == null || widget.box!.elementIds.contains(r.id)).toList();
-  List<ElementRecord> get _records => _scope.where((r) => r.location != null &&
+  List<ElementRecord> get _records => _scope.where((r) => canBrowseThought(r) && r.location != null &&
     (_filterBox == null || _filterBox!.elementIds.contains(r.id)) && (_tag == null || r.tags.contains(_tag)) &&
     (r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.contains(_query.replaceFirst('#', ''))))).toList();
   LatLng _point(ElementRecord record) => LatLng(record.location!.latitude, record.location!.longitude);
@@ -88,7 +89,7 @@ class _GeologPageState extends State<GeologPage> {
             MarkerLayer(markers: [for (final group in groups.values) Marker(point: _point(group.first), width: 132, height: 84, alignment: Alignment.topCenter, rotate: true,
               child: Semantics(button: true, label: group.first.text, child: InkWell(onTap: () => _open(group), child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
                 Material(elevation: 2, surfaceTintColor: Colors.transparent, borderRadius: BorderRadius.circular(8),
-                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: .88),
+                  color: (group.every((r) => r.hiddenFromSearch) ? Theme.of(context).colorScheme.surfaceContainerHighest : Theme.of(context).colorScheme.primaryContainer).withValues(alpha: .88),
                   child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), child: Column(mainAxisSize: MainAxisSize.min, children: [
                     if (group.any((record) => record.recordings.isNotEmpty || record.photos.isNotEmpty))
                       Padding(padding: const EdgeInsets.only(bottom: 2), child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -101,8 +102,8 @@ class _GeologPageState extends State<GeologPage> {
                     Text(group.length > 1 ? '${group.length}개의 생각' : group.first.text,
                       maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onPrimaryContainer)),
                   ]))),
-                const Icon(Icons.location_on, color: Color(0xFFB52D39), size: 28,
-                  shadows: [Shadow(color: Colors.white, blurRadius: 3)]),
+                Icon(Icons.location_on, color: group.every((r) => r.hiddenFromSearch) ? Colors.grey : const Color(0xFFB52D39), size: 28,
+                  shadows: const [Shadow(color: Colors.white, blurRadius: 3)]),
               ]))))]),
             const MapAttribution(),
           ])),

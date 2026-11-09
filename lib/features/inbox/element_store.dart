@@ -141,6 +141,7 @@ class ElementStore extends ChangeNotifier {
     return record;
   }
 
+  void refreshVisibility() => notifyListeners();
   List<String> get words => records.keys.toList();
   bool isSearchable(String word) {
     final record = records[word];
@@ -303,7 +304,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               const SizedBox(height: 8),
               MergeSemantics(child: ListTile(
                 dense: true, visualDensity: const VisualDensity(vertical: -3), contentPadding: EdgeInsets.zero,
-                title: const Text('비활성'),
+                title: const Text('생각 닫기'),
                 onTap: () => setState(() => elements.setHidden(word, !element.hiddenFromSearch)),
                 trailing: SizedBox(width: 44, height: 32, child: Transform.scale(scale: .8,
                   child: Switch.adaptive(value: element.hiddenFromSearch,

@@ -1,3 +1,4 @@
+import 'thought_settings.dart';
 import '../capture/geolog_page.dart';
 import 'tag_colors.dart';
 import 'desktop_menu_frame.dart';
@@ -97,7 +98,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   Widget build(BuildContext context) {
     final allRecords = elements.records.values.toList();
     final tags = {...allRecords.expand((record) => record.tags), ...hashtagColors.keys}.toList()..sort();
-    final records = allRecords.where((record) =>
+    final records = allRecords.where((record) => canBrowseThought(record) &&
       (_filterBox == null || _filterBox!.elementIds.contains(record.id)) &&
       (_filterTag == null || record.tags.contains(_filterTag)) &&
       record.text.toLowerCase().contains(_query.toLowerCase())).toList();
@@ -107,7 +108,8 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         TextField(key: const ValueKey('all-thoughts-search'),
           onChanged: (value) => setState(() => _query = value),
           decoration: const InputDecoration(hintText: '생각에서 찾기', prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 34, minHeight: 32), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), isDense: true)),
-        const SizedBox(height: 12),
+        Align(alignment: Alignment.centerLeft, child: TextButton(onPressed: () => showClosedThoughtsDialog(context),
+          style: TextButton.styleFrom(textStyle: const TextStyle(fontSize: 12)), child: const Text('닫힌 생각 보기'))),
         Row(children: [
           Expanded(child: Text(_query.isEmpty && _filterBox == null && _filterTag == null ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.bodyMedium)),
           if (!desktop) ...[

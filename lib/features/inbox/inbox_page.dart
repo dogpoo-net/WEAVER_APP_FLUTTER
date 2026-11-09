@@ -1,3 +1,4 @@
+import 'thought_settings.dart';
 import '../capture/capture_models.dart';
 import '../capture/location_capture.dart';
 import '../capture/voice_dialog.dart';
@@ -885,6 +886,7 @@ class _InboxPageState extends State<InboxPage> {
     List<String> tags,
   ) async {
     if (!mounted || choice == null || choice == -1) return;
+    if (choice == WorkspaceMenu.settings) { await showThoughtSettings(context, widget.storage?.preferences); return; }
     if (choice == WorkspaceMenu.createBoxFolder) { await _createFolder(kind: 'box'); return; }
     if (choice == WorkspaceMenu.createBox) {
       final box = await createMemoBox(context);
@@ -1105,9 +1107,12 @@ class _InboxPageState extends State<InboxPage> {
         .where((n) => n.content.toLowerCase().contains(_query.toLowerCase()) || n.title.toLowerCase().contains(_query.toLowerCase()) || n.tags.any((t) => t.contains(_query.toLowerCase().replaceFirst('#', ''))))
         .toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final query = _query.toLowerCase().replaceFirst('#', '');
-    final records = elements.records.values.where((record) => elements.isSearchable(record.text) &&
+    final records = elements.records.values.where((record) => !record.tags.any(hiddenSearchTags.contains) && canBrowseThought(record) &&
       (record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.contains(query))))
-      .toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      .toList()..sort((a, b) {
+        final closed = (a.hiddenFromSearch ? 1 : 0).compareTo(b.hiddenFromSearch ? 1 : 0);
+        return closed != 0 ? closed : b.createdAt.compareTo(a.createdAt);
+      });
     final paragraphs = visible.where((note) => note.paragraphs != null && note.project == null).toList();
     final projects = visible.where((note) => note.project != null).toList();
     final moreStyle = TextButton.styleFrom(textStyle: const TextStyle(fontSize: 11),

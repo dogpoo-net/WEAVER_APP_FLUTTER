@@ -1,3 +1,4 @@
+import 'thought_settings.dart';
 import '../capture/attachment_indicators.dart';
 import 'thought_filters.dart';
 import 'desktop_menu_frame.dart';
@@ -116,7 +117,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     }
   }
   List<ElementRecord> get _scopeRecords => elements.records.values.where((r) => widget.box == null || widget.box!.elementIds.contains(r.id)).toList();
-  List<ElementRecord> get _records => _scopeRecords.where((r) =>
+  List<ElementRecord> get _records => _scopeRecords.where((r) => canBrowseThought(r) &&
     (_filterBox == null || _filterBox!.elementIds.contains(r.id)) &&
     (_filterTag == null || r.tags.contains(_filterTag)) &&
     (!_unlinkedOnly || r.connections.isEmpty) &&
@@ -207,11 +208,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   bool _boxCollides(MemoBox moving, Rect proposed) => _allRegionBoxes.any((other) =>
     !identical(other, moving) && _boxBounds(other) != null && proposed.inflate(24).overlaps(_boxBounds(other)!));
-  bool _memberCollides(String id) => _allRegionBoxes.any((box) => box.elementIds.contains(id) &&
-    _boxBounds(box) != null && _boxCollides(box, _boxBounds(box)!));
-  void _separateOverlappingBoxes() {
+  void _pushNeighbors(String id) {
+    final owner = _allRegionBoxes.where((box) => box.elementIds.contains(id)).firstOrNull;
+    if (owner != null) _separateOverlappingBoxes(preferred: owner, pushLoose: true);
+  }
+  void _separateOverlappingBoxes({MemoBox? preferred, bool pushLoose = false}) {
     final placed = <Rect>[];
-    for (final box in _allRegionBoxes) {
+    final ordered = [if (preferred != null) preferred, ..._allRegionBoxes.where((box) => !identical(box, preferred))];
+    for (final box in ordered) {
       final original = _boxBounds(box);
       if (original == null) continue;
       var bounds = original;
@@ -225,6 +229,18 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         if (!box.elementIds.any(_positions.containsKey)) _emptyBoxBounds[box] = bounds;
       }
       placed.add(bounds);
+    }
+    if (pushLoose) {
+      for (final id in _positions.keys.where((id) => !_allRegionBoxes.any((box) => box.elementIds.contains(id)))) {
+        var bounds = _bounds(id);
+        if (!placed.any((box) => bounds.inflate(32).overlaps(box))) continue;
+        final obstacles = [...placed, for (final other in _positions.keys.where((other) => other != id)) _bounds(other)];
+        while (obstacles.any((other) => bounds.inflate(32).overlaps(other))) {
+          final bottom = obstacles.where((other) => bounds.inflate(32).overlaps(other)).map((other) => other.bottom).reduce(math.max);
+          bounds = bounds.shift(Offset(0, bottom + 72 - bounds.top));
+        }
+        _positions[id] = bounds.topLeft;
+      }
     }
   }
   void _separateBoxes() {
@@ -382,19 +398,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 }
                   else if (_linkMode) { setState(() => _linkFrom = record.id); }
                   else { showElementMetadata(context, record.text); } },
-                onMove: (delta) => setState(() { final previous = _positions[record.id]!; final p = previous + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
-                  if (_liftBoxes.isEmpty && _memberCollides(record.id)) _positions[record.id] = previous;
+                onMove: (delta) => setState(() { final p = _positions[record.id]! + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
+                  if (_liftBoxes.isEmpty) _pushNeighbors(record.id);
                   final center = _bounds(record.id).center;
                   _hoverBox = regions.where((r) => !r.box.elementIds.contains(record.id) && _inside(r.bounds, center)).firstOrNull?.box;
                   _saveLayout(); }),
                 onResize: (size, shift) => setState(() {
-                  final oldSize = _layout.sizes[record.id], oldPosition = _positions[record.id]!;
                   _layout.sizes[record.id] = Offset(size.width, size.height);
                   final p = _positions[record.id]! + shift; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
-                  if (_memberCollides(record.id)) {
-                    _positions[record.id] = oldPosition;
-                    if (oldSize == null) { _layout.sizes.remove(record.id); } else { _layout.sizes[record.id] = oldSize; }
-                  }
+                  _pushNeighbors(record.id);
                   _saveLayout();
                 }),
                 onDrop: (pointer) {
@@ -412,6 +424,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                     ..sort((a, b) => a.bounds.width.compareTo(b.bounds.width));
                   if (targets.isNotEmpty) {
                     moveThoughtToBox(record.id, targets.first.box);
+                    _liftBoxes.clear();
+                    _separateOverlappingBoxes(preferred: targets.first.box, pushLoose: true);
                     _changed();
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${targets.first.box.name}에 담았습니다.')));
                   }

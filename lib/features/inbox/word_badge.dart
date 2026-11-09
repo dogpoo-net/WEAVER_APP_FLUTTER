@@ -19,6 +19,7 @@ void renameWordColor(String oldText, String newText) {
 const starterWords = ['관찰', '질문', '연결', '기억', '성장'];
 
 Color wordBackgroundColor(BuildContext context, String word) {
+  if (elements.records[word]?.hiddenFromSearch == true) return Theme.of(context).brightness == Brightness.dark ? const Color(0xFF424242) : const Color(0xFFE0E0E0);
   final hue = _wordHues.putIfAbsent(word, () => _random.nextDouble() * 360);
   return HSLColor.fromAHSL(
     1,
@@ -40,6 +41,7 @@ Widget elementBadge(BuildContext context, String word) => Chip(
 );
 
 Color wordColor(BuildContext context, String word) {
+  if (elements.records[word]?.hiddenFromSearch == true) return Theme.of(context).brightness == Brightness.dark ? const Color(0xFFE0E0E0) : const Color(0xFF424242);
   final hue = _wordHues.putIfAbsent(word, () => _random.nextDouble() * 360);
   return HSLColor.fromAHSL(
     1,
@@ -143,13 +145,13 @@ class WordBadge extends StatelessWidget {
       onPressed: onTap,
       onLongPress: onLongPress,
       style: TextButton.styleFrom(
-        backgroundColor: labelColor?.withValues(alpha: dark ? .3 : .18) ?? HSLColor.fromAHSL(
+        backgroundColor: record?.hiddenFromSearch == true ? wordBackgroundColor(context, word) : labelColor?.withValues(alpha: dark ? .3 : .18) ?? HSLColor.fromAHSL(
           1,
           hue,
           .55,
           dark ? .25 : .9,
         ).toColor(),
-        foregroundColor: labelColor ?? HSLColor.fromAHSL(
+        foregroundColor: record?.hiddenFromSearch == true ? wordColor(context, word) : labelColor ?? HSLColor.fromAHSL(
           1,
           hue,
           .5,

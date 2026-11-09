@@ -25,6 +25,7 @@ class WorkspaceMenu extends StatefulWidget {
   final ValueChanged<int>? onSelected;
   final VoidCallback? onHide, onPin, onFloat;
   static const allThoughts = -1000006, createParagraph = -2;
+  static const settings = -1000009;
   static const createProject = -1000002, resetData = -1000003;
   static const createFolder = -1000000, createTagFolder = -1000001;
   static const createParagraphFolder = -1000004, createElementFolder = -1000005;
@@ -228,6 +229,8 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       const Divider(indent: 16, endIndent: 16),
       ListTile(dense: true, leading: const Icon(Icons.delete_outline, size: 18), title: const Text('데이터 초기화'),
         onTap: () => _select(WorkspaceMenu.resetData)),
+      ListTile(dense: true, leading: const Icon(Icons.settings_outlined, size: 18), title: const Text('환경설정'),
+        onTap: () => _select(WorkspaceMenu.settings)),
     ]);
     if (widget.embedded) return Material(child: SizedBox(width: 280, child: content));
     return Dialog(alignment: AlignmentDirectional.topStart, insetPadding: const EdgeInsets.fromLTRB(16, 64, 16, 12),

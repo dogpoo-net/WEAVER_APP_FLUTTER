@@ -33,9 +33,9 @@ void main() {
     final scroll = find.descendant(of: dialog, matching: find.byType(SingleChildScrollView));
     expect(tester.getTopLeft(label).dy, greaterThanOrEqualTo(tester.getTopLeft(scroll).dy));
     expect(tester.getTopLeft(label).dy, greaterThan(tester.getBottomRight(find.byKey(const ValueKey('element-tags'))).dy));
-    expect(tester.getTopLeft(find.text('비활성')).dy, greaterThan(tester.getBottomRight(editor).dy));
+    expect(tester.getTopLeft(find.text('생각 닫기')).dy, greaterThan(tester.getBottomRight(editor).dy));
     final date = find.byKey(const ValueKey('element-created-at'));
-    expect(tester.getTopLeft(date).dy, greaterThan(tester.getBottomRight(find.text('비활성')).dy));
+    expect(tester.getTopLeft(date).dy, greaterThan(tester.getBottomRight(find.text('생각 닫기')).dy));
     expect(find.byKey(const ValueKey('element-connections-divider')), findsOneWidget);
     for (final removed in ['검색에서 숨기기', '메인과 생각 어시스트에 표시하지 않습니다.', '생성일', '프로젝트 사용', '사용 위치', '함께 쓰인 생각', '원소 삭제']) {
       expect(find.text(removed), findsNothing);
@@ -50,7 +50,7 @@ void main() {
     expect(tester.widget<FilledButton>(save).style?.backgroundColor, isNull);
     expect(tester.getSize(find.widgetWithText(FilledButton, '저장')).height, lessThanOrEqualTo(40));
     expect(tester.getSize(find.widgetWithText(TextButton, '생각 삭제')).height, lessThanOrEqualTo(40));
-    await tester.tap(find.text('비활성')); await tester.pumpAndSettle();
+    await tester.tap(find.text('생각 닫기')); await tester.pumpAndSettle();
     expect(thought.hiddenFromSearch, isTrue);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
