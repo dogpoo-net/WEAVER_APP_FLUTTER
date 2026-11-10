@@ -26,10 +26,9 @@ class _GeologPageState extends State<GeologPage> {
   bool _tileError = false;
   int _mapRevision = 0;
   @override
-  void initState() { super.initState(); elements.addListener(_changed); }
+  void initState() { super.initState(); _filterBox = widget.box; elements.addListener(_changed); }
   void _changed() { if (mounted) setState(() {}); }
-  List<ElementRecord> get _scope => elements.records.values.where((r) =>
-    widget.box == null || widget.box!.elementIds.contains(r.id)).toList();
+  List<ElementRecord> get _scope => elements.records.values.toList();
   List<ElementRecord> get _records => _scope.where((r) => canBrowseThought(r) && r.location != null &&
     (_filterBox == null || _filterBox!.elementIds.contains(r.id)) && (_tag == null || r.tags.contains(_tag)) &&
     (r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.contains(_query.replaceFirst('#', ''))))).toList();
@@ -108,7 +107,7 @@ class _GeologPageState extends State<GeologPage> {
               ]))))]),
             const MapAttribution(),
           ])),
-      ThoughtFilters(tags: _scope.expand((r) => r.tags).toSet().toList()..sort(), scope: widget.box, box: _filterBox, tag: _tag,
+      ThoughtFilters(tags: _scope.expand((r) => r.tags).toSet().toList()..sort(), box: _filterBox, tag: _tag,
         onChanged: () { widget.onChanged(); setState(() {}); }, onFilter: (box, tag) => setState(() { _filterBox = box; _tag = tag; })),
     ])));
   }

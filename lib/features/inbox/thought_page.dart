@@ -55,6 +55,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   @override
   void initState() {
     super.initState();
+    _filterBox = widget.box;
     final base = widget.box?.layout ?? pageGraphLayout;
     _layout = widget.blocks ? base.blockLayout : base;
     _positions.addAll(_layout.positions);
@@ -122,7 +123,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       setState(_sync);
     }
   }
-  List<ElementRecord> get _scopeRecords => elements.records.values.where((r) => widget.box == null || widget.box!.elementIds.contains(r.id)).toList();
+  List<ElementRecord> get _scopeRecords => elements.records.values.toList();
   List<ElementRecord> get _records => _scopeRecords.where((r) => canBrowseThought(r) &&
     (_filterBox == null || _filterBox!.elementIds.contains(r.id)) &&
     (_filterTag == null || r.tags.contains(_filterTag)) &&
@@ -161,7 +162,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       arrangeGraph(thoughts: ordered.map((r) => r.id).toList(), tags: tags,
         positions: _positions, tagPositions: _tagPositions,
         sizes: {for (final id in _positions.keys) id: _size(id)});
-      if (!hadPositions && widget.box == null) _separateBoxes();
+      if (!hadPositions) _separateBoxes();
     }
     _separateOverlappingBoxes();
     if (hadPositions || widget.blocks) {
@@ -199,8 +200,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   bool _inside(Rect bounds, Offset point) => widget.blocks ? bounds.contains(point) : (point - bounds.center).distance <= bounds.width / 2;
   Iterable<MemoBox> get _regionBoxes => (_filterBox != null ? [_filterBox!] :
-      (widget.box == null ? memoBoxes : [widget.box!])).where((box) => !box.isUnclassified);
-  Iterable<MemoBox> get _allRegionBoxes => (widget.box == null ? memoBoxes : [widget.box!]).where((box) => !box.isUnclassified);
+      memoBoxes).where((box) => !box.isUnclassified);
+  Iterable<MemoBox> get _allRegionBoxes => memoBoxes.where((box) => !box.isUnclassified);
   Rect? _boxBounds(MemoBox box) => _liftBoxes[box] ?? _regionBounds(box, _positions) ?? _emptyBoxBounds[box];
   Rect _placeEmptyBox(double x) {
     var bounds = Rect.fromLTWH(x, 440, 260, 260);
@@ -255,21 +256,40 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _positions[id] = Offset(640 + (i % 6) * 250, bottom + 120 + (i ~/ 6) * 160); i++;
     }
   }
-  Future<void> _resetArrangement() async {
-    final reset = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
-      title: const Text('배치 초기화'),
-      content: const Text('현재 보기의 위치·크기·확대 배율을 초기화하고 다시 정리할까요? 생각 내용, 연결, 상자 분류는 유지됩니다.'),
-      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
-        FilledButton.tonal(onPressed: () => Navigator.pop(context, true), child: const Text('초기화'))]));
-    if (reset != true || !mounted) return;
+  void _resetArrangement(bool stacked) {
     setState(() {
       _positions.clear(); _tagPositions.clear(); _emptyBoxBounds.clear(); _liftBoxes.clear();
       _layout.sizes.clear(); _layout.folderPositions.clear(); _layout.viewport = null;
+      _layout.stacked = stacked;
       _draggingId = null; _hoverBox = null; _linkFrom = null; _linkMode = false;
-      _filterBox = null; _filterTag = null; _query = ''; _search.clear(); _unlinkedOnly = false; _hideTags = false;
+      _query = ''; _search.clear(); _unlinkedOnly = false;
       _centered = false; _sync();
+      if (stacked) _stackThoughts();
     });
     _saveLayout(flush: true);
+  }
+  void _stackThoughts() {
+    final remaining = _scopeRecords.map((r) => r.id).toSet();
+    final groups = <List<String>>[];
+    for (final box in memoBoxes.where((box) => !box.isUnclassified)) {
+      final ids = remaining.where(box.elementIds.contains).toList();
+      if (ids.isNotEmpty) { groups.add(ids); remaining.removeAll(ids); }
+    }
+    if (remaining.isNotEmpty) groups.add(remaining.toList());
+    var top = _tagPositions.values.map((p) => tagBounds(p).bottom).fold(300.0, math.max) + 100;
+    for (final group in groups) {
+      final width = group.map((id) => _size(id).width).fold(0.0, math.max);
+      final height = group.map((id) => _size(id).height).fold(0.0, math.max);
+      for (var i = 0; i < group.length; i++) {
+        _positions[group[i]] = Offset(640 + (i ~/ 8) * (width + 32), top + (i % 8) * 32);
+      }
+      top += math.min(group.length - 1, 7) * 32 + height + 180;
+    }
+    _separateOverlappingBoxes();
+  }
+  Future<void> _createBox() async {
+    final box = await createMemoBox(context);
+    if (mounted && box != null) _changed();
   }
   Future<void> _editFolders() async {
     if (await editMemoFolders(context) && mounted) _changed();
@@ -285,7 +305,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         FilledButton(onPressed: () { if (parseTaggedInput(draft).text.isNotEmpty) Navigator.pop(context, draft); }, child: const Text('만들기'))]));
     if (text == null || !mounted) return;
     final r = elements.add(text);
-    if (widget.box != null) { moveThoughtToBox(r.id, widget.box!); }
+    if (_filterBox != null) { moveThoughtToBox(r.id, _filterBox!); }
     _changed();
   }
   void _connect(String a, String b) {
@@ -329,7 +349,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     sceneWidth = regions.map((r) => r.bounds.right + 100).fold(sceneWidth, math.max);
     sceneHeight = regions.map((r) => r.bounds.bottom + 100).fold(sceneHeight, math.max);
     final folders = widget.blocks ? memoFolderRegions({for (final r in regions) r.box: r.bounds}, _layout.folderPositions) : <String, Rect>{};
-    if (widget.box != null || _filterBox != null) {
+    if (_filterBox != null) {
       folders.removeWhere((name, _) => !regions.any((r) => r.box.folder != null && memoFolderContains(name, r.box.folder!)));
     }
     sceneWidth = folders.values.map((r) => r.right + 100).fold(sceneWidth, math.max);
@@ -339,9 +359,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
       IconButton(tooltip: '연결 모드', style: IconButton.styleFrom(backgroundColor: _linkMode ? color.primaryContainer : null, foregroundColor: _linkMode ? color.onPrimaryContainer : null), isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
-      IconButton(tooltip: '생각 만들기', onPressed: _create, icon: const Icon(Icons.add)),
-      if (widget.blocks) IconButton(tooltip: '메모상자 폴더', icon: const Icon(Icons.folder_open_outlined), onPressed: _editFolders),
-      IconButton(tooltip: '배치 초기화', onPressed: _resetArrangement, icon: const Icon(Icons.restart_alt)),
+      PopupMenuButton<bool>(tooltip: '생각 만들기', icon: const Icon(Icons.add),
+        onSelected: (box) { if (box) { _createBox(); } else { _create(); } },
+        itemBuilder: (_) => const [PopupMenuItem(value: false, child: Text('생각 만들기')), PopupMenuItem(value: true, child: Text('상자 만들기'))]),
+      PopupMenuButton<bool>(tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: _resetArrangement,
+        itemBuilder: (_) => const [PopupMenuItem(value: false, child: Text('펼쳐보기')), PopupMenuItem(value: true, child: Text('겹쳐보기'))]),
       IconButton(tooltip: '전체 위치 보기', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('사용 안내'),
@@ -477,9 +499,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _draggingId == record.id || _linkFrom == record.id ? color.primary : color.outlineVariant, width: 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: _linkFrom == record.id || _draggingId == record.id ? color.primary : Colors.transparent, width: _draggingId == record.id ? 3 : 2)),
                   child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    if (AttachmentIndicators.hasAttachments(record)) Padding(padding: const EdgeInsets.only(top: 4, right: 6), child: Align(alignment: Alignment.centerRight, child: AttachmentIndicators(record: record))),
-                    if (widget.blocks && record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 10, 8, 0), child: Align(alignment: Alignment.centerLeft,
+                    if ((widget.blocks || (_layout.stacked && !_hideTags)) && record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 10, 8, 0), child: Align(alignment: Alignment.centerLeft,
                       child: Text(record.tags.map((tag) => '#$tag').join('  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)))),
+                    if (_layout.stacked && (record.tags.isEmpty || (!widget.blocks && _hideTags))) const SizedBox(height: 24),
+                    if (AttachmentIndicators.hasAttachments(record)) Padding(padding: const EdgeInsets.only(top: 4, right: 6), child: Align(alignment: Alignment.centerRight, child: AttachmentIndicators(record: record))),
                     Expanded(child: Padding(padding: const EdgeInsets.all(8), child: Text(badgeLabel(record.text), maxLines: !_layout.sizes.containsKey(record.id) ? 3 : ((_size(record.id).height - 24 - (widget.blocks && record.tags.isNotEmpty ? 24 : 0)) / 22).floor().clamp(1, 20),
                       overflow: TextOverflow.ellipsis, style: TextStyle(color: wordColor(context, record.text))))),
                   ])))),
@@ -501,7 +524,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           child: const Padding(padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Text('생각 두 개를 차례로 눌러 연결하거나 해제하세요.', style: TextStyle(fontSize: 12)))))),
       ])),
-      ThoughtFilters(tags: _scopeRecords.expand((r) => r.tags).toSet().toList()..sort(), scope: widget.box,
+      ThoughtFilters(tags: _scopeRecords.expand((r) => r.tags).toSet().toList()..sort(),
         box: _filterBox, tag: _filterTag, onChanged: _changed,
         onFilter: (box, tag) => setState(() { _filterBox = box; _filterTag = tag; _linkFrom = null; _centered = false; _sync(); })),
     ])));

@@ -13,6 +13,7 @@ class GraphLayout {
   String query = '';
   bool unlinkedOnly = false;
   bool hideTags = false;
+  bool stacked = false;
 
   void copyFrom(GraphLayout other) {
     _blocks = other._blocks;
@@ -24,6 +25,7 @@ class GraphLayout {
     query = other.query;
     unlinkedOnly = other.unlinkedOnly;
     hideTags = other.hideTags;
+    stacked = other.stacked;
   }
 
   Map<String, dynamic> toJson() => {
@@ -36,6 +38,7 @@ class GraphLayout {
     'query': query,
     'unlinkedOnly': unlinkedOnly,
     'hideTags': hideTags,
+    'stacked': stacked,
   };
 
   static GraphLayout fromJson(dynamic data) {
@@ -70,6 +73,7 @@ class GraphLayout {
     if (data['query'] is String) layout.query = data['query'] as String;
     layout.unlinkedOnly = data['unlinkedOnly'] == true;
     layout.hideTags = data['hideTags'] == true;
+    layout.stacked = data['stacked'] == true;
     return layout;
   }
 }

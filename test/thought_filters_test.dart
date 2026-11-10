@@ -67,6 +67,25 @@ void main() {
     expect(find.byKey(ValueKey('thought-${second.id}')), findsOneWidget);
     expect(find.byKey(ValueKey('thought-${first.id}')), findsNothing);
   });
+  for (final view in [ThoughtView.diagram, ThoughtView.page, ThoughtView.geolog]) {
+    testWidgets('box entry keeps all footer choices in $view', (tester) async {
+      final first = elements.add('첫 생각 #독서'), second = elements.add('다른 생각 #여행');
+      final one = MemoBox('하나', ids: [first.id]), two = MemoBox('둘', ids: [second.id]);
+      memoBoxes.addAll([one, two]);
+      await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(notes: const [], initialBox: one, initialView: view)));
+      await tester.pumpAndSettle();
+      expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('thought-filter-box-하나'))).selected, isTrue);
+      expect(find.byKey(const ValueKey('thought-filter-tag-여행')), findsOneWidget);
+      expect(find.byTooltip('메모상자 폴더'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('thought-filter-box-둘'))); await tester.pumpAndSettle();
+      expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('thought-filter-box-둘'))).selected, isTrue);
+      if (view != ThoughtView.geolog) {
+        expect(find.text('다른 생각'), findsOneWidget);
+        expect(find.text('첫 생각'), findsNothing);
+      }
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
   testWidgets('default thought view filters unclassified without navigation', (tester) async {
     final free = elements.add('미분류 생각');
     final filed = elements.add('상자 속 생각');

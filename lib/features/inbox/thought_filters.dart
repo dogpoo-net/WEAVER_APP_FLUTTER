@@ -4,9 +4,9 @@ import 'tag_colors.dart';
 
 class ThoughtFilters extends StatelessWidget {
   const ThoughtFilters({super.key, required this.tags, required this.onFilter, required this.onChanged,
-    this.scope, this.box, this.tag});
+    this.box, this.tag});
   final List<String> tags;
-  final MemoBox? scope, box;
+  final MemoBox? box;
   final String? tag;
   final void Function(MemoBox? box, String? tag) onFilter;
   final VoidCallback onChanged;
@@ -35,7 +35,7 @@ class ThoughtFilters extends StatelessWidget {
       SizedBox(height: 38, child: Row(children: [
         const Icon(Icons.inventory_2_outlined, size: 18), const SizedBox(width: 8),
         Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
-          for (final item in scope == null ? memoBoxes : [scope!]) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
+          for (final item in memoBoxes) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
             box: item, onChanged: onChanged, child: _chip(item.name, ValueKey('thought-filter-box-${item.name}'), identical(box, item), () => onFilter(item, null), avatar: _color('${item.name} 상자 색상 변경', Color(item.color), () async {
                 final color = await pickHashtagColor(context, item.name, Color(item.color), prefix: '');
                 if (color != null && context.mounted) { item.color = color.toARGB32(); onChanged(); }

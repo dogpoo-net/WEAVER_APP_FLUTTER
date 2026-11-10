@@ -54,13 +54,15 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: ThoughtPage(box: box, onChanged: () => changes++)));
     await tester.pumpAndSettle();
     expect(find.text('상자 밖 생각'), findsNothing);
-    expect(find.text('#바깥'), findsNothing);
+    expect(find.byKey(const ValueKey('graph-tag-바깥')), findsNothing);
+    expect(find.byKey(const ValueKey('thought-filter-tag-바깥')), findsOneWidget);
     expect(find.text('#안쪽'), findsWidgets);
     await tester.tap(find.byTooltip('연결 모드')); await tester.pump();
     await tester.tap(find.text('생각 A')); await tester.pump();
     await tester.tap(find.text('생각 B')); await tester.pumpAndSettle();
     expect(a.connections, {b.id}); expect(b.connections, {a.id});
     await tester.tap(find.byTooltip('생각 만들기')); await tester.pumpAndSettle();
+    await tester.tap(find.text('생각 만들기')); await tester.pumpAndSettle();
     await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), '새 생각');
     await tester.tap(find.text('만들기')); await tester.pumpAndSettle();
     expect(elements.records.containsKey('새 생각'), isTrue);

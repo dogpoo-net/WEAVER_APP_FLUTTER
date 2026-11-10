@@ -25,7 +25,7 @@ void main() {
       expect(find.byType(AlertDialog), findsNothing);
       await tester.pumpWidget(const SizedBox());
     });
-    testWidgets('layout reset requires confirmation and preserves contents and other view ($blocks)', (tester) async {
+    testWidgets('layout menu waits for selection and preserves contents and other view ($blocks)', (tester) async {
       final a = elements.add('초기화 대상'), b = elements.add('연결된 생각');
       elements.connect(a.id, {b.id});
       memoBoxes.add(MemoBox('유지할 분류', ids: [a.id]));
@@ -37,10 +37,12 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('배치 초기화')); await tester.pumpAndSettle();
-      await tester.tap(find.text('취소')); await tester.pumpAndSettle();
+      expect(find.text('펼쳐보기'), findsOneWidget);
+      expect(find.text('겹쳐보기'), findsOneWidget);
+      Navigator.of(tester.element(find.text('펼쳐보기'))).pop(); await tester.pumpAndSettle();
       expect(layout.sizes[a.id], const Offset(500, 400));
       await tester.tap(find.byTooltip('배치 초기화')); await tester.pumpAndSettle();
-      await tester.tap(find.text('초기화')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('펼쳐보기')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(layout.sizes, isEmpty);
       expect(layout.positions[a.id], isNot(const Offset(1700, 1700)));
       expect(other.positions[a.id], const Offset(77, 88));
@@ -51,6 +53,25 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
+  testWidgets('stacked layout uses several columns and survives reopening', (tester) async {
+    final records = List.generate(18, (i) => elements.add('생각 $i #태그'));
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('배치 초기화')); await tester.pumpAndSettle();
+    await tester.tap(find.text('겹쳐보기')); await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
+    final layout = pageGraphLayout.blockLayout;
+    final before = Map<String, Offset>.of(layout.positions);
+    expect(before.values.map((p) => p.dx).toSet().length, 3);
+    expect(before[records[1].id]!.dy - before[records[0].id]!.dy, 32);
+    expect(layout.stacked, isTrue);
+    expect(GraphLayout.fromJson(layout.toJson()).stacked, isTrue);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
+    expect(layout.positions, before);
+    await tester.pumpWidget(const SizedBox());
+  });
   test('viewport persistence accepts the supported enlarged zoom', () {
     final layout = GraphLayout()..viewport = Matrix4.diagonal3Values(8, 8, 1).storage.toList();
     expect(GraphLayout.fromJson(layout.toJson()).viewport, layout.viewport);
