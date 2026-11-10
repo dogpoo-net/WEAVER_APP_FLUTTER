@@ -448,7 +448,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             {for (final r in records) r.id: {...r.connections, if (!widget.blocks && !_hideTags) ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
           if (records.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
             icon: const Icon(Icons.add), label: Text(_query.isNotEmpty || _unlinkedOnly ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
-          for (final record in (_layout.stacked ? records.reversed : records)) Positioned(left: _positions[record.id]!.dx - ThoughtInteraction.hitPadding, top: _positions[record.id]!.dy - ThoughtInteraction.hitPadding,
+          for (final record in records) Positioned(left: _positions[record.id]!.dx - ThoughtInteraction.hitPadding, top: _positions[record.id]!.dy - ThoughtInteraction.hitPadding,
             child: ThoughtInteraction(size: _size(record.id), desktop: MediaQuery.sizeOf(context).width >= 760,
                 onLift: () => setState(() {
                   _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
@@ -574,11 +574,18 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           )),
         ]))),
       ); })),
-        Positioned(top: 8, left: 12, child: FilterChip(label: Text(_selected.isEmpty ? '선택' : '선택 ${_selected.length}'),
-          selected: _selectionMode, showCheckmark: false, onSelected: (value) => setState(() {
-            _selectionMode = value; _selected.clear(); _selectionStart = null; _selectionEnd = null;
-            if (value) { _linkMode = false; _linkFrom = null; }
-          }))),
+        Positioned(top: 8, right: 12, child: Material(
+          color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
+          child: SizedBox(width: 128, child: CheckboxListTile(
+            title: Text(_selected.isEmpty ? '선택' : '선택 ${_selected.length}', style: const TextStyle(fontSize: 13)),
+            controlAffinity: ListTileControlAffinity.leading, dense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8), visualDensity: VisualDensity.compact,
+            value: _selectionMode, onChanged: (value) => setState(() {
+              _selectionMode = value ?? false; _selected.clear(); _selectionStart = null; _selectionEnd = null;
+              if (_selectionMode) { _linkMode = false; _linkFrom = null; }
+            }),
+          )),
+        )),
         if (_linkMode) Positioned(top: 52, left: 12, right: 12, child: IgnorePointer(child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: const Padding(padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
