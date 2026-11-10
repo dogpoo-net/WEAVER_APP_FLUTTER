@@ -51,6 +51,8 @@ void main() {
     expect(tester.getSize(find.widgetWithText(FilledButton, '저장')).height, lessThanOrEqualTo(40));
     expect(tester.getSize(find.widgetWithText(TextButton, '생각 삭제')).height, lessThanOrEqualTo(40));
     await tester.tap(find.text('생각 닫기')); await tester.pumpAndSettle();
+    expect(thought.hiddenFromSearch, isFalse);
+    await tester.tap(save); await tester.pumpAndSettle();
     expect(thought.hiddenFromSearch, isTrue);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
