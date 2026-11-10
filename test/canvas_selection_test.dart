@@ -33,7 +33,8 @@ void main() {
       expect(layout.positions[a.id]!.dx, greaterThan(500));
       expect(layout.positions[b.id]! - layout.positions[a.id]!, const Offset(300, 0));
       expect(viewer.transformationController!.value.storage, transform);
-      await tester.tapAt(overlay.localToGlobal(const Offset(450, 450))); await tester.pump();
+      await tester.tapAt(overlay.localToGlobal(const Offset(1100, 800))); await tester.pump();
+      expect(find.text('선택'), findsOneWidget);
       final otherBefore = layout.positions[b.id];
       final single = await tester.startGesture(overlay.localToGlobal(layout.positions[a.id]! + const Offset(40, 40)));
       await single.moveBy(const Offset(30, 20)); await tester.pump();
