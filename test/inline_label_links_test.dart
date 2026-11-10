@@ -69,9 +69,42 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: DocumentMarkup(text:
       '====== 제목 ======\n**굵게** //기울임// __밑줄__ --취소선--\n|왼쪽 |\n| 오른쪽|\n| 가운데 |'))));
     final texts = tester.widgetList<Text>(find.byType(Text)).toList();
-    expect(texts.first.textSpan!.toPlainText(), '제목');
+    expect(texts.first.textSpan!.toPlainText(), ' 제목 ');
     expect(texts[1].textSpan!.toPlainText(), '굵게 기울임 밑줄 취소선');
     expect(texts[2].textAlign, TextAlign.left); expect(texts[3].textAlign, TextAlign.right); expect(texts[4].textAlign, TextAlign.center);
     expect(documentTitle('====== 제목 ======'), '제목');
   });
+  test('project heading titles resolve to stable identities and survive renaming and storage', () {
+    final project = WritingProject([], [], name: '이전 제목')..document = '서문\n======프로젝트 제목======\n내용';
+    elements.indexProject(project);
+    expect(documentTitle(project.content), '프로젝트 제목');
+    expect(labelAssistTargets(), contains('project:${project.id}'));
+    final c = LabelTextController()..text = '[[문서|프로젝트 제목]]';
+    expect(c.text, '문서'); expect(c.bindings.single.id, 'project:${project.id}');
+    project.document = '======새 제목======';
+    expect(projectTarget(c.bindings.single.id), same(project));
+    expect(assistTargetTitle('project:${project.id}'), '새 제목');
+    final note = Note(c.text)..bindings = List.of(c.bindings);
+    final snapshot = WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([note, Note(project.content)..project = project]));
+    expect(snapshot.notes.first.bindings.single.id, 'project:${project.id}');
+    c.dispose();
+  });
+  test('code keeps literal link syntax and headings inside code are not project titles', () {
+    elements.add('내용').indexLabel = '라벨';
+    final c = LabelTextController()..text = '<code>[[표시|라벨]]</code> [[밖|라벨]]';
+    expect(c.text, '<code>[[표시|라벨]]</code> 밖'); expect(c.bindings, hasLength(1));
+    expect(documentTitle('<code>\n======코드======\n</code>\n=====실제 제목====='), '실제 제목');
+    c.dispose();
+  });
+  testWidgets('compact heading syntax preserves spaces and multiline code stays literal', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: DocumentMarkup(text:
+      '======제목======\n===== 여백 =====\n<code>**코드**\n==제목 아님==\n//코드//</code>'))));
+    final texts = tester.widgetList<Text>(find.byType(Text)).toList();
+    expect(texts[0].textSpan!.toPlainText(), '제목');
+    expect(texts[1].textSpan!.toPlainText(), ' 여백 ');
+    expect(texts[2].textSpan!.toPlainText(), '**코드**');
+    expect(texts[3].textSpan!.toPlainText(), '==제목 아님==');
+    expect(texts[4].textSpan!.toPlainText(), '//코드//');
+  });
+
 }

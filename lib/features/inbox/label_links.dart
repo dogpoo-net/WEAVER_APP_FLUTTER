@@ -3,15 +3,28 @@ import 'package:url_launcher/url_launcher.dart';
 import 'element_binding.dart';
 import 'element_store.dart';
 import 'word_badge.dart';
+import 'project_page.dart';
+import 'document_syntax.dart';
 
-bool isInlineLink(String id) => id.startsWith('label:') || id.startsWith('url:');
+bool isInlineLink(String id) => id.startsWith('label:') || id.startsWith('url:') || id.startsWith('project:');
 ElementRecord? labelTarget(String id) => id.startsWith('label:')
   ? elements.records.values.where((r) => r.id == id.substring(6)).firstOrNull : null;
+Iterable<WritingProject> get indexedProjects => elements.sources.keys.whereType<WritingProject>();
+WritingProject? projectTarget(String id) => id.startsWith('project:')
+  ? indexedProjects.where((p) => p.id == id.substring(8)).firstOrNull : null;
+String assistTargetTitle(String key) => projectTarget(key)?.title ?? elements.records[key]?.title ?? key;
+List<String> labelAssistTargets({WritingProject? excludeProject}) => [
+  ...elements.visibleWords.where((word) => elements.records[word]!.indexLabel.isNotEmpty),
+  for (final project in indexedProjects) if (project != excludeProject) 'project:${project.id}',
+];
 String? resolveLabelTarget(String target) {
   final uri = Uri.tryParse(target);
   if (uri != null && (uri.scheme == 'https' || uri.scheme == 'http') && uri.host.isNotEmpty) return 'url:$uri';
-  final matches = elements.records.values.where((r) => r.indexLabel.isNotEmpty && r.indexLabel == target).toList();
-  return matches.length == 1 ? 'label:${matches.single.id}' : null;
+  final matches = [
+    for (final r in elements.records.values) if (r.indexLabel.isNotEmpty && r.indexLabel == target) 'label:${r.id}',
+    for (final p in indexedProjects) if (p.title == target) 'project:${p.id}',
+  ];
+  return matches.length == 1 ? matches.single : null;
 }
 Future<void> openInlineLink(BuildContext context, String id) async {
   if (id.startsWith('url:')) {
@@ -20,6 +33,10 @@ Future<void> openInlineLink(BuildContext context, String id) async {
       try { await launchUrl(uri, mode: LaunchMode.externalApplication); }
       catch (_) { if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('링크를 열 수 없습니다.'))); }
     }
+  } else if (id.startsWith('project:')) {
+    final project = projectTarget(id);
+    if (project != null) await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ProjectPage(
+      project: project, projects: indexedProjects.toList(), onChanged: () async { elements.projectChanged(project); })));
   } else {
     final record = labelTarget(id);
     if (record != null) await showElementMetadata(context, record.text);
@@ -58,17 +75,25 @@ class LabelTextController extends BoundTextController {
     _parsing = true;
     try {
       for (final match in RegExp(r'\[\[([^\[\]\n|]+)\|([^\[\]\n]+)\]\]').allMatches(text).toList().reversed) {
+        if (codeMarkup.allMatches(text).any((code) => code.start <= match.start && match.start < code.end)) continue;
         final id = resolveLabelTarget(match.group(2)!.trim());
         if (id != null) bind(match.start, match.end, id, match.group(1)!);
       }
     } finally { _parsing = false; }
   }
-  void insertLabel(ElementRecord record) {
+  void insertLabel(ElementRecord record) => _insert('label:${record.id}', record.indexLabel);
+  void insertTarget(String key) {
+    final project = projectTarget(key);
+    if (project != null) { _insert('project:${project.id}', project.title); return; }
+    final record = elements.records[key];
+    if (record != null && record.indexLabel.isNotEmpty) insertLabel(record);
+  }
+  void _insert(String id, String title) {
     final pending = pendingLabelLink(value);
     final end = selection.isValid ? selection.end : text.length;
-    final prefix = completionPrefix(value, elements.records.values.where((r) => r.indexLabel.isNotEmpty && elements.isSearchable(r.text)).map((r) => r.indexLabel).toList());
+    final prefix = completionPrefix(value, labelAssistTargets().map(assistTargetTitle).toList());
     final start = pending?.start ?? (end - prefix.length).clamp(0, end);
-    bind(start, end, 'label:${record.id}', pending?.display ?? record.indexLabel);
+    bind(start, end, id, pending?.display ?? title);
   }
   void openAtCaret(BuildContext context) {
     if (!selection.isValid || !selection.isCollapsed) return;

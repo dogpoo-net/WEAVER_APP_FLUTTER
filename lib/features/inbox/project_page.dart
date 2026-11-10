@@ -1,4 +1,5 @@
 import 'element_binding.dart';
+import 'document_syntax.dart';
 import 'dart:math';
 import 'desktop_menu_frame.dart';
 import 'paragraph_editor.dart';
@@ -21,7 +22,7 @@ class WritingProject {
   String? folder;
   List<Paragraph> paragraphs;
   final List<String> words;
-  String get title => name;
+  String get title => document == null ? name : documentTitle(document!);
 }
 
 class ProjectPage extends StatelessWidget {

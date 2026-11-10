@@ -69,7 +69,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   bool get _desktop =>
       MediaQuery.sizeOf(context).width >= 760 &&
       MediaQuery.viewInsetsOf(context).bottom == 0;
-  String _title(String word) => widget.useThoughtLabels ? (elements.records[word]?.title ?? word) : word;
+  String _title(String word) => widget.useThoughtLabels ? assistTargetTitle(word) : word;
   void _choose(String word) {
     _controlling = false;
     _manualSelection = null; _manualValue = null;
@@ -519,6 +519,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
                               word: word,
                               displayText: _tagMode ? word : _title(word),
                               tag: _tagMode,
+                              project: !_tagMode && widget.useThoughtLabels && projectTarget(word) != null,
                               query: _query,
                               selected:
                                   _controlling &&

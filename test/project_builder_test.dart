@@ -24,7 +24,7 @@ void main() {
     final original = Paragraph('원본', ParagraphRole.title, bindings: [const ElementBinding('source', 0, 2)]);
     final project = WritingProject([original], [], name: '보존');
     await tester.pumpWidget(MaterialApp(home: ProjectPage(project: project)));
-    expect(tester.widget<TextField>(find.byKey(const ValueKey('project-document'))).controller!.text, '====== 원본 ======');
+    expect(tester.widget<TextField>(find.byKey(const ValueKey('project-document'))).controller!.text, '======원본======');
     await tester.enterText(find.byKey(const ValueKey('project-document')), '새 통합 본문');
     await tester.tap(find.text('저장')); await tester.pumpAndSettle();
     final restored = WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([Note(project.content)..project = project])).notes.single.project!;

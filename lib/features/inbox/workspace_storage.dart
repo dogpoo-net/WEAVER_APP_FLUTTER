@@ -185,7 +185,7 @@ class WorkspaceSnapshot {
         created: DateTime.parse(n['createdAt'] as String),
       );
       note.bindings = bindings({'text': n['content'], 'bindings': n['bindings']});
-      if (n['paragraphs'] == null && n['project'] == null) note.bindings.removeWhere((b) => !b.id.startsWith('label:') && !b.id.startsWith('url:'));
+      if (n['paragraphs'] == null && n['project'] == null) note.bindings.removeWhere((b) => !b.id.startsWith('label:') && !b.id.startsWith('url:') && !b.id.startsWith('project:'));
       note.folder = n['folder'] as String?;
       note.tags.addAll(List<String>.from(n['tags'] ?? []));
       if (n['paragraphs'] != null) {

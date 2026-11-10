@@ -125,6 +125,7 @@ class WordBadge extends StatelessWidget {
     this.selected = false,
     this.tag = false,
     this.compact = false,
+    this.dense = false, this.project = false,
     this.query = '',
     this.fullText = false,
     this.onLongPress,
@@ -137,6 +138,7 @@ class WordBadge extends StatelessWidget {
   final bool selected;
   final bool tag;
   final bool compact;
+  final bool dense, project;
   final bool fullText;
   final VoidCallback? onLongPress;
   final VoidCallback? onDoubleTap;
@@ -154,18 +156,18 @@ class WordBadge extends StatelessWidget {
       style: TextButton.styleFrom(
         backgroundColor: record?.hiddenFromSearch == true ? wordBackgroundColor(context, word) : labelColor?.withValues(alpha: dark ? .3 : .18) ?? wordBackgroundColor(context, word),
         foregroundColor: record?.hiddenFromSearch == true ? wordColor(context, word) : labelColor ?? wordColor(context, word),
-        minimumSize: const Size(0, 30),
-        padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 12, vertical: compact ? 3 : 5),
+        minimumSize: Size(0, dense ? 25 : 30),
+        padding: EdgeInsets.symmetric(horizontal: dense ? 5 : compact ? 7 : 12, vertical: dense ? 1 : compact ? 3 : 5),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         shape: fullText ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: selected ? BorderSide(color: Theme.of(context).colorScheme.primary, width: 2) : BorderSide.none) : StadiumBorder(
-          side: selected
+          side: selected || project
               ? BorderSide(
                   color: Theme.of(context).colorScheme.primary,
                   width: 2,
                 )
               : BorderSide.none,
         ),
-        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+        textStyle: TextStyle(fontSize: dense ? 11 : 12, fontWeight: FontWeight.w500),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
         if (indicators) AttachmentIndicators(record: record),

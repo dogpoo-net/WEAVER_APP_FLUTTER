@@ -727,9 +727,7 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   void _insertQuickElement(String word) {
-    final record = elements.records[word];
-    if (record == null || record.indexLabel.isEmpty) return;
-    setState(() => _draft.insertLabel(record)); _focus.requestFocus();
+    setState(() => _draft.insertTarget(word)); _focus.requestFocus();
   }
 
   void _insertQuickTag(String tag) {
@@ -1098,7 +1096,7 @@ class _InboxPageState extends State<InboxPage> {
             key: const ValueKey('quick-memo-keyboard'),
             canRequestFocus: false,
             onKeyEvent: _quickMemoKey,
-            child: CaretAssist(useThoughtLabels: true, showShortcutHint: true, key: _quickAssistKey, controller: _draft, focus: _focus, words: elements.visibleWords.where((word) => elements.records[word]!.indexLabel.isNotEmpty).toList(), showWhenEmpty: false,
+            child: CaretAssist(useThoughtLabels: true, showShortcutHint: true, key: _quickAssistKey, controller: _draft, focus: _focus, words: labelAssistTargets(), showWhenEmpty: false,
               mobileViewportKey: _bodyKey,
               tags: {..._allTags, ..._draftTags}.toList()..sort(), enterSelectsVisible: true,
               onTag: (tag) => _acceptQuickAssist(() => _insertQuickTag(tag)),

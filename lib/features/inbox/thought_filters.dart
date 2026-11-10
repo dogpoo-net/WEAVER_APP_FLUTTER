@@ -20,7 +20,8 @@ class ThoughtFilterSelection extends ChangeNotifier {
 
 class ThoughtFilters extends StatelessWidget {
   const ThoughtFilters({super.key, required this.tags, required this.onFilter, required this.onChanged,
-    this.box, this.tag, this.selection});
+    this.box, this.tag, this.selection, this.compact = false});
+  final bool compact;
   final ThoughtFilterSelection? selection;
   final List<String> tags;
   final MemoBox? box;
@@ -28,8 +29,8 @@ class ThoughtFilters extends StatelessWidget {
   final void Function(MemoBox? box, String? tag) onFilter;
   final VoidCallback onChanged;
   Widget _chip(String label, Key key, bool selected, VoidCallback onTap, {Widget? avatar}) => Stack(alignment: Alignment.centerLeft, children: [ChoiceChip(
-    key: key, avatarBoxConstraints: const BoxConstraints.tightFor(width: 20, height: 20), avatar: avatar == null ? null : const SizedBox.square(dimension: 20), label: Text(label, style: const TextStyle(fontSize: 12)), selected: selected,
-    labelPadding: const EdgeInsets.only(left: 2, right: 8),
+    key: key, avatarBoxConstraints: const BoxConstraints.tightFor(width: 20, height: 20), avatar: avatar == null ? null : const SizedBox.square(dimension: 20), label: Text(label, style: TextStyle(fontSize: compact ? 10 : 12)), selected: selected,
+    labelPadding: EdgeInsets.only(left: 1, right: compact ? 5 : 8),
     showCheckmark: false, visualDensity: VisualDensity.compact,
     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, padding: EdgeInsets.zero,
     onSelected: (_) => onTap()),
@@ -40,16 +41,16 @@ class ThoughtFilters extends StatelessWidget {
       child: Icon(Icons.circle, size: 14, color: color))));
   @override
   Widget build(BuildContext context) => SafeArea(top: false, child: Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), child: Row(children: [
+    padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 12, vertical: compact ? 2 : 6), child: Row(children: [
       ChoiceChip(key: const ValueKey('thought-filter-all'), selected: selection?.isEmpty ?? (box == null && tag == null),
         showCheckmark: false, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        padding: EdgeInsets.zero, labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: EdgeInsets.zero, labelPadding: EdgeInsets.symmetric(horizontal: compact ? 5 : 8),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        label: SizedBox(height: tags.isNotEmpty ? 66 : 30, child: const Center(child: Text('전체', style: TextStyle(fontSize: 12)))),
+        label: SizedBox(height: tags.isNotEmpty ? (compact ? 54 : 66) : (compact ? 26 : 30), child: Center(child: Text('전체', style: TextStyle(fontSize: compact ? 10 : 12)))),
         onSelected: (_) => onFilter(null, null)),
       const SizedBox(width: 8),
       Expanded(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      SizedBox(height: 38, child: Row(children: [
+      SizedBox(height: compact ? 30 : 38, child: Row(children: [
         const Icon(Icons.inventory_2_outlined, size: 18), const SizedBox(width: 8),
         Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
           for (final item in memoBoxes) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
@@ -59,7 +60,7 @@ class ThoughtFilters extends StatelessWidget {
               })))),
         ])),
       ])),
-      if (tags.isNotEmpty) SizedBox(height: 36, child: Row(children: [
+      if (tags.isNotEmpty) SizedBox(height: compact ? 30 : 36, child: Row(children: [
         const Icon(Icons.tag, size: 18), const SizedBox(width: 8),
         Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [for (final item in tags)
           Padding(padding: const EdgeInsets.only(right: 6), child: _chip('#$item', ValueKey('thought-filter-tag-$item'), selection?.tags.contains(item) ?? (tag == item), () => onFilter(null, item), avatar: _color('#$item 색상 변경', Color(hashtagColors[item] ?? 0xFF90A4AE), () async {

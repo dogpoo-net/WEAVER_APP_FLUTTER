@@ -94,6 +94,8 @@ class ElementStore extends ChangeNotifier {
     return null;
   }
 
+  void projectChanged(WritingProject project) { indexProject(project); notifyListeners(); }
+
   void indexProject(WritingProject project) {
     if (project.document != null) {
       sources[project] = [ElementSource(project.name, project.document!, isProject: true, project: project)];
