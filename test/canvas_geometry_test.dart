@@ -5,6 +5,21 @@ import 'package:weaver/features/inbox/canvas_geometry.dart';
 import 'package:weaver/features/inbox/memo_box_region.dart';
 
 void main() {
+  test('only aligned stacks change position during layer edits', () {
+    final positions = <String, Offset>{'a': const Offset(100, 100), 'b': const Offset(100, 132),
+      'c': const Offset(100, 164), 'loose': const Offset(110, 145)};
+    reorderStackPositions(positions, {'c', 'loose'}, up: true);
+    expect(positions['c'], const Offset(100, 100));
+    expect(positions['a'], const Offset(100, 132));
+    expect(positions['loose'], const Offset(110, 145));
+    reorderStackPositions(positions, {'c'}, up: false);
+    expect(positions['c'], const Offset(100, 164));
+    reorderStackPositions(positions, {'a', 'c', 'loose'});
+    expect(positions['a'], const Offset(100, 164));
+    expect(positions['c'], const Offset(100, 100));
+    expect(positions['b'], const Offset(100, 132));
+    expect(positions['loose'], const Offset(110, 145));
+  });
   test('selected layers move one step together and reverse only selected slots', () {
     final order = ['a', 'b', 'c', 'd'];
     moveThoughtLayers(order, {'a', 'b'}, up: true);

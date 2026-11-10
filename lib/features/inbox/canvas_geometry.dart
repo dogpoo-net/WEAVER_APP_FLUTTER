@@ -84,3 +84,31 @@ void reverseThoughtLayers(List<String> order, Set<String> selected) {
     if (selected.contains(order[i])) { reversed.moveNext(); order[i] = reversed.current; }
   }
 }
+
+/// Only exact 32px stack slots form a group; arbitrary overlaps are excluded.
+void reorderStackPositions(Map<String, Offset> positions, Set<String> selected, {bool? up}) {
+  final remaining = positions.keys.toSet();
+  while (remaining.isNotEmpty) {
+    final group = <String>[remaining.first]; remaining.remove(group.first);
+    for (var i = 0; i < group.length; i++) {
+      final p = positions[group[i]]!;
+      final adjacent = remaining.where((id) {
+        final q = positions[id]!;
+        return (p.dx - q.dx).abs() < .5 && ((p.dy - q.dy).abs() - 32).abs() < .5;
+      }).toList();
+      group.addAll(adjacent); remaining.removeAll(adjacent);
+    }
+    if (group.length < 2 || !group.any(selected.contains)) continue;
+    group.sort((a, b) => positions[a]!.dy.compareTo(positions[b]!.dy));
+    if (up == null) {
+      final chosen = group.where(selected.contains).toList();
+      final slots = chosen.map((id) => positions[id]!).toList().reversed.toList();
+      for (var i = 0; i < chosen.length; i++) { positions[chosen[i]] = slots[i]; }
+    } else {
+      final slots = group.map((id) => positions[id]!).toList();
+      final chosen = group.where(selected.contains), others = group.where((id) => !selected.contains(id));
+      final reordered = up ? [...chosen, ...others] : [...others, ...chosen];
+      for (var i = 0; i < reordered.length; i++) { positions[reordered[i]] = slots[i]; }
+    }
+  }
+}

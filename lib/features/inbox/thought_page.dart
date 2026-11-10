@@ -521,7 +521,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   if (detached.isNotEmpty) _changed();
                   _saveLayout(flush: true);
                 }, onEnd: () { setState(() { _thoughtDragOrigins.remove(record.id); _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
-                child: Card(color: wordBackgroundColor(context, record.text),
+                child: Card(margin: EdgeInsets.zero, color: wordBackgroundColor(context, record.text),
                   shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _draggingId == record.id || _linkFrom == record.id ? color.primary : color.outlineVariant, width: 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: _linkFrom == record.id || _draggingId == record.id ? color.primary : Colors.transparent, width: _draggingId == record.id ? 3 : 2)),
                   child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -590,22 +590,24 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(mainAxisSize: MainAxisSize.min, children: [
               IconButton(tooltip: '레이어 위로', icon: const Icon(Icons.arrow_upward, size: 18), onPressed: () {
-                setState(() => moveThoughtLayers(_layout.layers, _selected, up: true)); _saveLayout(flush: true);
+                setState(() { moveThoughtLayers(_layout.layers, _selected, up: true); reorderStackPositions(_positions, _selected, up: true); }); _saveLayout(flush: true);
               }),
               IconButton(tooltip: '레이어 아래로', icon: const Icon(Icons.arrow_downward, size: 18), onPressed: () {
-                setState(() => moveThoughtLayers(_layout.layers, _selected, up: false)); _saveLayout(flush: true);
+                setState(() { moveThoughtLayers(_layout.layers, _selected, up: false); reorderStackPositions(_positions, _selected, up: false); }); _saveLayout(flush: true);
               }),
             ]),
             if (_selected.length > 1) TextButton.icon(
               style: TextButton.styleFrom(visualDensity: VisualDensity.compact, textStyle: const TextStyle(fontSize: 11)),
               icon: const Icon(Icons.swap_vert, size: 15), label: const Text('순서 반전'), onPressed: () {
-                setState(() => reverseThoughtLayers(_layout.layers, _selected)); _saveLayout(flush: true);
+                setState(() { reverseThoughtLayers(_layout.layers, _selected); reorderStackPositions(_positions, _selected); }); _saveLayout(flush: true);
               }),
           ]),
         )),
         Positioned(top: 8, right: 12, child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
-          child: SizedBox(width: 128, child: CheckboxListTile(
+          child: SizedBox(width: 112, child: ListTileTheme(
+            data: const ListTileThemeData(horizontalTitleGap: 0, minLeadingWidth: 0),
+            child: CheckboxListTile(
             title: Text(_selected.isEmpty ? '선택' : '선택 ${_selected.length}', style: const TextStyle(fontSize: 13)),
             controlAffinity: ListTileControlAffinity.leading, dense: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 8), visualDensity: VisualDensity.compact,
@@ -613,7 +615,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               _selectionMode = value ?? false; _selected.clear(); _selectionStart = null; _selectionEnd = null;
               if (_selectionMode) { _linkMode = false; _linkFrom = null; }
             }),
-          )),
+          ))),
         )),
         if (_linkMode) Positioned(top: 52, left: 12, right: 12, child: IgnorePointer(child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
@@ -676,10 +678,10 @@ class _SelectionPainter extends CustomPainter {
       var visible = Path()..addRect(Offset.zero & size);
       for (var j = i + 1; j < selected.length; j++) {
         visible = Path.combine(PathOperation.difference, visible, Path()..addRRect(
-          RRect.fromRectAndRadius(selected[j].rect.deflate(4), const Radius.circular(6))));
+          RRect.fromRectAndRadius(selected[j].rect, const Radius.circular(6))));
       }
       canvas.save(); canvas.clipPath(visible);
-      canvas.drawRRect(RRect.fromRectAndRadius(selected[i].rect.deflate(4), const Radius.circular(6)), border);
+      canvas.drawRRect(RRect.fromRectAndRadius(selected[i].rect, const Radius.circular(6)), border);
       canvas.restore();
     }
     if (marquee != null) {

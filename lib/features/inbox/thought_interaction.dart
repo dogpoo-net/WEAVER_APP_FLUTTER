@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class ThoughtInteraction extends StatefulWidget {
-  static const hitPadding = 12.0;
+  static const hitPadding = 0.0;
   const ThoughtInteraction({super.key, required this.size, required this.child,
     required this.onMove, required this.onResize, required this.onDrop, required this.onEnd,
     required this.onTap, required this.desktop, this.onLift, this.onActiveChanged});
