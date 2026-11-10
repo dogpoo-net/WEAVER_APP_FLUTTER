@@ -604,7 +604,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final target = others.where((r) => _bounds(r.id).overlaps(_bounds(anchor))).lastOrNull;
     final shift = target == null
       ? snapThought(_bounds(anchor), others.map((r) => _bounds(r.id)), tolerance: tolerance)
-      : nextStackSlot(target.id, anchor, {for (final e in _positions.entries) if (!_selected.contains(e.key)) e.key: e.value}) - _positions[anchor]!;
+      : nextStackSlot(target.id, anchor, {for (final e in _positions.entries) if (!_selected.contains(e.key)) e.key: e.value}) -
+          Offset(_positions[anchor]!.dx, _selected.map((id) => _positions[id]!.dy).reduce(math.min));
     if (_selected.any((id) => (_positions[id]! + shift).dx < 32 || (_positions[id]! + shift).dy < 32)) return;
     for (final id in _selected) { _positions[id] = _positions[id]! + shift; }
     if (target != null) {
