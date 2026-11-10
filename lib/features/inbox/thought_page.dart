@@ -52,7 +52,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   bool _linkMode = false, _centered = false;
   bool _selectionMode = false, _movingSelection = false;
   final _selected = <String>{};
-  Offset? _selectionStart, _selectionEnd;
+  Offset? _selectionStart, _selectionEnd, _selectionDown;
+  final _selectionPointers = <int>{};
+  Set<String> _selectionBeforeGesture = {};
   final _viewportKey = GlobalKey();
   double? _pinchBase;
   Offset? _pinchAnchor;
@@ -571,7 +573,17 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               onPanEnd: (_) => _saveLayout(flush: true), onPanCancel: () => _saveLayout(flush: true),
               child: Tooltip(message: '#$tag', child: Chip(side: BorderSide(color: Color(hashtagColors[tag] ?? 0xFF90A4AE), width: 2.5), label: Text('#$tag', maxLines: 1, overflow: TextOverflow.ellipsis),
               backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: .3))))),
-          if (_selectionMode) Positioned.fill(child: GestureDetector(
+          if (_selectionMode) Positioned.fill(child: Listener(
+            onPointerDown: (event) {
+              if (_selectionPointers.isEmpty) {
+                _selectionDown = event.localPosition;
+                _selectionBeforeGesture = Set.of(_selected);
+              }
+              _selectionPointers.add(event.pointer);
+            },
+            onPointerUp: (event) { _selectionPointers.remove(event.pointer); },
+            onPointerCancel: (event) { _selectionPointers.remove(event.pointer); },
+            child: GestureDetector(
             key: const ValueKey('canvas-selection'), behavior: HitTestBehavior.opaque, dragStartBehavior: DragStartBehavior.down,
             onTapUp: (d) => setState(() {
               final hit = records.where((r) => _bounds(r.id).contains(d.localPosition)).lastOrNull;
@@ -579,13 +591,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               else if (!_selected.add(hit.id)) { _selected.remove(hit.id); }
             }),
             onScaleStart: (d) => setState(() {
+              if (d.pointerCount > 1) return;
               _selected.removeWhere((id) => !visiblePositions.containsKey(id));
-              _movingSelection = _selected.any((id) => _bounds(id).contains(d.localFocalPoint));
-              _selectionStart = d.localFocalPoint; _selectionEnd = d.localFocalPoint;
+              _movingSelection = _selected.any((id) => _bounds(id).contains(_selectionDown ?? d.localFocalPoint));
+              _selectionStart = _selectionDown ?? d.localFocalPoint; _selectionEnd = d.localFocalPoint;
               if (!_movingSelection) _selected.clear();
             }),
             onScaleUpdate: (d) => setState(() {
               if (d.pointerCount > 1) {
+                _selected..clear()..addAll(_selectionBeforeGesture);
                 _zoomCanvas(d.scale, d.focalPoint); _selectionStart = null; _selectionEnd = null; return;
               }
               if (_pinchBase != null || _selectionStart == null) return;
@@ -605,7 +619,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               [for (final r in records) (rect: _bounds(r.id), selected: _selected.contains(r.id))],
               !_movingSelection && _selectionStart != null && _selectionEnd != null ? Rect.fromPoints(_selectionStart!, _selectionEnd!) : null,
               color.primary)),
-          )),
+          ))),
         ]))),
       ); })),
         if (_selected.isNotEmpty) Positioned(top: 8, left: 12, child: Material(
