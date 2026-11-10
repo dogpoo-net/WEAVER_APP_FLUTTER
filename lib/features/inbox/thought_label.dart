@@ -13,7 +13,7 @@ class ThoughtLabel extends StatelessWidget {
     final blended = Color.alphaBlend(paper, Theme.of(context).colorScheme.surface);
     final ink = blended.computeLuminance() < .35 ? Colors.white : const Color(0xFF202020);
     return Tooltip(message: record.indexLabel,
-    child: Listener(behavior: HitTestBehavior.opaque,
+    child: Listener(key: ValueKey('label-hold-${record.id}'), behavior: HitTestBehavior.opaque,
       onPointerDown: (_) => onHold(true), onPointerUp: (_) => onHold(false), onPointerCancel: (_) => onHold(false),
       child: Material(color: Colors.transparent, child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

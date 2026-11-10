@@ -5,7 +5,6 @@ import 'package:weaver/features/inbox/workspace_storage.dart';
 import 'package:weaver/features/inbox/graph_layout.dart';
 import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
-import 'package:weaver/features/inbox/thought_label.dart';
 import 'package:weaver/features/inbox/thought_interaction.dart';
 import 'package:weaver/features/inbox/caret_assist.dart';
 
@@ -50,8 +49,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
     await tester.pumpAndSettle();
     final order = List<String>.of(layout.layers);
-    final label = find.byKey(ValueKey('thought-label-${a.id}'));
-    final listener = tester.widget<Listener>(find.descendant(of: label, matching: find.byType(Listener)).first);
+    final listener = tester.widget<Listener>(find.byKey(ValueKey('label-hold-${a.id}')));
     listener.onPointerDown!(const PointerDownEvent()); await tester.pump();
     expect(tester.widgetList<ThoughtInteraction>(find.byType(ThoughtInteraction)).last.key, ValueKey('canvas-thought-${a.id}'));
     expect(layout.layers, order);
