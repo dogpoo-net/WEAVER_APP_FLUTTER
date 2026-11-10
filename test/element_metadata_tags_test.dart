@@ -13,6 +13,18 @@ void main() {
       greaterThan(tester.getCenter(find.byKey(const ValueKey('element-tags'))).dx));
     await tester.tap(find.byKey(const ValueKey('thought-color'))); await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('hashtag-color-16'))); await tester.pumpAndSettle();
+    expect(record.labelColor, isNull);
+    await tester.tap(find.text('생각 닫기')); await tester.pumpAndSettle();
+    expect(record.hiddenFromSearch, isFalse);
+    expect(tester.widget<IconButton>(find.byKey(const ValueKey('thought-color'))).onPressed, isNull);
+    await tester.tap(find.widgetWithText(FilledButton, '저장')); await tester.pumpAndSettle();
+    expect(record.labelColor, hashtagPalette[16].toARGB32());
+    expect(record.hiddenFromSearch, isTrue);
+    await tester.tap(find.text('보기')); await tester.pumpAndSettle();
+    await tester.tap(find.text('생각 닫기')); await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(find.byKey(const ValueKey('thought-color'))).onPressed, isNotNull);
+    await tester.tap(find.text('닫기')); await tester.pumpAndSettle();
+    expect(record.hiddenFromSearch, isTrue);
     expect(record.labelColor, hashtagPalette[16].toARGB32());
     expect(record.text, '색상 메모');
     await tester.pumpWidget(const SizedBox());

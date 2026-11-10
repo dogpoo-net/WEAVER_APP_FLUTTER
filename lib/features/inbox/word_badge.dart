@@ -18,8 +18,8 @@ void renameWordColor(String oldText, String newText) {
 
 const starterWords = ['관찰', '질문', '연결', '기억', '성장'];
 
-Color wordBackgroundColor(BuildContext context, String word) {
-  if (elements.records[word]?.hiddenFromSearch == true) return Theme.of(context).brightness == Brightness.dark ? const Color(0xFF303030) : const Color(0xFFBABABA);
+Color wordBackgroundColor(BuildContext context, String word, {bool? closed}) {
+  if (closed ?? (elements.records[word]?.hiddenFromSearch == true)) return Theme.of(context).brightness == Brightness.dark ? const Color(0xFF303030) : const Color(0xFFBABABA);
   final custom = elements.records[word]?.labelColor;
   if (custom != null) return HSLColor.fromColor(Color(custom)).withLightness(Theme.of(context).brightness == Brightness.dark ? .25 : .9).toColor();
   final hue = _wordHues.putIfAbsent(word, () => _random.nextDouble() * 360);

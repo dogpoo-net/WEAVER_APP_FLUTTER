@@ -59,7 +59,7 @@ class ElementSource {
 
 class ElementStore extends ChangeNotifier {
   void Function(String oldText, String newText)? onRenamed;
-  String? update(String oldText, String input, {Iterable<String>? tags}) {
+  String? update(String oldText, String input, {Iterable<String>? tags, int? labelColor, bool? hiddenFromSearch}) {
     final parsed = parseTaggedInput(input);
     if (parsed.text.isEmpty) return '생각 내용을 입력해주세요.';
     final record = records[oldText];
@@ -69,6 +69,8 @@ class ElementStore extends ChangeNotifier {
     }
     records.remove(oldText);
     record.text = parsed.text;
+    if (labelColor != null) record.labelColor = labelColor;
+    if (hiddenFromSearch != null) record.hiddenFromSearch = hiddenFromSearch;
     record.tags
       ..clear()
       ..addAll({...parsed.tags, ...?tags});
@@ -215,7 +217,9 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   late final Set<String> _tags;
   bool _movingTags = false;
   late String _word;
-  final _drafts = <String, ({String text, Set<String> tags})>{};
+  int? _labelColor;
+  late bool _closed;
+  final _drafts = <String, ({String text, Set<String> tags, int? color, bool closed})>{};
   String? _error;
   @override
   void initState() {
@@ -223,19 +227,22 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     _word = widget.word;
     final record = elements.records[_word]!;
     _tags = Set.of(record.tags);
+    _labelColor = record.labelColor; _closed = record.hiddenFromSearch;
     _editor = TextEditingController(text: record.text)..addListener(_extractTags);
   }
 
   void _bind(String word) {
     final record = elements.records[word];
     if (record == null || word == _word) return;
-    _drafts[_word] = (text: _editor.text, tags: Set.of(_tags));
+    _drafts[_word] = (text: _editor.text, tags: Set.of(_tags), color: _labelColor, closed: _closed);
     final draft = _drafts[word];
     FocusScope.of(context).unfocus();
     _movingTags = true;
     try {
       setState(() {
         _word = word; _error = null;
+        _labelColor = draft == null ? record.labelColor : draft.color;
+        _closed = draft?.closed ?? record.hiddenFromSearch;
         _tags..clear()..addAll(draft?.tags ?? record.tags);
         _editor.text = draft?.text ?? record.text;
       });
@@ -283,13 +290,12 @@ class _ElementMetadataState extends State<_ElementMetadata> {
           onRemove: (tag) => setState(() => _tags.remove(tag)))),
         IconButton(key: const ValueKey('thought-color'), tooltip: '생각 색상 변경',
           visualDensity: VisualDensity.compact, icon: Container(width: 20, height: 20,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: element.labelColor == null ? wordBackgroundColor(context, word) : Color(element.labelColor!),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: _closed ? wordBackgroundColor(context, word, closed: true) : _labelColor == null ? wordBackgroundColor(context, word, closed: false) : Color(_labelColor!),
               border: Border.all(color: Theme.of(context).colorScheme.outlineVariant))),
-          onPressed: () async {
-            final color = await pickHashtagColor(context, '생각', element.labelColor == null ? null : Color(element.labelColor!), prefix: '');
+          onPressed: _closed ? null : () async {
+            final color = await pickHashtagColor(context, '생각', _labelColor == null ? null : Color(_labelColor!), prefix: '');
             if (color == null || !mounted) return;
-            setState(() => element.labelColor = color.toARGB32());
-            elements.refreshVisibility();
+            setState(() => _labelColor = color.toARGB32());
           }),
       ]),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -320,10 +326,10 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               MergeSemantics(child: ListTile(
                 dense: true, visualDensity: const VisualDensity(vertical: -3), contentPadding: EdgeInsets.zero,
                 title: const Text('생각 닫기'),
-                onTap: () => setState(() => elements.setHidden(word, !element.hiddenFromSearch)),
+                onTap: () => setState(() => _closed = !_closed),
                 trailing: SizedBox(width: 44, height: 32, child: Transform.scale(scale: .8,
-                  child: Switch.adaptive(value: element.hiddenFromSearch,
-                    onChanged: (hidden) => setState(() => elements.setHidden(word, hidden))))),
+                  child: Switch.adaptive(value: _closed,
+                    onChanged: (hidden) => setState(() => _closed = hidden)))),
               )),
               if (element.location case final location?) Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
@@ -354,7 +360,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
         FilledButton.tonal(
           style: compact,
           onPressed: () {
-            final error = elements.update(word, _editor.text, tags: _tags);
+            final error = elements.update(word, _editor.text, tags: _tags, labelColor: _labelColor, hiddenFromSearch: _closed);
             if (error != null) {
               setState(() => _error = error);
               return;
