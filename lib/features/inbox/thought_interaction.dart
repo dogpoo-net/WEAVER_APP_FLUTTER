@@ -4,14 +4,14 @@ class ThoughtInteraction extends StatefulWidget {
   static const hitPadding = 0.0;
   const ThoughtInteraction({super.key, required this.size, required this.child,
     required this.onMove, required this.onResize, required this.onDrop, required this.onEnd,
-    required this.onTap, required this.desktop, this.onLift, this.onActiveChanged});
+    required this.onTap, required this.desktop, this.onLift, this.onActiveChanged, this.onResizeStart});
   final Size size;
   final Widget child;
   final ValueChanged<Offset> onMove, onDrop;
   final void Function(Size size, Offset shift) onResize;
   final VoidCallback onEnd, onTap;
   final bool desktop;
-  final VoidCallback? onLift;
+  final VoidCallback? onLift, onResizeStart;
   final ValueChanged<bool>? onActiveChanged;
   @override
   State<ThoughtInteraction> createState() => _ThoughtInteractionState();
@@ -25,7 +25,7 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
   Size _clamp(double w, double h) => Size(w.clamp(170, 640), h.clamp(76, 520));
   Widget _handle(String name, MouseCursor cursor, bool left, bool top, bool horizontal, bool vertical) =>
     MouseRegion(cursor: cursor, child: GestureDetector(key: ValueKey('resize-$name'), behavior: HitTestBehavior.opaque,
-      onPanStart: (_) => _resizeSize = widget.size,
+      onPanStart: (_) { _resizeSize = widget.size; widget.onResizeStart?.call(); },
       onPanUpdate: (d) {
         final next = _clamp(_resizeSize.width + (horizontal ? d.delta.dx * (left ? -1 : 1) : 0),
           _resizeSize.height + (vertical ? d.delta.dy * (top ? -1 : 1) : 0));
@@ -53,6 +53,7 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
     onScaleUpdate: (d) {
       _pointer = d.focalPoint;
       if (d.pointerCount >= 2) {
+        if (!_resized) widget.onResizeStart?.call();
         _resized = true;
         widget.onResize(_clamp(_start.width * d.scale, _start.height * d.scale), Offset.zero);
       } else if (!_resized) { widget.onMove(d.focalPointDelta); }

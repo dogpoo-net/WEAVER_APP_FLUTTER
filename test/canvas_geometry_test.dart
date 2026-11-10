@@ -5,6 +5,12 @@ import 'package:weaver/features/inbox/canvas_geometry.dart';
 import 'package:weaver/features/inbox/memo_box_region.dart';
 
 void main() {
+  test('width snapping chooses the closer adjacent width inside the threshold', () {
+    expect(snapStackWidth(294, [280, 300]), 300);
+    expect(snapStackWidth(284, [280, 300]), 280);
+    expect(snapStackWidth(340, [280, 300]), 340);
+    expect(snapStackWidth(294, []), 294);
+  });
   test('range selection ignores covered portions but includes exposed strips', () {
     const back = Rect.fromLTWH(100, 100, 170, 96);
     const front = Rect.fromLTWH(100, 132, 170, 96);

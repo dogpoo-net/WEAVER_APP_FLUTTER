@@ -98,6 +98,19 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _selectionPointers.clear(); _selectionZoomBase = null; _selectionZoomDistance = null; _selectionZoomAnchor = null; _selectionPinched = false;
     if (value) { _linkMode = false; _linkFrom = null; }
   });
+  String? _resizingThought;
+  final _resizeNeighbors = <String>{};
+  void _beginResize(String id) {
+    _resizingThought = id; _resizeNeighbors.clear();
+    final rect = _bounds(id);
+    for (final other in _records.where((r) => r.id != id)) {
+      final bounds = _bounds(other.id);
+      if (((bounds.top - rect.top).abs() - 32).abs() < .5 &&
+          ((bounds.left - rect.left).abs() < .5 || (bounds.right - rect.right).abs() < .5)) {
+        _resizeNeighbors.add(other.id);
+      }
+    }
+  }
   void _moveBox(MemoBox box, Offset shift) {
     for (final id in box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
     if (_emptyBoxBounds.containsKey(box)) _emptyBoxBounds[box] = _emptyBoxBounds[box]!.shift(shift);
@@ -575,10 +588,17 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   final center = _bounds(record.id).center;
                   _hoverBox = regions.where((r) => !r.box.elementIds.contains(record.id) && _inside(r.bounds, center)).firstOrNull?.box;
                   _saveLayout(); }),
+                onResizeStart: () => _beginResize(record.id),
                 onResize: (size, shift) => setState(() {
+                  if (_resizingThought != record.id) _beginResize(record.id);
+                  final currentWidth = _size(record.id).width;
+                  final width = size.width == currentWidth ? size.width : snapStackWidth(size.width,
+                    _resizeNeighbors.where(_positions.containsKey).map((id) => _size(id).width),
+                    tolerance: (16 / _view.value.storage[0].abs()).clamp(8, 32));
+                  final adjustedShift = Offset(shift.dx == 0 ? 0 : currentWidth - width, shift.dy);
                   final oldSize = _layout.sizes[record.id], oldPosition = _positions[record.id]!;
-                  _layout.sizes[record.id] = Offset(size.width, size.height);
-                  final p = _positions[record.id]! + shift; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
+                  _layout.sizes[record.id] = Offset(width, size.height);
+                  final p = _positions[record.id]! + adjustedShift; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
                   if (_memberCollides(record.id)) {
                     _positions[record.id] = oldPosition;
                     if (oldSize == null) { _layout.sizes.remove(record.id); } else { _layout.sizes[record.id] = oldSize; }
@@ -629,7 +649,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   }
                   if (detached.isNotEmpty) _changed();
                   _saveLayout(flush: true);
-                }, onEnd: () { setState(() { _thoughtDragOrigins.remove(record.id); _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
+                }, onEnd: () { setState(() { _resizingThought = null; _resizeNeighbors.clear(); _thoughtDragOrigins.remove(record.id); _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
                 child: Card(margin: EdgeInsets.zero, color: wordBackgroundColor(context, record.text),
                   shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _draggingId == record.id || _linkFrom == record.id ? color.primary : color.outlineVariant, width: 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: _linkFrom == record.id || _draggingId == record.id ? color.primary : color.outlineVariant, width: _draggingId == record.id ? 3 : 2)),

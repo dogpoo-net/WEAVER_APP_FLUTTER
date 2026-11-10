@@ -137,3 +137,12 @@ bool selectsVisibleThought(Rect selection, Rect card, Iterable<Rect> above, {dou
     visibleThoughtPath(card, above, radius: radius), Path()..addRect(selection));
   return intersection.computeMetrics().isNotEmpty;
 }
+
+double snapStackWidth(double width, Iterable<double> neighbors, {double tolerance = 16}) {
+  var result = width, distance = tolerance;
+  for (final candidate in neighbors) {
+    final delta = (candidate - width).abs();
+    if (delta <= distance) { result = candidate; distance = delta; }
+  }
+  return result;
+}
