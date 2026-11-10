@@ -33,6 +33,14 @@ void main() {
       expect(layout.positions[a.id]!.dx, greaterThan(500));
       expect(layout.positions[b.id]! - layout.positions[a.id]!, const Offset(300, 0));
       expect(viewer.transformationController!.value.storage, transform);
+      await tester.tapAt(overlay.localToGlobal(const Offset(450, 450))); await tester.pump();
+      final otherBefore = layout.positions[b.id];
+      final single = await tester.startGesture(overlay.localToGlobal(layout.positions[a.id]! + const Offset(40, 40)));
+      await single.moveBy(const Offset(30, 20)); await tester.pump();
+      await single.moveBy(const Offset(40, 20)); await tester.pump();
+      await single.up(); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('선택 1'), findsOneWidget);
+      expect(layout.positions[b.id], otherBefore);
       await tester.pumpWidget(const SizedBox());
     });
   }

@@ -617,7 +617,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 _selected.clear();
                 for (var i = 0; i < records.length; i++) {
                   if (selectsVisibleThought(rect, _bounds(records[i].id), records.skip(i + 1).map((r) => _bounds(r.id)),
-                      radius: widget.blocks ? 6 : 12)) _selected.add(records[i].id);
+                      radius: widget.blocks ? 6 : 12)) { _selected.add(records[i].id); }
                 }
               }
             }),
