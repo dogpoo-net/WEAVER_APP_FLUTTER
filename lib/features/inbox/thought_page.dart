@@ -1,3 +1,4 @@
+import 'thought_label.dart';
 import 'package:flutter/gestures.dart';
 import 'canvas_geometry.dart';
 import 'memo_folder_region.dart';
@@ -330,7 +331,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     (_filterBox == null || _filterBox!.elementIds.contains(r.id)) &&
     (_filterTag == null || r.tags.contains(_filterTag)) &&
     (!_unlinkedOnly || r.connections.isEmpty) &&
-    (_query.isEmpty || r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.toLowerCase().contains(_query)))).toList();
+    (_query.isEmpty || r.indexLabel.toLowerCase().contains(_query) || r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.toLowerCase().contains(_query)))).toList();
   void _sync() {
     final records = _records;
     final scope = _scopeRecords;
@@ -585,10 +586,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _view.dispose(); _search.dispose();
     super.dispose();
   }
+  String? _frontThought;
   @override
   Widget build(BuildContext context) {
     final ranks = {for (var i = 0; i < _layout.layers.length; i++) _layout.layers[i]: i};
     final records = _records..sort((a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0));
+    if (_frontThought != null) {
+      final front = records.where((r) => r.id == _frontThought).firstOrNull;
+      if (front != null) { records.remove(front); records.add(front); }
+    }
     final visiblePositions = {for (final r in records) r.id: _positions[r.id]!};
     final tags = _hideTags && !widget.blocks ? <String>[] : (records.expand((r) => r.tags).toSet().toList()..sort());
     final tagPositions = <String, Offset>{if (!widget.blocks) for (final tag in tags) 'tag:$tag': _tagPositions['tag:$tag']!};
@@ -702,7 +708,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           if (records.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
             icon: const Icon(Icons.add), label: Text(_query.isNotEmpty || _unlinkedOnly ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
           for (final record in records) Positioned(left: _positions[record.id]!.dx - ThoughtInteraction.hitPadding, top: _positions[record.id]!.dy - ThoughtInteraction.hitPadding,
-            child: ThoughtInteraction(size: _size(record.id), desktop: MediaQuery.sizeOf(context).width >= 760,
+            child: ThoughtInteraction(key: ValueKey('canvas-thought-${record.id}'), size: _size(record.id), desktop: MediaQuery.sizeOf(context).width >= 760,
                 onLift: () => setState(() {
                   _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
                 }),
@@ -794,6 +800,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                     if (_layout.stacked && (record.tags.isEmpty || (!widget.blocks && _hideTags))) const SizedBox(height: 24),
                   ])))),
             ),
+          for (final record in records.where((r) => r.indexLabel.isNotEmpty)) Positioned(
+            left: math.max(0, _positions[record.id]!.dx + (record.labelOnLeft ? -140 : _size(record.id).width - 4)),
+            top: _positions[record.id]!.dy + 4, width: 144,
+            child: ThoughtLabel(key: ValueKey('thought-label-${record.id}'), record: record,
+              active: _frontThought == record.id,
+              onTap: () => setState(() => _frontThought = _frontThought == record.id ? null : record.id))),
           for (final region in regions) Positioned(
             left: region.bounds.center.dx - (widget.blocks ? region.bounds.width - 64 : region.bounds.width * .45) / 2,
             top: region.bounds.top + 8,

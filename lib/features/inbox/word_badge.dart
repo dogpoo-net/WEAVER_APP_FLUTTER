@@ -121,6 +121,7 @@ class WordBadge extends StatelessWidget {
     super.key,
     required this.word,
     required this.onTap,
+    this.displayText,
     this.selected = false,
     this.tag = false,
     this.compact = false,
@@ -130,6 +131,7 @@ class WordBadge extends StatelessWidget {
     this.onDoubleTap,
   });
   final String word;
+  final String? displayText;
   final String query;
   final VoidCallback onTap;
   final bool selected;
@@ -167,8 +169,8 @@ class WordBadge extends StatelessWidget {
       ),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
         if (indicators) AttachmentIndicators(record: record),
-        Text.rich(fullText ? TextSpan(text: word) : _badgeExcerpt(context, word, query, maxWidth - 24),
-        maxLines: fullText ? null : 1, softWrap: fullText, overflow: fullText ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: word),
+        Text.rich(fullText ? TextSpan(text: displayText ?? word) : _badgeExcerpt(context, displayText ?? word, query, maxWidth - 24),
+        maxLines: fullText ? null : 1, softWrap: fullText, overflow: fullText ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: displayText ?? word),
       ]),
     ));
     return onDoubleTap == null ? badge : GestureDetector(onDoubleTap: onDoubleTap, child: badge);

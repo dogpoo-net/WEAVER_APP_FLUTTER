@@ -73,6 +73,7 @@ class WorkspaceSnapshot {
             'folder': r.folder,
             'hiddenFromSearch': r.hiddenFromSearch,
             if (r.labelColor != null) 'labelColor': r.labelColor,
+            'indexLabel': r.indexLabel, 'labelOnLeft': r.labelOnLeft, 'indexLabelColor': r.indexLabelColor,
             'location': r.location?.toJson(),
             'recordings': r.recordings.map((clip) => clip.toJson()).toList(),
             'photos': r.photos.map((photo) => photo.toJson()).toList(),
@@ -161,6 +162,9 @@ class WorkspaceSnapshot {
        ..folder = r['folder'] as String?
        ..hiddenFromSearch = (r['hiddenFromSearch'] as bool?) ?? false
        ..labelColor = r['labelColor'] is int ? r['labelColor'] as int : null
+       ..indexLabel = (r['indexLabel'] as String? ?? '').replaceAll(RegExp(r'\s+'), ' ').trim()
+       ..labelOnLeft = r['labelOnLeft'] == true
+       ..indexLabelColor = r['indexLabelColor'] is int ? r['indexLabelColor'] as int : 0xFFFFF59D
        ..location = ThoughtLocation.fromJson(r['location'])
        ..recordings.addAll((r['recordings'] as List? ?? []).map(VoiceAttachment.fromJson))
        ..photos.addAll((r['photos'] as List? ?? []).map(PhotoAttachment.fromJson))

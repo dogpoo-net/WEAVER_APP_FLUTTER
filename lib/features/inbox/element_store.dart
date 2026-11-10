@@ -35,6 +35,10 @@ class ElementRecord {
   final List<PhotoAttachment> photos = [];
   bool hiddenFromSearch = false;
   int? labelColor;
+  String indexLabel = '';
+  bool labelOnLeft = false;
+  int indexLabelColor = 0xFFFFF59D;
+  String get title => indexLabel.isEmpty ? text : indexLabel;
   DateTime? deletedAt;
   static int _next = 0;
   final String id;
@@ -59,7 +63,7 @@ class ElementSource {
 
 class ElementStore extends ChangeNotifier {
   void Function(String oldText, String newText)? onRenamed;
-  String? update(String oldText, String input, {Iterable<String>? tags, int? labelColor, bool? hiddenFromSearch}) {
+  String? update(String oldText, String input, {Iterable<String>? tags, int? labelColor, bool? hiddenFromSearch, String? indexLabel, bool? labelOnLeft, int? indexLabelColor}) {
     final parsed = parseTaggedInput(input);
     if (parsed.text.isEmpty) return '생각 내용을 입력해주세요.';
     final record = records[oldText];
@@ -68,6 +72,9 @@ class ElementStore extends ChangeNotifier {
       return '같은 내용의 생각이 이미 있어요.';
     }
     records.remove(oldText);
+    if (indexLabel != null) record.indexLabel = indexLabel.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (labelOnLeft != null) record.labelOnLeft = labelOnLeft;
+    if (indexLabelColor != null) record.indexLabelColor = indexLabelColor;
     record.text = parsed.text;
     if (labelColor != null) record.labelColor = labelColor;
     if (hiddenFromSearch != null) record.hiddenFromSearch = hiddenFromSearch;
@@ -213,19 +220,24 @@ class _ElementMetadata extends StatefulWidget {
 
 class _ElementMetadataState extends State<_ElementMetadata> {
   late final TextEditingController _editor;
+  late final TextEditingController _labelEditor;
+  bool _labelOnLeft = false;
+  int _indexLabelColor = 0xFFFFF59D;
   final _contentScroll = ScrollController();
   late final Set<String> _tags;
   bool _movingTags = false;
   late String _word;
   int? _labelColor;
   late bool _closed;
-  final _drafts = <String, ({String text, Set<String> tags, int? color, bool closed})>{};
+  final _drafts = <String, ({String text, Set<String> tags, int? color, bool closed, String label, bool left, int labelColor})>{};
   String? _error;
   @override
   void initState() {
     super.initState();
     _word = widget.word;
     final record = elements.records[_word]!;
+    _labelEditor = TextEditingController(text: record.indexLabel);
+    _labelOnLeft = record.labelOnLeft; _indexLabelColor = record.indexLabelColor;
     _tags = Set.of(record.tags);
     _labelColor = record.labelColor; _closed = record.hiddenFromSearch;
     _editor = TextEditingController(text: record.text)..addListener(_extractTags);
@@ -234,7 +246,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   void _bind(String word) {
     final record = elements.records[word];
     if (record == null || word == _word) return;
-    _drafts[_word] = (text: _editor.text, tags: Set.of(_tags), color: _labelColor, closed: _closed);
+    _drafts[_word] = (text: _editor.text, tags: Set.of(_tags), color: _labelColor, closed: _closed, label: _labelEditor.text, left: _labelOnLeft, labelColor: _indexLabelColor);
     final draft = _drafts[word];
     FocusScope.of(context).unfocus();
     _movingTags = true;
@@ -243,6 +255,9 @@ class _ElementMetadataState extends State<_ElementMetadata> {
         _word = word; _error = null;
         _labelColor = draft == null ? record.labelColor : draft.color;
         _closed = draft?.closed ?? record.hiddenFromSearch;
+        _labelEditor.text = draft?.label ?? record.indexLabel;
+        _labelOnLeft = draft?.left ?? record.labelOnLeft;
+        _indexLabelColor = draft?.labelColor ?? record.indexLabelColor;
         _tags..clear()..addAll(draft?.tags ?? record.tags);
         _editor.text = draft?.text ?? record.text;
       });
@@ -267,6 +282,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   @override
   void dispose() {
     _editor.dispose();
+    _labelEditor.dispose();
     _contentScroll.dispose();
     super.dispose();
   }
@@ -307,6 +323,22 @@ class _ElementMetadataState extends State<_ElementMetadata> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 8),
+              TextField(key: const ValueKey('thought-label-editor'), controller: _labelEditor,
+                maxLines: 1, decoration: const InputDecoration(labelText: '라벨', hintText: '생각의 제목', isDense: true)),
+              Row(children: [
+                IconButton(key: const ValueKey('label-left'), tooltip: '왼쪽에 붙이기', isSelected: _labelOnLeft,
+                  onPressed: () => setState(() => _labelOnLeft = true), icon: const Icon(Icons.west)),
+                IconButton(key: const ValueKey('label-right'), tooltip: '오른쪽에 붙이기', isSelected: !_labelOnLeft,
+                  onPressed: () => setState(() => _labelOnLeft = false), icon: const Icon(Icons.east)),
+                const Spacer(),
+                IconButton(key: const ValueKey('index-label-color'), tooltip: '라벨 색상',
+                  icon: Icon(Icons.circle, color: Color(_indexLabelColor).withValues(alpha: .6), size: 22),
+                  onPressed: () async {
+                    final color = await pickHashtagColor(context, '라벨', Color(_indexLabelColor), prefix: '');
+                    if (color != null && mounted) setState(() => _indexLabelColor = color.toARGB32());
+                  }),
+              ]),
+              const SizedBox(height: 8),
               TextField(
                 key: const ValueKey('element-editor'),
                 controller: _editor,
@@ -344,7 +376,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                 const SizedBox(height: 6),
                 Wrap(spacing: 6, runSpacing: 6, children: [
                   for (final linked in elements.records.values.where((r) => element.connections.contains(r.id)))
-                    WordBadge(word: linked.text, onTap: () => _bind(linked.text)),
+                    WordBadge(word: linked.text, displayText: linked.title, onTap: () => _bind(linked.text)),
                 ]),
               ],
             ],
@@ -360,7 +392,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
         FilledButton.tonal(
           style: compact,
           onPressed: () {
-            final error = elements.update(word, _editor.text, tags: _tags, labelColor: _labelColor, hiddenFromSearch: _closed);
+            final error = elements.update(word, _editor.text, tags: _tags, labelColor: _labelColor, hiddenFromSearch: _closed, indexLabel: _labelEditor.text, labelOnLeft: _labelOnLeft, indexLabelColor: _indexLabelColor);
             if (error != null) {
               setState(() => _error = error);
               return;

@@ -747,7 +747,7 @@ class _InboxPageState extends State<InboxPage> {
 
   void _insertQuickElement(String word) {
     final selection = _draft.selection;
-    final prefix = completionPrefix(_draft.value, elements.visibleWords);
+    final prefix = completionPrefix(_draft.value, elements.visibleWords.map((word) => elements.records[word]!.title).toList());
     final start = (selection.isValid ? selection.start : _draft.text.length) - prefix.length;
     final end = selection.isValid ? selection.end : start;
     final record = elements.records[word];
@@ -1133,7 +1133,7 @@ class _InboxPageState extends State<InboxPage> {
             key: const ValueKey('quick-memo-keyboard'),
             canRequestFocus: false,
             onKeyEvent: _quickMemoKey,
-            child: CaretAssist(showShortcutHint: true, key: _quickAssistKey, controller: _draft, focus: _focus, words: elements.visibleWords, showWhenEmpty: false,
+            child: CaretAssist(useThoughtLabels: true, showShortcutHint: true, key: _quickAssistKey, controller: _draft, focus: _focus, words: elements.visibleWords, showWhenEmpty: false,
               mobileViewportKey: _bodyKey,
               tags: {..._allTags, ..._draftTags}.toList()..sort(), enterSelectsVisible: true,
               onTag: (tag) => _acceptQuickAssist(() => _insertQuickTag(tag)),
@@ -1178,7 +1178,7 @@ class _InboxPageState extends State<InboxPage> {
               child: SingleChildScrollView(child: Wrap(spacing: 6, runSpacing: 6, children: [
                 for (final record in elements.records.values.where((r) => _draftConnections.contains(r.id)))
                   ConstrainedBox(constraints: const BoxConstraints(maxWidth: 280), child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Flexible(child: WordBadge(compact: true, word: record.text, onTap: () => showElementMetadata(context, record.text))),
+                    Flexible(child: WordBadge(compact: true, word: record.text, displayText: record.title, onTap: () => showElementMetadata(context, record.text))),
                     IconButton(key: ValueKey('remove-draft-link-${record.id}'), tooltip: '연결에서 빼기',
                       constraints: const BoxConstraints.tightFor(width: 28, height: 28), padding: EdgeInsets.zero,
                       icon: const Icon(Icons.close, size: 16), onPressed: () => setState(() => _draftConnections.remove(record.id))),
@@ -1207,7 +1207,7 @@ class _InboxPageState extends State<InboxPage> {
         .toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final query = _query.toLowerCase().replaceFirst('#', '');
     final records = elements.records.values.where((record) => !record.tags.any(hiddenSearchTags.contains) && canBrowseThought(record) &&
-      (record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.contains(query))))
+      (record.indexLabel.toLowerCase().contains(_query.toLowerCase()) || record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.contains(query))))
       .toList()..sort((a, b) {
         final closed = (a.hiddenFromSearch ? 1 : 0).compareTo(b.hiddenFromSearch ? 1 : 0);
         return closed != 0 ? closed : b.createdAt.compareTo(a.createdAt);

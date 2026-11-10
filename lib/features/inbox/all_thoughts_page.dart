@@ -67,9 +67,9 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     final id = elements.records[word]?.id;
     if (_selectedId != id) setState(() => _selectedId = id);
   }
-  Widget _badge(String word, bool desktop) {
+  Widget _badge(String word, bool desktop, {bool link = false}) {
     final badge = WordBadge(
-    word: word, compact: true, fullText: true, query: _query, selected: elements.records[word]?.id == _selectedId,
+    word: word, displayText: link ? elements.records[word]?.title : null, compact: true, fullText: true, query: _query, selected: elements.records[word]?.id == _selectedId,
     onTap: desktop ? () {} : () => showElementMetadata(context, word),
     onDoubleTap: desktop ? () { _select(word); showElementMetadata(context, word); } : null,
     );
@@ -94,7 +94,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         const Text('연결된 생각', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
         const SizedBox(height: 12), _badge(selected.text, desktop), const Divider(height: 24),
         if (related.isEmpty) const Text('연결된 생각이 없어요.'),
-        for (final record in related) Padding(padding: const EdgeInsets.only(bottom: 6), child: _badge(record.text, desktop)),
+        for (final record in related) Padding(padding: const EdgeInsets.only(bottom: 6), child: _badge(record.text, desktop, link: true)),
       ]));
   }
   @override
@@ -107,7 +107,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         (_audioOnly && record.recordings.isNotEmpty)) &&
       (_filterBox == null || _filterBox!.elementIds.contains(record.id)) &&
       (_filterTag == null || record.tags.contains(_filterTag)) &&
-      (record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.toLowerCase().contains(_query.toLowerCase().replaceFirst(RegExp(r'^#'), ''))))).toList();
+      (record.indexLabel.toLowerCase().contains(_query.toLowerCase()) || record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.toLowerCase().contains(_query.toLowerCase().replaceFirst(RegExp(r'^#'), ''))))).toList();
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
     final grid = LayoutBuilder(builder: (context, bounds) {
       final available = math.min(1000.0, math.max(0.0, bounds.maxWidth - 24));

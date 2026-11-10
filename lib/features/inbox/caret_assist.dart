@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 
 import 'word_badge.dart';
+import 'element_store.dart';
 import 'mobile_element_assist.dart';
 import 'project_folders.dart';
 
@@ -28,7 +29,9 @@ class CaretAssist extends StatefulWidget {
     this.onTag,
     this.enterSelectsVisible = false,
     this.showShortcutHint = false,
+    this.useThoughtLabels = false,
   });
+  final bool useThoughtLabels;
   final TextEditingController controller;
   final FocusNode focus;
   final List<String> words;
@@ -65,6 +68,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   bool get _desktop =>
       MediaQuery.sizeOf(context).width >= 760 &&
       MediaQuery.viewInsetsOf(context).bottom == 0;
+  String _title(String word) => widget.useThoughtLabels ? (elements.records[word]?.title ?? word) : word;
   void _choose(String word) {
     _controlling = false;
     _manualSelection = null; _manualValue = null;
@@ -346,10 +350,10 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     }
     final token = tagPrefix(value);
     final tagMode = widget.onTag != null && token.isNotEmpty;
-    final query = tagMode ? token.substring(1) : completionPrefix(value, widget.words);
+    final query = tagMode ? token.substring(1) : completionPrefix(value, widget.words.map(_title).toList());
     if (_query != query || _tagMode != tagMode) _selected = 0;
     _tagMode = tagMode; _query = query;
-    _matches = tagMode ? wordSuggestions(widget.tags.where((tag) => !hiddenSearchTags.contains(tag)).toList(), query).map((tag) => '#$tag').toList() : wordSuggestions(widget.words, query);
+    _matches = tagMode ? wordSuggestions(widget.tags.where((tag) => !hiddenSearchTags.contains(tag)).toList(), query).map((tag) => '#$tag').toList() : (widget.useThoughtLabels ? widget.words.where((word) => matchesWord(_title(word), query)).toList() : wordSuggestions(widget.words, query));
     if (_selected >= _matches.length) _selected = 0;
     final manual = _manualSelection;
     if (manual != null) {
@@ -361,7 +365,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     final changed = checked == null || checked.text != value.text || checked.selection != value.selection;
     if (autoSelect && changed && (!_tagMode || !value.composing.isValid || value.composing.isCollapsed)) {
       _autoCheckedValue = value;
-      final exact = query.isEmpty ? -1 : _matches.indexWhere((word) => (_tagMode ? word.substring(1).toLowerCase() == query.toLowerCase() : word == query));
+      final exact = query.isEmpty ? -1 : _matches.indexWhere((word) => (_tagMode ? word.substring(1).toLowerCase() == query.toLowerCase() : _title(word) == query));
       if (exact >= 0) {
         _selected = exact;
         _controlling = true;
@@ -511,6 +515,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
                             child: WordBadge(
                               key: ValueKey('suggestion-$word'),
                               word: word,
+                              displayText: _tagMode ? word : _title(word),
                               tag: _tagMode,
                               query: _query,
                               selected:
