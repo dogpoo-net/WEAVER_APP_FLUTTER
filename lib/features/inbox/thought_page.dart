@@ -671,7 +671,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       IconButton(tooltip: '전체 위치 보기', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('사용 안내'),
-          content: const Text('생각·태그를 드래그해 배치하세요. 생각을 누르면 수정할 수 있습니다. 연결 모드에서는 생각 두 개를 차례로 누르세요.'),
+          content: const Text('생각·태그를 드래그해 배치하세요. 생각을 누르면 수정할 수 있습니다. 라벨을 누르는 동안 해당 생각을 앞으로 볼 수 있습니다.'),
           actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))]))),
     ]))]), body: DesktopMenuBody(child: Column(children: [
       if (widget.viewSelector != null) widget.viewSelector!,

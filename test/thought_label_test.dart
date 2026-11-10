@@ -4,6 +4,7 @@ import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
 import 'package:weaver/features/inbox/graph_layout.dart';
 import 'package:weaver/features/inbox/memo_boxes.dart';
+import 'package:weaver/features/inbox/memo_box_region.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 import 'package:weaver/features/inbox/thought_label.dart';
 import 'package:weaver/features/inbox/thought_interaction.dart';
@@ -109,6 +110,25 @@ void main() {
     await gesture.moveTo(overlay.localToGlobal(const Offset(920, 440))); await tester.pump();
     await gesture.up(); await tester.pumpAndSettle();
     expect(layout.positions[a.id], const Offset(850, 432));
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('selection drag assigns an empty memo box', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1000); tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
+    final record = elements.add('상자에 넣을 메모');
+    final box = MemoBox('목적 상자'); memoBoxes.add(box);
+    pageGraphLayout.blockLayout.positions[record.id] = const Offset(500, 400);
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('선택')); await tester.pumpAndSettle();
+    final overlay = tester.renderObject<RenderBox>(find.byKey(const ValueKey('canvas-selection')));
+    final region = tester.widget<MemoBoxRegion>(find.byKey(const ValueKey('box-region-목적 상자')));
+    final start = overlay.localToGlobal(pageGraphLayout.blockLayout.positions[record.id]! + const Offset(70, 40));
+    final gesture = await tester.startGesture(start);
+    await gesture.moveBy(const Offset(30, 0)); await tester.pump();
+    await gesture.moveTo(overlay.localToGlobal(region.bounds.center)); await tester.pump();
+    await gesture.up(); await tester.pumpAndSettle();
+    expect(box.elementIds, contains(record.id));
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets('assist searches titles but returns the original thought identity', (tester) async {

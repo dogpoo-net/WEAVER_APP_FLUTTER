@@ -70,6 +70,22 @@ void main() {
     expect(find.byKey(ValueKey('thought-${first.id}')), findsNothing);
     expect(find.byKey(ValueKey('thought-${second.id}')), findsOneWidget);
   });
+  testWidgets('box and tag selections survive changing view types', (tester) async {
+    final a = elements.add('상자 안'), b = elements.add('태그 안 #별');
+    memoBoxes.add(MemoBox('첫 상자', ids: [a.id]));
+    await tester.pumpWidget(const MaterialApp(home: AllThoughtsPage(notes: [])));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('thought-filter-box-첫 상자')));
+    await tester.tap(find.byKey(const ValueKey('thought-filter-tag-별'))); await tester.pumpAndSettle();
+    for (final title in ['다이어그램', '메모상자', '생각']) {
+      await tester.tap(find.text(title)); await tester.pumpAndSettle();
+      expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('thought-filter-box-첫 상자'))).selected, isTrue);
+      expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('thought-filter-tag-별'))).selected, isTrue);
+    }
+    expect(find.byKey(ValueKey('thought-${a.id}')), findsOneWidget);
+    expect(find.byKey(ValueKey('thought-${b.id}')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
   for (final view in [ThoughtView.diagram, ThoughtView.page, ThoughtView.geolog]) {
     testWidgets('box entry keeps all footer choices in $view', (tester) async {
       final first = elements.add('첫 생각 #독서'), second = elements.add('다른 생각 #여행');
