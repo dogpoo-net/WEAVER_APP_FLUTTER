@@ -15,13 +15,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.widget<Text>(find.text('넓게 표시할 생각')).maxLines, 3);
       expect(tester.widget<AppBar>(find.byType(AppBar)).centerTitle, isFalse);
-      final before = tester.getRect(find.byType(InteractiveViewer));
       expect(find.descendant(of: find.byType(ThoughtInteraction), matching: find.byIcon(Icons.link)), findsNothing);
       expect(find.byType(Draggable<String>), findsNothing);
       expect(find.byType(DragTarget<String>), findsNothing);
-      await tester.tap(find.byTooltip('연결 모드')); await tester.pumpAndSettle();
-      expect(tester.getRect(find.byType(InteractiveViewer)), before);
-      expect(before.contains(tester.getCenter(find.text('생각 두 개를 차례로 눌러 연결하거나 해제하세요.'))), isTrue);
+      expect(find.byTooltip('연결 모드'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     });

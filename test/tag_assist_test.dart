@@ -42,7 +42,7 @@ void main() {
   });
   testWidgets('Control commits Hangul composing and Control Space opens empty memo assist', (tester) async {
     await tester.pumpWidget(const MyApp(requireLogin: false, ));
-    elements.add('관찰');
+    elements.add('관찰').indexLabel = '관찰';
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '관'); await tester.pumpAndSettle();
     tester.testTextInput.updateEditingValue(const TextEditingValue(text: '관', selection: TextSelection.collapsed(offset: 1), composing: TextRange(start: 0, end: 1)));

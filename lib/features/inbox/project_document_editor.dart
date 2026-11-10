@@ -59,6 +59,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   }
   Future<void> _save() async {
     _body.completeLinks();
+    _tags.addAll(cleanLinkedInput(_body).tags);
     if (_body.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('본문을 입력해주세요.'))); return;
     }

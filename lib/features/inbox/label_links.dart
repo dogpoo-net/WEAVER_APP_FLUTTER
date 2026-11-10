@@ -1,4 +1,3 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'element_binding.dart';
@@ -43,7 +42,6 @@ class LabelTextController extends BoundTextController {
   LabelTextController([String text = '', Iterable<ElementBinding> links = const []])
     : super(text, links.where((b) => isInlineLink(b.id)));
   bool _parsing = false;
-  final _recognizers = <String, TapGestureRecognizer>{};
   @override
   set value(TextEditingValue next) {
     super.value = next;
@@ -87,15 +85,12 @@ class LabelTextController extends BoundTextController {
     }
     for (final link in bindings) {
       plain(offset, link.start);
-      final recognizer = _recognizers.putIfAbsent(link.id, () => TapGestureRecognizer())..onTap = () => openInlineLink(context, link.id);
-      children.add(TextSpan(text: text.substring(link.start, link.end), style: inlineLinkStyle(context, link.id), recognizer: recognizer));
+      children.add(TextSpan(text: text.substring(link.start, link.end), style: inlineLinkStyle(context, link.id)));
       offset = link.end;
     }
     plain(offset, text.length);
     return TextSpan(style: style, children: children);
   }
-  @override
-  void dispose() { for (final r in _recognizers.values) { r.dispose(); } super.dispose(); }
 }
 
 /// Strip tags outside atomic links, retaining the adjusted link offsets.

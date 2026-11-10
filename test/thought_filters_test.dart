@@ -65,7 +65,10 @@ void main() {
     expect(find.byKey(ValueKey('thought-${second.id}')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('thought-filter-box-둘'))); await tester.pumpAndSettle();
     expect(find.byKey(ValueKey('thought-${second.id}')), findsOneWidget);
+    expect(find.byKey(ValueKey('thought-${first.id}')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('thought-filter-box-하나'))); await tester.pumpAndSettle();
     expect(find.byKey(ValueKey('thought-${first.id}')), findsNothing);
+    expect(find.byKey(ValueKey('thought-${second.id}')), findsOneWidget);
   });
   for (final view in [ThoughtView.diagram, ThoughtView.page, ThoughtView.geolog]) {
     testWidgets('box entry keeps all footer choices in $view', (tester) async {
@@ -81,7 +84,7 @@ void main() {
       expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('thought-filter-box-둘'))).selected, isTrue);
       if (view != ThoughtView.geolog) {
         expect(find.text('다른 생각'), findsOneWidget);
-        expect(find.text('첫 생각'), findsNothing);
+        expect(find.text('첫 생각'), findsOneWidget);
       }
       await tester.pumpWidget(const SizedBox());
     });
@@ -113,7 +116,7 @@ void main() {
       expect(find.text('다른 메모'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('thought-filter-tag-여행')));
       await tester.pumpAndSettle();
-      expect(find.byKey(ValueKey('thought-${first.id}')), findsNothing);
+      expect(find.byKey(ValueKey('thought-${first.id}')), findsOneWidget);
       expect(find.byKey(ValueKey('thought-${second.id}')), findsOneWidget);
       await tester.enterText(find.byKey(const ValueKey('all-thoughts-search')), '없는 내용');
       await tester.pumpAndSettle();
@@ -144,7 +147,7 @@ void main() {
       expect(find.byType(AllThoughtsPage), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('thought-filter-tag-여행')));
       await tester.pumpAndSettle();
-      expect(find.text('첫 메모'), findsNothing);
+      expect(find.text('첫 메모'), findsOneWidget);
       expect(find.text('다른 메모'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('thought-filter-all')));
       await tester.pumpAndSettle();

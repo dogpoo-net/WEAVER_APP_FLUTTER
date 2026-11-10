@@ -18,13 +18,18 @@ class DocumentMarkup extends StatefulWidget {
   State<DocumentMarkup> createState() => _DocumentMarkupState();
 }
 class _DocumentMarkupState extends State<DocumentMarkup> {
+  Map<int, ElementBinding> _linksAt = {};
   final _recognizers = <String, TapGestureRecognizer>{};
   List<InlineSpan> _inline(String text, int base, TextStyle style) {
     final result = <InlineSpan>[];
     var i = 0;
+    final plain = StringBuffer();
+    void flush() { if (plain.isNotEmpty) { result.add(TextSpan(text: plain.toString(), style: style)); plain.clear(); } }
     while (i < text.length) {
-      final link = widget.links.where((b) => b.start == base + i && b.end <= base + text.length).firstOrNull;
+      final candidate = _linksAt[base + i];
+      final link = candidate != null && candidate.end <= base + text.length ? candidate : null;
       if (link != null) {
+        flush();
         final recognizer = _recognizers.putIfAbsent('${link.start}:${link.id}', () => TapGestureRecognizer())..onTap = () => openInlineLink(context, link.id);
         result.add(TextSpan(text: text.substring(i, link.end - base), style: style.merge(inlineLinkStyle(context, link.id)), recognizer: recognizer));
         i = link.end - base; continue;
@@ -41,18 +46,23 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
             '__' => style.copyWith(decoration: TextDecoration.combine([if (style.decoration != null) style.decoration!, TextDecoration.underline])),
             _ => style.copyWith(decoration: TextDecoration.combine([if (style.decoration != null) style.decoration!, TextDecoration.lineThrough])),
           };
+          flush();
           result.addAll(_inline(text.substring(i + 2, end), base + i + 2, next));
           i = end + 2; matched = true; break;
         }
       }
-      if (!matched) { result.add(TextSpan(text: text[i], style: style)); i++; }
+      if (!matched) { plain.write(text[i]); i++; }
     }
+    flush();
     return result;
   }
   @override
   void dispose() { for (final r in _recognizers.values) { r.dispose(); } super.dispose(); }
   @override
   Widget build(BuildContext context) {
+    _linksAt = {for (final b in widget.links) b.start: b};
+    final keys = {for (final b in widget.links) '${b.start}:${b.id}'};
+    for (final key in _recognizers.keys.where((key) => !keys.contains(key)).toList()) { _recognizers.remove(key)!.dispose(); }
     final baseStyle = widget.style ?? Theme.of(context).textTheme.bodyLarge!;
     final lines = <Widget>[];
     var offset = 0;
