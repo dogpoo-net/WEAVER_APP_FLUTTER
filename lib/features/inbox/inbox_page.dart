@@ -896,9 +896,7 @@ class _InboxPageState extends State<InboxPage> {
       _editing = note;
       final tags = elements.records[note.content.trim()]?.tags ?? <String>{};
       _draftTags.clear();
-      _draft.clear();
-      _draft.text = [note.content, ...tags.map((tag) => '#$tag')].join(' ');
-      _draft.bindings = List.of(note.bindings);
+      _draft.loadDocument([note.content, ...tags.map((tag) => '#$tag')].join(' '), note.bindings);
     });
     _focus.requestFocus();
   }

@@ -47,6 +47,12 @@ class LabelTextController extends BoundTextController {
     super.value = next;
     if (!_parsing && (!value.composing.isValid || value.composing.isCollapsed)) completeLinks();
   }
+  void loadDocument(String text, Iterable<ElementBinding> links, {TextSelection? selection}) {
+    bindings = [];
+    super.value = TextEditingValue(text: text, selection: selection ?? TextSelection.collapsed(offset: text.length));
+    bindings = links.where((b) => isInlineLink(b.id)).toList();
+    notifyListeners();
+  }
   void completeLinks() {
     if (_parsing) return;
     _parsing = true;

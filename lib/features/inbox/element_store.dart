@@ -243,8 +243,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     _movingTags = true;
     setState(() {
       _word = word; _error = null;
-      _editor.clear(); _editor.text = draft?.text ?? record.text;
-      _editor.bindings = List.of(draft?.links ?? record.inlineLinks);
+      _editor.loadDocument(draft?.text ?? record.text, draft?.links ?? record.inlineLinks);
       _tags..clear()..addAll(draft?.tags ?? record.tags);
       _labelEditor.text = draft?.label ?? record.indexLabel;
       _labelOnLeft = draft?.left ?? record.labelOnLeft; _indexLabelColor = draft?.labelColor ?? record.indexLabelColor;
@@ -255,13 +254,15 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   }
   void _extractTags() {
     if (_movingTags) return;
-    final completed = takeCompletedParagraphTags(_editor.value);
+    final completed = takeCompletedParagraphTags(_editor.value, protected: _editor.bindings.map((b) => TextRange(start: b.start, end: b.end)));
     if (completed.tags.isEmpty) return;
     _movingTags = true;
     try {
       setState(() {
         _tags.addAll(completed.tags);
-        _editor.value = completed.value;
+        int offset(int n) => n - completed.removed.fold<int>(0, (sum, r) => sum + (n - r.start).clamp(0, r.end - r.start));
+        final links = [for (final b in _editor.bindings) ElementBinding(b.id, offset(b.start), offset(b.end))];
+        _editor.loadDocument(completed.value.text, links, selection: completed.value.selection);
         _error = null;
       });
     } finally { _movingTags = false; }
