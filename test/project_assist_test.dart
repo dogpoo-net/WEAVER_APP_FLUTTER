@@ -6,7 +6,7 @@ import 'package:weaver/features/inbox/label_links.dart';
 import 'package:weaver/features/inbox/word_badge.dart';
 
 void main() {
-  testWidgets('project title assist has a border, inserts an atomic alias and help replaces folder action', (tester) async {
+  testWidgets('project title assist inserts an atomic alias and help replaces folder action', (tester) async {
     elements.clear();
     final source = WritingProject([], [], name: '작성')..document = '';
     final target = WritingProject([], [], name: '옛 이름')..document = '서문\n======참고 프로젝트======';

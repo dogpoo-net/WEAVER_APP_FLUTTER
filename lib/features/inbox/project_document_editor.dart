@@ -144,7 +144,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       '굵게: **텍스트**\n기울임: //텍스트//\n밑줄: __텍스트__\n취소선: --텍스트--\n\n'
       '왼쪽 정렬: |텍스트 |\n오른쪽 정렬: | 텍스트|\n가운데 정렬: | 텍스트 |\n\n'
       '링크: [[표시명|라벨 또는 프로젝트 제목]]\n웹 링크: [[표시명|https://example.com]]\n'
-      '[[표시명|까지 입력하면 어시스트가 열립니다. Ctrl + Space로 선택할 수 있습니다. 프로젝트는 굵은 테두리로 표시됩니다.\n\n'
+      '[[표시명|까지 입력하면 어시스트가 열립니다. Ctrl + Space로 선택할 수 있습니다. 프로젝트는 프로젝트: 접두어와 굵은 제목으로 표시됩니다.\n\n'
       '코드: <code>code</code>\n여러 줄도 가능하며 코드 안의 문법은 해석하지 않습니다.\n\n'
       '상단 미리보기 버튼으로 서식과 링크를 확인하세요.')),
     actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],

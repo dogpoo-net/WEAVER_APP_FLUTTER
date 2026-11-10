@@ -150,6 +150,20 @@ class WordBadge extends StatelessWidget {
     final labelColor = tag ? Color(hashtagColors[word.replaceFirst('#', '')] ?? 0xFF90A4AE) : null;
     final record = tag ? null : elements.records[word];
     final indicators = record != null && AttachmentIndicators.hasAttachments(record);
+    final title = displayText ?? word;
+    var prefixWidth = 0.0;
+    if (project) {
+      final prefix = TextPainter(text: TextSpan(text: '프로젝트:', style: Theme.of(context).textTheme.labelLarge!.copyWith(fontSize: 12, fontWeight: FontWeight.w300)),
+        textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
+      prefixWidth = prefix.width;
+      prefix.dispose();
+    }
+    final label = project ? TextSpan(children: [
+      const TextSpan(text: '프로젝트:', style: TextStyle(fontWeight: FontWeight.w300)),
+      TextSpan(style: const TextStyle(fontWeight: FontWeight.w700), children: [
+        _badgeExcerpt(context, title, query, (maxWidth - 24 - prefixWidth).clamp(0.0, double.infinity)),
+      ]),
+    ]) : fullText ? TextSpan(text: title) : _badgeExcerpt(context, title, query, maxWidth - 24);
     final badge = ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: TextButton(
       onPressed: onTap,
       onLongPress: onLongPress,
@@ -160,7 +174,7 @@ class WordBadge extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: dense ? 5 : compact ? 7 : 12, vertical: dense ? 1 : compact ? 3 : 5),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         shape: fullText ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: selected ? BorderSide(color: Theme.of(context).colorScheme.primary, width: 2) : BorderSide.none) : StadiumBorder(
-          side: selected || project
+          side: selected
               ? BorderSide(
                   color: Theme.of(context).colorScheme.primary,
                   width: 2,
@@ -171,8 +185,8 @@ class WordBadge extends StatelessWidget {
       ),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
         if (indicators) AttachmentIndicators(record: record),
-        Text.rich(fullText ? TextSpan(text: displayText ?? word) : _badgeExcerpt(context, displayText ?? word, query, maxWidth - 24),
-        maxLines: fullText ? null : 1, softWrap: fullText, overflow: fullText ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: displayText ?? word),
+        Text.rich(label,
+        maxLines: fullText ? null : 1, softWrap: fullText, overflow: fullText ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '프로젝트:$title' : title),
       ]),
     ));
     return onDoubleTap == null ? badge : GestureDetector(onDoubleTap: onDoubleTap, child: badge);
