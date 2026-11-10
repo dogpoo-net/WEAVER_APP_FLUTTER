@@ -128,37 +128,3 @@ Future<bool> createMemoFolder(BuildContext context) async {
   if (created != true || name.isEmpty || memoBoxFolders.contains(name)) return false;
   memoBoxFolders.add(name); moveMemoFolder(name, parent); return true;
 }
-Future<bool> editMemoFolders(BuildContext context) async {
-  var changed = false;
-  await showDialog<void>(context: context, builder: (context) => StatefulBuilder(builder: (context, update) => AlertDialog(
-    title: const Text('메모상자 폴더'),
-    content: SizedBox(width: 440, height: 360, child: ListView(children: [
-      const Text('폴더에는 폴더와 메모상자만 넣을 수 있습니다.', style: TextStyle(fontSize: 12)),
-      for (final folder in memoBoxFolders) ListTile(leading: const Icon(Icons.folder_outlined),
-        title: Text(memoFolderPath(folder)), subtitle: const Text('눌러서 상위 폴더 변경'), onTap: () async {
-          final choice = await showDialog<String>(context: context, builder: (context) => SimpleDialog(title: Text('$folder의 위치'), children: [
-            SimpleDialogOption(onPressed: () => Navigator.pop(context, ''), child: const Text('최상위로')),
-            for (final target in memoBoxFolders.where((p) => canMoveMemoFolder(folder, p))) SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, target), child: Text(memoFolderPath(target))),
-          ]));
-          if (choice != null && context.mounted) update(() { moveMemoFolder(folder, choice.isEmpty ? null : choice); changed = true; });
-        }),
-      const Divider(),
-      for (final box in memoBoxes.where((b) => !b.isUnclassified)) ListTile(leading: const Icon(Icons.inventory_2_outlined), title: Text(box.name),
-        subtitle: Text(box.folder == null ? '폴더 밖' : memoFolderPath(box.folder!)), onTap: () async {
-          final choice = await showDialog<String>(context: context, builder: (context) => SimpleDialog(title: Text('${box.name}의 폴더'), children: [
-            SimpleDialogOption(onPressed: () => Navigator.pop(context, ''), child: const Text('폴더 밖으로')),
-            for (final target in memoBoxFolders) SimpleDialogOption(onPressed: () => Navigator.pop(context, target), child: Text(memoFolderPath(target))),
-          ]));
-          if (choice != null && context.mounted) update(() { box.folder = choice.isEmpty ? null : choice; changed = true; });
-        }),
-    ])), actions: [TextButton(onPressed: () async { if (await createMemoFolder(context) && context.mounted) update(() => changed = true); }, child: const Text('폴더 만들기')),
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],
-  )));
-  return changed;
-}
-
-class MemoFolderDrag {
-  const MemoFolderDrag(this.name);
-  final String name;
-}

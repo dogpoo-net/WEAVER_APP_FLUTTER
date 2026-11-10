@@ -13,7 +13,7 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: Scaffold(body: Transform.scale(scale: zoom, alignment: Alignment.topLeft,
         child: SizedBox(width: 800, height: 800, child: StatefulBuilder(builder: (context, update) => Stack(children: [
           MemoFolderRegion(name: '폴더', bounds: bounds, onMove: (delta) => update(() => bounds = bounds.shift(delta)),
-            onEnd: () {}, onEdit: () {}),
+            onEnd: () {}),
         ]))),
       ))));
       await tester.drag(find.byType(MemoFolderRegion), const Offset(60, 40)); await tester.pumpAndSettle();

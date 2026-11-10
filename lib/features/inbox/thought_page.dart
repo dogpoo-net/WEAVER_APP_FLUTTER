@@ -141,6 +141,58 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     ];
     _moveFolder(name, releaseBox(bounds, obstacles, rectangular: true));
   }
+  String? _liftedFolder;
+  Offset? _folderLiftPointer;
+  Offset _folderLiftShift = Offset.zero;
+  void _liftFolder(String name, Offset pointer) {
+    setState(() {
+      _liftedFolder = name; _folderLiftPointer = pointer; _folderLiftShift = Offset.zero;
+      _frozenFolders.clear();
+      _frozenFolders.addEntries(_folderGeometry().entries.where((e) => e.key != name && memoFolderContains(e.key, name)));
+    });
+  }
+  void _moveLiftedFolder(String name, Offset pointer) {
+    if (_liftedFolder != name || _folderLiftPointer == null) return;
+    final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
+    final bounds = _folderGeometry()[name];
+    if (scene == null || bounds == null) return;
+    final delta = scene.globalToLocal(pointer) - scene.globalToLocal(_folderLiftPointer!);
+    _folderLiftPointer = pointer;
+    final shift = Offset(math.max(delta.dx, 32 - bounds.left), math.max(delta.dy, 32 - bounds.top));
+    setState(() { _moveFolder(name, shift); _folderLiftShift += shift; });
+    _saveLayout();
+  }
+  void _finishFolderLift(String name, Offset pointer) {
+    if (_liftedFolder != name) return;
+    final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
+    if (scene == null) return;
+    final point = scene.globalToLocal(pointer);
+    final folders = _folderGeometry();
+    final blocked = _allRegionBoxes.any((box) =>
+      (box.folder == null || !memoFolderContains(name, box.folder!)) && (_boxBounds(box)?.contains(point) ?? false));
+    var changed = false;
+    setState(() {
+      if (blocked) {
+        _moveFolder(name, -_folderLiftShift);
+      } else {
+        final targets = folders.entries.where((e) => canMoveMemoFolder(name, e.key) && e.value.contains(point)).toList()
+          ..sort((a, b) => memoFolderDepth(b.key).compareTo(memoFolderDepth(a.key)));
+        final parent = targets.firstOrNull?.key;
+        final oldParent = memoFolderParent(name);
+        if (oldParent != parent) {
+          if (oldParent != null && _frozenFolders.containsKey(oldParent)) {
+            _layout.folderPositions[oldParent] = _frozenFolders[oldParent]!.topLeft + const Offset(28, 44);
+          }
+          moveMemoFolder(name, parent); changed = true;
+        }
+      }
+      _liftedFolder = null; _folderLiftPointer = null; _frozenFolders.clear();
+      for (String? folder = name; folder != null; folder = memoFolderParent(folder)) { _releaseFolder(folder); }
+    });
+    if (changed) widget.onChanged();
+    if (blocked) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('폴더는 메모상자에 넣을 수 없습니다. 폴더 안이나 빈 곳에 놓아주세요.')));
+    _saveLayout(flush: true);
+  }
   void _liftBox(MemoBox box, Offset pointer) {
     setState(() {
       _liftedBox = box; _boxLiftPointer = pointer; _frozenFolders.clear();
@@ -498,9 +550,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final box = await createMemoBox(context);
     if (mounted && box != null) _changed();
   }
-  Future<void> _editFolders() async {
-    if (await editMemoFolders(context) && mounted) _changed();
-  }
   void _storeChanged() { if (mounted && _routeVisible && _appActive) setState(_sync); }
   void _changed() { widget.onChanged(); setState(_sync); }
   Future<void> _create() async {
@@ -614,7 +663,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         boundaryMargin: const EdgeInsets.all(double.infinity),
         child: RepaintBoundary(child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
           for (final folder in folders.entries) MemoFolderRegion(key: ValueKey('folder-region-${folder.key}'), name: folder.key, bounds: folder.value,
-            onEdit: _editFolders, onZoom: _zoomCanvas,
+            highlighted: _liftedFolder == folder.key,
+            onLiftStart: (pointer) => _liftFolder(folder.key, pointer),
+            onLiftMove: (pointer) => _moveLiftedFolder(folder.key, pointer),
+            onLiftEnd: (pointer) => _finishFolderLift(folder.key, pointer),
+            onZoom: _zoomCanvas,
             onEnd: () {
               if (_draggedFolder == folder.key) {
                 setState(() {
@@ -817,7 +870,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       ); })),
         if (_selected.isNotEmpty) Positioned(top: 8, left: 12, child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
+          child: SizedBox(width: 104, child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(mainAxisSize: MainAxisSize.min, children: [
               IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '레이어 위로', icon: const Icon(Icons.arrow_upward, size: 18), onPressed: () {
                 setState(() { moveThoughtLayers(_layout.layers, _selected, up: false); reorderStackPositions(_positions, _selected, up: true); }); _saveLayout(flush: true);
@@ -827,11 +880,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               }),
             ]),
             if (_selected.length > 1) TextButton.icon(
-              style: TextButton.styleFrom(minimumSize: const Size(0, 40), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.standard, textStyle: const TextStyle(fontSize: 11)),
+              style: TextButton.styleFrom(minimumSize: const Size(0, 34), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.standard, textStyle: const TextStyle(fontSize: 11)),
               icon: const Icon(Icons.swap_vert, size: 15), label: const Text('순서 반전'), onPressed: () {
                 setState(() { reverseThoughtLayers(_layout.layers, _selected); reorderStackPositions(_positions, _selected); }); _saveLayout(flush: true);
               }),
-          ]),
+          ])),
         )),
         Positioned(top: 8, right: 0, child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
