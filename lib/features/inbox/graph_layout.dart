@@ -12,6 +12,7 @@ class GraphLayout {
   List<double>? viewport;
   String query = '';
   bool unlinkedOnly = false;
+  bool hideTags = false;
 
   void copyFrom(GraphLayout other) {
     _blocks = other._blocks;
@@ -22,6 +23,7 @@ class GraphLayout {
     viewport = other.viewport?.toList();
     query = other.query;
     unlinkedOnly = other.unlinkedOnly;
+    hideTags = other.hideTags;
   }
 
   Map<String, dynamic> toJson() => {
@@ -33,6 +35,7 @@ class GraphLayout {
     'viewport': viewport,
     'query': query,
     'unlinkedOnly': unlinkedOnly,
+    'hideTags': hideTags,
   };
 
   static GraphLayout fromJson(dynamic data) {
@@ -66,6 +69,7 @@ class GraphLayout {
     }
     if (data['query'] is String) layout.query = data['query'] as String;
     layout.unlinkedOnly = data['unlinkedOnly'] == true;
+    layout.hideTags = data['hideTags'] == true;
     return layout;
   }
 }

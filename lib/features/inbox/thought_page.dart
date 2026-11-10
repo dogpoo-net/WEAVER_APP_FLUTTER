@@ -38,6 +38,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   MemoBox? _filterBox;
   String? _filterTag;
   bool _unlinkedOnly = false;
+  bool _hideTags = false;
   final _view = TransformationController();
   Timer? _saveTimer;
   late final GraphLayout _layout;
@@ -59,7 +60,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _positions.addAll(_layout.positions);
     _tagPositions.addAll(_layout.tags);
     _query = _layout.query;
-    _unlinkedOnly = _layout.unlinkedOnly;
+    _unlinkedOnly = widget.blocks && _layout.unlinkedOnly;
+    _hideTags = _layout.hideTags;
     _search = TextEditingController(text: _query);
     if (_layout.viewport != null) {
       _view.value = Matrix4.fromList(_layout.viewport!);
@@ -88,6 +90,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _layout.viewport = _view.value.storage.toList();
     _layout.query = _query;
     _layout.unlinkedOnly = _unlinkedOnly;
+    _layout.hideTags = _hideTags;
     (widget.onLayoutChanged ?? widget.onChanged)();
   }
   @override
@@ -263,7 +266,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _positions.clear(); _tagPositions.clear(); _emptyBoxBounds.clear(); _liftBoxes.clear();
       _layout.sizes.clear(); _layout.folderPositions.clear(); _layout.viewport = null;
       _draggingId = null; _hoverBox = null; _linkFrom = null; _linkMode = false;
-      _filterBox = null; _filterTag = null; _query = ''; _search.clear(); _unlinkedOnly = false;
+      _filterBox = null; _filterTag = null; _query = ''; _search.clear(); _unlinkedOnly = false; _hideTags = false;
       _centered = false; _sync();
     });
     _saveLayout(flush: true);
@@ -303,7 +306,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   Widget build(BuildContext context) {
     final records = _records;
     final visiblePositions = {for (final r in records) r.id: _positions[r.id]!};
-    final tags = records.expand((r) => r.tags).toSet().toList()..sort();
+    final tags = _hideTags && !widget.blocks ? <String>[] : (records.expand((r) => r.tags).toSet().toList()..sort());
     final tagPositions = <String, Offset>{if (!widget.blocks) for (final tag in tags) 'tag:$tag': _tagPositions['tag:$tag']!};
     final nodeRects = <String, Rect>{
       for (final e in visiblePositions.entries) e.key: _bounds(e.key),
@@ -352,8 +355,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           decoration: const InputDecoration(hintText: '생각·해시태그 찾기', prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 36), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), isDense: true),
           onChanged: (value) => setState(() { _query = value.trim().replaceFirst(RegExp(r'^#'), '').toLowerCase(); _centered = false; _sync(); }))),
         const SizedBox(width: 8),
-        FilterChip(showCheckmark: false, visualDensity: VisualDensity.compact, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, padding: EdgeInsets.zero, label: const Text('연결 없음', style: TextStyle(fontSize: 12)), selected: _unlinkedOnly,
-          onSelected: (value) => setState(() { _unlinkedOnly = value; _centered = false; _sync(); })),
+        FilterChip(showCheckmark: false, visualDensity: VisualDensity.compact, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, padding: EdgeInsets.zero, label: Text(widget.blocks ? '연결 없음' : '해시태그 숨기기', style: const TextStyle(fontSize: 12)), selected: widget.blocks ? _unlinkedOnly : _hideTags,
+          onSelected: (value) => setState(() {
+            if (widget.blocks) { _unlinkedOnly = value; _centered = false; _sync(); }
+            else { _hideTags = value; _saveLayout(); }
+          })),
       ])),
       Expanded(child: Stack(children: [Positioned.fill(child: LayoutBuilder(builder: (context, viewport) {
         if (!_centered) {
@@ -406,7 +412,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             }), onDragEnd: () => _saveLayout(flush: true)),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
             nodeRects,
-            {for (final r in records) r.id: {...r.connections, if (!widget.blocks) ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
+            {for (final r in records) r.id: {...r.connections, if (!widget.blocks && !_hideTags) ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
           if (records.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
             icon: const Icon(Icons.add), label: Text(_query.isNotEmpty || _unlinkedOnly ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
           for (final record in records) Positioned(left: _positions[record.id]!.dx - ThoughtInteraction.hitPadding, top: _positions[record.id]!.dy - ThoughtInteraction.hitPadding,

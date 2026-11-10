@@ -29,10 +29,15 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
     }
     final auth = GoogleAuthScope.maybeOf(context);
     final signedIn = auth?.identity != null;
-    return PopScope(canPop: !busy, child: AlertDialog(
-      title: const Text('환경설정'),
-      content: SizedBox(width: 360, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('닫힌 생각 조회'), value: showClosedThoughts,
+    final mobile = MediaQuery.sizeOf(context).width < 760;
+    final settings = ListTileTheme(
+      dense: true, minLeadingWidth: 20, horizontalTitleGap: 8,
+      minVerticalPadding: 0, visualDensity: VisualDensity.compact,
+      titleTextStyle: Theme.of(context).textTheme.bodySmall,
+      iconColor: Theme.of(context).colorScheme.onSurfaceVariant,
+      child: IconTheme(data: const IconThemeData(size: 20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(contentPadding: EdgeInsets.zero, title: const Text('닫힌 생각 조회'),
+          trailing: SizedBox(width: 44, height: 36, child: Transform.scale(scale: .75, child: Switch(value: showClosedThoughts,
           onChanged: busy ? null : (value) async {
             try {
               if (preferences != null && !await preferences.setBool(closedThoughtsPreference, value)) throw StateError('Settings save failed');
@@ -41,7 +46,7 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
             } catch (_) {
               if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('환경설정을 저장하지 못했습니다.')));
             }
-          }),
+          })))),
         const Divider(),
         ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_upload_outlined), title: const Text('데이터 저장하기'),
           onTap: busy || !signedIn || onUpload == null ? null : () => run(onUpload)),
@@ -59,8 +64,24 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
         const Divider(),
         ListTile(contentPadding: EdgeInsets.zero, title: const Text('오픈소스 사용 정보'), trailing: const Icon(Icons.chevron_right),
           onTap: busy ? null : () => showLicensePage(context: context, applicationName: 'WEAVER')),
-      ]))),
-      actions: [TextButton(onPressed: busy ? null : () => Navigator.pop(dialogContext), child: const Text('닫기'))],
+      ])));
+    final close = TextButton(onPressed: busy ? null : () => Navigator.pop(dialogContext), child: const Text('닫기'));
+    return PopScope(canPop: !busy, child: mobile ? Dialog(
+      alignment: AlignmentDirectional.topStart,
+      insetPadding: const EdgeInsets.fromLTRB(16, 64, 16, 12),
+      child: SizedBox(width: double.infinity, height: double.infinity, child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('환경설정', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          Expanded(child: SingleChildScrollView(child: settings)),
+          Align(alignment: Alignment.centerRight, child: close),
+        ]),
+      )),
+    ) : AlertDialog(
+      title: const Text('환경설정'),
+      content: SizedBox(width: 360, child: SingleChildScrollView(child: settings)),
+      actions: [close],
     ));
   }));
 }

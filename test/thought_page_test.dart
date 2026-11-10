@@ -124,11 +124,15 @@ void main() {
       expect(find.text('홀로 생각'), findsOneWidget);
       expect(find.text('연결된 생각'), findsNothing);
       await tester.enterText(find.byKey(const ValueKey('graph-search')), '');
-      await tester.tap(find.text('연결 없음'));
+      await tester.tap(find.text('해시태그 숨기기'));
       await tester.pumpAndSettle();
       expect(find.text('홀로 생각'), findsOneWidget);
-      expect(find.text('연결된 생각'), findsNothing);
-      expect(find.text('참고 생각'), findsNothing);
+      expect(find.text('연결된 생각'), findsOneWidget);
+      expect(find.text('참고 생각'), findsOneWidget);
+      expect(tag, findsNothing);
+      await tester.tap(find.text('해시태그 숨기기'));
+      await tester.pumpAndSettle();
+      expect(tag, findsOneWidget);
       expect(a.connections, contains(b.id));
       expect(elements.records.length, 3);
       expect(tester.takeException(), isNull);
