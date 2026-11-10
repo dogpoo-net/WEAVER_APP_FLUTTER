@@ -33,7 +33,9 @@ void main() {
     tester.view.physicalSize = const Size(390, 844); tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio); addTearDown(tester.view.resetViewInsets);
     final draft = project();
-    await tester.pumpWidget(MaterialApp(home: ProjectPage(project: draft))); await tester.pumpAndSettle();
+    await tester.pumpWidget(MaterialApp(builder: (context, child) => Actions(actions: <Type, Action<Intent>>{
+      EditableTextTapOutsideIntent: CallbackAction<EditableTextTapOutsideIntent>(onInvoke: (intent) { intent.focusNode.unfocus(); return null; }),
+    }, child: child!), home: ProjectPage(project: draft))); await tester.pumpAndSettle();
     final toggle = find.byKey(const ValueKey('project-panel-toggle'));
     final panel = find.byKey(const ValueKey('project-reference-panel'));
     final boxes = find.byKey(const ValueKey('project-box-panel'));

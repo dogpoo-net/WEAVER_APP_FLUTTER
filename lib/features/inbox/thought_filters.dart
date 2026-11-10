@@ -30,7 +30,7 @@ class ThoughtFilters extends StatelessWidget {
   final VoidCallback onChanged;
   Widget _chip(String label, Key key, bool selected, VoidCallback onTap, {Widget? avatar}) => Stack(alignment: Alignment.centerLeft, children: [ChoiceChip(
     key: key, avatarBoxConstraints: const BoxConstraints.tightFor(width: 20, height: 20), avatar: avatar == null ? null : const SizedBox.square(dimension: 20), label: Text(label, style: TextStyle(fontSize: compact ? 10 : 12)), selected: selected,
-    labelPadding: EdgeInsets.only(left: 1, right: compact ? 5 : 8),
+    labelPadding: EdgeInsets.only(left: compact ? 1 : 2, right: compact ? 5 : 8),
     showCheckmark: false, visualDensity: VisualDensity.compact,
     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, padding: EdgeInsets.zero,
     onSelected: (_) => onTap()),

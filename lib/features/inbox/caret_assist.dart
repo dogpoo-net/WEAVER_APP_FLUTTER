@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 
 import 'word_badge.dart';
-import 'element_store.dart';
 import 'label_links.dart';
 import 'mobile_element_assist.dart';
 import 'project_folders.dart';

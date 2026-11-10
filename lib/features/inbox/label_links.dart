@@ -35,8 +35,10 @@ Future<void> openInlineLink(BuildContext context, String id) async {
     }
   } else if (id.startsWith('project:')) {
     final project = projectTarget(id);
-    if (project != null) await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ProjectPage(
-      project: project, projects: indexedProjects.toList(), onChanged: () async { elements.projectChanged(project); })));
+    if (project != null) {
+      await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ProjectPage(
+        project: project, projects: indexedProjects.toList(), onChanged: () async { elements.projectChanged(project); })));
+    }
   } else {
     final record = labelTarget(id);
     if (record != null) await showElementMetadata(context, record.text);
