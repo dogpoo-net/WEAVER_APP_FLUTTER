@@ -5,6 +5,7 @@ import 'package:weaver/features/inbox/workspace_storage.dart';
 import 'package:weaver/features/inbox/graph_layout.dart';
 import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
+import 'package:weaver/features/inbox/thought_label.dart';
 import 'package:weaver/features/inbox/thought_interaction.dart';
 import 'package:weaver/features/inbox/caret_assist.dart';
 
@@ -82,6 +83,34 @@ void main() {
     card(b.id).onMove(const Offset(-400, 0)); await tester.pump();
     card(b.id).onDrop(Offset.zero); card(b.id).onEnd(); await tester.pumpAndSettle();
     expect(layout.positions[b.id], before); expect(layout.layers, order);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('labels grow with their text', (tester) async {
+    final a = elements.add('짧음')..indexLabel = '가';
+    final b = elements.add('김')..indexLabel = '길이에 맞추어 늘어나는 라벨';
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (context) => Column(children: [
+      for (final record in [a, b]) SizedBox(width: ThoughtLabel.width(context, record.indexLabel),
+        child: ThoughtLabel(key: ValueKey(record.id), record: record, onHold: (_) {})),
+    ])))));
+    expect(tester.getSize(find.byKey(ValueKey(a.id))).width, lessThan(tester.getSize(find.byKey(ValueKey(b.id))).width));
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('selection drag snaps onto another thought', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900); tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
+    final a = elements.add('움직일 생각'), b = elements.add('붙일 생각');
+    final layout = pageGraphLayout.blockLayout;
+    layout.positions.addAll({a.id: const Offset(500, 400), b.id: const Offset(850, 400)});
+    layout.viewport = (Matrix4.identity()..setTranslationRaw(-300, -200, 0)).storage.toList();
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('선택')); await tester.pumpAndSettle();
+    final overlay = tester.renderObject<RenderBox>(find.byKey(const ValueKey('canvas-selection')));
+    final gesture = await tester.startGesture(overlay.localToGlobal(const Offset(570, 440)));
+    await gesture.moveBy(const Offset(30, 0)); await tester.pump();
+    await gesture.moveTo(overlay.localToGlobal(const Offset(920, 440))); await tester.pump();
+    await gesture.up(); await tester.pumpAndSettle();
+    expect(layout.positions[a.id], const Offset(850, 432));
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets('assist searches titles but returns the original thought identity', (tester) async {

@@ -7,6 +7,13 @@ class ThoughtLabel extends StatelessWidget {
   final ElementRecord record;
   final ValueChanged<bool> onHold;
   final bool active;
+  static double width(BuildContext context, String text) {
+    final painter = TextPainter(text: TextSpan(text: text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
+    final width = painter.width + 20;
+    painter.dispose();
+    return width;
+  }
   @override
   Widget build(BuildContext context) {
     final paper = Color(record.indexLabelColor).withValues(alpha: .6);

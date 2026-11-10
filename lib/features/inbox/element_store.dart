@@ -299,7 +299,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     return AlertDialog(
       insetPadding: EdgeInsets.symmetric(horizontal: mobile ? 16 : 40, vertical: 24),
       titlePadding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      contentPadding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
       actionsPadding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       title: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Expanded(child: InlineTags(key: const ValueKey('element-tags'), tags: _tags,
@@ -322,23 +322,25 @@ class _ElementMetadataState extends State<_ElementMetadata> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
               TextField(key: const ValueKey('thought-label-editor'), controller: _labelEditor,
-                maxLines: 1, decoration: const InputDecoration(labelText: '라벨', hintText: '라벨 붙이기', isDense: true)),
-              Row(children: [
-                const Text('붙일 방향'),
-                IconButton(key: const ValueKey('label-left'), tooltip: '왼쪽에 붙이기', isSelected: _labelOnLeft,
-                  onPressed: () => setState(() => _labelOnLeft = true), icon: const Icon(Icons.west)),
-                IconButton(key: const ValueKey('label-right'), tooltip: '오른쪽에 붙이기', isSelected: !_labelOnLeft,
-                  onPressed: () => setState(() => _labelOnLeft = false), icon: const Icon(Icons.east)),
-                const Spacer(),
-                IconButton(key: const ValueKey('index-label-color'), tooltip: '라벨 색상',
-                  icon: Icon(Icons.circle, color: Color(_indexLabelColor).withValues(alpha: .6), size: 22),
-                  onPressed: () async {
-                    final color = await pickHashtagColor(context, '라벨', Color(_indexLabelColor), prefix: '');
-                    if (color != null && mounted) setState(() => _indexLabelColor = color.toARGB32());
-                  }),
-              ]),
+                maxLines: 1, decoration: InputDecoration(labelText: '라벨', hintText: '라벨 붙이기', isDense: true,
+                  suffixIcon: IconButton(key: const ValueKey('index-label-color'), tooltip: '라벨 색상',
+                    icon: Icon(Icons.circle, color: Color(_indexLabelColor).withValues(alpha: .6), size: 22),
+                    onPressed: () async {
+                      final color = await pickHashtagColor(context, '라벨', Color(_indexLabelColor), prefix: '');
+                      if (color != null && mounted) setState(() => _indexLabelColor = color.toARGB32());
+                    }))),
+              const SizedBox(height: 4),
+              TextFieldTapRegion(child: Row(children: [
+                const Text('붙일 방향'), const Spacer(),
+                for (final left in [true, false]) IconButton(
+                  key: ValueKey(left ? 'label-left' : 'label-right'), tooltip: left ? '왼쪽에 붙이기' : '오른쪽에 붙이기',
+                  isSelected: _labelOnLeft == left,
+                  style: IconButton.styleFrom(backgroundColor: _labelOnLeft == left ? Theme.of(context).colorScheme.secondaryContainer : Colors.transparent,
+                    foregroundColor: _labelOnLeft == left ? Theme.of(context).colorScheme.onSecondaryContainer : null,
+                    visualDensity: VisualDensity.compact),
+                  onPressed: () => setState(() => _labelOnLeft = left), icon: Icon(left ? Icons.west : Icons.east)),
+              ])),
               const SizedBox(height: 8),
               TextField(
                 key: const ValueKey('element-editor'),
