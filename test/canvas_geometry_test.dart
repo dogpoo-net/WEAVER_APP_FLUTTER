@@ -5,12 +5,18 @@ import 'package:weaver/features/inbox/canvas_geometry.dart';
 import 'package:weaver/features/inbox/memo_box_region.dart';
 
 void main() {
+  test('third and subsequent thoughts use a free stack slot', () {
+    final positions = {'a': const Offset(100, 100), 'b': const Offset(100, 132),
+      'c': const Offset(100, 164), 'drag': const Offset(300, 300)};
+    expect(nextStackSlot('a', 'drag', positions), const Offset(100, 196));
+    expect(nextStackSlot('a', 'b', positions), const Offset(100, 132));
+  });
   test('only aligned stacks change position during layer edits', () {
     final positions = <String, Offset>{'a': const Offset(100, 100), 'b': const Offset(100, 132),
       'c': const Offset(100, 164), 'loose': const Offset(110, 145)};
     reorderStackPositions(positions, {'c', 'loose'}, up: true);
-    expect(positions['c'], const Offset(100, 100));
-    expect(positions['a'], const Offset(100, 132));
+    expect(positions['c'], const Offset(100, 132));
+    expect(positions['a'], const Offset(100, 100));
     expect(positions['loose'], const Offset(110, 145));
     reorderStackPositions(positions, {'c'}, up: false);
     expect(positions['c'], const Offset(100, 164));

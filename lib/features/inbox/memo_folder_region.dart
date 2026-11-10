@@ -19,14 +19,22 @@ Map<String, Rect> memoFolderRegions(Map<MemoBox, Rect> boxes, Map<String, Offset
 
 /// A background group, deliberately not a `DragTarget<MemoDrag>` or a `MemoBox`.
 class MemoFolderRegion extends StatelessWidget {
-  const MemoFolderRegion({super.key, required this.name, required this.bounds, required this.onMove, required this.onEnd, required this.onEdit});
+  const MemoFolderRegion({super.key, required this.name, required this.bounds, required this.onMove, required this.onEnd, required this.onEdit, this.onZoom});
   final String name;
   final Rect bounds;
   final ValueChanged<Offset> onMove;
   final VoidCallback onEnd, onEdit;
+  final void Function(double scale, Offset focal)? onZoom;
   @override
   Widget build(BuildContext context) => Positioned.fromRect(rect: bounds, child: GestureDetector(
-    behavior: HitTestBehavior.opaque, onPanUpdate: (d) => onMove(d.delta), onPanEnd: (_) => onEnd(), onPanCancel: onEnd,
+    behavior: HitTestBehavior.opaque,
+    onScaleUpdate: (d) {
+      if (d.pointerCount > 1) { onZoom?.call(d.scale, d.focalPoint); }
+      else {
+        final box = context.findRenderObject() as RenderBox;
+        onMove(box.globalToLocal(d.focalPoint) - box.globalToLocal(d.focalPoint - d.focalPointDelta));
+      }
+    }, onScaleEnd: (_) => onEnd(),
     child: DecoratedBox(decoration: BoxDecoration(borderRadius: BorderRadius.circular(18),
       color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: .12),
       border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: .4))),

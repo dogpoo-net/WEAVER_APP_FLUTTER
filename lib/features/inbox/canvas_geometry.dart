@@ -106,9 +106,17 @@ void reorderStackPositions(Map<String, Offset> positions, Set<String> selected, 
       for (var i = 0; i < chosen.length; i++) { positions[chosen[i]] = slots[i]; }
     } else {
       final slots = group.map((id) => positions[id]!).toList();
-      final chosen = group.where(selected.contains), others = group.where((id) => !selected.contains(id));
-      final reordered = up ? [...chosen, ...others] : [...others, ...chosen];
+      final reordered = [...group];
+      moveThoughtLayers(reordered, selected, up: !up);
       for (var i = 0; i < reordered.length; i++) { positions[reordered[i]] = slots[i]; }
     }
   }
+}
+
+Offset nextStackSlot(String target, String moving, Map<String, Offset> positions) {
+  var slot = positions[target]! + const Offset(0, 32);
+  while (positions.entries.any((e) => e.key != moving && (e.value - slot).distance < .5)) {
+    slot += const Offset(0, 32);
+  }
+  return slot;
 }

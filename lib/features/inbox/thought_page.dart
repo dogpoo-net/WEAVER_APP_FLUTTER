@@ -53,6 +53,20 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   bool _selectionMode = false, _movingSelection = false;
   final _selected = <String>{};
   Offset? _selectionStart, _selectionEnd;
+  final _viewportKey = GlobalKey();
+  double? _pinchBase;
+  Offset? _pinchAnchor;
+  void _zoomCanvas(double scale, Offset globalFocal) {
+    final viewport = _viewportKey.currentContext?.findRenderObject() as RenderBox?;
+    if (viewport == null) return;
+    final focal = viewport.globalToLocal(globalFocal);
+    _pinchBase ??= _view.value.getMaxScaleOnAxis() / scale;
+    _pinchAnchor ??= _view.toScene(focal);
+    final zoom = (_pinchBase! * scale).clamp(.15, MediaQuery.sizeOf(context).width >= 760 ? 12.0 : 8.0);
+    _view.value = Matrix4.diagonal3Values(zoom, zoom, 1)..setTranslationRaw(
+      focal.dx - _pinchAnchor!.dx * zoom, focal.dy - _pinchAnchor!.dy * zoom, 0);
+  }
+  void _endPinch() { _pinchBase = null; _pinchAnchor = null; _saveLayout(flush: true); }
   void _moveBox(MemoBox box, Offset shift) {
     for (final id in box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
     if (_emptyBoxBounds.containsKey(box)) _emptyBoxBounds[box] = _emptyBoxBounds[box]!.shift(shift);
@@ -426,14 +440,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               viewport.maxHeight / 2 - (top + bottom) / 2 * scale, 0);
           });
         }
-        return InteractiveViewer(
+        return InteractiveViewer(key: _viewportKey,
         panEnabled: !_selectionMode, scaleEnabled: !_selectionMode,
         onInteractionEnd: (_) => _saveLayout(flush: true),
         transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: MediaQuery.sizeOf(context).width >= 760 ? 12 : 8,
         boundaryMargin: const EdgeInsets.all(double.infinity),
         child: RepaintBoundary(child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
           for (final folder in folders.entries) MemoFolderRegion(key: ValueKey('folder-region-${folder.key}'), name: folder.key, bounds: folder.value,
-            onEdit: _editFolders, onEnd: () => _saveLayout(flush: true), onMove: (delta) => setState(() {
+            onEdit: _editFolders, onZoom: _zoomCanvas, onEnd: _endPinch, onMove: (delta) => setState(() {
+              if (_pinchBase != null) return;
               final shift = Offset(math.max(delta.dx, 32 - folder.value.left), math.max(delta.dy, 32 - folder.value.top));
               for (final box in memoBoxes.where((b) => b.folder != null && memoFolderContains(folder.key, b.folder!))) {
                 for (final id in box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
@@ -488,12 +503,17 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   final snap = target == null
                     ? snapThought(_bounds(record.id), records.where((r) => r.id != record.id).map((r) => _bounds(r.id)),
                         tolerance: (24 / _view.value.getMaxScaleOnAxis()).clamp(12, 48))
-                    : _positions[target.id]! + const Offset(0, 32) - _positions[record.id]!;
+                    : nextStackSlot(target.id, record.id, _positions) - _positions[record.id]!;
                   final snapped = _positions[record.id]! + snap;
                   if (snapped.dx >= 32 && snapped.dy >= 32) _positions[record.id] = snapped;
                   if (target != null) {
                     _layout.layers.remove(record.id);
-                    _layout.layers.insert(_layout.layers.indexOf(target.id) + 1, record.id);
+                    _layout.layers.add(record.id);
+                    final box = memoBoxes.where((box) => !box.isUnclassified && box.elementIds.contains(target.id)).firstOrNull;
+                    if (box != null) { moveThoughtToBox(record.id, box); }
+                    else { for (final box in memoBoxes.where((box) => !box.isUnclassified)) { box.elementIds.remove(record.id); } }
+                    _liftBoxes.clear(); _changed(); _saveLayout(flush: true);
+                    return;
                   }
                   if (widget.blocks && folders.values.any((bounds) => bounds.contains(center)) &&
                       !regions.any((region) => _inside(region.bounds, center))) {
@@ -558,26 +578,29 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               if (hit == null) { _selected.clear(); }
               else if (!_selected.add(hit.id)) { _selected.remove(hit.id); }
             }),
-            onPanStart: (d) => setState(() {
+            onScaleStart: (d) => setState(() {
               _selected.removeWhere((id) => !visiblePositions.containsKey(id));
-              _movingSelection = _selected.any((id) => _bounds(id).contains(d.localPosition));
-              _selectionStart = d.localPosition; _selectionEnd = d.localPosition;
+              _movingSelection = _selected.any((id) => _bounds(id).contains(d.localFocalPoint));
+              _selectionStart = d.localFocalPoint; _selectionEnd = d.localFocalPoint;
               if (!_movingSelection) _selected.clear();
             }),
-            onPanUpdate: (d) => setState(() {
+            onScaleUpdate: (d) => setState(() {
+              if (d.pointerCount > 1) {
+                _zoomCanvas(d.scale, d.focalPoint); _selectionStart = null; _selectionEnd = null; return;
+              }
+              if (_pinchBase != null || _selectionStart == null) return;
               if (_movingSelection) {
                 final left = _selected.map((id) => _positions[id]!.dx).reduce(math.min);
                 final top = _selected.map((id) => _positions[id]!.dy).reduce(math.min);
-                final shift = Offset(math.max(d.delta.dx, 32 - left), math.max(d.delta.dy, 32 - top));
+                final shift = Offset(math.max(d.focalPointDelta.dx / _view.value.getMaxScaleOnAxis(), 32 - left), math.max(d.focalPointDelta.dy / _view.value.getMaxScaleOnAxis(), 32 - top));
                 for (final id in _selected) { _positions[id] = _positions[id]! + shift; }
               } else {
-                _selectionEnd = d.localPosition;
+                _selectionEnd = d.localFocalPoint;
                 final rect = Rect.fromPoints(_selectionStart!, _selectionEnd!);
                 _selected..clear()..addAll(records.where((r) => rect.overlaps(_bounds(r.id))).map((r) => r.id));
               }
             }),
-            onPanEnd: (_) { setState(() { _selectionStart = null; _selectionEnd = null; _movingSelection = false; }); _saveLayout(flush: true); },
-            onPanCancel: () { setState(() { _selectionStart = null; _selectionEnd = null; _movingSelection = false; }); _saveLayout(flush: true); },
+            onScaleEnd: (_) { setState(() { _selectionStart = null; _selectionEnd = null; _movingSelection = false; }); _endPinch(); },
             child: CustomPaint(painter: _SelectionPainter(
               [for (final r in records) (rect: _bounds(r.id), selected: _selected.contains(r.id))],
               !_movingSelection && _selectionStart != null && _selectionEnd != null ? Rect.fromPoints(_selectionStart!, _selectionEnd!) : null,
@@ -589,21 +612,21 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(tooltip: '레이어 위로', icon: const Icon(Icons.arrow_upward, size: 18), onPressed: () {
-                setState(() { moveThoughtLayers(_layout.layers, _selected, up: true); reorderStackPositions(_positions, _selected, up: true); }); _saveLayout(flush: true);
+              IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '레이어 위로', icon: const Icon(Icons.arrow_upward, size: 18), onPressed: () {
+                setState(() { moveThoughtLayers(_layout.layers, _selected, up: false); reorderStackPositions(_positions, _selected, up: true); }); _saveLayout(flush: true);
               }),
-              IconButton(tooltip: '레이어 아래로', icon: const Icon(Icons.arrow_downward, size: 18), onPressed: () {
-                setState(() { moveThoughtLayers(_layout.layers, _selected, up: false); reorderStackPositions(_positions, _selected, up: false); }); _saveLayout(flush: true);
+              IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '레이어 아래로', icon: const Icon(Icons.arrow_downward, size: 18), onPressed: () {
+                setState(() { moveThoughtLayers(_layout.layers, _selected, up: true); reorderStackPositions(_positions, _selected, up: false); }); _saveLayout(flush: true);
               }),
             ]),
             if (_selected.length > 1) TextButton.icon(
-              style: TextButton.styleFrom(visualDensity: VisualDensity.compact, textStyle: const TextStyle(fontSize: 11)),
+              style: TextButton.styleFrom(minimumSize: const Size(0, 24), padding: const EdgeInsets.symmetric(horizontal: 6), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact, textStyle: const TextStyle(fontSize: 11)),
               icon: const Icon(Icons.swap_vert, size: 15), label: const Text('순서 반전'), onPressed: () {
                 setState(() { reverseThoughtLayers(_layout.layers, _selected); reorderStackPositions(_positions, _selected); }); _saveLayout(flush: true);
               }),
           ]),
         )),
-        Positioned(top: 8, right: 12, child: Material(
+        Positioned(top: 8, right: 0, child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: SizedBox(width: 112, child: ListTileTheme(
             data: const ListTileThemeData(horizontalTitleGap: 0, minLeadingWidth: 0),
