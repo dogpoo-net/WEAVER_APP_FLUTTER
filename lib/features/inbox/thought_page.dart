@@ -53,7 +53,30 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   bool _selectionMode = false, _movingSelection = false;
   final _selected = <String>{};
   Offset? _selectionStart, _selectionEnd, _selectionDown;
-  final _selectionPointers = <int>{};
+  final _selectionPointers = <int, Offset>{};
+  double? _selectionZoomBase, _selectionZoomDistance;
+  Offset? _selectionZoomAnchor;
+  bool _selectionPinched = false;
+  void _updateSelectionZoom() {
+    if (_selectionPointers.length < 2) return;
+    final points = _selectionPointers.values.take(2).toList();
+    final viewport = _viewportKey.currentContext?.findRenderObject() as RenderBox?;
+    if (viewport == null) return;
+    final focal = viewport.globalToLocal((points[0] + points[1]) / 2);
+    final distance = (points[0] - points[1]).distance;
+    _selectionZoomDistance ??= math.max(1, distance);
+    _selectionZoomBase ??= _view.value.getMaxScaleOnAxis();
+    _selectionZoomAnchor ??= _view.toScene(focal);
+    final zoom = (_selectionZoomBase! * distance / _selectionZoomDistance!).clamp(.15, MediaQuery.sizeOf(context).width >= 760 ? 12.0 : 8.0);
+    _view.value = Matrix4.diagonal3Values(zoom, zoom, 1)..setTranslationRaw(
+      focal.dx - _selectionZoomAnchor!.dx * zoom, focal.dy - _selectionZoomAnchor!.dy * zoom, 0);
+    _selectionPinched = true;
+  }
+  void _removeSelectionPointer(int pointer) {
+    _selectionPointers.remove(pointer);
+    if (_selectionPointers.length < 2) { _selectionZoomBase = null; _selectionZoomDistance = null; _selectionZoomAnchor = null; }
+    if (_selectionPointers.isEmpty) _selectionPinched = false;
+  }
   Set<String> _selectionBeforeGesture = {};
   final _viewportKey = GlobalKey();
   double? _pinchBase;
@@ -69,6 +92,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       focal.dx - _pinchAnchor!.dx * zoom, focal.dy - _pinchAnchor!.dy * zoom, 0);
   }
   void _endPinch() { _pinchBase = null; _pinchAnchor = null; _saveLayout(flush: true); }
+  void _toggleSelection(bool value) => setState(() {
+    _selectionMode = value; _selected.clear(); _selectionStart = null; _selectionEnd = null;
+    _selectionPointers.clear(); _selectionZoomBase = null; _selectionZoomDistance = null; _selectionZoomAnchor = null; _selectionPinched = false;
+    if (value) { _linkMode = false; _linkFrom = null; }
+  });
   void _moveBox(MemoBox box, Offset shift) {
     for (final id in box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
     if (_emptyBoxBounds.containsKey(box)) _emptyBoxBounds[box] = _emptyBoxBounds[box]!.shift(shift);
@@ -307,11 +335,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _draggingId = null; _hoverBox = null; _linkFrom = null; _linkMode = false;
       _query = ''; _search.clear(); _unlinkedOnly = false;
       _centered = false; _sync();
-      if (stacked) _stackThoughts();
+      _arrangeThoughts(stacked);
     });
     _saveLayout(flush: true);
   }
-  void _stackThoughts() {
+  void _arrangeThoughts(bool stacked) {
     final remaining = _scopeRecords.map((r) => r.id).toSet();
     final groups = <List<String>>[];
     for (final box in memoBoxes.where((box) => !box.isUnclassified)) {
@@ -319,14 +347,19 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       if (ids.isNotEmpty) { groups.add(ids); remaining.removeAll(ids); }
     }
     if (remaining.isNotEmpty) groups.add(remaining.toList());
-    var top = _tagPositions.values.map((p) => tagBounds(p).bottom).fold(300.0, math.max) + 100;
+    final top = _tagPositions.values.map((p) => tagBounds(p).bottom).fold(300.0, math.max) + 100;
+    var left = 640.0;
     for (final group in groups) {
       final width = group.map((id) => _size(id).width).fold(0.0, math.max);
       final height = group.map((id) => _size(id).height).fold(0.0, math.max);
       for (var i = 0; i < group.length; i++) {
-        _positions[group[i]] = Offset(640 + (i ~/ 8) * (width + 32), top + (i % 8) * 32);
+        _positions[group[i]] = Offset(left + (i % 6) * (width + 32), top + (i ~/ 6) * (stacked ? 32 : height + 32));
       }
-      top += math.min(group.length - 1, 7) * 32 + height + 180;
+      final box = memoBoxes.where((box) => !box.isUnclassified && box.elementIds.contains(group.first)).firstOrNull;
+      final bounds = box == null ? group.map(_bounds).reduce((a, b) => a.expandToInclude(b)) : _regionBounds(box, _positions)!;
+      final shift = Offset(left - bounds.left, top - bounds.top);
+      for (final id in group) { _positions[id] = _positions[id]! + shift; }
+      left = bounds.shift(shift).right + 100;
     }
     _separateOverlappingBoxes();
   }
@@ -579,10 +612,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 _selectionDown = event.localPosition;
                 _selectionBeforeGesture = Set.of(_selected);
               }
-              _selectionPointers.add(event.pointer);
+              _selectionPointers[event.pointer] = event.position;
+              _updateSelectionZoom();
             },
-            onPointerUp: (event) { _selectionPointers.remove(event.pointer); },
-            onPointerCancel: (event) { _selectionPointers.remove(event.pointer); },
+            onPointerMove: (event) { _selectionPointers[event.pointer] = event.position; _updateSelectionZoom(); },
+            onPointerUp: (event) => _removeSelectionPointer(event.pointer),
+            onPointerCancel: (event) => _removeSelectionPointer(event.pointer),
             child: GestureDetector(
             key: const ValueKey('canvas-selection'), behavior: HitTestBehavior.opaque, dragStartBehavior: DragStartBehavior.down,
             onTapUp: (d) => setState(() {
@@ -591,7 +626,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               else if (!_selected.add(hit.id)) { _selected.remove(hit.id); }
             }),
             onScaleStart: (d) => setState(() {
-              if (d.pointerCount > 1) return;
+              if (d.pointerCount > 1 || _selectionPinched) return;
               _selected.removeWhere((id) => !visiblePositions.containsKey(id));
               final hit = records.where((r) => RRect.fromRectAndRadius(_bounds(r.id), Radius.circular(widget.blocks ? 6 : 12))
                 .contains(_selectionDown ?? d.localFocalPoint)).lastOrNull;
@@ -603,9 +638,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onScaleUpdate: (d) => setState(() {
               if (d.pointerCount > 1) {
                 _selected..clear()..addAll(_selectionBeforeGesture);
-                _zoomCanvas(d.scale, d.focalPoint); _selectionStart = null; _selectionEnd = null; return;
+                _selectionStart = null; _selectionEnd = null; return;
               }
-              if (_pinchBase != null || _selectionStart == null) return;
+              if (_selectionPinched || _selectionStart == null) return;
               if (_movingSelection) {
                 final left = _selected.map((id) => _positions[id]!.dx).reduce(math.min);
                 final top = _selected.map((id) => _positions[id]!.dy).reduce(math.min);
@@ -641,7 +676,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               }),
             ]),
             if (_selected.length > 1) TextButton.icon(
-              style: TextButton.styleFrom(minimumSize: const Size(0, 24), padding: const EdgeInsets.symmetric(horizontal: 6), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact, textStyle: const TextStyle(fontSize: 11)),
+              style: TextButton.styleFrom(minimumSize: const Size(0, 24), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact, textStyle: const TextStyle(fontSize: 11)),
               icon: const Icon(Icons.swap_vert, size: 15), label: const Text('순서 반전'), onPressed: () {
                 setState(() { reverseThoughtLayers(_layout.layers, _selected); reorderStackPositions(_positions, _selected); }); _saveLayout(flush: true);
               }),
@@ -649,17 +684,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         )),
         Positioned(top: 8, right: 0, child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
-          child: SizedBox(width: 112, child: ListTileTheme(
-            data: const ListTileThemeData(horizontalTitleGap: 0, minLeadingWidth: 0),
-            child: CheckboxListTile(
-            title: Text(_selected.isEmpty ? '선택' : '선택 ${_selected.length}', style: const TextStyle(fontSize: 13)),
-            controlAffinity: ListTileControlAffinity.leading, dense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 8), visualDensity: VisualDensity.compact,
-            value: _selectionMode, onChanged: (value) => setState(() {
-              _selectionMode = value ?? false; _selected.clear(); _selectionStart = null; _selectionEnd = null;
-              if (_selectionMode) { _linkMode = false; _linkFrom = null; }
-            }),
-          ))),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            SizedBox(width: 32, height: 36, child: Checkbox(
+              visualDensity: VisualDensity.compact, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              value: _selectionMode, onChanged: (value) => _toggleSelection(value ?? false))),
+            InkWell(onTap: () => _toggleSelection(!_selectionMode), child: Padding(
+              padding: const EdgeInsets.only(right: 2, top: 8, bottom: 8),
+              child: Text(_selected.isEmpty ? '선택' : '선택 ${_selected.length}', style: const TextStyle(fontSize: 13)))),
+          ]),
         )),
         if (_linkMode) Positioned(top: 52, left: 12, right: 12, child: IgnorePointer(child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
