@@ -1,9 +1,22 @@
+import 'package:weaver/features/inbox/graph_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/canvas_geometry.dart';
 import 'package:weaver/features/inbox/memo_box_region.dart';
 
 void main() {
+  test('selected layers move one step together and reverse only selected slots', () {
+    final order = ['a', 'b', 'c', 'd'];
+    moveThoughtLayers(order, {'a', 'b'}, up: true);
+    expect(order, ['c', 'a', 'b', 'd']);
+    moveThoughtLayers(order, {'a', 'b'}, up: false);
+    expect(order, ['a', 'b', 'c', 'd']);
+    reverseThoughtLayers(order, {'a', 'c', 'd'});
+    expect(order, ['d', 'b', 'c', 'a']);
+    final layout = GraphLayout()..layers.addAll(order);
+    expect(GraphLayout.fromJson(layout.toJson()).layers, order);
+    expect(GraphLayout.fromJson({}).layers, isEmpty);
+  });
   for (final rectangular in [false, true]) {
     test('release moves only the dragged box toward the nearest free side ($rectangular)', () {
       const fixed = Rect.fromLTWH(300, 300, 200, 200);

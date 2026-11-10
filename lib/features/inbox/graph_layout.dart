@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 class GraphLayout {
   GraphLayout? _blocks;
   GraphLayout get blockLayout => _blocks ??= GraphLayout();
+  final layers = <String>[];
   final positions = <String, Offset>{};
   final sizes = <String, Offset>{};
   final tags = <String, Offset>{};
@@ -17,6 +18,7 @@ class GraphLayout {
 
   void copyFrom(GraphLayout other) {
     _blocks = other._blocks;
+    layers..clear()..addAll(other.layers);
     positions..clear()..addAll(other.positions);
     sizes..clear()..addAll(other.sizes);
     tags..clear()..addAll(other.tags);
@@ -39,11 +41,13 @@ class GraphLayout {
     'unlinkedOnly': unlinkedOnly,
     'hideTags': hideTags,
     'stacked': stacked,
+    'layers': layers,
   };
 
   static GraphLayout fromJson(dynamic data) {
     final layout = GraphLayout();
     if (data is! Map) return layout;
+    if (data['layers'] is List) layout.layers.addAll((data['layers'] as List).whereType<String>().toSet());
     if (data['blocks'] is Map) layout._blocks = GraphLayout.fromJson(data['blocks']);
     void readPoints(dynamic source, Map<String, Offset> target) {
       if (source is! Map) return;

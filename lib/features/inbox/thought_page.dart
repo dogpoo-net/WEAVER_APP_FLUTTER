@@ -156,6 +156,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final hadPositions = _positions.isNotEmpty;
     final newIds = scope.where((r) => !_positions.containsKey(r.id)).map((r) => r.id).toSet();
     final scopeIds = scope.map((r) => r.id).toSet();
+    _layout.layers.removeWhere((id) => !scopeIds.contains(id));
+    _layout.layers.addAll(scopeIds.where((id) => !_layout.layers.contains(id)).toList());
+    _selected.removeWhere((id) => !scopeIds.contains(id));
     _positions.removeWhere((id, _) => !scopeIds.contains(id));
     final scopeTags = scope.expand((r) => r.tags).map((tag) => 'tag:$tag').toSet();
     _tagPositions.removeWhere((tag, _) => !scopeTags.contains(tag));
@@ -284,7 +287,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     setState(() {
       _positions.clear(); _tagPositions.clear(); _emptyBoxBounds.clear(); _liftBoxes.clear();
       _layout.sizes.clear(); _layout.folderPositions.clear(); _layout.viewport = null;
-      _layout.stacked = stacked; _selected.clear();
+      _layout.stacked = stacked; _selected.clear(); _layout.layers.clear();
       _draggingId = null; _hoverBox = null; _linkFrom = null; _linkMode = false;
       _query = ''; _search.clear(); _unlinkedOnly = false;
       _centered = false; _sync();
@@ -348,7 +351,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   @override
   Widget build(BuildContext context) {
-    final records = _records;
+    final ranks = {for (var i = 0; i < _layout.layers.length; i++) _layout.layers[i]: i};
+    final records = _records..sort((a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0));
     final visiblePositions = {for (final r in records) r.id: _positions[r.id]!};
     final tags = _hideTags && !widget.blocks ? <String>[] : (records.expand((r) => r.tags).toSet().toList()..sort());
     final tagPositions = <String, Offset>{if (!widget.blocks) for (final tag in tags) 'tag:$tag': _tagPositions['tag:$tag']!};
@@ -478,12 +482,19 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   _saveLayout();
                 }),
                 onDrop: (pointer) {
-                  final snap = snapThought(_bounds(record.id), records.where((r) => r.id != record.id).map((r) => _bounds(r.id)),
-                    tolerance: (16 / _view.value.getMaxScaleOnAxis()).clamp(8, 32));
-                  final snapped = _positions[record.id]! + snap;
-                  if (snapped.dx >= 32 && snapped.dy >= 32) _positions[record.id] = snapped;
                   final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
                   final center = scene?.globalToLocal(pointer) ?? _bounds(record.id).center;
+                  final target = records.where((r) => r.id != record.id && _bounds(r.id).contains(center)).lastOrNull;
+                  final snap = target == null
+                    ? snapThought(_bounds(record.id), records.where((r) => r.id != record.id).map((r) => _bounds(r.id)),
+                        tolerance: (24 / _view.value.getMaxScaleOnAxis()).clamp(12, 48))
+                    : _positions[target.id]! + const Offset(0, 32) - _positions[record.id]!;
+                  final snapped = _positions[record.id]! + snap;
+                  if (snapped.dx >= 32 && snapped.dy >= 32) _positions[record.id] = snapped;
+                  if (target != null) {
+                    _layout.layers.remove(record.id);
+                    _layout.layers.insert(_layout.layers.indexOf(target.id) + 1, record.id);
+                  }
                   if (widget.blocks && folders.values.any((bounds) => bounds.contains(center)) &&
                       !regions.any((region) => _inside(region.bounds, center))) {
                     final origin = _thoughtDragOrigins[record.id];
@@ -568,12 +579,30 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onPanEnd: (_) { setState(() { _selectionStart = null; _selectionEnd = null; _movingSelection = false; }); _saveLayout(flush: true); },
             onPanCancel: () { setState(() { _selectionStart = null; _selectionEnd = null; _movingSelection = false; }); _saveLayout(flush: true); },
             child: CustomPaint(painter: _SelectionPainter(
-              [for (final id in _selected) if (visiblePositions.containsKey(id)) _bounds(id)],
+              [for (final r in records) (rect: _bounds(r.id), selected: _selected.contains(r.id))],
               !_movingSelection && _selectionStart != null && _selectionEnd != null ? Rect.fromPoints(_selectionStart!, _selectionEnd!) : null,
               color.primary)),
           )),
         ]))),
       ); })),
+        if (_selected.isNotEmpty) Positioned(top: 8, left: 12, child: Material(
+          color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(tooltip: '레이어 위로', icon: const Icon(Icons.arrow_upward, size: 18), onPressed: () {
+                setState(() => moveThoughtLayers(_layout.layers, _selected, up: true)); _saveLayout(flush: true);
+              }),
+              IconButton(tooltip: '레이어 아래로', icon: const Icon(Icons.arrow_downward, size: 18), onPressed: () {
+                setState(() => moveThoughtLayers(_layout.layers, _selected, up: false)); _saveLayout(flush: true);
+              }),
+            ]),
+            if (_selected.length > 1) TextButton.icon(
+              style: TextButton.styleFrom(visualDensity: VisualDensity.compact, textStyle: const TextStyle(fontSize: 11)),
+              icon: const Icon(Icons.swap_vert, size: 15), label: const Text('순서 반전'), onPressed: () {
+                setState(() => reverseThoughtLayers(_layout.layers, _selected)); _saveLayout(flush: true);
+              }),
+          ]),
+        )),
         Positioned(top: 8, right: 12, child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: SizedBox(width: 128, child: CheckboxListTile(
@@ -636,13 +665,23 @@ class _Connections extends CustomPainter {
 
 class _SelectionPainter extends CustomPainter {
   _SelectionPainter(this.selected, this.marquee, this.color);
-  final List<Rect> selected;
+  final List<({Rect rect, bool selected})> selected;
   final Rect? marquee;
   final Color color;
   @override
   void paint(Canvas canvas, Size size) {
     final border = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 2;
-    for (final rect in selected) { canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(8)), border); }
+    for (var i = 0; i < selected.length; i++) {
+      if (!selected[i].selected) continue;
+      var visible = Path()..addRect(Offset.zero & size);
+      for (var j = i + 1; j < selected.length; j++) {
+        visible = Path.combine(PathOperation.difference, visible, Path()..addRRect(
+          RRect.fromRectAndRadius(selected[j].rect.deflate(4), const Radius.circular(6))));
+      }
+      canvas.save(); canvas.clipPath(visible);
+      canvas.drawRRect(RRect.fromRectAndRadius(selected[i].rect.deflate(4), const Radius.circular(6)), border);
+      canvas.restore();
+    }
     if (marquee != null) {
       canvas.drawRect(marquee!, Paint()..color = color.withValues(alpha: .12));
       canvas.drawRect(marquee!, border);

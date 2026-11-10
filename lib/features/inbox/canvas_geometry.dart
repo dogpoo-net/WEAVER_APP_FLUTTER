@@ -49,7 +49,7 @@ Offset releaseBox(Rect moving, List<Rect> obstacles, {required bool rectangular,
 }
 
 /// Align a card near a stacked position, without changing its box membership.
-Offset snapThought(Rect moving, Iterable<Rect> others, {double tolerance = 16}) {
+Offset snapThought(Rect moving, Iterable<Rect> others, {double tolerance = 24}) {
   var best = Offset.zero;
   var nearest = tolerance * tolerance;
   for (final other in others) {
@@ -60,4 +60,27 @@ Offset snapThought(Rect moving, Iterable<Rect> others, {double tolerance = 16}) 
     }
   }
   return best;
+}
+
+void moveThoughtLayers(List<String> order, Set<String> selected, {required bool up}) {
+  if (up) {
+    for (var i = order.length - 2; i >= 0; i--) {
+      if (selected.contains(order[i]) && !selected.contains(order[i + 1])) {
+        final id = order[i]; order[i] = order[i + 1]; order[i + 1] = id;
+      }
+    }
+  } else {
+    for (var i = 1; i < order.length; i++) {
+      if (selected.contains(order[i]) && !selected.contains(order[i - 1])) {
+        final id = order[i]; order[i] = order[i - 1]; order[i - 1] = id;
+      }
+    }
+  }
+}
+
+void reverseThoughtLayers(List<String> order, Set<String> selected) {
+  final reversed = order.where(selected.contains).toList().reversed.iterator;
+  for (var i = 0; i < order.length; i++) {
+    if (selected.contains(order[i])) { reversed.moveNext(); order[i] = reversed.current; }
+  }
 }
