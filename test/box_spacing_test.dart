@@ -10,7 +10,7 @@ import 'package:weaver/features/inbox/thought_page.dart';
 void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); pageGraphLayout = GraphLayout(); });
   for (final blocks in [false, true]) {
-    testWidgets('boxes separate and cannot be dragged over each other ($blocks)', (tester) async {
+    testWidgets('boxes overlap during drag and separate only on release ($blocks)', (tester) async {
       final a = elements.add('첫 생각'), b = elements.add('둘째 생각');
       memoBoxes.addAll([MemoBox('첫 상자', ids: [a.id]), MemoBox('둘째 상자', ids: [b.id])]);
       final layout = blocks ? pageGraphLayout.blockLayout : pageGraphLayout;
@@ -22,6 +22,11 @@ void main() {
       regions[1].onDrag!(regions[0].bounds.center - regions[1].bounds.center);
       await tester.pumpAndSettle();
       regions = tester.widgetList<MemoBoxRegion>(find.byType(MemoBoxRegion)).toList();
+      expect(memoBoxRegionsOverlap(regions[0].bounds, regions[1].bounds, rectangular: blocks), isTrue);
+      final stationary = regions[0].bounds;
+      regions[1].onDragEnd!(); await tester.pumpAndSettle();
+      regions = tester.widgetList<MemoBoxRegion>(find.byType(MemoBoxRegion)).toList();
+      expect(regions[0].bounds, stationary);
       expect(memoBoxRegionsOverlap(regions[0].bounds, regions[1].bounds, rectangular: blocks), isFalse);
       await tester.pumpWidget(const SizedBox());
     });

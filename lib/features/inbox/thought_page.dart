@@ -1,3 +1,5 @@
+import 'package:flutter/gestures.dart';
+import 'canvas_geometry.dart';
 import 'memo_folder_region.dart';
 import 'thought_settings.dart';
 import '../capture/attachment_indicators.dart';
@@ -48,6 +50,25 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   MemoBox? _hoverBox;
   final _liftBoxes = <MemoBox, Rect>{};
   bool _linkMode = false, _centered = false;
+  bool _selectionMode = false, _movingSelection = false;
+  final _selected = <String>{};
+  Offset? _selectionStart, _selectionEnd;
+  void _moveBox(MemoBox box, Offset shift) {
+    for (final id in box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
+    if (_emptyBoxBounds.containsKey(box)) _emptyBoxBounds[box] = _emptyBoxBounds[box]!.shift(shift);
+  }
+  void _releaseBox(MemoBox box) {
+    final bounds = _boxBounds(box);
+    if (bounds == null) return;
+    _moveBox(box, releaseBox(bounds, [for (final other in _allRegionBoxes) if (!identical(other, box)) ?_boxBounds(other)], rectangular: widget.blocks));
+  }
+  void _dragBox(MemoBox box, Offset delta) {
+    final bounds = _boxBounds(box);
+    if (bounds == null) return;
+    _moveBox(box, Offset(math.max(delta.dx, 32 - bounds.left), math.max(delta.dy, 32 - bounds.top)));
+    _saveLayout();
+  }
+
   bool _routeVisible = true, _appActive = true;
   ModalRoute<dynamic>? _route;
   Size _size(String id) { final p = _layout.sizes[id]; return p == null ? (widget.blocks ? const Size(230, 120) : graphThoughtSize) : Size(p.dx, p.dy); }
@@ -195,7 +216,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   Rect? _regionBounds(MemoBox box, Map<String, Offset> positions) {
     final ids = box.elementIds.where(positions.containsKey).toList();
     if (ids.isEmpty) return null;
-    if (widget.blocks) return ids.map((id) => positions[id]! & _size(id)).reduce((a, b) => a.expandToInclude(b)).inflate(32);
+    if (widget.blocks) {
+      final bounds = ids.map((id) => positions[id]! & _size(id)).reduce((a, b) => a.expandToInclude(b));
+      return Rect.fromLTRB(bounds.left - 32, bounds.top - 52, bounds.right + 32, bounds.bottom + 32);
+    }
     return memoBoxCircleBounds(ids.map((id) => positions[id]!), sizes: {for (final id in ids) positions[id]!: _size(id)});
   }
   bool _inside(Rect bounds, Offset point) => widget.blocks ? bounds.contains(point) : (point - bounds.center).distance <= bounds.width / 2;
@@ -260,7 +284,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     setState(() {
       _positions.clear(); _tagPositions.clear(); _emptyBoxBounds.clear(); _liftBoxes.clear();
       _layout.sizes.clear(); _layout.folderPositions.clear(); _layout.viewport = null;
-      _layout.stacked = stacked;
+      _layout.stacked = stacked; _selected.clear();
       _draggingId = null; _hoverBox = null; _linkFrom = null; _linkMode = false;
       _query = ''; _search.clear(); _unlinkedOnly = false;
       _centered = false; _sync();
@@ -358,7 +382,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(widget.box?.name ?? '모든 생각 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
-      IconButton(tooltip: '연결 모드', style: IconButton.styleFrom(backgroundColor: _linkMode ? color.primaryContainer : null, foregroundColor: _linkMode ? color.onPrimaryContainer : null), isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; }), icon: const Icon(Icons.link)),
+      IconButton(tooltip: '연결 모드', style: IconButton.styleFrom(backgroundColor: _linkMode ? color.primaryContainer : null, foregroundColor: _linkMode ? color.onPrimaryContainer : null), isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; _selectionMode = false; _selected.clear(); }), icon: const Icon(Icons.link)),
       PopupMenuButton<bool>(tooltip: '생각 만들기', icon: const Icon(Icons.add),
         onSelected: (box) { if (box) { _createBox(); } else { _create(); } },
         itemBuilder: (_) => const [PopupMenuItem(value: false, child: Text('생각 만들기')), PopupMenuItem(value: true, child: Text('상자 만들기'))]),
@@ -399,6 +423,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           });
         }
         return InteractiveViewer(
+        panEnabled: !_selectionMode, scaleEnabled: !_selectionMode,
         onInteractionEnd: (_) => _saveLayout(flush: true),
         transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: MediaQuery.sizeOf(context).width >= 760 ? 12 : 8,
         boundaryMargin: const EdgeInsets.all(double.infinity),
@@ -416,28 +441,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               _saveLayout();
             })),
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds, highlighted: identical(_hoverBox, region.box), rectangular: widget.blocks,
-            onDrag: (delta) => setState(() {
-              final empty = !region.box.elementIds.any(_positions.containsKey);
-              final current = empty ? (_emptyBoxBounds[region.box] ?? region.bounds) : (_regionBounds(region.box, _positions) ?? region.bounds);
-              var shift = Offset(math.max(delta.dx, 32 - current.left), math.max(delta.dy, 32 - current.top));
-              if (_boxCollides(region.box, current.shift(shift))) {
-                var low = 0.0, high = 1.0;
-                for (var i = 0; i < 12; i++) {
-                  final mid = (low + high) / 2;
-                  if (_boxCollides(region.box, current.shift(shift * mid))) { high = mid; } else { low = mid; }
-                }
-                shift *= low;
-              }
-              if (empty) { _emptyBoxBounds[region.box] = current.shift(shift); }
-              for (final id in region.box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
-              _saveLayout();
-            }), onDragEnd: () => _saveLayout(flush: true)),
+            onDrag: (delta) => setState(() => _dragBox(region.box, delta)),
+            onDragEnd: () { setState(() => _releaseBox(region.box)); _saveLayout(flush: true); }),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
             nodeRects,
             {for (final r in records) r.id: {...r.connections, if (!widget.blocks && !_hideTags) ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
           if (records.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
             icon: const Icon(Icons.add), label: Text(_query.isNotEmpty || _unlinkedOnly ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
-          for (final record in records) Positioned(left: _positions[record.id]!.dx - ThoughtInteraction.hitPadding, top: _positions[record.id]!.dy - ThoughtInteraction.hitPadding,
+          for (final record in (_layout.stacked ? records.reversed : records)) Positioned(left: _positions[record.id]!.dx - ThoughtInteraction.hitPadding, top: _positions[record.id]!.dy - ThoughtInteraction.hitPadding,
             child: ThoughtInteraction(size: _size(record.id), desktop: MediaQuery.sizeOf(context).width >= 760,
                 onLift: () => setState(() {
                   _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
@@ -467,6 +478,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   _saveLayout();
                 }),
                 onDrop: (pointer) {
+                  final snap = snapThought(_bounds(record.id), records.where((r) => r.id != record.id).map((r) => _bounds(r.id)),
+                    tolerance: (16 / _view.value.getMaxScaleOnAxis()).clamp(8, 32));
+                  final snapped = _positions[record.id]! + snap;
+                  if (snapped.dx >= 32 && snapped.dy >= 32) _positions[record.id] = snapped;
                   final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
                   final center = scene?.globalToLocal(pointer) ?? _bounds(record.id).center;
                   if (widget.blocks && folders.values.any((bounds) => bounds.contains(center)) &&
@@ -499,14 +514,22 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _draggingId == record.id || _linkFrom == record.id ? color.primary : color.outlineVariant, width: 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: _linkFrom == record.id || _draggingId == record.id ? color.primary : Colors.transparent, width: _draggingId == record.id ? 3 : 2)),
                   child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    if ((widget.blocks || (_layout.stacked && !_hideTags)) && record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 10, 8, 0), child: Align(alignment: Alignment.centerLeft,
-                      child: Text(record.tags.map((tag) => '#$tag').join('  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)))),
-                    if (_layout.stacked && (record.tags.isEmpty || (!widget.blocks && _hideTags))) const SizedBox(height: 24),
                     if (AttachmentIndicators.hasAttachments(record)) Padding(padding: const EdgeInsets.only(top: 4, right: 6), child: Align(alignment: Alignment.centerRight, child: AttachmentIndicators(record: record))),
                     Expanded(child: Padding(padding: const EdgeInsets.all(8), child: Text(badgeLabel(record.text), maxLines: !_layout.sizes.containsKey(record.id) ? 3 : ((_size(record.id).height - 24 - (widget.blocks && record.tags.isNotEmpty ? 24 : 0)) / 22).floor().clamp(1, 20),
                       overflow: TextOverflow.ellipsis, style: TextStyle(color: wordColor(context, record.text))))),
+                    if ((widget.blocks || (_layout.stacked && !_hideTags)) && record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 8, 8), child: Align(alignment: Alignment.centerLeft,
+                      child: Text(record.tags.map((tag) => '#$tag').join('  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)))),
+                    if (_layout.stacked && (record.tags.isEmpty || (!widget.blocks && _hideTags))) const SizedBox(height: 24),
                   ])))),
             ),
+          for (final region in regions) Positioned(
+            left: region.bounds.center.dx - (widget.blocks ? region.bounds.width - 64 : region.bounds.width * .45) / 2,
+            top: region.bounds.top + 8,
+            width: widget.blocks ? region.bounds.width - 64 : region.bounds.width * .45, height: 32,
+            child: GestureDetector(key: ValueKey('box-drag-header-${region.box.name}'), behavior: HitTestBehavior.opaque,
+              onPanUpdate: (d) => setState(() => _dragBox(region.box, d.delta)),
+              onPanEnd: (_) { setState(() => _releaseBox(region.box)); _saveLayout(flush: true); },
+              onPanCancel: () { setState(() => _releaseBox(region.box)); _saveLayout(flush: true); })),
           if (!widget.blocks) for (final tag in tags) Positioned(left: tagBounds(tagPositions['tag:$tag']!).left, top: tagBounds(tagPositions['tag:$tag']!).top,
             width: graphTagSize.width, height: graphTagSize.height,
             child: GestureDetector(key: ValueKey('graph-tag-$tag'), behavior: HitTestBehavior.opaque,
@@ -517,9 +540,46 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               onPanEnd: (_) => _saveLayout(flush: true), onPanCancel: () => _saveLayout(flush: true),
               child: Tooltip(message: '#$tag', child: Chip(side: BorderSide(color: Color(hashtagColors[tag] ?? 0xFF90A4AE), width: 2.5), label: Text('#$tag', maxLines: 1, overflow: TextOverflow.ellipsis),
               backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: .3))))),
+          if (_selectionMode) Positioned.fill(child: GestureDetector(
+            key: const ValueKey('canvas-selection'), behavior: HitTestBehavior.opaque, dragStartBehavior: DragStartBehavior.down,
+            onTapUp: (d) => setState(() {
+              final hit = records.where((r) => _bounds(r.id).contains(d.localPosition)).lastOrNull;
+              if (hit == null) { _selected.clear(); }
+              else if (!_selected.add(hit.id)) { _selected.remove(hit.id); }
+            }),
+            onPanStart: (d) => setState(() {
+              _selected.removeWhere((id) => !visiblePositions.containsKey(id));
+              _movingSelection = _selected.any((id) => _bounds(id).contains(d.localPosition));
+              _selectionStart = d.localPosition; _selectionEnd = d.localPosition;
+              if (!_movingSelection) _selected.clear();
+            }),
+            onPanUpdate: (d) => setState(() {
+              if (_movingSelection) {
+                final left = _selected.map((id) => _positions[id]!.dx).reduce(math.min);
+                final top = _selected.map((id) => _positions[id]!.dy).reduce(math.min);
+                final shift = Offset(math.max(d.delta.dx, 32 - left), math.max(d.delta.dy, 32 - top));
+                for (final id in _selected) { _positions[id] = _positions[id]! + shift; }
+              } else {
+                _selectionEnd = d.localPosition;
+                final rect = Rect.fromPoints(_selectionStart!, _selectionEnd!);
+                _selected..clear()..addAll(records.where((r) => rect.overlaps(_bounds(r.id))).map((r) => r.id));
+              }
+            }),
+            onPanEnd: (_) { setState(() { _selectionStart = null; _selectionEnd = null; _movingSelection = false; }); _saveLayout(flush: true); },
+            onPanCancel: () { setState(() { _selectionStart = null; _selectionEnd = null; _movingSelection = false; }); _saveLayout(flush: true); },
+            child: CustomPaint(painter: _SelectionPainter(
+              [for (final id in _selected) if (visiblePositions.containsKey(id)) _bounds(id)],
+              !_movingSelection && _selectionStart != null && _selectionEnd != null ? Rect.fromPoints(_selectionStart!, _selectionEnd!) : null,
+              color.primary)),
+          )),
         ]))),
       ); })),
-        if (_linkMode) Positioned(top: 8, left: 12, right: 12, child: IgnorePointer(child: Material(
+        Positioned(top: 8, left: 12, child: FilterChip(label: Text(_selected.isEmpty ? '선택' : '선택 ${_selected.length}'),
+          selected: _selectionMode, showCheckmark: false, onSelected: (value) => setState(() {
+            _selectionMode = value; _selected.clear(); _selectionStart = null; _selectionEnd = null;
+            if (value) { _linkMode = false; _linkFrom = null; }
+          }))),
+        if (_linkMode) Positioned(top: 52, left: 12, right: 12, child: IgnorePointer(child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: const Padding(padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Text('생각 두 개를 차례로 눌러 연결하거나 해제하세요.', style: TextStyle(fontSize: 12)))))),
@@ -565,4 +625,22 @@ class _Connections extends CustomPainter {
     color != oldDelegate.color || !mapEquals(positions, oldDelegate.positions) ||
     !mapEquals(tagColors, oldDelegate.tagColors) || links.length != oldDelegate.links.length ||
     links.entries.any((entry) => !setEquals(entry.value, oldDelegate.links[entry.key]));
+}
+
+class _SelectionPainter extends CustomPainter {
+  _SelectionPainter(this.selected, this.marquee, this.color);
+  final List<Rect> selected;
+  final Rect? marquee;
+  final Color color;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final border = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 2;
+    for (final rect in selected) { canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(8)), border); }
+    if (marquee != null) {
+      canvas.drawRect(marquee!, Paint()..color = color.withValues(alpha: .12));
+      canvas.drawRect(marquee!, border);
+    }
+  }
+  @override
+  bool shouldRepaint(_SelectionPainter old) => true;
 }
