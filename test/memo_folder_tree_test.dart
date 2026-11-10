@@ -12,6 +12,44 @@ import 'package:weaver/features/inbox/workspace_storage.dart';
 
 void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); memoBoxFolderParents.clear(); pageGraphLayout = GraphLayout(); });
+  testWidgets('folders separate on release without moving the stationary folder', (tester) async {
+    memoBoxFolders.addAll(['첫 폴더', '둘째 폴더']);
+    final layout = pageGraphLayout.blockLayout;
+    layout.folderPositions.addAll({'첫 폴더': const Offset(640, 400), '둘째 폴더': const Offset(1100, 400)});
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpAndSettle();
+    MemoFolderRegion folder(String name) => tester.widget<MemoFolderRegion>(find.byKey(ValueKey('folder-region-$name')));
+    final fixed = folder('둘째 폴더').bounds;
+    folder('첫 폴더').onMove(fixed.center - folder('첫 폴더').bounds.center); await tester.pump();
+    expect(folder('첫 폴더').bounds.overlaps(fixed), isTrue);
+    folder('첫 폴더').onEnd(); await tester.pumpAndSettle();
+    expect(folder('첫 폴더').bounds.overlaps(fixed), isFalse);
+    expect(folder('둘째 폴더').bounds, fixed);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('a loose box separates from folders and a lifted box can leave its folder', (tester) async {
+    memoBoxFolders.add('폴더');
+    final a = elements.add('안쪽 생각'), b = elements.add('바깥 생각');
+    final inside = MemoBox('안쪽', folder: '폴더', ids: [a.id]), outside = MemoBox('바깥', ids: [b.id]);
+    memoBoxes.addAll([inside, outside]);
+    pageGraphLayout.blockLayout.positions.addAll({a.id: const Offset(640, 400), b.id: const Offset(1200, 400)});
+    var changes = 0;
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () => changes++)));
+    await tester.pumpAndSettle();
+    MemoBoxRegion box(String name) => tester.widget<MemoBoxRegion>(find.byKey(ValueKey('box-region-$name')));
+    Rect folderBounds() => tester.widget<MemoFolderRegion>(find.byKey(const ValueKey('folder-region-폴더'))).bounds;
+    box('바깥').onDrag!(folderBounds().center - box('바깥').bounds.center); await tester.pump();
+    box('바깥').onDragEnd!(); await tester.pumpAndSettle();
+    expect(box('바깥').bounds.overlaps(folderBounds()), isFalse);
+    final pointer = tester.getCenter(find.byKey(const ValueKey('box-region-안쪽')));
+    box('안쪽').onLiftStart!(pointer); await tester.pump();
+    box('안쪽').onLiftMove!(pointer + const Offset(0, 700)); await tester.pump();
+    box('안쪽').onDragEnd!(); await tester.pumpAndSettle();
+    expect(inside.folder, isNull);
+    expect(inside.elementIds, {a.id});
+    expect(changes, greaterThan(0));
+    await tester.pumpWidget(const SizedBox());
+  });
   test('folder tree persists independently of box and thought ownership', () {
     final thought = elements.add('상자에만 담긴 생각');
     memoBoxFolders.addAll(['부모', '자식', '손자']);

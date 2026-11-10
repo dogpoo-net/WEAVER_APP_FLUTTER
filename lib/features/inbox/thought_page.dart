@@ -115,10 +115,74 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     for (final id in box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
     if (_emptyBoxBounds.containsKey(box)) _emptyBoxBounds[box] = _emptyBoxBounds[box]!.shift(shift);
   }
+  MemoBox? _liftedBox;
+  Offset? _boxLiftPointer;
+  String? _draggedFolder;
+  final _frozenFolders = <String, Rect>{};
+  Map<String, Rect> _folderGeometry() => widget.blocks ? {
+    ...memoFolderRegions({for (final box in _allRegionBoxes) if (_boxBounds(box) != null) box: _boxBounds(box)!}, _layout.folderPositions),
+    ..._frozenFolders,
+  } : {};
+  void _moveFolder(String name, Offset shift) {
+    for (final box in memoBoxes.where((box) => box.folder != null && memoFolderContains(name, box.folder!))) { _moveBox(box, shift); }
+    for (final folder in memoBoxFolders.where((folder) => memoFolderContains(name, folder))) {
+      if (_layout.folderPositions.containsKey(folder)) _layout.folderPositions[folder] = _layout.folderPositions[folder]! + shift;
+    }
+  }
+  void _releaseFolder(String name) {
+    final folders = _folderGeometry();
+    final bounds = folders[name];
+    if (bounds == null) return;
+    final obstacles = <Rect>[
+      for (final other in folders.entries)
+        if (!memoFolderContains(name, other.key) && !memoFolderContains(other.key, name)) other.value,
+      for (final box in _allRegionBoxes)
+        if (box.folder == null || !memoFolderContains(name, box.folder!)) ?_boxBounds(box),
+    ];
+    _moveFolder(name, releaseBox(bounds, obstacles, rectangular: true));
+  }
+  void _liftBox(MemoBox box, Offset pointer) {
+    setState(() {
+      _liftedBox = box; _boxLiftPointer = pointer; _frozenFolders.clear();
+      if (box.folder != null) {
+        _frozenFolders.addEntries(_folderGeometry().entries.where((e) => memoFolderContains(e.key, box.folder!)));
+      }
+    });
+  }
+  void _moveLiftedBox(MemoBox box, Offset pointer) {
+    if (!identical(_liftedBox, box) || _boxLiftPointer == null) return;
+    final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
+    if (scene == null) return;
+    final delta = scene.globalToLocal(pointer) - scene.globalToLocal(_boxLiftPointer!);
+    _boxLiftPointer = pointer;
+    setState(() => _dragBox(box, delta));
+  }
+  void _finishBoxDrag(MemoBox box) {
+    var detached = false;
+    setState(() {
+      final oldFolder = box.folder;
+      final bounds = _boxBounds(box);
+      if (identical(_liftedBox, box) && oldFolder != null && bounds != null &&
+          _frozenFolders[oldFolder]?.contains(bounds.center) == false) {
+        final old = _frozenFolders[oldFolder]!;
+        _layout.folderPositions[oldFolder] = old.topLeft + const Offset(28, 44);
+        box.folder = null; detached = true;
+      }
+      _liftedBox = null; _boxLiftPointer = null; _frozenFolders.clear();
+      _releaseBox(box);
+      for (String? parent = box.folder; parent != null; parent = memoFolderParent(parent)) { _releaseFolder(parent); }
+    });
+    if (detached) widget.onChanged();
+    _saveLayout(flush: true);
+  }
   void _releaseBox(MemoBox box) {
     final bounds = _boxBounds(box);
     if (bounds == null) return;
-    _moveBox(box, releaseBox(bounds, [for (final other in _allRegionBoxes) if (!identical(other, box)) ?_boxBounds(other)], rectangular: widget.blocks));
+    _moveBox(box, releaseBox(bounds, [
+      for (final other in _allRegionBoxes) if (!identical(other, box)) ?_boxBounds(other),
+      for (final folder in _folderGeometry().entries)
+        if (box.folder == null || !memoFolderContains(folder.key, box.folder!)) folder.value,
+    ], rectangular: widget.blocks));
   }
   void _dragBox(MemoBox box, Offset delta) {
     final bounds = _boxBounds(box);
@@ -493,6 +557,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     sceneWidth = regions.map((r) => r.bounds.right + 100).fold(sceneWidth, math.max);
     sceneHeight = regions.map((r) => r.bounds.bottom + 100).fold(sceneHeight, math.max);
     final folders = widget.blocks ? memoFolderRegions({for (final r in regions) r.box: r.bounds}, _layout.folderPositions) : <String, Rect>{};
+    folders.addAll(_frozenFolders);
     if (_filterBox != null) {
       folders.removeWhere((name, _) => !regions.any((r) => r.box.folder != null && memoFolderContains(name, r.box.folder!)));
     }
@@ -549,21 +614,27 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         boundaryMargin: const EdgeInsets.all(double.infinity),
         child: RepaintBoundary(child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
           for (final folder in folders.entries) MemoFolderRegion(key: ValueKey('folder-region-${folder.key}'), name: folder.key, bounds: folder.value,
-            onEdit: _editFolders, onZoom: _zoomCanvas, onEnd: _endPinch, onMove: (delta) => setState(() {
+            onEdit: _editFolders, onZoom: _zoomCanvas,
+            onEnd: () {
+              if (_draggedFolder == folder.key) {
+                setState(() {
+                  for (String? name = folder.key; name != null; name = memoFolderParent(name)) { _releaseFolder(name); }
+                  _draggedFolder = null;
+                });
+              }
+              _endPinch();
+            }, onMove: (delta) => setState(() {
               if (_pinchBase != null) return;
+              _draggedFolder = folder.key;
               final shift = Offset(math.max(delta.dx, 32 - folder.value.left), math.max(delta.dy, 32 - folder.value.top));
-              for (final box in memoBoxes.where((b) => b.folder != null && memoFolderContains(folder.key, b.folder!))) {
-                for (final id in box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
-                if (_emptyBoxBounds.containsKey(box)) _emptyBoxBounds[box] = _emptyBoxBounds[box]!.shift(shift);
-              }
-              for (final name in memoBoxFolders.where((f) => memoFolderContains(folder.key, f))) {
-                if (_layout.folderPositions.containsKey(name)) _layout.folderPositions[name] = _layout.folderPositions[name]! + shift;
-              }
-              _saveLayout();
+              _moveFolder(folder.key, shift); _saveLayout();
             })),
-          for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds, highlighted: identical(_hoverBox, region.box), rectangular: widget.blocks,
+          for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds, highlighted: identical(_hoverBox, region.box) || identical(_liftedBox, region.box), rectangular: widget.blocks,
+            onLiftStart: (pointer) => _liftBox(region.box, pointer),
+            onLiftMove: (pointer) => _moveLiftedBox(region.box, pointer),
             onDrag: (delta) => setState(() => _dragBox(region.box, delta)),
-            onDragEnd: () { setState(() => _releaseBox(region.box)); _saveLayout(flush: true); }),
+            onDragCancel: () { if (!identical(_liftedBox, region.box)) _finishBoxDrag(region.box); },
+            onDragEnd: () => _finishBoxDrag(region.box)),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
             nodeRects,
             {for (final r in records) r.id: {...r.connections, if (!widget.blocks && !_hideTags) ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
@@ -667,9 +738,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             top: region.bounds.top + 8,
             width: widget.blocks ? region.bounds.width - 64 : region.bounds.width * .45, height: 32,
             child: GestureDetector(key: ValueKey('box-drag-header-${region.box.name}'), behavior: HitTestBehavior.opaque,
+              onLongPressStart: (d) => _liftBox(region.box, d.globalPosition),
+              onLongPressMoveUpdate: (d) => _moveLiftedBox(region.box, d.globalPosition),
+              onLongPressEnd: (_) => _finishBoxDrag(region.box),
               onPanUpdate: (d) => setState(() => _dragBox(region.box, d.delta)),
-              onPanEnd: (_) { setState(() => _releaseBox(region.box)); _saveLayout(flush: true); },
-              onPanCancel: () { setState(() => _releaseBox(region.box)); _saveLayout(flush: true); })),
+              onPanEnd: (_) => _finishBoxDrag(region.box),
+              onPanCancel: () { if (!identical(_liftedBox, region.box)) _finishBoxDrag(region.box); })),
           if (!widget.blocks) for (final tag in tags) Positioned(left: tagBounds(tagPositions['tag:$tag']!).left, top: tagBounds(tagPositions['tag:$tag']!).top,
             width: graphTagSize.width, height: graphTagSize.height,
             child: GestureDetector(key: ValueKey('graph-tag-$tag'), behavior: HitTestBehavior.opaque,
