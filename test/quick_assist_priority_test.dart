@@ -9,7 +9,7 @@ import 'package:weaver/features/inbox/workspace_storage.dart';
 void main() {
   for (final tag in [false, true]) {
     testWidgets('visible quick assist owns Enter and native submit echoes (tag=$tag)', (tester) async {
-      elements.clear(); elements.add('독서 #태그');
+      elements.clear(); (elements.add('독서 #태그')..indexLabel = '독서');
       SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
       final storage = WorkspaceStorage(await SharedPreferences.getInstance());
       await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
@@ -22,7 +22,7 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
-      final completed = tag ? '메모 #태그 ' : '메모 ';
+      final completed = tag ? '메모 #태그 ' : '메모 관찰';
       expect(tester.widget<TextField>(field).controller!.text, completed);
       expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
       await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
@@ -38,7 +38,7 @@ void main() {
     }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
   }
   testWidgets('second shortcut completion consumes Enter without saving', (tester) async {
-    elements.clear(); elements.add('첫생각'); elements.add('다른생각');
+    elements.clear(); (elements.add('첫생각')..indexLabel = '첫생각'); (elements.add('다른생각')..indexLabel = '다른생각');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
     await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
@@ -70,7 +70,7 @@ void main() {
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
   testWidgets('a new Backspace after completion removes the element instead of being treated as an echo', (tester) async {
-    elements.clear(); elements.add('독서');
+    elements.clear(); (elements.add('독서')..indexLabel = '독서');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
     await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
@@ -83,7 +83,7 @@ void main() {
     expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
   }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
   testWidgets('native submit without a hardware key still accepts visible assist first', (tester) async {
-    elements.clear(); elements.add('독서');
+    elements.clear(); (elements.add('독서')..indexLabel = '독서');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
     await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
@@ -97,7 +97,7 @@ void main() {
     tester.view.physicalSize = const Size(390, 844); tester.view.devicePixelRatio = 1;
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio); addTearDown(tester.view.resetViewInsets);
-    elements.clear(); elements.add('독서 #태그');
+    elements.clear(); (elements.add('독서 #태그')..indexLabel = '독서');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
     await tester.pumpWidget(MyApp(requireLogin: false, storage: WorkspaceStorage(await SharedPreferences.getInstance())));
     final field = find.byKey(const ValueKey('quick-memo'));

@@ -9,7 +9,7 @@ import 'package:weaver/features/inbox/workspace_storage.dart';
 
 void main() {
   testWidgets('only a full literal match auto-selects during Korean composition without saving', (tester) async {
-    elements.clear(); final source = elements.add('생각');
+    elements.clear(); final source = (elements.add('생각')..indexLabel = '생각');
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
     await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));

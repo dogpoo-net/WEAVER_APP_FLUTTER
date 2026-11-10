@@ -15,7 +15,6 @@ void main() {
       final a = elements.add('안쪽 생각 #안쪽');
       final b = elements.add('연결된 생각');
       elements.add('바깥 생각 #바깥');
-      elements.connect(a.id, [b.id]);
       final box = MemoBox('검토함', ids: [a.id, b.id]); memoBoxes.add(box);
       await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(notes: const [], initialBox: scoped ? box : null)));
       await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
@@ -41,7 +40,6 @@ void main() {
       await tester.tap(find.text('다이어그램')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(tester.widget<ThoughtPage>(find.byType(ThoughtPage)).blocks, isFalse);
       expect(layout.positions, diagram);
-      expect(a.connections, {b.id}); expect(b.connections, {a.id});
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     });
@@ -56,7 +54,6 @@ void main() {
     final from = tester.getCenter(find.text('아랫 블록'));
     await tester.dragFrom(from, target - from);
     await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
-    expect(a.connections, isEmpty); expect(b.connections, isEmpty);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

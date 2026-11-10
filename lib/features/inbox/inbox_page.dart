@@ -1,3 +1,4 @@
+import 'label_links.dart';
 import '../auth/google_auth.dart';
 import '../sync/workspace_backup.dart';
 import 'trash_page.dart';
@@ -63,9 +64,8 @@ class InboxPage extends StatefulWidget {
 }
 
 class _InboxPageState extends State<InboxPage> {
-  final _draft = BoundTextController('', const []);
+  final _draft = LabelTextController();
   final _draftTags = <String>{};
-  final _draftConnections = <String>{};
   ThoughtLocation? _draftLocation;
   VoiceDraft? _voiceDraft;
   final _photoDrafts = <PhotoDraft>[];
@@ -213,7 +213,6 @@ class _InboxPageState extends State<InboxPage> {
           final record = elements.add(note.content);
           record.tags.addAll({...note.tags, ...note.paragraphs!.expand((p) => p.tags)});
           record.folder ??= note.folder;
-          elements.connect(record.id, note.paragraphs!.expand((p) => p.bindings.map((b) => b.id)));
           note.paragraphs = null;
           note.bindings = [];
         }
@@ -228,24 +227,6 @@ class _InboxPageState extends State<InboxPage> {
 
   void _elementRenamed(String oldText, String newText) {
     for (final note in _notes) {
-      if (note.project == null && note.paragraphs == null && note.bindings.isNotEmpty) {
-        final previous = note.content;
-        final controller = BoundTextController(previous, note.bindings)
-          ..sync({for (final record in elements.records.values) record.id: record.text});
-        final owner = elements.records[previous];
-        final collision = elements.records[controller.text];
-        if (owner == null || collision == null || identical(owner, collision)) {
-          if (owner != null && previous != controller.text) {
-            elements.records.remove(previous);
-            owner.text = controller.text;
-            elements.records[owner.text] = owner;
-            renameWordColor(previous, owner.text);
-          }
-          note.content = controller.text;
-          note.bindings = List.of(controller.bindings);
-        }
-        controller.dispose();
-      }
       final paragraphs = note.project?.paragraphs ?? note.paragraphs;
       if (paragraphs != null) {
         final records = {for (final record in elements.records.values) record.id: record.text};
@@ -263,6 +244,7 @@ class _InboxPageState extends State<InboxPage> {
           note.paragraphs == null &&
           note.content == oldText) {
         note.content = newText;
+        note.bindings = List.of(elements.records[newText]?.inlineLinks ?? const <ElementBinding>[]);
       }
       final words = note.project?.words;
       if (words != null) {
@@ -274,7 +256,6 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   void _elementDeleted() {
-    _draft.sync({for (final record in elements.records.values) record.id: record.text});
     setState(() {
       _notes.removeWhere(
         (n) =>
@@ -291,7 +272,7 @@ class _InboxPageState extends State<InboxPage> {
         _editing = null;
         _draft.clear();
       _draftTags.clear();
-      _draftConnections.clear();
+
       }
     });
     _persist();
@@ -451,7 +432,7 @@ class _InboxPageState extends State<InboxPage> {
         _notes..clear()..addAll(snapshot.notes);
         if (imported.graphs != null) restoreGraphLayouts(imported.graphs!, {for (final box in memoBoxes) box.name: box.layout});
         ensureUnclassifiedBox();
-        _draft.clear(); _draftTags.clear(); _draftConnections.clear(); _clearCapture(); _editing = null;
+        _draft.clear(); _draftTags.clear();  _clearCapture(); _editing = null;
         _restoreBlocked = false; _storageError = null;
         showClosedThoughts = imported.closed;
       });
@@ -512,7 +493,7 @@ class _InboxPageState extends State<InboxPage> {
         _notes.clear();
         _draft.clear();
       _draftTags.clear();
-      _draftConnections.clear();
+
         _editing = null;
         _storageError = null;
         _restoreBlocked = false;
@@ -746,18 +727,9 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   void _insertQuickElement(String word) {
-    final selection = _draft.selection;
-    final prefix = completionPrefix(_draft.value, elements.visibleWords.map((word) => elements.records[word]!.title).toList());
-    final start = (selection.isValid ? selection.start : _draft.text.length) - prefix.length;
-    final end = selection.isValid ? selection.end : start;
     final record = elements.records[word];
-    if (record == null) return;
-    setState(() {
-      _draftConnections.add(record.id);
-      _draft.value = TextEditingValue(text: _draft.text.replaceRange(start, end, ''),
-        selection: TextSelection.collapsed(offset: start));
-    });
-    _focus.requestFocus();
+    if (record == null || record.indexLabel.isEmpty) return;
+    setState(() => _draft.insertLabel(record)); _focus.requestFocus();
   }
 
   void _insertQuickTag(String tag) {
@@ -789,8 +761,9 @@ class _InboxPageState extends State<InboxPage> {
       FocusManager.instance.applyFocusChangesIfNeeded();
       _draft.value = committed;
     }
-    var body = committed.text;
-    for (final link in _draft.bindings.reversed) { body = body.replaceRange(link.start, link.end, ''); }
+    _draft.completeLinks();
+    final cleaned = cleanLinkedInput(_draft);
+    var body = cleaned.text;
     if (parseTaggedInput(body).text.isEmpty && _hasCapture) {
       final title = attachmentMemoText(DateTime.now(), photos: _photoDrafts.isNotEmpty, audio: _voiceDraft != null, location: _draftLocation != null);
       body = '$title $body';
@@ -800,27 +773,23 @@ class _InboxPageState extends State<InboxPage> {
           .showSnackBar(const SnackBar(content: Text('태그와 함께 생각 내용을 입력해주세요.')));
       return false;
     }
-    final input = [body, ..._draftTags.map((tag) => '#$tag')].join(' ');
+    final tags = {..._draftTags, ...cleaned.tags};
+    final input = body;
     final editing = _editing;
     ElementRecord record;
     if (editing != null) {
       final original = elements.records[editing.content.trim()];
       if (original == null) { _captureError('이미 삭제된 생각입니다.'); return false; }
-      final error = elements.update(original.text, input);
+      final error = elements.update(original.text, input, tags: tags, inlineLinks: cleaned.links);
       if (error != null) { _captureError(error); return false; }
       record = original;
     } else {
-      record = elements.add(input);
+      record = elements.addLinked(input, cleaned.links, tags);
     }
     if (_draftLocation != null || _editing != null) record.location = _draftLocation;
     if (_savedVoice != null) record.recordings.add(_savedVoice!);
     record.photos.addAll(_savedPhotos);
-    final links = <ElementBinding>[];
-    final wantedConnections = {..._draftConnections, ..._draft.bindings.map((link) => link.id)};
-    if (_editing != null) {
-      for (final id in record.connections.difference(wantedConnections).toList()) { elements.disconnect(record.id, id); }
-    }
-    elements.connect(record.id, wantedConnections);
+    final links = List<ElementBinding>.of(cleaned.links);
     setState(() {
       if (_editing == null) {
         _notes.insert(0, Note(record.text)..bindings = links);
@@ -831,7 +800,7 @@ class _InboxPageState extends State<InboxPage> {
       _editing = null;
       _draft.clear();
       _draftTags.clear();
-      _draftConnections.clear();
+
       _clearCapture();
     });
     ScaffoldMessenger.of(
@@ -927,11 +896,9 @@ class _InboxPageState extends State<InboxPage> {
       _editing = note;
       final tags = elements.records[note.content.trim()]?.tags ?? <String>{};
       _draftTags.clear();
-      _draftConnections..clear()..addAll(elements.records[note.content.trim()]?.connections ?? <String>{});
       _draft.clear();
       _draft.text = [note.content, ...tags.map((tag) => '#$tag')].join(' ');
       _draft.bindings = List.of(note.bindings);
-      _draft.sync({for (final record in elements.records.values) record.id: record.text});
     });
     _focus.requestFocus();
   }
@@ -1133,13 +1100,14 @@ class _InboxPageState extends State<InboxPage> {
             key: const ValueKey('quick-memo-keyboard'),
             canRequestFocus: false,
             onKeyEvent: _quickMemoKey,
-            child: CaretAssist(useThoughtLabels: true, showShortcutHint: true, key: _quickAssistKey, controller: _draft, focus: _focus, words: elements.visibleWords, showWhenEmpty: false,
+            child: CaretAssist(useThoughtLabels: true, showShortcutHint: true, key: _quickAssistKey, controller: _draft, focus: _focus, words: elements.visibleWords.where((word) => elements.records[word]!.indexLabel.isNotEmpty).toList(), showWhenEmpty: false,
               mobileViewportKey: _bodyKey,
               tags: {..._allTags, ..._draftTags}.toList()..sort(), enterSelectsVisible: true,
               onTag: (tag) => _acceptQuickAssist(() => _insertQuickTag(tag)),
               onWord: (word) => _acceptQuickAssist(() => _insertQuickElement(word)), child: TextField(
               key: const ValueKey('quick-memo'),
               readOnly: _captureSaving,
+              onTap: () => _draft.openAtCaret(context),
               inputFormatters: [TextInputFormatter.withFunction(_formatQuickMemo)],
               textInputAction: _desktopQuickMemo ? TextInputAction.done : TextInputAction.newline,
               onEditingComplete: _desktopQuickMemo ? () {} : null,
@@ -1173,19 +1141,6 @@ class _InboxPageState extends State<InboxPage> {
                 onPressed: _captureSaving ? null : () => setState(() => _photoDrafts.remove(photo)), icon: const Icon(Icons.close, size: 14))),
             ])),
           ])),
-          if (_draftConnections.isNotEmpty) ...[
-            ConstrainedBox(constraints: const BoxConstraints(maxHeight: 66),
-              child: SingleChildScrollView(child: Wrap(spacing: 6, runSpacing: 6, children: [
-                for (final record in elements.records.values.where((r) => _draftConnections.contains(r.id)))
-                  ConstrainedBox(constraints: const BoxConstraints(maxWidth: 280), child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Flexible(child: WordBadge(compact: true, word: record.text, displayText: record.title, onTap: () => showElementMetadata(context, record.text))),
-                    IconButton(key: ValueKey('remove-draft-link-${record.id}'), tooltip: '연결에서 빼기',
-                      constraints: const BoxConstraints.tightFor(width: 28, height: 28), padding: EdgeInsets.zero,
-                      icon: const Icon(Icons.close, size: 16), onPressed: () => setState(() => _draftConnections.remove(record.id))),
-                  ])),
-              ]))),
-            const SizedBox(height: 8),
-          ],
           Align(alignment: AlignmentDirectional.centerEnd, child: FilledButton.icon(
             style: FilledButton.styleFrom(
               minimumSize: const Size(0, 34), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),

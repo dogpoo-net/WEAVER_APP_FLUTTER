@@ -41,7 +41,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getBottomRight(toggle).dy, lessThanOrEqualTo(544));
     expect(tester.getSize(toggle).height, lessThanOrEqualTo(30));
-    expect(tester.getSize(find.byKey(const ValueKey('project-name'))).height, lessThanOrEqualTo(42));
+    expect(find.byKey(const ValueKey('project-name')), findsNothing);
     expect(tester.getSize(find.byKey(const ValueKey('project-tag-search'))).height, lessThanOrEqualTo(38));
     expect(tester.getSize(find.byKey(const ValueKey('project-document'))).height, greaterThan(80));
     await tester.tap(toggle); await tester.pumpAndSettle(); expect(panel, findsNothing);

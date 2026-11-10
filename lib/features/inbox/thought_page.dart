@@ -21,7 +21,7 @@ import 'thought_interaction.dart';
 import 'workspace_routes.dart';
 import 'graph_arrangement.dart';
 
-/// A live workspace over the same thoughts, tags and reciprocal connections.
+/// A live workspace over the same thoughts and tags.
 class ThoughtPage extends StatefulWidget {
   const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.box, this.blocks = false, this.viewSelector});
   final VoidCallback onChanged;
@@ -40,19 +40,18 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   String _query = '';
   MemoBox? _filterBox;
   String? _filterTag;
-  bool _unlinkedOnly = false;
   bool _hideTags = false;
   final _view = TransformationController();
   Timer? _saveTimer;
   late final GraphLayout _layout;
   late final TextEditingController _search;
-  String? _linkFrom, _draggingId;
+  String? _draggingId;
   final _dragStartStacks = <String, Set<String>>{};
   final _dropHighlights = <String>{};
   final _thoughtDragOrigins = <String, Offset>{};
   MemoBox? _hoverBox;
   final _liftBoxes = <MemoBox, Rect>{};
-  bool _linkMode = false, _centered = false;
+  bool _centered = false;
   bool _selectionMode = false, _movingSelection = false;
   final _selected = <String>{};
   Offset? _selectionStart, _selectionEnd, _selectionDown, _selectionGlobalDown;
@@ -99,7 +98,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void _toggleSelection(bool value) => setState(() {
     _selectionMode = value; _selected.clear(); _selectionStart = null; _selectionEnd = null;
     _selectionPointers.clear(); _selectionZoomBase = null; _selectionZoomDistance = null; _selectionZoomAnchor = null; _selectionPinched = false;
-    if (value) { _linkMode = false; _linkFrom = null; }
   });
   String? _resizingThought;
   final _resizeNeighbors = <String>{};
@@ -266,7 +264,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _positions.addAll(_layout.positions);
     _tagPositions.addAll(_layout.tags);
     _query = _layout.query;
-    _unlinkedOnly = widget.blocks && _layout.unlinkedOnly;
     _hideTags = _layout.hideTags;
     _search = TextEditingController(text: _query);
     if (_layout.viewport != null) {
@@ -295,7 +292,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _layout.tags..clear()..addAll(_tagPositions);
     _layout.viewport = _view.value.storage.toList();
     _layout.query = _query;
-    _layout.unlinkedOnly = _unlinkedOnly;
     _layout.hideTags = _hideTags;
     (widget.onLayoutChanged ?? widget.onChanged)();
   }
@@ -332,7 +328,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   List<ElementRecord> get _records => _scopeRecords.where((r) => canBrowseThought(r) &&
     (_filterBox == null || _filterBox!.elementIds.contains(r.id)) &&
     (_filterTag == null || r.tags.contains(_filterTag)) &&
-    (!_unlinkedOnly || r.connections.isEmpty) &&
     (_query.isEmpty || r.indexLabel.toLowerCase().contains(_query) || r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.toLowerCase().contains(_query)))).toList();
   void _sync() {
     final records = _records;
@@ -386,7 +381,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       }
     }
     if (!hadPositions && _positions.isNotEmpty) _centered = false;
-    if (!records.any((r) => r.id == _linkFrom)) _linkFrom = null;
     _saveLayout();
   }
   void _arrangeBlocks(List<ElementRecord> records) {
@@ -472,8 +466,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _positions.clear(); _tagPositions.clear(); _emptyBoxBounds.clear(); _liftBoxes.clear();
       _layout.sizes.clear(); _layout.folderPositions.clear(); _layout.viewport = null;
       _layout.stacked = stacked; _selected.clear(); _layout.layers.clear();
-      _draggingId = null; _hoverBox = null; _linkFrom = null; _linkMode = false;
-      _query = ''; _search.clear(); _unlinkedOnly = false;
+      _draggingId = null; _hoverBox = null;
+      _query = ''; _search.clear();
       _centered = false; _sync();
       _arrangeThoughts(stacked);
     });
@@ -574,10 +568,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     if (_filterBox != null) { moveThoughtToBox(r.id, _filterBox!); }
     _changed();
   }
-  void _connect(String a, String b) {
-    if (a == b) return;
-    elements.connect(a, [b]); _linkFrom = null; _changed();
-  }
   @override
   void dispose() {
     _saveLayout(flush: true);
@@ -617,6 +607,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         else { for (final box in memoBoxes.where((box) => !box.isUnclassified)) { box.elementIds.remove(id); } }
       }
       _changed();
+    } else {
+      final candidates = _allRegionBoxes.where((box) => !_selected.any(box.elementIds.contains) &&
+        _boxBounds(box) != null && _inside(_boxBounds(box)!, _bounds(anchor).center)).toList()
+        ..sort((a, b) => (_boxBounds(a)!.width * _boxBounds(a)!.height).compareTo(_boxBounds(b)!.width * _boxBounds(b)!.height));
+      if (candidates.isNotEmpty) {
+        for (final id in _selected) { moveThoughtToBox(id, candidates.first); }
+        _changed();
+      }
     }
   }
   String? _frontThought;
@@ -663,7 +661,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(widget.box?.name ?? '모든 생각 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
-      IconButton(tooltip: '연결 모드', style: IconButton.styleFrom(backgroundColor: _linkMode ? color.primaryContainer : null, foregroundColor: _linkMode ? color.onPrimaryContainer : null), isSelected: _linkMode, onPressed: () => setState(() { _linkMode = !_linkMode; _linkFrom = null; _selectionMode = false; _selected.clear(); }), icon: const Icon(Icons.link)),
       PopupMenuButton<bool>(tooltip: '생각 만들기', icon: const Icon(Icons.add),
         onSelected: (box) { if (box) { _createBox(); } else { _create(); } },
         itemBuilder: (_) => const [PopupMenuItem(value: false, child: Text('생각 만들기')), PopupMenuItem(value: true, child: Text('상자 만들기'))]),
@@ -681,12 +678,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 13 : 14),
           decoration: const InputDecoration(hintText: '생각·해시태그 찾기', prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 36), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), isDense: true),
           onChanged: (value) => setState(() { _query = value.trim().replaceFirst(RegExp(r'^#'), '').toLowerCase(); _centered = false; _sync(); }))),
-        const SizedBox(width: 8),
-        FilterChip(showCheckmark: false, visualDensity: VisualDensity.compact, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, padding: EdgeInsets.zero, label: Text(widget.blocks ? '연결 없음' : '해시태그 숨기기', style: const TextStyle(fontSize: 12)), selected: widget.blocks ? _unlinkedOnly : _hideTags,
-          onSelected: (value) => setState(() {
-            if (widget.blocks) { _unlinkedOnly = value; _centered = false; _sync(); }
-            else { _hideTags = value; _saveLayout(); }
-          })),
+        if (!widget.blocks) ...[
+          const SizedBox(width: 8),
+          FilterChip(showCheckmark: false, visualDensity: VisualDensity.compact,
+            label: const Text('해시태그 숨기기', style: TextStyle(fontSize: 12)), selected: _hideTags,
+            onSelected: (value) => setState(() { _hideTags = value; _saveLayout(); })),
+        ],
       ])),
       Expanded(child: Stack(children: [Positioned.fill(child: LayoutBuilder(builder: (context, viewport) {
         if (!_centered) {
@@ -738,23 +735,16 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onDragEnd: () => _finishBoxDrag(region.box)),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
             nodeRects,
-            {for (final r in records) r.id: {...r.connections, if (!widget.blocks && !_hideTags) ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
+            {for (final r in records) r.id: {if (!widget.blocks && !_hideTags) ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
           if (records.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
-            icon: const Icon(Icons.add), label: Text(_query.isNotEmpty || _unlinkedOnly ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
+            icon: const Icon(Icons.add), label: Text(_query.isNotEmpty ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
           for (final record in records) Positioned(left: _positions[record.id]!.dx - ThoughtInteraction.hitPadding, top: _positions[record.id]!.dy - ThoughtInteraction.hitPadding,
             child: ThoughtInteraction(key: ValueKey('canvas-thought-${record.id}'), size: _size(record.id), desktop: MediaQuery.sizeOf(context).width >= 760,
                 onLift: () => setState(() {
                   _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
                 }),
                 onActiveChanged: (active) => setState(() { if (active) { _thoughtDragOrigins.putIfAbsent(record.id, () => _positions[record.id]!); _dragStartStacks.putIfAbsent(record.id, () => alignedStackMembers(record.id, _positions)); } _draggingId = active ? record.id : null; if (!active) { _hoverBox = null; _dropHighlights.clear(); } }),
-                onTap: () { if (_linkMode && _linkFrom != null) {
-                  final from = _linkFrom!;
-                  if (from != record.id && record.connections.contains(from)) {
-                    elements.disconnect(from, record.id); _linkFrom = null; _changed();
-                  } else { _connect(from, record.id); }
-                }
-                  else if (_linkMode) { setState(() => _linkFrom = record.id); }
-                  else { showElementMetadata(context, record.text); } },
+                onTap: () => showElementMetadata(context, record.text),
                 onMove: (delta) => setState(() { final previous = _positions[record.id]!; final p = previous + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
                   if (_liftBoxes.isEmpty && _memberCollides(record.id)) _positions[record.id] = previous;
                   final target = records.where((r) => r.id != record.id && _bounds(r.id).overlaps(_bounds(record.id))).lastOrNull;
@@ -839,8 +829,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   _saveLayout(flush: true);
                 }, onEnd: () { setState(() { _resizingThought = null; _resizeNeighbors.clear(); _thoughtDragOrigins.remove(record.id); _dragStartStacks.remove(record.id); _dropHighlights.clear(); _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
                 child: Card(margin: EdgeInsets.zero, color: wordBackgroundColor(context, record.text),
-                  shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _dropHighlights.contains(record.id) || _draggingId == record.id || _linkFrom == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) ? 3 : 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
-                    color: _dropHighlights.contains(record.id) || _linkFrom == record.id || _draggingId == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) || _draggingId == record.id ? 3 : 2)),
+                  shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _dropHighlights.contains(record.id) || _draggingId == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) ? 3 : 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
+                    color: _dropHighlights.contains(record.id) || _draggingId == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) || _draggingId == record.id ? 3 : 2)),
                   child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     if (AttachmentIndicators.hasAttachments(record)) Padding(padding: const EdgeInsets.only(top: 4, right: 6), child: Align(alignment: Alignment.centerRight, child: AttachmentIndicators(record: record))),
                     Expanded(child: Padding(padding: const EdgeInsets.all(8), child: Text(badgeLabel(record.text), maxLines: !_layout.sizes.containsKey(record.id) ? 3 : ((_size(record.id).height - 24 - (widget.blocks && record.tags.isNotEmpty ? 24 : 0)) / 22).floor().clamp(1, 20),
@@ -973,14 +963,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               ]))),
           ]),
         )),
-        if (_linkMode) Positioned(top: 52, left: 12, right: 12, child: IgnorePointer(child: Material(
-          color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
-          child: const Padding(padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Text('생각 두 개를 차례로 눌러 연결하거나 해제하세요.', style: TextStyle(fontSize: 12)))))),
       ])),
       ThoughtFilters(tags: _scopeRecords.expand((r) => r.tags).toSet().toList()..sort(),
         box: _filterBox, tag: _filterTag, onChanged: _changed,
-        onFilter: (box, tag) => setState(() { _filterBox = box; _filterTag = tag; _linkFrom = null; _centered = false; _sync(); })),
+        onFilter: (box, tag) => setState(() { _filterBox = box; _filterTag = tag; _centered = false; _sync(); })),
     ])));
   }
 }

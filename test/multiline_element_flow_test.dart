@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/paragraph_editor.dart';
@@ -19,19 +18,5 @@ void main() {
     expect(controller.text, '$word\n추가 글');
     expect(tester.takeException(), isNull);
   });
-  testWidgets('multiline element preview flows vertically and retains its metadata link', (tester) async {
-    elements.clear(); elements.add(word);
-    const text = '$word\n추가 글';
-    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: ElementText(text))));
-    final rich = find.descendant(of: find.byType(ElementText), matching: find.byType(RichText)).first;
-    final render = tester.renderObject<RenderParagraph>(rich);
-    final second = render.getBoxesForSelection(const TextSelection(baseOffset: 4, extentOffset: 5)).first;
-    final appended = render.getBoxesForSelection(TextSelection(baseOffset: word.length + 1, extentOffset: word.length + 2)).first;
-    expect(appended.top, greaterThan(second.top));
-    final first = render.getBoxesForSelection(const TextSelection(baseOffset: 0, extentOffset: 1)).first;
-    await tester.tapAt(tester.getTopLeft(rich) + Offset((first.left + first.right) / 2, (first.top + first.bottom) / 2));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('element-editor')), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+
 }

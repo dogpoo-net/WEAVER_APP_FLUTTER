@@ -12,7 +12,6 @@ class GraphLayout {
   final folderPositions = <String, Offset>{};
   List<double>? viewport;
   String query = '';
-  bool unlinkedOnly = false;
   bool hideTags = false;
   bool stacked = false;
 
@@ -25,7 +24,6 @@ class GraphLayout {
     folderPositions..clear()..addAll(other.folderPositions);
     viewport = other.viewport?.toList();
     query = other.query;
-    unlinkedOnly = other.unlinkedOnly;
     hideTags = other.hideTags;
     stacked = other.stacked;
   }
@@ -38,7 +36,6 @@ class GraphLayout {
     'folderPositions': {for (final e in folderPositions.entries) e.key: [e.value.dx, e.value.dy]},
     'viewport': viewport,
     'query': query,
-    'unlinkedOnly': unlinkedOnly,
     'hideTags': hideTags,
     'stacked': stacked,
     'layers': layers,
@@ -75,7 +72,6 @@ class GraphLayout {
       }
     }
     if (data['query'] is String) layout.query = data['query'] as String;
-    layout.unlinkedOnly = data['unlinkedOnly'] == true;
     layout.hideTags = data['hideTags'] == true;
     layout.stacked = data['stacked'] == true;
     return layout;

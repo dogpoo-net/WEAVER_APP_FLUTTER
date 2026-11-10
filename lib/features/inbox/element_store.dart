@@ -1,10 +1,12 @@
+import 'label_links.dart';
+import 'element_binding.dart';
+import 'document_markup.dart';
 import 'tag_colors.dart';
 import '../capture/location_preview.dart';
 import '../capture/photo_gallery.dart';
 import '../capture/capture_models.dart';
 import '../capture/media_storage.dart';
 import '../capture/voice_player.dart';
-import 'package:flutter/gestures.dart';
 import 'inline_tags.dart';
 import 'paragraph_tag_input.dart';
 import 'package:flutter/material.dart';
@@ -28,7 +30,7 @@ class ElementRecord {
     this.tags.addAll(tags);
   }
   final Set<String> tags = {};
-  final Set<String> connections = {};
+  List<ElementBinding> inlineLinks = [];
   String? folder;
   ThoughtLocation? location;
   final List<VoiceAttachment> recordings = [];
@@ -63,8 +65,8 @@ class ElementSource {
 
 class ElementStore extends ChangeNotifier {
   void Function(String oldText, String newText)? onRenamed;
-  String? update(String oldText, String input, {Iterable<String>? tags, int? labelColor, bool? hiddenFromSearch, String? indexLabel, bool? labelOnLeft, int? indexLabelColor}) {
-    final parsed = parseTaggedInput(input);
+  String? update(String oldText, String input, {Iterable<String>? tags, int? labelColor, bool? hiddenFromSearch, String? indexLabel, bool? labelOnLeft, int? indexLabelColor, List<ElementBinding>? inlineLinks}) {
+    final parsed = inlineLinks == null ? parseTaggedInput(input) : TaggedInput(input.trim(), {...?tags});
     if (parsed.text.isEmpty) return '생각 내용을 입력해주세요.';
     final record = records[oldText];
     if (record == null) return '이미 삭제된 생각입니다.';
@@ -72,6 +74,8 @@ class ElementStore extends ChangeNotifier {
       return '같은 내용의 생각이 이미 있어요.';
     }
     records.remove(oldText);
+    if (inlineLinks != null) { record.inlineLinks = List.of(inlineLinks); }
+    else if (parsed.text != oldText) { record.inlineLinks.clear(); }
     if (indexLabel != null) record.indexLabel = indexLabel.replaceAll(RegExp(r'\s+'), ' ').trim();
     if (labelOnLeft != null) record.labelOnLeft = labelOnLeft;
     if (indexLabelColor != null) record.indexLabelColor = indexLabelColor;
@@ -107,34 +111,11 @@ class ElementStore extends ChangeNotifier {
     ];
   }
 
-  void connect(String id, Iterable<String> targets) {
-    final byId = {for (final record in records.values) record.id: record};
-    final source = byId[id];
-    if (source == null) return;
-    for (final targetId in targets) {
-      final target = byId[targetId];
-      if (target == null || targetId == id) continue;
-      source.connections.add(targetId);
-      target.connections.add(id);
-    }
-    notifyListeners();
-  }
-
-  void disconnect(String id, String targetId) {
-    var changed = false;
-    for (final record in records.values) {
-      if (record.id == id) changed = record.connections.remove(targetId) || changed;
-      if (record.id == targetId) changed = record.connections.remove(id) || changed;
-    }
-    if (changed) notifyListeners();
-  }
-
   void remove(String word) {
     final removed = records.remove(word);
     if (removed == null) return;
     removed.deletedAt = DateTime.now();
     trash[removed.id] = removed;
-    for (final record in records.values) { record.connections.remove(removed.id); }
     notifyListeners();
   }
 
@@ -152,6 +133,13 @@ class ElementStore extends ChangeNotifier {
     return record;
   }
 
+  ElementRecord addLinked(String text, List<ElementBinding> links, Iterable<String> tags) {
+    if (text.trim().isEmpty) throw ArgumentError('Empty thought');
+    ensureWordColor(text);
+    final record = records.putIfAbsent(text, () => ElementRecord(text));
+    record.inlineLinks = List.of(links); record.tags.addAll(tags);
+    return record;
+  }
   void refreshVisibility() => notifyListeners();
   List<String> get words => records.keys.toList();
   bool isSearchable(String word) {
@@ -219,7 +207,7 @@ class _ElementMetadata extends StatefulWidget {
 }
 
 class _ElementMetadataState extends State<_ElementMetadata> {
-  late final TextEditingController _editor;
+  late final LabelTextController _editor;
   late final TextEditingController _labelEditor;
   bool _labelOnLeft = false;
   int _indexLabelColor = 0xFFFFF59D;
@@ -229,7 +217,6 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   late String _word;
   int? _labelColor;
   late bool _closed;
-  final _drafts = <String, ({String text, Set<String> tags, int? color, bool closed, String label, bool left, int labelColor})>{};
   String? _error;
   @override
   void initState() {
@@ -240,29 +227,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     _labelOnLeft = record.labelOnLeft; _indexLabelColor = record.indexLabelColor;
     _tags = Set.of(record.tags);
     _labelColor = record.labelColor; _closed = record.hiddenFromSearch;
-    _editor = TextEditingController(text: record.text)..addListener(_extractTags);
-  }
-
-  void _bind(String word) {
-    final record = elements.records[word];
-    if (record == null || word == _word) return;
-    _drafts[_word] = (text: _editor.text, tags: Set.of(_tags), color: _labelColor, closed: _closed, label: _labelEditor.text, left: _labelOnLeft, labelColor: _indexLabelColor);
-    final draft = _drafts[word];
-    FocusScope.of(context).unfocus();
-    _movingTags = true;
-    try {
-      setState(() {
-        _word = word; _error = null;
-        _labelColor = draft == null ? record.labelColor : draft.color;
-        _closed = draft?.closed ?? record.hiddenFromSearch;
-        _labelEditor.text = draft?.label ?? record.indexLabel;
-        _labelOnLeft = draft?.left ?? record.labelOnLeft;
-        _indexLabelColor = draft?.labelColor ?? record.indexLabelColor;
-        _tags..clear()..addAll(draft?.tags ?? record.tags);
-        _editor.text = draft?.text ?? record.text;
-      });
-    } finally { _movingTags = false; }
-    if (_contentScroll.hasClients) _contentScroll.jumpTo(0);
+    _editor = LabelTextController(record.text, record.inlineLinks)..addListener(_extractTags);
   }
 
   void _extractTags() {
@@ -301,7 +266,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
       titlePadding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       contentPadding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
       actionsPadding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      title: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      title: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
         Expanded(child: InlineTags(key: const ValueKey('element-tags'), tags: _tags,
           onRemove: (tag) => setState(() => _tags.remove(tag)))),
         IconButton(key: const ValueKey('thought-color'), tooltip: '생각 색상 변경',
@@ -322,14 +287,14 @@ class _ElementMetadataState extends State<_ElementMetadata> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(key: const ValueKey('thought-label-editor'), controller: _labelEditor,
+              Padding(padding: const EdgeInsets.only(top: 8), child: TextField(key: const ValueKey('thought-label-editor'), controller: _labelEditor,
                 maxLines: 1, decoration: InputDecoration(labelText: '라벨', hintText: '라벨 붙이기', isDense: true,
                   suffixIcon: IconButton(key: const ValueKey('index-label-color'), tooltip: '라벨 색상',
                     icon: Icon(Icons.circle, color: Color(_indexLabelColor).withValues(alpha: .6), size: 22),
                     onPressed: () async {
                       final color = await pickHashtagColor(context, '라벨', Color(_indexLabelColor), prefix: '');
                       if (color != null && mounted) setState(() => _indexLabelColor = color.toARGB32());
-                    }))),
+                    })))),
               const SizedBox(height: 4),
               TextFieldTapRegion(child: Row(children: [
                 const Text('붙일 방향'), const Spacer(),
@@ -345,6 +310,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               TextField(
                 key: const ValueKey('element-editor'),
                 controller: _editor,
+                onTap: () => _editor.openAtCaret(context),
                 minLines: 3,
                 maxLines: 6,
                 keyboardType: TextInputType.multiline,
@@ -373,15 +339,6 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               if (element.photos.isNotEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: PhotoGallery(photos: element.photos)),
               for (final clip in element.recordings) VoicePlayer(key: ValueKey(clip.id),
                 load: () => MediaStorage.read(clip.id), durationMs: clip.durationMs),
-              if (element.connections.isNotEmpty) ...[
-                const Divider(key: ValueKey('element-connections-divider'), height: 24, thickness: 1),
-                Text('연결', style: Theme.of(context).textTheme.labelMedium),
-                const SizedBox(height: 6),
-                Wrap(spacing: 6, runSpacing: 6, children: [
-                  for (final linked in elements.records.values.where((r) => element.connections.contains(r.id)))
-                    WordBadge(word: linked.text, displayText: linked.title, onTap: () => _bind(linked.text)),
-                ]),
-              ],
             ],
           ),
         ),
@@ -395,7 +352,8 @@ class _ElementMetadataState extends State<_ElementMetadata> {
         FilledButton.tonal(
           style: compact,
           onPressed: () {
-            final error = elements.update(word, _editor.text, tags: _tags, labelColor: _labelColor, hiddenFromSearch: _closed, indexLabel: _labelEditor.text, labelOnLeft: _labelOnLeft, indexLabelColor: _indexLabelColor);
+            final cleaned = cleanLinkedInput(_editor);
+            final error = elements.update(word, cleaned.text, inlineLinks: cleaned.links, tags: {..._tags, ...cleaned.tags}, labelColor: _labelColor, hiddenFromSearch: _closed, indexLabel: _labelEditor.text, labelOnLeft: _labelOnLeft, indexLabelColor: _indexLabelColor);
             if (error != null) {
               setState(() => _error = error);
               return;
@@ -441,110 +399,12 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   }
 }
 
-class ElementText extends StatefulWidget {
+class ElementText extends StatelessWidget {
   const ElementText(this.text, {super.key, this.style, this.focusOffset});
   final String text;
   final TextStyle? style;
   final int? focusOffset;
   @override
-  State<ElementText> createState() => _ElementTextState();
-}
-class _ElementTextState extends State<ElementText> {
-  final _links = <String, TapGestureRecognizer>{};
-  @override
-  void dispose() { for (final link in _links.values) { link.dispose(); } super.dispose(); }
-  @override
-  Widget build(BuildContext context) {
-    final text = widget.text, style = widget.style;
-    final spans = <InlineSpan>[];
-    var cursor = 0;
-    for (final hit in elements.matches(text)) {
-      spans.add(TextSpan(text: text.substring(cursor, hit.start)));
-      if (hit.word.contains('\n') || hit.word.contains('\r')) {
-        final link = _links.putIfAbsent('${hit.start}:${hit.word}', () => TapGestureRecognizer());
-        link.onTap = () => showElementMetadata(context, hit.word);
-        spans.add(TextSpan(text: hit.word, recognizer: link,
-          style: TextStyle(color: wordColor(context, hit.word), decoration: TextDecoration.underline,
-            decorationStyle: TextDecorationStyle.dotted)));
-      } else { spans.add(
-        WidgetSpan(
-          alignment: PlaceholderAlignment.baseline,
-          baseline: TextBaseline.alphabetic,
-          child: ElementLink(
-            key: ValueKey('element-${hit.start}'),
-            word: hit.word,
-            style: style,
-            autofocus: widget.focusOffset == hit.start,
-          ),
-        ),
-      );
-      }
-      cursor = hit.end;
-    }
-    spans.add(TextSpan(text: text.substring(cursor)));
-    return Text.rich(TextSpan(children: spans), style: style);
-  }
-}
-
-class ElementLink extends StatefulWidget {
-  const ElementLink({
-    super.key,
-    required this.word,
-    this.style,
-    this.autofocus = false,
-  });
-  final String word;
-  final TextStyle? style;
-  final bool autofocus;
-  @override
-  State<ElementLink> createState() => _ElementLinkState();
-}
-
-class _ElementLinkState extends State<ElementLink> {
-  bool _focused = false;
-  void _focus(bool value) {
-    setState(() => _focused = value);
-    if (value) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) Scrollable.ensureVisible(context, alignment: .4);
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    link: true,
-    child: Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        autofocus: widget.autofocus,
-        onFocusChange: _focus,
-        borderRadius: BorderRadius.circular(6),
-        onTap: () => showElementMetadata(context, widget.word),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: _focused
-                  ? wordColor(context, widget.word)
-                  : Colors.transparent,
-              width: 1,
-            ),
-          ),
-          child: Text(
-            widget.word,
-            style: (widget.style ?? DefaultTextStyle.of(context).style)
-                .copyWith(
-                  color: wordColor(context, widget.word),
-                  decoration: TextDecoration.underline,
-                  decorationStyle: TextDecorationStyle.dotted,
-                  decorationColor: wordBackgroundColor(context, widget.word),
-                  decorationThickness: 2,
-                ),
-          ),
-        ),
-      ),
-    ),
-  );
+  Widget build(BuildContext context) => DocumentMarkup(text: text,
+    links: elements.records[text]?.inlineLinks ?? const [], style: style, formatting: false);
 }

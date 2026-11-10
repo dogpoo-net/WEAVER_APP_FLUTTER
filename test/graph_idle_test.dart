@@ -65,7 +65,6 @@ void main() {
       await tester.pumpAndSettle();
       final settled = Map.of(layout.positions);
       elements.update('생각 A', '생각 A 수정');
-      elements.connect(a.id, [b.id]);
       await tester.pump(const Duration(milliseconds: 500));
       final count = saves;
       await tester.pump(const Duration(seconds: 2));
@@ -96,7 +95,6 @@ void main() {
     await tester.pumpAndSettle();
     final covered = Map.of(pageGraphLayout.positions);
     final count = saves;
-    elements.connect(a.id, [b.id]);
     await tester.pump(const Duration(seconds: 2));
     expect(pageGraphLayout.positions, covered);
     expect(saves, count, reason: 'A covered graph must not rebuild or save on store notifications.');

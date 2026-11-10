@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'word_badge.dart';
 import 'element_store.dart';
+import 'label_links.dart';
 import 'mobile_element_assist.dart';
 import 'project_folders.dart';
 
@@ -348,9 +349,10 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       _controlling = false;
       _controlValue = null;
     }
-    final token = tagPrefix(value);
+    final pending = widget.useThoughtLabels ? pendingLabelLink(value) : null;
+    final token = pending == null ? tagPrefix(value) : '';
     final tagMode = widget.onTag != null && token.isNotEmpty;
-    final query = tagMode ? token.substring(1) : completionPrefix(value, widget.words.map(_title).toList());
+    final query = tagMode ? token.substring(1) : pending?.query ?? completionPrefix(value, widget.words.map(_title).toList());
     if (_query != query || _tagMode != tagMode) _selected = 0;
     _tagMode = tagMode; _query = query;
     _matches = tagMode ? wordSuggestions(widget.tags.where((tag) => !hiddenSearchTags.contains(tag)).toList(), query).map((tag) => '#$tag').toList() : (widget.useThoughtLabels ? widget.words.where((word) => matchesWord(_title(word), query)).toList() : wordSuggestions(widget.words, query));
@@ -403,7 +405,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       }
       final value = widget.controller.value;
       if (refreshMatches) _refreshMatches(value);
-      if (_matches.isEmpty || (!widget.showWhenEmpty && !_tagMode && _query.isEmpty && _explicitOpenText == null)) {
+      if (_matches.isEmpty || (!widget.showWhenEmpty && !_tagMode && _query.isEmpty && pendingLabelLink(widget.controller.value) == null && _explicitOpenText == null)) {
         _controlling = false;
         _controlValue = null;
         _hide();

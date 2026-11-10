@@ -34,11 +34,9 @@ void main() {
       ..photos.add(const PhotoAttachment('photo', '사진.jpg'))
       ..recordings.add(const VoiceAttachment('voice', 1200));
     final b = elements.add('연결 상대');
-    elements.connect(a.id, [b.id]);
     elements.remove(a.text);
     expect(elements.words, [b.text]);
     expect(elements.tags, isNot(contains('자료')));
-    expect(b.connections, isEmpty);
     WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([])).apply();
     final restored = elements.trash[a.id]!;
     expect(restored.tags, {'자료'});

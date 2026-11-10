@@ -22,7 +22,6 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
     elements.clear();
     final thought = elements.add('내용 #태그'); final peer = elements.add('연결된 생각');
-    elements.connect(thought.id, [peer.id]);
     await tester.pumpWidget(MaterialApp(theme: ThemeData(inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder())),
       home: Builder(builder: (context) => Scaffold(body: TextButton(onPressed: () => showElementMetadata(context, thought.text), child: const Text('정보'))))));
     await tester.tap(find.text('정보')); await tester.pumpAndSettle();
@@ -36,7 +35,7 @@ void main() {
     expect(tester.getTopLeft(find.text('생각 닫기')).dy, greaterThan(tester.getBottomRight(editor).dy));
     final date = find.byKey(const ValueKey('element-created-at'));
     expect(tester.getTopLeft(date).dy, greaterThan(tester.getBottomRight(find.text('생각 닫기')).dy));
-    expect(find.byKey(const ValueKey('element-connections-divider')), findsOneWidget);
+    expect(find.byKey(const ValueKey('element-connections-divider')), findsNothing);
     for (final removed in ['검색에서 숨기기', '메인과 생각 어시스트에 표시하지 않습니다.', '생성일', '프로젝트 사용', '사용 위치', '함께 쓰인 생각', '원소 삭제']) {
       expect(find.text(removed), findsNothing);
     }

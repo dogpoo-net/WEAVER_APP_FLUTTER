@@ -1,3 +1,4 @@
+import 'element_binding.dart';
 import 'dart:math';
 import 'desktop_menu_frame.dart';
 import 'paragraph_editor.dart';
@@ -12,7 +13,7 @@ class WritingProject {
     this.folder, String? id,
   }) : id = id ?? 'project-${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(0x7fffffff)}', words = List.of(words);
   final String id;
-  final Set<String> linkedProjectIds = {};
+  List<ElementBinding> documentLinks = [];
   String? document;
   final Set<String> tags = {};
   String get content => document ?? paragraphs.map((p) => p.text).join('\n\n');

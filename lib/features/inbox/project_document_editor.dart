@@ -1,3 +1,5 @@
+import 'label_links.dart';
+import 'document_markup.dart';
 import 'caret_assist.dart';
 import 'keyboard_dismiss.dart';
 import 'workspace_routes.dart';
@@ -18,11 +20,10 @@ class ProjectDocumentEditor extends StatefulWidget {
   State<ProjectDocumentEditor> createState() => _ProjectDocumentEditorState();
 }
 class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
-  late final TextEditingController _name, _body;
+  late final LabelTextController _body;
+  bool _preview = false;
   final _search = TextEditingController();
   final _bodyFocus = FocusNode();
-  final _projectLinks = <String>{};
-  List<WritingProject> get _linkCandidates => widget.projects.where((p) => p.id != widget.project?.id).toList();
   final _references = <String>{}, _tags = <String>{};
   bool _dirty = false, _panelOpen = false;
   final _thoughtScroll = ScrollController(), _tagScroll = ScrollController(), _documentScroll = ScrollController();
@@ -30,56 +31,39 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   @override
   void initState() {
     super.initState();
-    _name = TextEditingController(text: widget.project?.name ?? '');
-    _body = TextEditingController(text: widget.project?.document ?? widget.project?.paragraphs.map((p) =>
-      '${p.role == ParagraphRole.title ? '# ' : p.role == ParagraphRole.subtitle ? '## ' : ''}${p.text}').join('\n\n') ?? '');
+    _body = LabelTextController( widget.project?.document ?? widget.project?.paragraphs.map((p) =>
+      p.role == ParagraphRole.title ? '====== ${p.text} ======' : p.role == ParagraphRole.subtitle ? '===== ${p.text} =====' : p.text).join('\n\n') ?? '', widget.project?.documentLinks ?? const []);
     _references.addAll(widget.project?.words ?? []);
-    _projectLinks.addAll(widget.project?.linkedProjectIds ?? {});
     if (widget.project != null) { if (widget.project!.document == null) _references.addAll(elements.matches(_body.text).map((h) => h.word)); elements.indexProject(widget.project!); }
     _tags.addAll(widget.project?.tags ?? {});
     if (widget.project?.document == null) _tags.addAll(widget.project?.paragraphs.expand((p) => p.tags) ?? <String>[]);
-    _name.addListener(_edited); _body.addListener(_edited); elements.addListener(_refresh);
+    _body.addListener(_edited); elements.addListener(_refresh);
   }
   void _edited() { if (mounted) setState(() => _dirty = true); }
   void _refresh() { if (mounted) setState(() {}); }
   @override
-  void dispose() { elements.removeListener(_refresh); _name.dispose(); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _tagScroll.dispose(); _documentScroll.dispose(); super.dispose(); }
-  Future<void> _linkProject(String title) async {
-    final matches = _linkCandidates.where((p) => p.name == title).toList();
-    if (matches.isEmpty) return;
-    final chosen = matches.length == 1 ? matches.single : await showDialog<WritingProject>(context: context,
-      builder: (context) => SimpleDialog(title: const Text('연결할 프로젝트 선택'), children: [
-        for (final p in matches) SimpleDialogOption(onPressed: () => Navigator.pop(context, p),
-          child: Text('${p.name} · ${p.folder ?? "폴더 밖"}\n${p.content.replaceAll("\n", " ")}', maxLines: 2, overflow: TextOverflow.ellipsis)),
-      ]));
-    if (chosen == null || !mounted) return;
-    final value = _body.value;
-    final prefix = completionPrefix(value, _linkCandidates.map((p) => p.name).toList());
-    final end = value.selection.isValid ? value.selection.end : value.text.length;
-    final start = ((value.selection.isValid ? value.selection.start : end) - prefix.length).clamp(0, end);
-    setState(() {
-      _projectLinks.add(chosen.id); _dirty = true;
-      _body.value = TextEditingValue(text: value.text.replaceRange(start, end, ''), selection: TextSelection.collapsed(offset: start));
-    });
-    _bodyFocus.requestFocus();
+  void dispose() { elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _tagScroll.dispose(); _documentScroll.dispose(); super.dispose(); }
+  void _insertLabel(String word) {
+    final record = elements.records[word];
+    if (record != null) { _body.insertLabel(record); _bodyFocus.requestFocus(); }
   }
-  Future<void> _openProject(WritingProject project) async {
-    await Navigator.push(context, MaterialPageRoute<void>(builder: (_) => ProjectPage(
-      project: project, projects: widget.projects, onChanged: widget.onChanged)));
-    if (mounted) setState(() {});
+  void _insertTag(String tag) {
+    final token = tagPrefix(_body.value);
+    if (token.isEmpty) return;
+    final end = _body.selection.end;
+    _body.value = TextEditingValue(text: _body.text.replaceRange(end - token.length, end, '#$tag '),
+      selection: TextSelection.collapsed(offset: end - token.length + tag.length + 2));
+    _tags.add(tag); _bodyFocus.requestFocus();
   }
   Future<void> _save() async {
-    if (_name.text.trim().isEmpty || _body.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('프로젝트 이름과 본문을 입력해주세요.'))); return;
+    _body.completeLinks();
+    if (_body.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('본문을 입력해주세요.'))); return;
     }
-    final project = widget.project ?? WritingProject([], [], name: _name.text.trim());
+    final project = widget.project ?? WritingProject([], [], name: documentTitle(_body.text));
     // The original paragraphs and their bindings remain intact in storage.
-    project.document = _body.text; project.name = _name.text.trim();
-    project.linkedProjectIds..clear()..addAll(_projectLinks.where((id) => id != project.id && widget.projects.any((p) => p.id == id)));
-    for (final peer in widget.projects.where((p) => p.id != project.id)) {
-      if (project.linkedProjectIds.contains(peer.id)) { peer.linkedProjectIds.add(project.id); }
-      else { peer.linkedProjectIds.remove(project.id); }
-    }
+    project.document = _body.text; project.name = documentTitle(_body.text);
+    project.documentLinks = List.of(_body.bindings);
     project.words..clear()..addAll(_references); project.tags..clear()..addAll(_tags);
     if (widget.project == null) { Navigator.pop(context, project); return; }
     elements.indexProject(project); await widget.onChanged?.call();
@@ -124,7 +108,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('계속 작성')),
       TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('나가기'))]));
     if (discard == true && mounted) { setState(() => _dirty = false); WidgetsBinding.instance.addPostFrameCallback((_) { if (context.mounted) Navigator.pop(context); }); }
-  }, child: Scaffold(appBar: AppBar(title: WorkspaceTitle(widget.project?.name ?? '프로젝트 만들기'), actions: [const KeyboardDismissAction(), const DesktopMenuAction(), TextButton(onPressed: _save, child: const Text('저장')),
+  }, child: Scaffold(appBar: AppBar(title: WorkspaceTitle(widget.project?.name ?? '프로젝트 만들기'), actions: [const KeyboardDismissAction(), const DesktopMenuAction(), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _preview = !_preview)), TextButton(onPressed: _save, child: const Text('저장')),
     if (widget.project != null) IconButton(tooltip: '프로젝트 폴더', icon: const Icon(Icons.folder_outlined), onPressed: () async {
       final folder = await showDialog<String>(context: context, builder: (context) => SimpleDialog(title: const Text('프로젝트 폴더'), children: [for (final folder in ['', ...projectFolders])
         SimpleDialogOption(onPressed: () => Navigator.pop(context, folder), child: Text(folder.isEmpty ? '폴더 밖으로' : folder))]));
@@ -137,19 +121,15 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
           onPressed: () => setState(() => _panelOpen = !_panelOpen),
           icon: Icon(_panelOpen ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up, size: 16),
           label: Text(_panelOpen ? '참고 패널 숨기기' : '참고 패널 올리기'))))), body: DesktopMenuBody(child: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
-      final document = Column(children: [TextField(key: const ValueKey('project-name'), controller: _name, style: const TextStyle(fontSize: 13), decoration: const InputDecoration(hintText: '프로젝트 이름', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8))),
-        if (_projectLinks.isNotEmpty) SizedBox(height: 32, child: ListView(scrollDirection: Axis.horizontal, children: [
-          for (final linked in _linkCandidates.where((p) => _projectLinks.contains(p.id))) Padding(padding: const EdgeInsets.only(right: 4),
-            child: InputChip(key: ValueKey('project-link-${linked.id}'), visualDensity: VisualDensity.compact,
-              label: Text(linked.name, style: const TextStyle(fontSize: 11)), avatar: const Icon(Icons.link, size: 14),
-              onPressed: () => _openProject(linked), onDeleted: () => setState(() { _projectLinks.remove(linked.id); _dirty = true; }))),
-        ])),
-        const SizedBox(height: 6), Expanded(child: CaretAssist(controller: _body, focus: _bodyFocus,
-          words: _linkCandidates.map((p) => p.name).toSet().toList(), onWord: _linkProject,
+      final document = _preview
+        ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
+        : CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true,
+          words: elements.visibleWords.where((word) => elements.records[word]!.indexLabel.isNotEmpty).toList(), onWord: _insertLabel,
+          tags: elements.tags.toList(), onTag: _insertTag,
           showWhenEmpty: false, enterSelectsVisible: true, showShortcutHint: true,
           child: TextField(key: const ValueKey('project-document'), controller: _body, focusNode: _bodyFocus, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
-          textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
-          decoration: const InputDecoration(hintText: '연결된 생각을 참고하며 자유롭게 글을 써보세요.', border: OutlineInputBorder()))))]);
+          onTap: () => _body.openAtCaret(context), textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
+          decoration: const InputDecoration(hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: OutlineInputBorder())));
       final panel = Padding(padding: const EdgeInsets.all(6), child: _referencesPanel());
       return Padding(padding: EdgeInsets.fromLTRB(_wide ? 16 : 8, 8, _wide ? 16 : 8, 0), child: _wide
         ? Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Expanded(child: document), const SizedBox(width: 20),

@@ -24,14 +24,13 @@ class ThoughtBoxView extends StatefulWidget {
 }
 
 class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
-  String? _selectedId;
   String _query = '';
   final _textWidths = <String, double>{};
   bool _photosOnly = false, _audioOnly = false;
   MemoBox? _filterBox;
   String? _filterTag;
   void _filter({MemoBox? box, String? tag}) => setState(() {
-    _filterBox = box; _filterTag = tag; _selectedId = null;
+    _filterBox = box; _filterTag = tag;
   });
   int _columns = 2;
   int _scaleColumns = 2;
@@ -59,23 +58,8 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     elements.removeListener(_refresh);
     super.dispose();
   }
-  ElementRecord? get _selected {
-    for (final record in elements.records.values) { if (record.id == _selectedId) return record; }
-    return null;
-  }
-  void _select(String word) {
-    final id = elements.records[word]?.id;
-    if (_selectedId != id) setState(() => _selectedId = id);
-  }
-  Widget _badge(String word, bool desktop, {bool link = false}) {
-    final badge = WordBadge(
-    word: word, displayText: link ? elements.records[word]?.title : null, compact: true, fullText: true, query: _query, selected: elements.records[word]?.id == _selectedId,
-    onTap: desktop ? () {} : () => showElementMetadata(context, word),
-    onDoubleTap: desktop ? () { _select(word); showElementMetadata(context, word); } : null,
-    );
-    return desktop ? Listener(key: ValueKey('select-$word'),
-      onPointerDown: (event) { if (event.buttons == 1) _select(word); }, child: badge) : badge;
-  }
+  Widget _badge(String word, bool desktop) => WordBadge(word: word, compact: true, fullText: true, query: _query,
+    onTap: () => showElementMetadata(context, word));
   Widget _tile(ElementRecord record, bool desktop, {double width = 280}) {
     final tile = SizedBox(key: ValueKey('thought-${record.id}'), width: width, child: _badge(record.text, desktop));
     final feedback = Material(color: Colors.transparent, child: SizedBox(width: 180, child: _badge(record.text, false)));
@@ -83,19 +67,6 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
       childWhenDragging: Opacity(opacity: .4, child: tile), child: tile); }
     return LongPressDraggable<MemoDrag>(data: MemoDrag(record.id), feedback: feedback,
       childWhenDragging: Opacity(opacity: .4, child: tile), child: tile);
-  }
-  Widget _relations(bool desktop) {
-    final selected = _selected;
-    if (selected == null) { return const Center(child: Text('생각을 클릭하면 연결된 생각을 보여줍니다.')); }
-    final related = elements.records.values.where((r) => selected.connections.contains(r.id) &&
-      (widget.initialBox == null || widget.initialBox!.elementIds.contains(r.id)));
-    return SingleChildScrollView(key: const ValueKey('thought-relations'), padding: const EdgeInsets.all(20),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const Text('연결된 생각', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-        const SizedBox(height: 12), _badge(selected.text, desktop), const Divider(height: 24),
-        if (related.isEmpty) const Text('연결된 생각이 없어요.'),
-        for (final record in related) Padding(padding: const EdgeInsets.only(bottom: 6), child: _badge(record.text, desktop, link: true)),
-      ]));
   }
   @override
   Widget build(BuildContext context) {
@@ -192,14 +163,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
           style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 13 : 14),
           onChanged: (value) => setState(() => _query = value.trim()),
           decoration: const InputDecoration(hintText: '생각·해시태그 찾기', prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 36), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), isDense: true))),
-        Expanded(child: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
-        if (desktop && constraints.maxWidth >= 760) { return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Expanded(child: grid), const VerticalDivider(width: 1), SizedBox(width: 320, child: _relations(desktop)),
-        ]); }
-        if (desktop) { return Column(children: [Expanded(child: grid),
-          if (_selected != null) SizedBox(height: 260, child: _relations(desktop))]); }
-        return grid;
-      }))), footer])),
+        Expanded(child: SafeArea(child: grid)), footer])),
     );
   }
 }

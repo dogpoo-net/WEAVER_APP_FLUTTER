@@ -46,31 +46,6 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
-  testWidgets('page connects thoughts bidirectionally and creates a thought', (tester) async {
-    elements.clear(); final a = elements.add('생각 A #안쪽'); final b = elements.add('생각 B');
-    elements.add('상자 밖 생각 #바깥');
-    final box = MemoBox('테스트 상자', ids: [a.id, b.id]);
-    var changes = 0;
-    await tester.pumpWidget(MaterialApp(home: ThoughtPage(box: box, onChanged: () => changes++)));
-    await tester.pumpAndSettle();
-    expect(find.text('상자 밖 생각'), findsNothing);
-    expect(find.byKey(const ValueKey('graph-tag-바깥')), findsNothing);
-    expect(find.byKey(const ValueKey('thought-filter-tag-바깥')), findsOneWidget);
-    expect(find.text('#안쪽'), findsWidgets);
-    await tester.tap(find.byTooltip('연결 모드')); await tester.pump();
-    await tester.tap(find.text('생각 A')); await tester.pump();
-    await tester.tap(find.text('생각 B')); await tester.pumpAndSettle();
-    expect(a.connections, {b.id}); expect(b.connections, {a.id});
-    await tester.tap(find.byTooltip('생각 만들기')); await tester.pumpAndSettle();
-    await tester.tap(find.text('생각 만들기')); await tester.pumpAndSettle();
-    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), '새 생각');
-    await tester.tap(find.text('만들기')); await tester.pumpAndSettle();
-    expect(elements.records.containsKey('새 생각'), isTrue);
-    expect(box.elementIds, contains(elements.records['새 생각']!.id));
-    expect(changes, greaterThan(0));
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-  });
   testWidgets('saved manual layouts have no destructive rearrange action', (tester) async {
     elements.clear();
     final a = elements.add('수동 배치 #태그');
@@ -112,7 +87,6 @@ void main() {
       final a = elements.add('연결된 생각 #독서');
       final b = elements.add('참고 생각');
       final c = elements.add('홀로 생각 #검토');
-      elements.connect(a.id, [b.id]);
       final box = MemoBox('검토 상자', ids: [a.id, b.id, c.id]);
       await tester.pumpWidget(MaterialApp(home: ThoughtPage(box: inBox ? box : null, onChanged: () {})));
       await tester.pumpAndSettle();
@@ -135,7 +109,6 @@ void main() {
       await tester.tap(find.text('해시태그 숨기기'));
       await tester.pumpAndSettle();
       expect(tag, findsOneWidget);
-      expect(a.connections, contains(b.id));
       expect(elements.records.length, 3);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());

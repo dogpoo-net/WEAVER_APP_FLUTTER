@@ -13,15 +13,13 @@ void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); memoBoxFolderParents.clear(); pageGraphLayout = GraphLayout(); });
   test('labels persist without changing connection identity, including trash', () {
     final a = elements.add('본문'), b = elements.add('다른 본문');
-    elements.connect(a.id, [b.id]);
     expect(elements.update(a.text, a.text, indexLabel: ' 제목\n두줄 ', labelOnLeft: true, indexLabelColor: 0xFFFFCC80), isNull);
     expect(a.indexLabel, '제목 두줄');
     final snapshot = WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([]));
     snapshot.apply();
     final restored = elements.records['본문']!;
     expect(restored.indexLabel, '제목 두줄'); expect(restored.labelOnLeft, isTrue);
-    expect(restored.indexLabelColor, 0xFFFFCC80); expect(restored.connections, {b.id});
-    expect(elements.records['다른 본문']!.connections, {a.id});
+    expect(restored.indexLabelColor, 0xFFFFCC80);
     elements.remove(restored.text);
     WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([])).apply();
     expect(elements.trash[a.id]!.indexLabel, '제목 두줄');

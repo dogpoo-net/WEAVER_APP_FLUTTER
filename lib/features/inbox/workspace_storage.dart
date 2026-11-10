@@ -69,7 +69,7 @@ class WorkspaceSnapshot {
             'text': r.text,
             'createdAt': r.createdAt.toIso8601String(),
             'tags': r.tags.toList(),
-            'connections': r.connections.toList(),
+            'inlineLinks': r.inlineLinks.map((link) => link.toJson()).toList(),
             'folder': r.folder,
             'hiddenFromSearch': r.hiddenFromSearch,
             if (r.labelColor != null) 'labelColor': r.labelColor,
@@ -109,7 +109,7 @@ class WorkspaceSnapshot {
                 : {
                     'name': n.project!.name,
                     'id': n.project!.id,
-                    'linkedProjectIds': n.project!.linkedProjectIds.toList(),
+                    'documentLinks': n.project!.documentLinks.map((link) => link.toJson()).toList(),
                     'folder': n.project!.folder,
                     'words': n.project!.words,
                     'document': n.project!.document,
@@ -158,7 +158,7 @@ class WorkspaceSnapshot {
         text,
         DateTime.parse(r['createdAt'] as String),
         tags: ((r['tags'] ?? []) as List).cast<String>(),
-      )..connections.addAll(((r['connections'] ?? []) as List).cast<String>())
+      )..inlineLinks = bindings({'text': text, 'bindings': r['inlineLinks']})
        ..folder = r['folder'] as String?
        ..hiddenFromSearch = (r['hiddenFromSearch'] as bool?) ?? false
        ..labelColor = r['labelColor'] is int ? r['labelColor'] as int : null
@@ -178,11 +178,6 @@ class WorkspaceSnapshot {
     if (records.map((r) => r.text).toSet().length != records.length ||
         records.map((r) => r.id).toSet().length != records.length) {
       throw const FormatException('Duplicate elements');
-    }
-    final byId = {for (final record in records) record.id: record};
-    for (final record in records) {
-      record.connections.removeWhere((id) => id == record.id || !byId.containsKey(id));
-      for (final id in record.connections.toList()) { byId[id]!.connections.add(record.id); }
     }
     final notes = (data['notes'] as List).map((n) {
       final note = Note(
@@ -204,7 +199,7 @@ class WorkspaceSnapshot {
           folder: p['folder'] as String?,
         );
         note.project!.document = p['document'] as String?;
-        note.project!.linkedProjectIds.addAll(List<String>.from(p['linkedProjectIds'] ?? []));
+        note.project!.documentLinks = bindings({'text': p['document'] ?? '', 'bindings': p['documentLinks']});
         note.project!.tags.addAll(List<String>.from(p['tags'] ?? []));
         note.paragraphs = note.project!.paragraphs;
         note.content = note.project!.content;

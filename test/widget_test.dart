@@ -16,7 +16,7 @@ void main() {
     expect(find.text('작은 생각'), findsOneWidget);
     await tester.enterText(find.byKey(const ValueKey('quick-memo')), '생각');
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('suggestion-작은 생각')), findsOneWidget);
+    expect(find.byKey(const ValueKey('suggestion-작은 생각')), findsNothing);
   });
   test('empty and composing first Hangul syllable match candidates', () {
     expect(matchesWord('관찰', ''), isTrue);

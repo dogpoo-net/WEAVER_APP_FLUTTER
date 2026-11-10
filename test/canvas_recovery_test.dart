@@ -27,7 +27,6 @@ void main() {
     });
     testWidgets('layout menu waits for selection and preserves contents and other view ($blocks)', (tester) async {
       final a = elements.add('초기화 대상'), b = elements.add('연결된 생각');
-      elements.connect(a.id, {b.id});
       memoBoxes.add(MemoBox('유지할 분류', ids: [a.id]));
       final layout = blocks ? pageGraphLayout.blockLayout : pageGraphLayout;
       final other = blocks ? pageGraphLayout : pageGraphLayout.blockLayout;
@@ -47,7 +46,6 @@ void main() {
       expect(layout.positions[a.id], isNot(const Offset(1700, 1700)));
       expect(other.positions[a.id], const Offset(77, 88));
       expect(elements.records.length, 2);
-      expect(a.connections, contains(b.id));
       expect(memoBoxes.single.elementIds, contains(a.id));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
