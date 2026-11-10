@@ -19,6 +19,9 @@ void main() {
     await tester.tap(suggestion); await tester.pumpAndSettle();
     final controller = tester.widget<TextField>(field).controller! as LabelTextController;
     expect(controller.text, '별칭'); expect(controller.bindings.single.id, 'project:${target.id}');
+    controller.clear();
+    await tester.enterText(field, '<code>참고'); await tester.pumpAndSettle();
+    expect(suggestion, findsNothing);
     expect(find.byTooltip('프로젝트 폴더'), findsNothing);
     await tester.tap(find.byTooltip('작성 문법 안내')); await tester.pumpAndSettle();
     expect(find.text('프로젝트 작성 문법'), findsOneWidget);

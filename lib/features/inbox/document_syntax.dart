@@ -2,6 +2,9 @@
 final projectHeading = RegExp(r'^(={2,6})(?![=])(.+?)(?<![=])\1$');
 final codeMarkup = RegExp(r'<code>[\s\S]*?(?:</code>|$)');
 
+bool caretInsideCode(String text, int caret) => codeMarkup.allMatches(text).any((match) =>
+  caret > match.start && (caret < match.end || (caret == match.end && !match.group(0)!.endsWith('</code>'))));
+
 String documentTitle(String text) {
   final prose = text.replaceAllMapped(codeMarkup, (match) => '\n' * '\n'.allMatches(match.group(0)!).length);
   for (final line in prose.split('\n')) {

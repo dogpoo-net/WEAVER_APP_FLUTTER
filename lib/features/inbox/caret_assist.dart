@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'word_badge.dart';
 import 'label_links.dart';
+import 'document_syntax.dart';
 import 'mobile_element_assist.dart';
 import 'project_folders.dart';
 
@@ -347,6 +348,10 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
            value.selection.extentOffset != controlValue.selection.extentOffset)))) {
       _controlling = false;
       _controlValue = null;
+    }
+    if (widget.useThoughtLabels && caretInsideCode(value.text, value.selection.extentOffset)) {
+      _matches = []; _controlling = false; _controlValue = null;
+      return;
     }
     final pending = widget.useThoughtLabels ? pendingLabelLink(value) : null;
     final token = pending == null ? tagPrefix(value) : '';
