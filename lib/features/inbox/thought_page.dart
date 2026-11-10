@@ -65,10 +65,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final focal = viewport.globalToLocal((points[0] + points[1]) / 2);
     final distance = (points[0] - points[1]).distance;
     _selectionZoomDistance ??= math.max(1, distance);
-    _selectionZoomBase ??= _view.value.getMaxScaleOnAxis();
+    _selectionZoomBase ??= _view.value.storage[0].abs();
     _selectionZoomAnchor ??= _view.toScene(focal);
     final zoom = (_selectionZoomBase! * distance / _selectionZoomDistance!).clamp(.15, MediaQuery.sizeOf(context).width >= 760 ? 12.0 : 8.0);
-    _view.value = Matrix4.diagonal3Values(zoom, zoom, 1)..setTranslationRaw(
+    _view.value = Matrix4.diagonal3Values(zoom, zoom, zoom)..setTranslationRaw(
       focal.dx - _selectionZoomAnchor!.dx * zoom, focal.dy - _selectionZoomAnchor!.dy * zoom, 0);
     _selectionPinched = true;
   }
@@ -85,10 +85,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final viewport = _viewportKey.currentContext?.findRenderObject() as RenderBox?;
     if (viewport == null) return;
     final focal = viewport.globalToLocal(globalFocal);
-    _pinchBase ??= _view.value.getMaxScaleOnAxis() / scale;
+    _pinchBase ??= _view.value.storage[0].abs() / scale;
     _pinchAnchor ??= _view.toScene(focal);
     final zoom = (_pinchBase! * scale).clamp(.15, MediaQuery.sizeOf(context).width >= 760 ? 12.0 : 8.0);
-    _view.value = Matrix4.diagonal3Values(zoom, zoom, 1)..setTranslationRaw(
+    _view.value = Matrix4.diagonal3Values(zoom, zoom, zoom)..setTranslationRaw(
       focal.dx - _pinchAnchor!.dx * zoom, focal.dy - _pinchAnchor!.dy * zoom, 0);
   }
   void _endPinch() { _pinchBase = null; _pinchAnchor = null; _saveLayout(flush: true); }
@@ -471,7 +471,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             final left = points.map((p) => p.dx).reduce(math.min), right = points.map((p) => p.dx).reduce(math.max) + 170;
             final top = points.map((p) => p.dy).reduce(math.min), bottom = points.map((p) => p.dy).reduce(math.max) + 76;
             final scale = math.min(viewport.maxWidth / (right - left + 120), viewport.maxHeight / (bottom - top + 120)).clamp(.15, 1.0);
-            _view.value = Matrix4.diagonal3Values(scale, scale, 1)..setTranslationRaw(viewport.maxWidth / 2 - (left + right) / 2 * scale,
+            _view.value = Matrix4.diagonal3Values(scale, scale, scale)..setTranslationRaw(viewport.maxWidth / 2 - (left + right) / 2 * scale,
               viewport.maxHeight / 2 - (top + bottom) / 2 * scale, 0);
           });
         }
@@ -537,7 +537,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   final target = records.where((r) => r.id != record.id && _bounds(r.id).overlaps(_bounds(record.id))).lastOrNull;
                   final snap = target == null
                     ? snapThought(_bounds(record.id), records.where((r) => r.id != record.id).map((r) => _bounds(r.id)),
-                        tolerance: (24 / _view.value.getMaxScaleOnAxis()).clamp(12, 48))
+                        tolerance: (24 / _view.value.storage[0].abs()).clamp(12, 48))
                     : nextStackSlot(target.id, record.id, _positions) - _positions[record.id]!;
                   final snapped = _positions[record.id]! + snap;
                   if (snapped.dx >= 32 && snapped.dy >= 32) _positions[record.id] = snapped;
@@ -644,7 +644,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               if (_movingSelection) {
                 final left = _selected.map((id) => _positions[id]!.dx).reduce(math.min);
                 final top = _selected.map((id) => _positions[id]!.dy).reduce(math.min);
-                final shift = Offset(math.max(d.focalPointDelta.dx / _view.value.getMaxScaleOnAxis(), 32 - left), math.max(d.focalPointDelta.dy / _view.value.getMaxScaleOnAxis(), 32 - top));
+                final shift = Offset(math.max(d.focalPointDelta.dx / _view.value.storage[0].abs(), 32 - left), math.max(d.focalPointDelta.dy / _view.value.storage[0].abs(), 32 - top));
                 for (final id in _selected) { _positions[id] = _positions[id]! + shift; }
               } else {
                 _selectionEnd = d.localFocalPoint;
