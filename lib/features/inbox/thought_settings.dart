@@ -31,10 +31,10 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
     final signedIn = auth?.identity != null;
     final mobile = MediaQuery.sizeOf(context).width < 760;
     final settings = ListTileTheme(
-      dense: true, minLeadingWidth: 20, horizontalTitleGap: 8,
+      data: ListTileThemeData(dense: true, minLeadingWidth: 20, horizontalTitleGap: 8,
       minVerticalPadding: 0, visualDensity: VisualDensity.compact,
       titleTextStyle: Theme.of(context).textTheme.bodySmall,
-      iconColor: Theme.of(context).colorScheme.onSurfaceVariant,
+      iconColor: Theme.of(context).colorScheme.onSurfaceVariant),
       child: IconTheme(data: const IconThemeData(size: 20), child: Column(mainAxisSize: MainAxisSize.min, children: [
         ListTile(contentPadding: EdgeInsets.zero, title: const Text('닫힌 생각 조회'),
           trailing: SizedBox(width: 44, height: 36, child: Transform.scale(scale: .75, child: Switch(value: showClosedThoughts,
