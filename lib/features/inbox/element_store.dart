@@ -324,8 +324,9 @@ class _ElementMetadataState extends State<_ElementMetadata> {
             children: [
               const SizedBox(height: 8),
               TextField(key: const ValueKey('thought-label-editor'), controller: _labelEditor,
-                maxLines: 1, decoration: const InputDecoration(labelText: '라벨', hintText: '생각의 제목', isDense: true)),
+                maxLines: 1, decoration: const InputDecoration(labelText: '라벨', hintText: '라벨 붙이기', isDense: true)),
               Row(children: [
+                const Text('붙일 방향'),
                 IconButton(key: const ValueKey('label-left'), tooltip: '왼쪽에 붙이기', isSelected: _labelOnLeft,
                   onPressed: () => setState(() => _labelOnLeft = true), icon: const Icon(Icons.west)),
                 IconButton(key: const ValueKey('label-right'), tooltip: '오른쪽에 붙이기', isSelected: !_labelOnLeft,

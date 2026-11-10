@@ -47,6 +47,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   late final GraphLayout _layout;
   late final TextEditingController _search;
   String? _linkFrom, _draggingId;
+  final _dragStartStacks = <String, Set<String>>{};
+  final _dropHighlights = <String>{};
   final _thoughtDragOrigins = <String, Offset>{};
   MemoBox? _hoverBox;
   final _liftBoxes = <MemoBox, Rect>{};
@@ -712,7 +714,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 onLift: () => setState(() {
                   _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
                 }),
-                onActiveChanged: (active) => setState(() { if (active) _thoughtDragOrigins.putIfAbsent(record.id, () => _positions[record.id]!); _draggingId = active ? record.id : null; if (!active) _hoverBox = null; }),
+                onActiveChanged: (active) => setState(() { if (active) { _thoughtDragOrigins.putIfAbsent(record.id, () => _positions[record.id]!); _dragStartStacks.putIfAbsent(record.id, () => alignedStackMembers(record.id, _positions)); } _draggingId = active ? record.id : null; if (!active) { _hoverBox = null; _dropHighlights.clear(); } }),
                 onTap: () { if (_linkMode && _linkFrom != null) {
                   final from = _linkFrom!;
                   if (from != record.id && record.connections.contains(from)) {
@@ -723,6 +725,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   else { showElementMetadata(context, record.text); } },
                 onMove: (delta) => setState(() { final previous = _positions[record.id]!; final p = previous + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
                   if (_liftBoxes.isEmpty && _memberCollides(record.id)) _positions[record.id] = previous;
+                  final target = records.where((r) => r.id != record.id && _bounds(r.id).overlaps(_bounds(record.id))).lastOrNull;
+                  final stackPositions = Map<String, Offset>.of(_positions);
+                  final origin = _thoughtDragOrigins[record.id];
+                  if (origin != null) stackPositions[record.id] = origin;
+                  _dropHighlights..clear()..addAll(target == null ? <String>{} : alignedStackMembers(target.id, stackPositions)..remove(record.id));
                   final center = _bounds(record.id).center;
                   _hoverBox = regions.where((r) => !r.box.elementIds.contains(record.id) && _inside(r.bounds, center)).firstOrNull?.box;
                   _saveLayout(); }),
@@ -744,6 +751,17 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   _saveLayout();
                 }),
                 onDrop: (pointer) {
+                  final origin = _thoughtDragOrigins[record.id];
+                  final tolerance = (48 / _view.value.storage[0].abs()).clamp(24, 96);
+                  final originalStack = _dragStartStacks[record.id] ?? <String>{};
+                  final nearOriginal = origin != null && (_positions[record.id]! - origin).distance <= tolerance;
+                  if (origin != null && ( (_positions[record.id]! - origin).distance < .5 ||
+                      (nearOriginal && originalStack.length > 1 && originalStack.any((id) => id != record.id && _positions.containsKey(id) && _bounds(id).overlaps(_bounds(record.id)))))) {
+                    _positions[record.id] = origin;
+                    _dropHighlights.clear(); _liftBoxes.clear();
+                    _saveLayout(flush: true);
+                    return;
+                  }
                   final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
                   final center = scene?.globalToLocal(pointer) ?? _bounds(record.id).center;
                   final target = records.where((r) => r.id != record.id && _bounds(r.id).overlaps(_bounds(record.id))).lastOrNull;
@@ -787,10 +805,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   }
                   if (detached.isNotEmpty) _changed();
                   _saveLayout(flush: true);
-                }, onEnd: () { setState(() { _resizingThought = null; _resizeNeighbors.clear(); _thoughtDragOrigins.remove(record.id); _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
+                }, onEnd: () { setState(() { _resizingThought = null; _resizeNeighbors.clear(); _thoughtDragOrigins.remove(record.id); _dragStartStacks.remove(record.id); _dropHighlights.clear(); _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
                 child: Card(margin: EdgeInsets.zero, color: wordBackgroundColor(context, record.text),
-                  shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _draggingId == record.id || _linkFrom == record.id ? color.primary : color.outlineVariant, width: 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
-                    color: _linkFrom == record.id || _draggingId == record.id ? color.primary : color.outlineVariant, width: _draggingId == record.id ? 3 : 2)),
+                  shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _dropHighlights.contains(record.id) || _draggingId == record.id || _linkFrom == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) ? 3 : 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
+                    color: _dropHighlights.contains(record.id) || _linkFrom == record.id || _draggingId == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) || _draggingId == record.id ? 3 : 2)),
                   child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     if (AttachmentIndicators.hasAttachments(record)) Padding(padding: const EdgeInsets.only(top: 4, right: 6), child: Align(alignment: Alignment.centerRight, child: AttachmentIndicators(record: record))),
                     Expanded(child: Padding(padding: const EdgeInsets.all(8), child: Text(badgeLabel(record.text), maxLines: !_layout.sizes.containsKey(record.id) ? 3 : ((_size(record.id).height - 24 - (widget.blocks && record.tags.isNotEmpty ? 24 : 0)) / 22).floor().clamp(1, 20),
@@ -805,7 +823,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             top: _positions[record.id]!.dy + 4, width: 144,
             child: ThoughtLabel(key: ValueKey('thought-label-${record.id}'), record: record,
               active: _frontThought == record.id,
-              onTap: () => setState(() => _frontThought = _frontThought == record.id ? null : record.id))),
+              onHold: (held) => setState(() { if (held) { _frontThought = record.id; } else if (_frontThought == record.id) { _frontThought = null; } }))),
           for (final region in regions) Positioned(
             left: region.bounds.center.dx - (widget.blocks ? region.bounds.width - 64 : region.bounds.width * .45) / 2,
             top: region.bounds.top + 8,

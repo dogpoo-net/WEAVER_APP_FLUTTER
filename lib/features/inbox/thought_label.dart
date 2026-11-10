@@ -3,9 +3,9 @@ import 'element_store.dart';
 
 /// The paper is translucent; the single-line title remains opaque.
 class ThoughtLabel extends StatelessWidget {
-  const ThoughtLabel({super.key, required this.record, required this.onTap, this.active = false});
+  const ThoughtLabel({super.key, required this.record, required this.onHold, this.active = false});
   final ElementRecord record;
-  final VoidCallback onTap;
+  final ValueChanged<bool> onHold;
   final bool active;
   @override
   Widget build(BuildContext context) {
@@ -13,8 +13,9 @@ class ThoughtLabel extends StatelessWidget {
     final blended = Color.alphaBlend(paper, Theme.of(context).colorScheme.surface);
     final ink = blended.computeLuminance() < .35 ? Colors.white : const Color(0xFF202020);
     return Tooltip(message: record.indexLabel,
-    child: Material(color: Colors.transparent, child: InkWell(onTap: onTap,
-      borderRadius: BorderRadius.circular(3), child: Container(
+    child: Listener(behavior: HitTestBehavior.opaque,
+      onPointerDown: (_) => onHold(true), onPointerUp: (_) => onHold(false), onPointerCancel: (_) => onHold(false),
+      child: Material(color: Colors.transparent, child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(color: paper,
           borderRadius: BorderRadius.circular(3),

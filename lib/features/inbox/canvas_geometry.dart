@@ -146,3 +146,20 @@ double snapStackWidth(double width, Iterable<double> neighbors, {double toleranc
   }
   return result;
 }
+
+/// Exact aligned stack slots, including the seed.
+Set<String> alignedStackMembers(String seed, Map<String, Offset> positions) {
+  final group = <String>{seed};
+  final queue = <String>[seed];
+  for (var i = 0; i < queue.length; i++) {
+    final p = positions[queue[i]];
+    if (p == null) continue;
+    for (final e in positions.entries) {
+      if (!group.contains(e.key) && (e.value.dx - p.dx).abs() < .5 &&
+          ((e.value.dy - p.dy).abs() - 32).abs() < .5) {
+        group.add(e.key); queue.add(e.key);
+      }
+    }
+  }
+  return group;
+}
