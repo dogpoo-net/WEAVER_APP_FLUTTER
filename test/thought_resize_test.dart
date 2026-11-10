@@ -4,6 +4,20 @@ import 'package:weaver/features/inbox/thought_interaction.dart';
 import 'package:weaver/features/inbox/graph_layout.dart';
 
 void main() {
+  testWidgets('a touch above the thought belongs to the canvas', (tester) async {
+    var taps = 0, canvasTaps = 0;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: GestureDetector(
+      behavior: HitTestBehavior.opaque, onTap: () => canvasTaps++,
+      child: Center(child: ThoughtInteraction(size: const Size(178, 84), desktop: false,
+        onMove: (_) {}, onResize: (_, shift) {}, onDrop: (_) {}, onEnd: () {},
+        onTap: () => taps++, child: const ColoredBox(color: Colors.blue))),
+    ))));
+    final top = tester.getTopLeft(find.byType(ThoughtInteraction));
+    await tester.tapAt(top + const Offset(80, -3));
+    expect(taps, 0); expect(canvasTaps, 1);
+    await tester.tapAt(top + const Offset(80, 20));
+    expect(taps, 1); expect(canvasTaps, 1);
+  });
   for (final desktop in [true, false]) {
     testWidgets('resize changes the card and preserves font size (desktop=$desktop)', (tester) async {
       var size = const Size(178, 84);
@@ -21,8 +35,8 @@ void main() {
         await tester.drag(find.byKey(const ValueKey('resize-right-bottom')), const Offset(90, 60));
       } else {
         final center = tester.getCenter(find.byType(ThoughtInteraction));
-        // Both fingers start just outside the visible card border.
-        final distance = size.width / 2 + 6;
+        // Both fingers start inside the visible card border.
+        final distance = size.width / 2 - 2;
         final a = await tester.startGesture(center - Offset(distance, 0), pointer: 1);
         final b = await tester.startGesture(center + Offset(distance, 0), pointer: 2);
         await tester.pump();
