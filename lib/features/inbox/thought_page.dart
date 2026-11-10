@@ -593,7 +593,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final anchor = _selectionAnchor;
     if (!_movingSelection || _selectionStart == null || anchor == null || !_positions.containsKey(anchor)) return;
     final origin = _selectionDragOrigins[anchor];
-    final tolerance = (24 / _view.value.storage[0].abs()).clamp(12, 48);
+    final tolerance = (24 / _view.value.storage[0].abs()).clamp(12, 48).toDouble();
     final before = {..._positions, ..._selectionDragOrigins};
     final oldStack = alignedStackMembers(anchor, before);
     if (origin != null && (_positions[anchor]! - origin).distance <= tolerance * 2 && oldStack.length > 1) {
