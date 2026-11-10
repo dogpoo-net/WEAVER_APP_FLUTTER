@@ -120,3 +120,20 @@ Offset nextStackSlot(String target, String moving, Map<String, Offset> positions
   }
   return slot;
 }
+
+Path visibleThoughtPath(Rect card, Iterable<Rect> above, {double radius = 6}) {
+  var path = Path()..addRRect(RRect.fromRectAndRadius(card, Radius.circular(radius)));
+  for (final cover in above) {
+    if (!card.overlaps(cover)) continue;
+    path = Path.combine(PathOperation.difference, path,
+      Path()..addRRect(RRect.fromRectAndRadius(cover, Radius.circular(radius))));
+  }
+  return path;
+}
+
+bool selectsVisibleThought(Rect selection, Rect card, Iterable<Rect> above, {double radius = 6}) {
+  if (!selection.overlaps(card)) return false;
+  final intersection = Path.combine(PathOperation.intersect,
+    visibleThoughtPath(card, above, radius: radius), Path()..addRect(selection));
+  return intersection.computeMetrics().isNotEmpty;
+}

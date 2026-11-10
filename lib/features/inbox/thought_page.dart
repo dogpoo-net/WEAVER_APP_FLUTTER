@@ -501,7 +501,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 onDrop: (pointer) {
                   final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
                   final center = scene?.globalToLocal(pointer) ?? _bounds(record.id).center;
-                  final target = records.where((r) => r.id != record.id && _bounds(r.id).contains(center)).lastOrNull;
+                  final target = records.where((r) => r.id != record.id && _bounds(r.id).overlaps(_bounds(record.id))).lastOrNull;
                   final snap = target == null
                     ? snapThought(_bounds(record.id), records.where((r) => r.id != record.id).map((r) => _bounds(r.id)),
                         tolerance: (24 / _view.value.getMaxScaleOnAxis()).clamp(12, 48))
@@ -545,7 +545,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 }, onEnd: () { setState(() { _thoughtDragOrigins.remove(record.id); _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
                 child: Card(margin: EdgeInsets.zero, color: wordBackgroundColor(context, record.text),
                   shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _draggingId == record.id || _linkFrom == record.id ? color.primary : color.outlineVariant, width: 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
-                    color: _linkFrom == record.id || _draggingId == record.id ? color.primary : Colors.transparent, width: _draggingId == record.id ? 3 : 2)),
+                    color: _linkFrom == record.id || _draggingId == record.id ? color.primary : color.outlineVariant, width: _draggingId == record.id ? 3 : 2)),
                   child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     if (AttachmentIndicators.hasAttachments(record)) Padding(padding: const EdgeInsets.only(top: 4, right: 6), child: Align(alignment: Alignment.centerRight, child: AttachmentIndicators(record: record))),
                     Expanded(child: Padding(padding: const EdgeInsets.all(8), child: Text(badgeLabel(record.text), maxLines: !_layout.sizes.containsKey(record.id) ? 3 : ((_size(record.id).height - 24 - (widget.blocks && record.tags.isNotEmpty ? 24 : 0)) / 22).floor().clamp(1, 20),
@@ -586,14 +586,17 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             child: GestureDetector(
             key: const ValueKey('canvas-selection'), behavior: HitTestBehavior.opaque, dragStartBehavior: DragStartBehavior.down,
             onTapUp: (d) => setState(() {
-              final hit = records.where((r) => _bounds(r.id).contains(d.localPosition)).lastOrNull;
+              final hit = records.where((r) => RRect.fromRectAndRadius(_bounds(r.id), Radius.circular(widget.blocks ? 6 : 12)).contains(d.localPosition)).lastOrNull;
               if (hit == null) { _selected.clear(); }
               else if (!_selected.add(hit.id)) { _selected.remove(hit.id); }
             }),
             onScaleStart: (d) => setState(() {
               if (d.pointerCount > 1) return;
               _selected.removeWhere((id) => !visiblePositions.containsKey(id));
-              _movingSelection = _selected.any((id) => _bounds(id).contains(_selectionDown ?? d.localFocalPoint));
+              final hit = records.where((r) => RRect.fromRectAndRadius(_bounds(r.id), Radius.circular(widget.blocks ? 6 : 12))
+                .contains(_selectionDown ?? d.localFocalPoint)).lastOrNull;
+              _movingSelection = hit != null;
+              if (hit != null && !_selected.contains(hit.id)) { _selected..clear()..add(hit.id); }
               _selectionStart = _selectionDown ?? d.localFocalPoint; _selectionEnd = d.localFocalPoint;
               if (!_movingSelection) _selected.clear();
             }),
@@ -611,14 +614,18 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               } else {
                 _selectionEnd = d.localFocalPoint;
                 final rect = Rect.fromPoints(_selectionStart!, _selectionEnd!);
-                _selected..clear()..addAll(records.where((r) => rect.overlaps(_bounds(r.id))).map((r) => r.id));
+                _selected.clear();
+                for (var i = 0; i < records.length; i++) {
+                  if (selectsVisibleThought(rect, _bounds(records[i].id), records.skip(i + 1).map((r) => _bounds(r.id)),
+                      radius: widget.blocks ? 6 : 12)) _selected.add(records[i].id);
+                }
               }
             }),
             onScaleEnd: (_) { setState(() { _selectionStart = null; _selectionEnd = null; _movingSelection = false; }); _endPinch(); },
             child: CustomPaint(painter: _SelectionPainter(
               [for (final r in records) (rect: _bounds(r.id), selected: _selected.contains(r.id))],
               !_movingSelection && _selectionStart != null && _selectionEnd != null ? Rect.fromPoints(_selectionStart!, _selectionEnd!) : null,
-              color.primary)),
+              color.primary, widget.blocks ? 6 : 12)),
           ))),
         ]))),
       ); })),
@@ -703,7 +710,8 @@ class _Connections extends CustomPainter {
 }
 
 class _SelectionPainter extends CustomPainter {
-  _SelectionPainter(this.selected, this.marquee, this.color);
+  _SelectionPainter(this.selected, this.marquee, this.color, this.radius);
+  final double radius;
   final List<({Rect rect, bool selected})> selected;
   final Rect? marquee;
   final Color color;
@@ -712,13 +720,10 @@ class _SelectionPainter extends CustomPainter {
     final border = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 2;
     for (var i = 0; i < selected.length; i++) {
       if (!selected[i].selected) continue;
-      var visible = Path()..addRect(Offset.zero & size);
-      for (var j = i + 1; j < selected.length; j++) {
-        visible = Path.combine(PathOperation.difference, visible, Path()..addRRect(
-          RRect.fromRectAndRadius(selected[j].rect, const Radius.circular(6))));
-      }
+      final visible = visibleThoughtPath(selected[i].rect,
+        selected.skip(i + 1).map((item) => item.rect.inflate(.5)), radius: radius);
       canvas.save(); canvas.clipPath(visible);
-      canvas.drawRRect(RRect.fromRectAndRadius(selected[i].rect, const Radius.circular(6)), border);
+      canvas.drawRRect(RRect.fromRectAndRadius(selected[i].rect.deflate(1), Radius.circular(radius)), border);
       canvas.restore();
     }
     if (marquee != null) {

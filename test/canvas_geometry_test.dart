@@ -5,6 +5,14 @@ import 'package:weaver/features/inbox/canvas_geometry.dart';
 import 'package:weaver/features/inbox/memo_box_region.dart';
 
 void main() {
+  test('range selection ignores covered portions but includes exposed strips', () {
+    const back = Rect.fromLTWH(100, 100, 170, 96);
+    const front = Rect.fromLTWH(100, 132, 170, 96);
+    expect(selectsVisibleThought(const Rect.fromLTWH(120, 145, 20, 20), back, [front]), isFalse);
+    expect(selectsVisibleThought(const Rect.fromLTWH(120, 110, 20, 10), back, [front]), isTrue);
+    expect(selectsVisibleThought(const Rect.fromLTWH(120, 145, 20, 20), front, []), isTrue);
+    expect(visibleThoughtPath(back, [front]).contains(const Offset(130, 150)), isFalse);
+  });
   test('third and subsequent thoughts use a free stack slot', () {
     final positions = {'a': const Offset(100, 100), 'b': const Offset(100, 132),
       'c': const Offset(100, 164), 'drag': const Offset(300, 300)};
