@@ -210,21 +210,27 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     setState(() => _dragBox(box, delta));
   }
   void _finishBoxDrag(MemoBox box) {
-    var detached = false;
+    var changed = false;
     setState(() {
       final oldFolder = box.folder;
-      final bounds = _boxBounds(box);
-      if (identical(_liftedBox, box) && oldFolder != null && bounds != null &&
-          _frozenFolders[oldFolder]?.contains(bounds.center) == false) {
-        final old = _frozenFolders[oldFolder]!;
-        _layout.folderPositions[oldFolder] = old.topLeft + const Offset(28, 44);
-        box.folder = null; detached = true;
+      final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
+      if (identical(_liftedBox, box) && _boxLiftPointer != null && scene != null) {
+        final point = scene.globalToLocal(_boxLiftPointer!);
+        final targets = _folderGeometry().entries.where((e) => e.value.contains(point)).toList()
+          ..sort((a, b) => memoFolderDepth(b.key).compareTo(memoFolderDepth(a.key)));
+        final target = targets.firstOrNull?.key;
+        if (oldFolder != target) {
+          if (oldFolder != null && _frozenFolders.containsKey(oldFolder)) {
+            _layout.folderPositions[oldFolder] = _frozenFolders[oldFolder]!.topLeft + const Offset(28, 44);
+          }
+          box.folder = target; changed = true;
+        }
       }
       _liftedBox = null; _boxLiftPointer = null; _frozenFolders.clear();
       _releaseBox(box);
       for (String? parent = box.folder; parent != null; parent = memoFolderParent(parent)) { _releaseFolder(parent); }
     });
-    if (detached) widget.onChanged();
+    if (changed) widget.onChanged();
     _saveLayout(flush: true);
   }
   void _releaseBox(MemoBox box) {

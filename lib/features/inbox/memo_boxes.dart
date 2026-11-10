@@ -128,3 +128,8 @@ Future<bool> createMemoFolder(BuildContext context) async {
   if (created != true || name.isEmpty || memoBoxFolders.contains(name)) return false;
   memoBoxFolders.add(name); moveMemoFolder(name, parent); return true;
 }
+
+class MemoFolderDrag {
+  const MemoFolderDrag(this.name);
+  final String name;
+}
