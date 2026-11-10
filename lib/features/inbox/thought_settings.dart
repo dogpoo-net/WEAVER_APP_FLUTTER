@@ -27,6 +27,16 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
         }
       } finally { if (context.mounted) update(() => busy = false); }
     }
+    Future<void> changeVisibility(bool value) async {
+      if (busy) return;
+            try {
+              if (preferences != null && !await preferences.setBool(closedThoughtsPreference, value)) throw StateError('Settings save failed');
+              showClosedThoughts = value; elements.refreshVisibility();
+              if (context.mounted) update(() {});
+            } catch (_) {
+              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('환경설정을 저장하지 못했습니다.')));
+            }
+    }
     final auth = GoogleAuthScope.maybeOf(context);
     final signedIn = auth?.identity != null;
     final mobile = MediaQuery.sizeOf(context).width < 760;
@@ -37,16 +47,9 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
       iconColor: Theme.of(context).colorScheme.onSurfaceVariant),
       child: IconTheme(data: const IconThemeData(size: 20), child: Column(mainAxisSize: MainAxisSize.min, children: [
         ListTile(contentPadding: EdgeInsets.zero, title: const Text('닫힌 생각 조회'),
+          onTap: busy ? null : () => changeVisibility(!showClosedThoughts),
           trailing: SizedBox(width: 44, height: 36, child: Transform.scale(scale: .75, child: Switch(value: showClosedThoughts,
-          onChanged: busy ? null : (value) async {
-            try {
-              if (preferences != null && !await preferences.setBool(closedThoughtsPreference, value)) throw StateError('Settings save failed');
-              showClosedThoughts = value; elements.refreshVisibility();
-              if (context.mounted) update(() {});
-            } catch (_) {
-              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('환경설정을 저장하지 못했습니다.')));
-            }
-          })))),
+          onChanged: busy ? null : changeVisibility)))),
         const Divider(),
         ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_upload_outlined), title: const Text('데이터 저장하기'),
           onTap: busy || !signedIn || onUpload == null ? null : () => run(onUpload)),
