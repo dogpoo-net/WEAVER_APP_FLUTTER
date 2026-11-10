@@ -209,7 +209,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _boxLiftPointer = pointer;
     setState(() => _dragBox(box, delta));
   }
-  void _finishBoxDrag(MemoBox box) {
+  void _finishBoxDrag(MemoBox box, [Offset? pointer]) {
+    if (identical(_liftedBox, box) && pointer != null) _boxLiftPointer = pointer;
     var changed = false;
     setState(() {
       final oldFolder = box.folder;
@@ -691,6 +692,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds, highlighted: identical(_hoverBox, region.box) || identical(_liftedBox, region.box), rectangular: widget.blocks,
             onLiftStart: (pointer) => _liftBox(region.box, pointer),
             onLiftMove: (pointer) => _moveLiftedBox(region.box, pointer),
+            onLiftEnd: (pointer) => _finishBoxDrag(region.box, pointer),
             onDrag: (delta) => setState(() => _dragBox(region.box, delta)),
             onDragCancel: () { if (!identical(_liftedBox, region.box)) _finishBoxDrag(region.box); },
             onDragEnd: () => _finishBoxDrag(region.box)),
@@ -799,7 +801,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             child: GestureDetector(key: ValueKey('box-drag-header-${region.box.name}'), behavior: HitTestBehavior.opaque,
               onLongPressStart: (d) => _liftBox(region.box, d.globalPosition),
               onLongPressMoveUpdate: (d) => _moveLiftedBox(region.box, d.globalPosition),
-              onLongPressEnd: (_) => _finishBoxDrag(region.box),
+              onLongPressEnd: (d) => _finishBoxDrag(region.box, d.globalPosition),
               onPanUpdate: (d) => setState(() => _dragBox(region.box, d.delta)),
               onPanEnd: (_) => _finishBoxDrag(region.box),
               onPanCancel: () { if (!identical(_liftedBox, region.box)) _finishBoxDrag(region.box); })),

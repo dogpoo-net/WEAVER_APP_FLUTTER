@@ -47,6 +47,13 @@ void main() {
     box('안쪽').onDragEnd!(); await tester.pumpAndSettle();
     expect(inside.folder, isNull);
     expect(inside.elementIds, {a.id});
+    final destination = tester.getTopLeft(find.byKey(const ValueKey('folder-region-폴더'))) + const Offset(12, 12);
+    final origin = tester.getCenter(find.byKey(const ValueKey('box-region-안쪽')));
+    box('안쪽').onLiftStart!(origin); await tester.pump();
+    box('안쪽').onLiftMove!(destination); await tester.pump();
+    box('안쪽').onLiftEnd!(destination); await tester.pumpAndSettle();
+    expect(inside.folder, '폴더');
+    expect(inside.elementIds, {a.id});
     expect(changes, greaterThan(0));
     await tester.pumpWidget(const SizedBox());
   });
