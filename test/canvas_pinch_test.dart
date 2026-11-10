@@ -7,6 +7,21 @@ import 'package:weaver/features/inbox/memo_folder_region.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 
 void main() {
+  for (final zoom in [.5, 1.0]) {
+    testWidgets('folder drag follows the pointer at zoom=$zoom', (tester) async {
+      var bounds = const Rect.fromLTWH(100, 100, 300, 240);
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: Transform.scale(scale: zoom, alignment: Alignment.topLeft,
+        child: SizedBox(width: 800, height: 800, child: StatefulBuilder(builder: (context, update) => Stack(children: [
+          MemoFolderRegion(name: '폴더', bounds: bounds, onMove: (delta) => update(() => bounds = bounds.shift(delta)),
+            onEnd: () {}, onEdit: () {}),
+        ]))),
+      ))));
+      await tester.drag(find.byType(MemoFolderRegion), const Offset(60, 40)); await tester.pumpAndSettle();
+      expect(bounds.left, closeTo(100 + 60 / zoom, .01));
+      expect(bounds.top, closeTo(100 + 40 / zoom, .01));
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
   testWidgets('selection two-finger translation preserves a non-unit zoom', (tester) async {
     elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); pageGraphLayout = GraphLayout();
     pageGraphLayout.viewport = (Matrix4.diagonal3Values(.6, .6, 1)..setTranslationRaw(-150, -150, 0)).storage.toList();

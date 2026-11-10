@@ -55,6 +55,7 @@ void main() {
   }
   testWidgets('stacked layout uses several columns and survives reopening', (tester) async {
     final records = List.generate(18, (i) => elements.add('생각 $i #태그'));
+    memoBoxes.add(MemoBox('역순으로 담은 상자', ids: records.reversed.map((r) => r.id)));
     await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('배치 초기화')); await tester.pumpAndSettle();
@@ -65,6 +66,7 @@ void main() {
     expect(before.values.map((p) => p.dx).toSet().length, 3);
     expect(before[records[1].id]!.dy - before[records[0].id]!.dy, 32);
     expect(layout.stacked, isTrue);
+    expect(layout.layers, records.map((r) => r.id).toList());
     expect(GraphLayout.fromJson(layout.toJson()).stacked, isTrue);
     await tester.pumpWidget(const SizedBox());
     await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));

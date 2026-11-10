@@ -342,9 +342,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   void _arrangeThoughts(bool stacked) {
     final boxes = memoBoxes.where((box) => !box.isUnclassified).toList();
+    final scope = _scopeRecords;
+    final order = {for (var i = 0; i < scope.length; i++) scope[i].id: i};
+    _layout.layers.clear();
     final loose = _scopeRecords.map((r) => r.id).where((id) => !boxes.any((box) => box.elementIds.contains(id))).toList();
     void arrangeMembers(List<String> ids) {
       if (ids.isEmpty) return;
+      ids.sort((a, b) => order[a]!.compareTo(order[b]!));
+      _layout.layers.addAll(ids);
       final width = ids.map((id) => _size(id).width).reduce(math.max);
       final height = ids.map((id) => _size(id).height).reduce(math.max);
       final columns = stacked ? (ids.length / 8).ceil() : math.sqrt(ids.length).ceil();
@@ -728,7 +733,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               }),
             ]),
             if (_selected.length > 1) TextButton.icon(
-              style: TextButton.styleFrom(minimumSize: const Size(0, 24), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact, textStyle: const TextStyle(fontSize: 11)),
+              style: TextButton.styleFrom(minimumSize: const Size(0, 40), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.standard, textStyle: const TextStyle(fontSize: 11)),
               icon: const Icon(Icons.swap_vert, size: 15), label: const Text('순서 반전'), onPressed: () {
                 setState(() { reverseThoughtLayers(_layout.layers, _selected); reorderStackPositions(_positions, _selected); }); _saveLayout(flush: true);
               }),
@@ -745,7 +750,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 const Text('선택', style: TextStyle(fontSize: 13)), const SizedBox(width: 4),
                 SizedBox(width: 26, child: Text(_selected.isEmpty ? '' : '${_selected.length}', key: const ValueKey('selection-count'),
-                  textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
+                  textAlign: TextAlign.left, style: const TextStyle(fontSize: 13))),
               ]))),
           ]),
         )),
