@@ -602,7 +602,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       for (final e in visiblePositions.entries) e.key: _bounds(e.key),
       for (final e in tagPositions.entries) e.key: tagBounds(e.value),
     };
-    var sceneWidth = math.max(3000.0, nodeRects.values.map((r) => r.right + 100).fold(0.0, math.max));
+    var sceneWidth = math.max(3000.0, nodeRects.values.map((r) => r.right + 180).fold(0.0, math.max));
     var sceneHeight = math.max(2200.0, nodeRects.values.map((r) => r.bottom + 100).fold(0.0, math.max));
     final regions = <({MemoBox box, Rect bounds})>[];
     for (final box in _regionBoxes) {
