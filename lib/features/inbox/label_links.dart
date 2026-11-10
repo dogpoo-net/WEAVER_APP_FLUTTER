@@ -18,7 +18,8 @@ Future<void> openInlineLink(BuildContext context, String id) async {
   if (id.startsWith('url:')) {
     final uri = Uri.tryParse(id.substring(4));
     if (uri != null && ['http', 'https'].contains(uri.scheme) && uri.host.isNotEmpty) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      try { await launchUrl(uri, mode: LaunchMode.externalApplication); }
+      catch (_) { if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('링크를 열 수 없습니다.'))); }
     }
   } else {
     final record = labelTarget(id);
@@ -105,7 +106,7 @@ class LabelTextController extends BoundTextController {
   var text = controller.text;
   for (final m in matches.reversed) { text = text.replaceRange(m.start, m.end, ''); }
   final leading = text.length - text.trimLeft().length;
-  int offset(int n) => n - matches.where((m) => m.end <= n).fold(0, (sum, m) => sum + m.end - m.start) - leading;
+  int offset(int n) => n - matches.where((m) => m.end <= n).fold<int>(0, (sum, m) => sum + m.end - m.start) - leading;
   return (text: text.trim(), tags: {for (final m in matches) controller.text.substring(m.start, m.end).trim().substring(1).toLowerCase()},
     links: [for (final b in controller.bindings) ElementBinding(b.id, offset(b.start), offset(b.end))]);
 }

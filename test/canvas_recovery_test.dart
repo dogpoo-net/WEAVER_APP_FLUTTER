@@ -26,7 +26,7 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
     testWidgets('layout menu waits for selection and preserves contents and other view ($blocks)', (tester) async {
-      final a = elements.add('초기화 대상'), b = elements.add('연결된 생각');
+      final a = elements.add('초기화 대상'); elements.add('연결된 생각');
       memoBoxes.add(MemoBox('유지할 분류', ids: [a.id]));
       final layout = blocks ? pageGraphLayout.blockLayout : pageGraphLayout;
       final other = blocks ? pageGraphLayout : pageGraphLayout.blockLayout;

@@ -13,7 +13,8 @@ import 'workspace_routes.dart';
 import 'workspace_storage.dart';
 
 class ThoughtBoxView extends StatefulWidget {
-  const ThoughtBoxView({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox, this.viewSelector});
+  const ThoughtBoxView({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox, this.filters, this.viewSelector});
+  final ThoughtFilterSelection? filters;
   final Widget? viewSelector;
   final List<Note> notes;
   final MemoBox? initialBox;
@@ -27,18 +28,15 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   String _query = '';
   final _textWidths = <String, double>{};
   bool _photosOnly = false, _audioOnly = false;
-  MemoBox? _filterBox;
-  String? _filterTag;
-  void _filter({MemoBox? box, String? tag}) => setState(() {
-    _filterBox = box; _filterTag = tag;
-  });
+  late final _filters = widget.filters ?? ThoughtFilterSelection(initialBox: widget.initialBox);
+  MemoBox? get _filterBox => _filters.singleBox;
   int _columns = 2;
   int _scaleColumns = 2;
   void _changed() { setState(() {}); widget.onChanged?.call(); }
   ModalRoute<dynamic>? _route;
   void _refresh() { _textWidths.clear(); if (mounted) setState(() {}); }
   @override
-  void initState() { super.initState(); _filterBox = widget.initialBox; elements.addListener(_refresh); }
+  void initState() { super.initState(); _filters.addListener(_refresh); elements.addListener(_refresh); }
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -55,6 +53,8 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   @override
   void dispose() {
     workspaceRouteObserver.unsubscribe(this);
+    _filters.removeListener(_refresh);
+    if (widget.filters == null) _filters.dispose();
     elements.removeListener(_refresh);
     super.dispose();
   }
@@ -76,8 +76,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
       ((!_photosOnly && !_audioOnly) ||
         (_photosOnly && record.photos.isNotEmpty) ||
         (_audioOnly && record.recordings.isNotEmpty)) &&
-      (_filterBox == null || _filterBox!.elementIds.contains(record.id)) &&
-      (_filterTag == null || record.tags.contains(_filterTag)) &&
+      _filters.matches(record) &&
       (record.indexLabel.toLowerCase().contains(_query.toLowerCase()) || record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.toLowerCase().contains(_query.toLowerCase().replaceFirst(RegExp(r'^#'), ''))))).toList();
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
     final grid = LayoutBuilder(builder: (context, bounds) {
@@ -116,7 +115,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
             Widget child;
             if (index == 0) {
               child = Row(children: [
-                Expanded(child: Text(_query.isEmpty && _filterBox == null && _filterTag == null ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.bodyMedium)),
+                Expanded(child: Text(_query.isEmpty && _filters.isEmpty ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.bodyMedium)),
                 if (!desktop) ...[
                   IconButton(tooltip: '확대', onPressed: _columns > 1 ? () => setState(() => _columns--) : null, icon: const Icon(Icons.zoom_in)),
                   Text('${(200 / _columns).round()}%', style: Theme.of(context).textTheme.bodyMedium),
@@ -138,8 +137,8 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
             return Center(child: SizedBox(width: available, child: child));
           }));
     });
-    final footer = ThoughtFilters(tags: tags, box: _filterBox, tag: _filterTag,
-      onChanged: _changed, onFilter: (box, tag) => _filter(box: box, tag: tag));
+    final footer = ThoughtFilters(tags: tags, selection: _filters,
+      onChanged: _changed, onFilter: _filters.toggle);
     return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filterBox?.name ?? '모든 생각 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
@@ -181,6 +180,7 @@ class AllThoughtsPage extends StatefulWidget {
 }
 class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProviderStateMixin {
   late final AnimationController _tabPosition;
+  late final _filters = ThoughtFilterSelection(initialBox: widget.initialBox);
   @override
   void initState() {
     super.initState();
@@ -188,7 +188,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     _tabPosition = AnimationController(vsync: this, upperBound: ThoughtView.values.length - 1.0, value: widget.initialView.index.toDouble());
   }
   @override
-  void dispose() { _tabPosition.dispose(); super.dispose(); }
+  void dispose() { _filters.dispose(); _tabPosition.dispose(); super.dispose(); }
   late ThoughtView _view = widget.initialView;
   @override
   Widget build(BuildContext context) {
@@ -207,11 +207,11 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
           child: Text(switch (view) { ThoughtView.diagram => '다이어그램', ThoughtView.boxes => '생각', ThoughtView.page => '메모상자', ThoughtView.geolog => '지오로그' })))),
       ])),
     ])));
-    if (_view == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(box: widget.initialBox,
+    if (_view == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(filters: _filters, box: widget.initialBox,
       viewSelector: selector, onChanged: () => widget.onChanged?.call())); }
-    if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(notes: widget.notes, initialBox: widget.initialBox,
+    if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(filters: _filters, notes: widget.notes, initialBox: widget.initialBox,
       onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector)); }
-    return DesktopMenuFrame(child: ThoughtPage(key: ValueKey(_view), box: widget.initialBox, blocks: _view == ThoughtView.page,
+    return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey(_view), box: widget.initialBox, blocks: _view == ThoughtView.page,
       onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, viewSelector: selector));
   }
 }

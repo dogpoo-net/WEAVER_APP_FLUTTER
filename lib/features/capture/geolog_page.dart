@@ -11,8 +11,9 @@ import '../inbox/thought_filters.dart';
 import '../inbox/workspace_routes.dart';
 
 class GeologPage extends StatefulWidget {
-  const GeologPage({super.key, this.box, this.viewSelector, required this.onChanged});
+  const GeologPage({super.key, this.box, this.filters, this.viewSelector, required this.onChanged});
   final MemoBox? box;
+  final ThoughtFilterSelection? filters;
   final Widget? viewSelector;
   final VoidCallback onChanged;
   @override
@@ -21,16 +22,15 @@ class GeologPage extends StatefulWidget {
 class _GeologPageState extends State<GeologPage> {
   final _map = MapController();
   String _query = '';
-  MemoBox? _filterBox;
-  String? _tag;
+  late final _filters = widget.filters ?? ThoughtFilterSelection(initialBox: widget.box);
   bool _tileError = false;
   int _mapRevision = 0;
   @override
-  void initState() { super.initState(); _filterBox = widget.box; elements.addListener(_changed); }
+  void initState() { super.initState(); _filters.addListener(_changed); elements.addListener(_changed); }
   void _changed() { if (mounted) setState(() {}); }
   List<ElementRecord> get _scope => elements.records.values.toList();
   List<ElementRecord> get _records => _scope.where((r) => canBrowseThought(r) && r.location != null &&
-    (_filterBox == null || _filterBox!.elementIds.contains(r.id)) && (_tag == null || r.tags.contains(_tag)) &&
+    _filters.matches(r) &&
     (r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.contains(_query.replaceFirst('#', ''))))).toList();
   LatLng _point(ElementRecord record) => LatLng(record.location!.latitude, record.location!.longitude);
   void _fit(List<ElementRecord> records) {
@@ -53,7 +53,7 @@ class _GeologPageState extends State<GeologPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && !_tileError) setState(() => _tileError = true); });
   }
   @override
-  void dispose() { elements.removeListener(_changed); _map.dispose(); super.dispose(); }
+  void dispose() { _filters.removeListener(_changed); if (widget.filters == null) _filters.dispose(); elements.removeListener(_changed); _map.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) {
     final records = _records;
@@ -107,8 +107,8 @@ class _GeologPageState extends State<GeologPage> {
               ]))))]),
             const MapAttribution(),
           ])),
-      ThoughtFilters(tags: _scope.expand((r) => r.tags).toSet().toList()..sort(), box: _filterBox, tag: _tag,
-        onChanged: () { widget.onChanged(); setState(() {}); }, onFilter: (box, tag) => setState(() { _filterBox = box; _tag = tag; })),
+      ThoughtFilters(tags: _scope.expand((r) => r.tags).toSet().toList()..sort(), selection: _filters,
+        onChanged: () { widget.onChanged(); setState(() {}); }, onFilter: _filters.toggle),
     ])));
   }
 }

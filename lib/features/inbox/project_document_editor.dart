@@ -1,3 +1,4 @@
+import 'thought_filters.dart';
 import 'label_links.dart';
 import 'document_markup.dart';
 import 'caret_assist.dart';
@@ -24,25 +25,26 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   bool _preview = false;
   final _search = TextEditingController();
   final _bodyFocus = FocusNode();
-  final _references = <String>{}, _tags = <String>{};
+  final _tags = <String>{};
+  final _filters = ThoughtFilterSelection();
   bool _dirty = false, _panelOpen = false;
-  final _thoughtScroll = ScrollController(), _tagScroll = ScrollController(), _documentScroll = ScrollController();
+  final _thoughtScroll = ScrollController(), _documentScroll = ScrollController();
   bool get _wide => MediaQuery.sizeOf(context).width >= 800;
   @override
   void initState() {
     super.initState();
     _body = LabelTextController( widget.project?.document ?? widget.project?.paragraphs.map((p) =>
       p.role == ParagraphRole.title ? '====== ${p.text} ======' : p.role == ParagraphRole.subtitle ? '===== ${p.text} =====' : p.text).join('\n\n') ?? '', widget.project?.documentLinks ?? const []);
-    _references.addAll(widget.project?.words ?? []);
-    if (widget.project != null) { if (widget.project!.document == null) _references.addAll(elements.matches(_body.text).map((h) => h.word)); elements.indexProject(widget.project!); }
+    if (widget.project != null) elements.indexProject(widget.project!);
     _tags.addAll(widget.project?.tags ?? {});
     if (widget.project?.document == null) _tags.addAll(widget.project?.paragraphs.expand((p) => p.tags) ?? <String>[]);
+    _filters.tags.addAll(_tags); _filters.addListener(_refresh);
     _body.addListener(_edited); elements.addListener(_refresh);
   }
   void _edited() { if (mounted) setState(() => _dirty = true); }
   void _refresh() { if (mounted) setState(() {}); }
   @override
-  void dispose() { elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _tagScroll.dispose(); _documentScroll.dispose(); super.dispose(); }
+  void dispose() { elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
   void _insertLabel(String word) {
     final record = elements.records[word];
     if (record != null) { _body.insertLabel(record); _bodyFocus.requestFocus(); }
@@ -64,41 +66,28 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     // The original paragraphs and their bindings remain intact in storage.
     project.document = _body.text; project.name = documentTitle(_body.text);
     project.documentLinks = List.of(_body.bindings);
-    project.words..clear()..addAll(_references); project.tags..clear()..addAll(_tags);
+    project.words.clear(); project.tags..clear()..addAll({..._tags, ..._filters.tags});
     if (widget.project == null) { Navigator.pop(context, project); return; }
     elements.indexProject(project); await widget.onChanged?.call();
     if (mounted) { setState(() => _dirty = false); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('저장했습니다.'))); }
   }
   Widget _referencesPanel() {
-    final tags = {...elements.tags, ..._tags}.toList()..sort();
     final query = _search.text.trim().replaceFirst('#', '').toLowerCase();
-    final thoughts = elements.records.values.where((r) =>
-      _references.contains(r.text) || r.tags.any(_tags.contains)).toList();
-    return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    final thoughts = elements.records.values.where((r) => _filters.matches(r) &&
+      (r.text.toLowerCase().contains(query) || r.indexLabel.toLowerCase().contains(query) || r.tags.any((tag) => tag.contains(query)))).toList();
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      TextField(key: const ValueKey('project-reference-search'), controller: _search,
+        style: const TextStyle(fontSize: 12), onChanged: (_) => setState(() {}),
+        decoration: const InputDecoration(hintText: '생각·해시태그 찾기', isDense: true,
+          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6), prefixIcon: Icon(Icons.search, size: 18),
+          prefixIconConstraints: BoxConstraints(minWidth: 28, minHeight: 32))),
+      const SizedBox(height: 6),
       Expanded(child: Scrollbar(controller: _thoughtScroll, child: SingleChildScrollView(
         key: const ValueKey('project-thought-scroll'), controller: _thoughtScroll, primary: false,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('연결된 생각', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 4),
-          if (thoughts.isEmpty) Text('해시태그를 선택하면 관련 생각이 표시됩니다.', style: Theme.of(context).textTheme.bodySmall),
-          Wrap(spacing: 6, runSpacing: 6, children: [for (final r in thoughts)
-            WordBadge(word: r.text, onTap: () => showElementMetadata(context, r.text),
-              onLongPress: _references.contains(r.text) ? () => setState(() { _references.remove(r.text); _dirty = true; }) : null)]),
-        ])))),
-      const VerticalDivider(width: 20, thickness: 1),
-      SizedBox(width: _wide ? 160 : 140, child: Column(children: [
-        TextField(key: const ValueKey('project-tag-search'), controller: _search, style: const TextStyle(fontSize: 12), onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(hintText: '해시태그 찾기', contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6), isDense: true, prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 28, minHeight: 32))),
-        const SizedBox(height: 4),
-        Expanded(child: Scrollbar(controller: _tagScroll, child: ListView(key: const ValueKey('project-tag-scroll'), controller: _tagScroll, primary: false, children: [
-          for (final tag in tags.where((tag) => tag.toLowerCase().contains(query)))
-            CheckboxListTile(key: ValueKey('project-tag-$tag'), dense: true, contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading, title: Text('#$tag', maxLines: 1, overflow: TextOverflow.ellipsis),
-              value: _tags.contains(tag), onChanged: (yes) => setState(() {
-                if (yes == true) { _tags.add(tag); } else { _tags.remove(tag); } _dirty = true;
-              })),
-        ]))),
-      ])),
+        child: Wrap(spacing: 6, runSpacing: 6, children: [for (final r in thoughts)
+          WordBadge(word: r.text, compact: true, onTap: () => showElementMetadata(context, r.text))])))),
+      ThoughtFilters(tags: elements.tags.toList()..sort(), selection: _filters,
+        onFilter: _filters.toggle, onChanged: () { _refresh(); widget.onChanged?.call(); }),
     ]);
   }
   @override

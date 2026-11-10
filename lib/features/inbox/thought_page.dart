@@ -23,11 +23,12 @@ import 'graph_arrangement.dart';
 
 /// A live workspace over the same thoughts and tags.
 class ThoughtPage extends StatefulWidget {
-  const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.box, this.blocks = false, this.viewSelector});
+  const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.box, this.blocks = false, this.viewSelector, this.filters});
   final VoidCallback onChanged;
   final VoidCallback? onLayoutChanged;
   final MemoBox? box;
   final bool blocks;
+  final ThoughtFilterSelection? filters;
   final Widget? viewSelector;
   @override
   State<ThoughtPage> createState() => _ThoughtPageState();
@@ -38,8 +39,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   final _positions = <String, Offset>{};
   final _tagPositions = <String, Offset>{};
   String _query = '';
-  MemoBox? _filterBox;
-  String? _filterTag;
+  late final _filters = widget.filters ?? ThoughtFilterSelection(initialBox: widget.box);
+  MemoBox? get _filterBox => _filters.singleBox;
+  void _filterChanged() { if (mounted) setState(() { _centered = false; _sync(); }); }
   bool _hideTags = false;
   final _view = TransformationController();
   Timer? _saveTimer;
@@ -258,7 +260,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   @override
   void initState() {
     super.initState();
-    _filterBox = widget.box;
+    _filters.addListener(_filterChanged);
     final base = widget.box?.layout ?? pageGraphLayout;
     _layout = widget.blocks ? base.blockLayout : base;
     _positions.addAll(_layout.positions);
@@ -326,11 +328,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   List<ElementRecord> get _scopeRecords => elements.records.values.toList();
   List<ElementRecord> get _records => _scopeRecords.where((r) => canBrowseThought(r) &&
-    (_filterBox == null || _filterBox!.elementIds.contains(r.id)) &&
-    (_filterTag == null || r.tags.contains(_filterTag)) &&
+    _filters.matches(r) &&
     (_query.isEmpty || r.indexLabel.toLowerCase().contains(_query) || r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.toLowerCase().contains(_query)))).toList();
   void _sync() {
-    final records = _records;
     final scope = _scopeRecords;
     final hadPositions = _positions.isNotEmpty;
     final newIds = scope.where((r) => !_positions.containsKey(r.id)).map((r) => r.id).toSet();
@@ -405,7 +405,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   bool _inside(Rect bounds, Offset point) => widget.blocks ? bounds.contains(point) : (point - bounds.center).distance <= bounds.width / 2;
   Iterable<MemoBox> get _regionBoxes => (_filterBox != null ? [_filterBox!] :
-      memoBoxes).where((box) => !box.isUnclassified);
+      memoBoxes).where((box) => !box.isUnclassified && (_filters.isEmpty || _filters.boxes.contains(box) || _records.any((r) => box.elementIds.contains(r.id))));
   Iterable<MemoBox> get _allRegionBoxes => memoBoxes.where((box) => !box.isUnclassified);
   Rect? _boxBounds(MemoBox box) => _liftBoxes[box] ?? _regionBounds(box, _positions) ?? _emptyBoxBounds[box];
   Rect _placeEmptyBox(double x) {
@@ -573,6 +573,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _saveLayout(flush: true);
     WidgetsBinding.instance.removeObserver(this);
     workspaceRouteObserver.unsubscribe(this);
+    _filters.removeListener(_filterChanged);
+    if (widget.filters == null) _filters.dispose();
     elements.removeListener(_storeChanged);
     _view.removeListener(_saveLayout);
     _view.dispose(); _search.dispose();
@@ -965,8 +967,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         )),
       ])),
       ThoughtFilters(tags: _scopeRecords.expand((r) => r.tags).toSet().toList()..sort(),
-        box: _filterBox, tag: _filterTag, onChanged: _changed,
-        onFilter: (box, tag) => setState(() { _filterBox = box; _filterTag = tag; _centered = false; _sync(); })),
+        selection: _filters, onChanged: _changed,
+        onFilter: _filters.toggle),
     ])));
   }
 }

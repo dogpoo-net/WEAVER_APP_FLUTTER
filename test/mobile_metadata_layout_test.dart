@@ -21,7 +21,7 @@ void main() {
     tester.view.physicalSize = const Size(390, 844); tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
     elements.clear();
-    final thought = elements.add('내용 #태그'); final peer = elements.add('연결된 생각');
+    final thought = elements.add('내용 #태그'); elements.add('연결된 생각');
     await tester.pumpWidget(MaterialApp(theme: ThemeData(inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder())),
       home: Builder(builder: (context) => Scaffold(body: TextButton(onPressed: () => showElementMetadata(context, thought.text), child: const Text('정보'))))));
     await tester.tap(find.text('정보')); await tester.pumpAndSettle();

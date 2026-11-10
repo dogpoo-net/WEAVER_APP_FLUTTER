@@ -15,16 +15,12 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: ProjectPage(project: project()))); await tester.pumpAndSettle();
     expect(tester.getSize(find.byKey(const ValueKey('project-reference-panel'))).width, greaterThanOrEqualTo(400));
     final thoughts = find.byKey(const ValueKey('project-thought-scroll'));
-    final tags = find.byKey(const ValueKey('project-tag-scroll'));
-    expect(tester.getTopLeft(tags).dx, greaterThan(tester.getTopRight(thoughts).dx));
     final thoughtController = tester.widget<SingleChildScrollView>(thoughts).controller!;
-    final tagController = tester.widget<ListView>(tags).controller!;
     final body = tester.widget<TextField>(find.byKey(const ValueKey('project-document'))).scrollController!;
-    await tester.drag(tags, const Offset(0, -180)); await tester.pumpAndSettle();
-    expect(tagController.offset, greaterThan(0)); expect(thoughtController.offset, 0); expect(body.offset, 0);
-    final tagOffset = tagController.offset;
     await tester.drag(thoughts, const Offset(0, -180)); await tester.pumpAndSettle();
-    expect(thoughtController.offset, greaterThan(0)); expect(tagController.offset, tagOffset); expect(body.offset, 0);
+    expect(thoughtController.offset, greaterThan(0)); expect(body.offset, 0);
+    expect(find.byKey(const ValueKey('project-tag-scroll')), findsNothing);
+    expect(find.byKey(const ValueKey('thought-filter-all')), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
@@ -42,7 +38,7 @@ void main() {
     expect(tester.getBottomRight(toggle).dy, lessThanOrEqualTo(544));
     expect(tester.getSize(toggle).height, lessThanOrEqualTo(30));
     expect(find.byKey(const ValueKey('project-name')), findsNothing);
-    expect(tester.getSize(find.byKey(const ValueKey('project-tag-search'))).height, lessThanOrEqualTo(38));
+    expect(tester.getSize(find.byKey(const ValueKey('project-reference-search'))).height, lessThanOrEqualTo(38));
     expect(tester.getSize(find.byKey(const ValueKey('project-document'))).height, greaterThan(80));
     await tester.tap(toggle); await tester.pumpAndSettle(); expect(panel, findsNothing);
     expect(tester.widget<TextField>(find.byKey(const ValueKey('project-document'))).controller!.text, draft.document);

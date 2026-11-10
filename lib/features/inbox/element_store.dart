@@ -193,6 +193,9 @@ final elements = ElementStore();
 
 Future<void> showElementMetadata(BuildContext context, String word) async {
   if (!elements.records.containsKey(word)) return;
+  final host = context.findAncestorStateOfType<_ElementMetadataState>() ??
+    (context is StatefulElement && context.state is _ElementMetadataState ? context.state as _ElementMetadataState : null);
+  if (host != null) { host._navigate(word); return; }
   await showDialog<void>(
     context: context,
     builder: (_) => _ElementMetadata(word: word),
@@ -230,6 +233,26 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     _editor = LabelTextController(record.text, record.inlineLinks)..addListener(_extractTags);
   }
 
+  final _drafts = <String, ({String text, Set<String> tags, List<ElementBinding> links, String label, bool left, int labelColor, int? color, bool closed})>{};
+  void _navigate(String word) {
+    final record = elements.records[word];
+    if (record == null || word == _word) return;
+    _drafts[_word] = (text: _editor.text, tags: Set.of(_tags), links: List.of(_editor.bindings),
+      label: _labelEditor.text, left: _labelOnLeft, labelColor: _indexLabelColor, color: _labelColor, closed: _closed);
+    final draft = _drafts[word];
+    _movingTags = true;
+    setState(() {
+      _word = word; _error = null;
+      _editor.clear(); _editor.text = draft?.text ?? record.text;
+      _editor.bindings = List.of(draft?.links ?? record.inlineLinks);
+      _tags..clear()..addAll(draft?.tags ?? record.tags);
+      _labelEditor.text = draft?.label ?? record.indexLabel;
+      _labelOnLeft = draft?.left ?? record.labelOnLeft; _indexLabelColor = draft?.labelColor ?? record.indexLabelColor;
+      _labelColor = draft == null ? record.labelColor : draft.color; _closed = draft?.closed ?? record.hiddenFromSearch;
+    });
+    _movingTags = false;
+    if (_contentScroll.hasClients) _contentScroll.jumpTo(0);
+  }
   void _extractTags() {
     if (_movingTags) return;
     final completed = takeCompletedParagraphTags(_editor.value);

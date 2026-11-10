@@ -84,8 +84,8 @@ void main() {
   }
 
   testWidgets('covered routes and background apps stop graph work', (tester) async {
-    final a = elements.add('생각 A');
-    final b = elements.add('생각 B');
+    elements.add('생각 A');
+    elements.add('생각 B');
     final navigator = GlobalKey<NavigatorState>();
     var saves = 0;
     await tester.pumpWidget(MaterialApp(navigatorKey: navigator, navigatorObservers: [workspaceRouteObserver],

@@ -764,11 +764,11 @@ class _InboxPageState extends State<InboxPage> {
     _draft.completeLinks();
     final cleaned = cleanLinkedInput(_draft);
     var body = cleaned.text;
-    if (parseTaggedInput(body).text.isEmpty && _hasCapture) {
+    if (body.trim().isEmpty && _hasCapture) {
       final title = attachmentMemoText(DateTime.now(), photos: _photoDrafts.isNotEmpty, audio: _voiceDraft != null, location: _draftLocation != null);
       body = '$title $body';
     }
-    if (parseTaggedInput(body).text.isEmpty) {
+    if (body.trim().isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('태그와 함께 생각 내용을 입력해주세요.')));
       return false;

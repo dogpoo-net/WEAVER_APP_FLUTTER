@@ -45,7 +45,7 @@ void main() {
     });
   }
   testWidgets('page notes do not auto-connect when dragged beside each other', (tester) async {
-    final a = elements.add('윗 블록'); final b = elements.add('아랫 블록');
+    elements.add('윗 블록'); elements.add('아랫 블록');
     await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
     await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
     final viewer = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));

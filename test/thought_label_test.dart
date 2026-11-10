@@ -12,7 +12,7 @@ import 'package:weaver/features/inbox/caret_assist.dart';
 void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); memoBoxFolderParents.clear(); pageGraphLayout = GraphLayout(); });
   test('labels persist without changing connection identity, including trash', () {
-    final a = elements.add('본문'), b = elements.add('다른 본문');
+    final a = elements.add('본문'); elements.add('다른 본문');
     expect(elements.update(a.text, a.text, indexLabel: ' 제목\n두줄 ', labelOnLeft: true, indexLabelColor: 0xFFFFCC80), isNull);
     expect(a.indexLabel, '제목 두줄');
     final snapshot = WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([]));

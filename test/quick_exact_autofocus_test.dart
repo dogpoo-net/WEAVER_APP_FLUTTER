@@ -32,7 +32,7 @@ void main() {
     tester.testTextInput.updateEditingValue(full); await tester.pumpAndSettle();
     expect(selected(), isTrue);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field).controller!.text, '본문 ');
+    expect(tester.widget<TextField>(field).controller!.text, '본문 생각');
     expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
