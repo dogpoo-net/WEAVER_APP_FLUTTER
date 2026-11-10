@@ -766,7 +766,7 @@ class _InboxPageState extends State<InboxPage> {
     var body = cleaned.text;
     if (body.trim().isEmpty && _hasCapture) {
       final title = attachmentMemoText(DateTime.now(), photos: _photoDrafts.isNotEmpty, audio: _voiceDraft != null, location: _draftLocation != null);
-      body = '$title $body';
+      body = title;
     }
     if (body.trim().isEmpty) {
       ScaffoldMessenger.of(context)

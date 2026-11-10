@@ -24,6 +24,12 @@ void main() {
     c.clear(); c.text = '[[미확정|없는 라벨]]'; expect(c.bindings, isEmpty);
     c.dispose();
   });
+  test('a whole atomic link can be replaced but an interior edit is rejected', () {
+    final c = LabelTextController('별칭', [const ElementBinding('url:https://example.com', 0, 2)]);
+    c.value = const TextEditingValue(text: '별다'); expect(c.text, '별칭');
+    c.value = const TextEditingValue(text: '새 본문'); expect(c.text, '새 본문'); expect(c.bindings, isEmpty);
+    c.dispose();
+  });
   test('duplicate label names require a chosen identity, and tags keep link offsets', () {
     final a = elements.add('A')..indexLabel = '같은 라벨';
     elements.add('B').indexLabel = '같은 라벨';

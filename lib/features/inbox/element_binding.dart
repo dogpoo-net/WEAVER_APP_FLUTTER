@@ -36,7 +36,7 @@ class BoundTextController extends TextEditingController {
     final delta = nextEnd - end;
     for (final link in bindings) {
       final overlaps = start < link.end && end > link.start || start == end && start > link.start && start < link.end;
-      if (overlaps && !(start <= link.start && end >= link.end && nextEnd == start)) return;
+      if (overlaps && !(start <= link.start && end >= link.end)) return;
     }
     bindings = [for (final link in bindings)
       if (!(start <= link.start && end >= link.end && start != end))
