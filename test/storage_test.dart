@@ -16,7 +16,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
   test('JSON restores identity, dates, colors, independent paragraphs and projects', () {
-    final e = elements.add('작은 생각');
+    final e = elements.add('작은 생각')..labelColor = 0xFF90A4AE;
     restoreWordColors({'작은 생각': 210});
     final p = const Paragraph('작은 생각', ParagraphRole.title);
     final notes = [
@@ -30,6 +30,7 @@ void main() {
     expect(elements.records['작은 생각']!.id, e.id);
     expect(elements.records['작은 생각']!.createdAt, e.createdAt);
     expect(exportWordColors()['작은 생각'], 210);
+    expect(elements.records['작은 생각']!.labelColor, 0xFF90A4AE);
     expect(snapshot.notes.first.paragraphs!.single.role, ParagraphRole.title);
     expect(snapshot.notes.last.project!.name, '내 프로젝트');
     expect(elements.sources.values.single.single.isProject, isTrue);

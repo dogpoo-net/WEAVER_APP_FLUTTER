@@ -1,8 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/element_store.dart';
+import 'package:weaver/features/inbox/tag_colors.dart';
 
 void main() {
+  testWidgets('metadata color circle opens palette and updates the thought', (tester) async {
+    elements.clear(); final record = elements.add('색상 메모 #태그');
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(body: TextButton(
+      onPressed: () => showElementMetadata(context, record.text), child: const Text('보기'))))));
+    await tester.tap(find.text('보기')); await tester.pumpAndSettle();
+    expect(tester.getCenter(find.byKey(const ValueKey('thought-color'))).dx,
+      greaterThan(tester.getCenter(find.byKey(const ValueKey('element-tags'))).dx));
+    await tester.tap(find.byKey(const ValueKey('thought-color'))); await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('hashtag-color-16'))); await tester.pumpAndSettle();
+    expect(record.labelColor, hashtagPalette[16].toARGB32());
+    expect(record.text, '색상 메모');
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('metadata treats tags as separate editable data and keeps prose clean', (tester) async {
     elements.clear();
     final record = elements.add('원래 본문 #기존');

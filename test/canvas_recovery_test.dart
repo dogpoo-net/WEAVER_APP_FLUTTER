@@ -62,8 +62,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     final layout = pageGraphLayout.blockLayout;
     final before = Map<String, Offset>.of(layout.positions);
-    expect(before.values.map((p) => p.dx).toSet().length, 6);
-    expect(before[records[6].id]!.dy - before[records[0].id]!.dy, 32);
+    expect(before.values.map((p) => p.dx).toSet().length, 3);
+    expect(before[records[1].id]!.dy - before[records[0].id]!.dy, 32);
     expect(layout.stacked, isTrue);
     expect(GraphLayout.fromJson(layout.toJson()).stacked, isTrue);
     await tester.pumpWidget(const SizedBox());

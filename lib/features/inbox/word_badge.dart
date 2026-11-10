@@ -20,6 +20,8 @@ const starterWords = ['관찰', '질문', '연결', '기억', '성장'];
 
 Color wordBackgroundColor(BuildContext context, String word) {
   if (elements.records[word]?.hiddenFromSearch == true) return Theme.of(context).brightness == Brightness.dark ? const Color(0xFF303030) : const Color(0xFFBABABA);
+  final custom = elements.records[word]?.labelColor;
+  if (custom != null) return HSLColor.fromColor(Color(custom)).withLightness(Theme.of(context).brightness == Brightness.dark ? .25 : .9).toColor();
   final hue = _wordHues.putIfAbsent(word, () => _random.nextDouble() * 360);
   return HSLColor.fromAHSL(
     1,
@@ -42,6 +44,8 @@ Widget elementBadge(BuildContext context, String word) => Chip(
 
 Color wordColor(BuildContext context, String word) {
   if (elements.records[word]?.hiddenFromSearch == true) return Theme.of(context).brightness == Brightness.dark ? const Color(0xFF969696) : const Color(0xFF303030);
+  final custom = elements.records[word]?.labelColor;
+  if (custom != null) return HSLColor.fromColor(Color(custom)).withLightness(Theme.of(context).brightness == Brightness.dark ? .9 : .23).toColor();
   final hue = _wordHues.putIfAbsent(word, () => _random.nextDouble() * 360);
   return HSLColor.fromAHSL(
     1,
@@ -136,7 +140,6 @@ class WordBadge extends StatelessWidget {
   final VoidCallback? onDoubleTap;
   @override
   Widget build(BuildContext context) {
-    final hue = _wordHues.putIfAbsent(word, () => _random.nextDouble() * 360);
     final dark = Theme.of(context).brightness == Brightness.dark;
     return LayoutBuilder(builder: (context, constraints) {
     final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : MediaQuery.sizeOf(context).width - 24;
@@ -147,18 +150,8 @@ class WordBadge extends StatelessWidget {
       onPressed: onTap,
       onLongPress: onLongPress,
       style: TextButton.styleFrom(
-        backgroundColor: record?.hiddenFromSearch == true ? wordBackgroundColor(context, word) : labelColor?.withValues(alpha: dark ? .3 : .18) ?? HSLColor.fromAHSL(
-          1,
-          hue,
-          .55,
-          dark ? .25 : .9,
-        ).toColor(),
-        foregroundColor: record?.hiddenFromSearch == true ? wordColor(context, word) : labelColor ?? HSLColor.fromAHSL(
-          1,
-          hue,
-          .5,
-          dark ? .9 : .23,
-        ).toColor(),
+        backgroundColor: record?.hiddenFromSearch == true ? wordBackgroundColor(context, word) : labelColor?.withValues(alpha: dark ? .3 : .18) ?? wordBackgroundColor(context, word),
+        foregroundColor: record?.hiddenFromSearch == true ? wordColor(context, word) : labelColor ?? wordColor(context, word),
         minimumSize: const Size(0, 30),
         padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 12, vertical: compact ? 3 : 5),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,

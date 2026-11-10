@@ -52,7 +52,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   bool _linkMode = false, _centered = false;
   bool _selectionMode = false, _movingSelection = false;
   final _selected = <String>{};
-  Offset? _selectionStart, _selectionEnd, _selectionDown;
+  Offset? _selectionStart, _selectionEnd, _selectionDown, _selectionGlobalDown;
+  final _selectionDragOrigins = <String, Offset>{};
   final _selectionPointers = <int, Offset>{};
   double? _selectionZoomBase, _selectionZoomDistance;
   Offset? _selectionZoomAnchor;
@@ -340,28 +341,76 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _saveLayout(flush: true);
   }
   void _arrangeThoughts(bool stacked) {
-    final remaining = _scopeRecords.map((r) => r.id).toSet();
-    final groups = <List<String>>[];
-    for (final box in memoBoxes.where((box) => !box.isUnclassified)) {
-      final ids = remaining.where(box.elementIds.contains).toList();
-      if (ids.isNotEmpty) { groups.add(ids); remaining.removeAll(ids); }
-    }
-    if (remaining.isNotEmpty) groups.add(remaining.toList());
-    final top = _tagPositions.values.map((p) => tagBounds(p).bottom).fold(300.0, math.max) + 100;
-    var left = 640.0;
-    for (final group in groups) {
-      final width = group.map((id) => _size(id).width).fold(0.0, math.max);
-      final height = group.map((id) => _size(id).height).fold(0.0, math.max);
-      for (var i = 0; i < group.length; i++) {
-        _positions[group[i]] = Offset(left + (i % 6) * (width + 32), top + (i ~/ 6) * (stacked ? 32 : height + 32));
+    final boxes = memoBoxes.where((box) => !box.isUnclassified).toList();
+    final loose = _scopeRecords.map((r) => r.id).where((id) => !boxes.any((box) => box.elementIds.contains(id))).toList();
+    void arrangeMembers(List<String> ids) {
+      if (ids.isEmpty) return;
+      final width = ids.map((id) => _size(id).width).reduce(math.max);
+      final height = ids.map((id) => _size(id).height).reduce(math.max);
+      final columns = stacked ? (ids.length / 8).ceil() : math.sqrt(ids.length).ceil();
+      for (var i = 0; i < ids.length; i++) {
+        _positions[ids[i]] = Offset(640 + (stacked ? i ~/ 8 : i % columns) * (width + 24),
+          400 + (stacked ? i % 8 : i ~/ columns) * (stacked ? 32 : height + 24));
       }
-      final box = memoBoxes.where((box) => !box.isUnclassified && box.elementIds.contains(group.first)).firstOrNull;
-      final bounds = box == null ? group.map(_bounds).reduce((a, b) => a.expandToInclude(b)) : _regionBounds(box, _positions)!;
-      final shift = Offset(left - bounds.left, top - bounds.top);
-      for (final id in group) { _positions[id] = _positions[id]! + shift; }
-      left = bounds.shift(shift).right + 100;
     }
-    _separateOverlappingBoxes();
+    for (final box in boxes) {
+      final ids = box.elementIds.where(_positions.containsKey).toList();
+      arrangeMembers(ids);
+      if (ids.isEmpty) _emptyBoxBounds[box] = const Rect.fromLTWH(640, 400, 260, 260);
+    }
+    arrangeMembers(loose);
+    Rect pack(String? folder) {
+      final units = <({Rect bounds, List<String> ids, List<MemoBox> boxes, List<String> folders})>[];
+      for (final box in boxes.where((box) => box.folder == folder || (folder == null && !memoBoxFolders.contains(box.folder)))) {
+        units.add((bounds: _boxBounds(box)!, ids: box.elementIds.where(_positions.containsKey).toList(), boxes: [box], folders: []));
+      }
+      for (final child in memoBoxFolders.where((name) => memoFolderParent(name) == folder)) {
+        final bounds = pack(child);
+        final childBoxes = boxes.where((box) => box.folder != null && memoFolderContains(child, box.folder!)).toList();
+        units.add((bounds: bounds, ids: childBoxes.expand((box) => box.elementIds).where(_positions.containsKey).toList(),
+          boxes: childBoxes, folders: memoBoxFolders.where((name) => memoFolderContains(child, name)).toList()));
+      }
+      if (folder == null && loose.isNotEmpty) {
+        units.add((bounds: loose.map(_bounds).reduce((a, b) => a.expandToInclude(b)), ids: loose, boxes: [], folders: []));
+      }
+      if (units.isEmpty) {
+        if (folder != null) _layout.folderPositions[folder] = const Offset(640, 400);
+        return const Rect.fromLTWH(612, 356, 356, 272);
+      }
+      final area = units.fold(0.0, (sum, unit) => sum + (unit.bounds.width + 80) * (unit.bounds.height + 80));
+      final limit = math.max(units.map((unit) => unit.bounds.width).reduce(math.max), math.sqrt(area) * 1.3);
+      var x = 640.0, y = 400.0, rowHeight = 0.0;
+      Rect? total;
+      for (final unit in units) {
+        if (x > 640 && x + unit.bounds.width > 640 + limit) { x = 640; y += rowHeight + 80; rowHeight = 0; }
+        final shift = Offset(x - unit.bounds.left, y - unit.bounds.top);
+        for (final id in unit.ids) { _positions[id] = _positions[id]! + shift; }
+        for (final box in unit.boxes) { if (_emptyBoxBounds.containsKey(box)) _emptyBoxBounds[box] = _emptyBoxBounds[box]!.shift(shift); }
+        for (final name in unit.folders) { if (_layout.folderPositions.containsKey(name)) _layout.folderPositions[name] = _layout.folderPositions[name]! + shift; }
+        final moved = unit.bounds.shift(shift);
+        total = total == null ? moved : total.expandToInclude(moved);
+        x = moved.right + 80; rowHeight = math.max(rowHeight, moved.height);
+      }
+      final bounds = total!;
+      return folder == null ? bounds : Rect.fromLTRB(bounds.left - 28, bounds.top - 44, bounds.right + 28, bounds.bottom + 28);
+    }
+    pack(null);
+    if (!widget.blocks) {
+      final occupied = <Rect>[for (final box in boxes) _boxBounds(box)!, ...loose.map(_bounds)];
+      for (final tag in _tagPositions.keys.toList()) {
+        final related = _scopeRecords.where((r) => r.tags.contains(tag.substring(4))).map((r) => r.id).toList();
+        if (related.isEmpty) continue;
+        final candidates = boxes.where((box) => related.any(box.elementIds.contains)).toList()
+          ..sort((a, b) => related.where(b.elementIds.contains).length.compareTo(related.where(a.elementIds.contains).length));
+        final anchor = candidates.isEmpty ? related.map(_bounds).reduce((a, b) => a.expandToInclude(b)) : _boxBounds(candidates.first)!;
+        var rect = Rect.fromLTWH(anchor.right + 24, anchor.top, graphTagSize.width, graphTagSize.height);
+        while (occupied.any((other) => other.inflate(8).overlaps(rect))) {
+          rect = rect.shift(const Offset(0, 64));
+          if (rect.top > anchor.bottom + 256) rect = Rect.fromLTWH(rect.left + graphTagSize.width + 24, anchor.top, rect.width, rect.height);
+        }
+        _tagPositions[tag] = rect.center; occupied.add(rect);
+      }
+    }
   }
   Future<void> _createBox() async {
     final box = await createMemoBox(context);
@@ -609,7 +658,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           if (_selectionMode) Positioned.fill(child: Listener(
             onPointerDown: (event) {
               if (_selectionPointers.isEmpty) {
-                _selectionDown = event.localPosition;
+                _selectionDown = event.localPosition; _selectionGlobalDown = event.position;
                 _selectionBeforeGesture = Set.of(_selected);
               }
               _selectionPointers[event.pointer] = event.position;
@@ -634,6 +683,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               if (hit != null && !_selected.contains(hit.id)) { _selected..clear()..add(hit.id); }
               _selectionStart = _selectionDown ?? d.localFocalPoint; _selectionEnd = d.localFocalPoint;
               if (!_movingSelection) _selected.clear();
+              _selectionDragOrigins..clear()..addEntries(_selected.map((id) => MapEntry(id, _positions[id]!)));
             }),
             onScaleUpdate: (d) => setState(() {
               if (d.pointerCount > 1) {
@@ -642,10 +692,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               }
               if (_selectionPinched || _selectionStart == null) return;
               if (_movingSelection) {
-                final left = _selected.map((id) => _positions[id]!.dx).reduce(math.min);
-                final top = _selected.map((id) => _positions[id]!.dy).reduce(math.min);
-                final shift = Offset(math.max(d.focalPointDelta.dx / _view.value.storage[0].abs(), 32 - left), math.max(d.focalPointDelta.dy / _view.value.storage[0].abs(), 32 - top));
-                for (final id in _selected) { _positions[id] = _positions[id]! + shift; }
+                if (_selectionPointers.isEmpty || _selectionGlobalDown == null || _selectionDragOrigins.isEmpty) return;
+                final delta = (_selectionPointers.values.first - _selectionGlobalDown!) / _view.value.storage[0].abs();
+                final left = _selectionDragOrigins.values.map((p) => p.dx).reduce(math.min);
+                final top = _selectionDragOrigins.values.map((p) => p.dy).reduce(math.min);
+                final shift = Offset(math.max(delta.dx, 32 - left), math.max(delta.dy, 32 - top));
+                for (final entry in _selectionDragOrigins.entries) { _positions[entry.key] = entry.value + shift; }
               } else {
                 _selectionEnd = d.localFocalPoint;
                 final rect = Rect.fromPoints(_selectionStart!, _selectionEnd!);
@@ -676,7 +728,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               }),
             ]),
             if (_selected.length > 1) TextButton.icon(
-              style: TextButton.styleFrom(minimumSize: const Size(0, 24), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact, textStyle: const TextStyle(fontSize: 11)),
+              style: TextButton.styleFrom(minimumSize: const Size(0, 24), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact, textStyle: const TextStyle(fontSize: 11)),
               icon: const Icon(Icons.swap_vert, size: 15), label: const Text('순서 반전'), onPressed: () {
                 setState(() { reverseThoughtLayers(_layout.layers, _selected); reorderStackPositions(_positions, _selected); }); _saveLayout(flush: true);
               }),
@@ -689,8 +741,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               visualDensity: VisualDensity.compact, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               value: _selectionMode, onChanged: (value) => _toggleSelection(value ?? false))),
             InkWell(onTap: () => _toggleSelection(!_selectionMode), child: Padding(
-              padding: const EdgeInsets.only(right: 2, top: 8, bottom: 8),
-              child: Text(_selected.isEmpty ? '선택' : '선택 ${_selected.length}', style: const TextStyle(fontSize: 13)))),
+              padding: const EdgeInsets.only(right: 5, top: 8, bottom: 8),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Text('선택', style: TextStyle(fontSize: 13)), const SizedBox(width: 4),
+                SizedBox(width: 26, child: Text(_selected.isEmpty ? '' : '${_selected.length}', key: const ValueKey('selection-count'),
+                  textAlign: TextAlign.right, style: const TextStyle(fontSize: 13))),
+              ]))),
           ]),
         )),
         if (_linkMode) Positioned(top: 52, left: 12, right: 12, child: IgnorePointer(child: Material(

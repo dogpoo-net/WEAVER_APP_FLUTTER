@@ -7,7 +7,8 @@ import 'package:weaver/features/inbox/thought_page.dart';
 
 void main() {
   for (final blocks in [false, true]) {
-    testWidgets('range selection moves thoughts together without panning ($blocks)', (tester) async {
+    for (final zoom in [.5, 1.0]) {
+    testWidgets('range selection moves thoughts together without panning ($blocks, zoom=$zoom)', (tester) async {
       elements.clear(); memoBoxes.clear(); pageGraphLayout = GraphLayout();
       tester.view.physicalSize = const Size(1200, 900); tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
@@ -15,7 +16,7 @@ void main() {
       final layout = blocks ? pageGraphLayout.blockLayout : pageGraphLayout;
       layout.positions[a.id] = const Offset(500, 500);
       layout.positions[b.id] = const Offset(800, 500);
-      layout.viewport = (Matrix4.identity()..setTranslationRaw(-400, -400, 0)).storage.toList();
+      layout.viewport = (Matrix4.diagonal3Values(zoom, zoom, zoom)..setTranslationRaw(100 - 500 * zoom, 100 - 500 * zoom, 0)).storage.toList();
       await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
       await tester.pumpAndSettle();
       final viewer = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
@@ -25,12 +26,12 @@ void main() {
       final gesture = await tester.startGesture(overlay.localToGlobal(const Offset(470, 470)));
       await gesture.moveTo(overlay.localToGlobal(const Offset(1060, 650))); await tester.pump();
       await gesture.up(); await tester.pumpAndSettle();
-      expect(find.text('선택 2'), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data, '2');
       final move = await tester.startGesture(overlay.localToGlobal(const Offset(550, 540)));
       await move.moveBy(const Offset(30, 20)); await tester.pump();
       await move.moveBy(const Offset(40, 30)); await tester.pump();
       await move.up(); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
-      expect(layout.positions[a.id]!.dx, greaterThan(500));
+      expect(layout.positions[a.id]!.dx, closeTo(500 + 70 / zoom, .01));
       expect(layout.positions[b.id]! - layout.positions[a.id]!, const Offset(300, 0));
       expect(viewer.transformationController!.value.storage, transform);
       await tester.tapAt(overlay.localToGlobal(const Offset(1100, 800))); await tester.pump();
@@ -40,9 +41,10 @@ void main() {
       await single.moveBy(const Offset(30, 20)); await tester.pump();
       await single.moveBy(const Offset(40, 20)); await tester.pump();
       await single.up(); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('선택 1'), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data, '1');
       expect(layout.positions[b.id], otherBefore);
       await tester.pumpWidget(const SizedBox());
     });
+    }
   }
 }

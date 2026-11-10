@@ -1,3 +1,4 @@
+import 'tag_colors.dart';
 import '../capture/location_preview.dart';
 import '../capture/photo_gallery.dart';
 import '../capture/capture_models.dart';
@@ -33,6 +34,7 @@ class ElementRecord {
   final List<VoiceAttachment> recordings = [];
   final List<PhotoAttachment> photos = [];
   bool hiddenFromSearch = false;
+  int? labelColor;
   DateTime? deletedAt;
   static int _next = 0;
   final String id;
@@ -276,8 +278,20 @@ class _ElementMetadataState extends State<_ElementMetadata> {
       titlePadding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       actionsPadding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      title: _tags.isEmpty ? null : InlineTags(key: const ValueKey('element-tags'), tags: _tags,
-        onRemove: (tag) => setState(() => _tags.remove(tag))),
+      title: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(child: InlineTags(key: const ValueKey('element-tags'), tags: _tags,
+          onRemove: (tag) => setState(() => _tags.remove(tag)))),
+        IconButton(key: const ValueKey('thought-color'), tooltip: '생각 색상 변경',
+          visualDensity: VisualDensity.compact, icon: Container(width: 20, height: 20,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: element.labelColor == null ? wordBackgroundColor(context, word) : Color(element.labelColor!),
+              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant))),
+          onPressed: () async {
+            final color = await pickHashtagColor(context, '생각', element.labelColor == null ? null : Color(element.labelColor!), prefix: '');
+            if (color == null || !mounted) return;
+            setState(() => element.labelColor = color.toARGB32());
+            elements.refreshVisibility();
+          }),
+      ]),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         Flexible(child: SizedBox(
         width: mobile ? MediaQuery.sizeOf(context).width : 440,
