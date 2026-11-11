@@ -23,7 +23,7 @@ GitHub의 이 저장소를 선택하고 최신 커밋을 가져오세요. 클라
 
 ## GitHub Pages
 
-`.github/workflows/pages.yml`은 main 변경 또는 수동 실행 시 분석·테스트 후 웹 빌드를 GitHub Pages에 배포합니다. 저장소 Settings → Pages → Build and deployment → Source를 **GitHub Actions**로 지정하세요.
+`.github/workflows/pages.yml`은 수동 실행 시 분석·테스트 후 웹 빌드를 GitHub Pages에 배포합니다. 푸시만으로는 GitHub Pages에 배포하지 않습니다. 저장소 Settings → Pages → Build and deployment → Source를 **GitHub Actions**로 지정하세요.
 
 기본 프로젝트 주소: https://dogpoo-net.github.io/WEAVER_APP_FLUTTER/
 
@@ -68,3 +68,7 @@ Noto Sans KR 가변 폰트를 `assets/fonts`에 라이선스와 함께 포함했
 프로젝트 생성·편집은 제목·부제·본문, 다음 문단, 원소 어시스트, 키보드 위 어시스트와 입력폼 상단 정렬을 제공합니다. 문단 찾기 모달에서 저장된 문단의 내용이나 태그를 검색해 불러오면 프로젝트의 독립된 문장으로 복사됩니다. 복사한 문장을 편집하거나 원본 문단을 삭제해도 서로의 내용은 바뀌지 않습니다. 프로젝트 미리보기에는 원소 링크만 표시합니다.
 
 기존 저장 데이터는 계속 읽습니다. 여러 독립 문단을 묶어 저장했던 데이터는 각 문단으로 나누되 본문과 작성일을 보존합니다. 데이터 초기화는 메뉴 맨 아래에 있습니다.
+
+## Cloudflare Pages
+
+Flutter SDK가 없는 빌드 환경에서는 `bash scripts/build-cloudflare.sh`를 빌드 명령으로, `build/web`을 출력 디렉터리로 지정하세요. 자세한 설정은 [Cloudflare Pages 배포](docs/cloudflare-pages.md)를 참고하세요.
