@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'workspace_routes.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'element_binding.dart';
 import 'element_store.dart';
@@ -34,6 +35,7 @@ Future<void> openInlineLink(BuildContext context, String id) async {
       catch (_) { if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('링크를 열 수 없습니다.'))); }
     }
   } else if (id.startsWith('project:')) {
+    if(openWorkspaceDocument!=null){await openWorkspaceDocument!(id.substring(8));return;}
     final project = projectTarget(id);
     if (project != null) {
       await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ProjectPage(

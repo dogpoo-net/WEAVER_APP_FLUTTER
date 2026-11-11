@@ -15,7 +15,7 @@ void main() {
       ],
       'colors': {'기존 생각': 120},
       'notes': [
-        for (final name in ['첫 프로젝트', '둘째 프로젝트'])
+        for (final name in ['첫 문서', '둘째 문서'])
           {'content': '기존 본문', 'createdAt': '2025-01-01T12:00:00.000',
             'project': {'name': name, 'words': ['기존 생각'], 'document': '기존 본문',
               'paragraphs': [{'text': '옛 문단', 'role': 'body'}]}},

@@ -40,3 +40,6 @@ class WorkspaceTitle extends StatelessWidget {
   Widget build(BuildContext context) => Text(title, style: const TextStyle(fontSize: 18),
     maxLines: 1, overflow: TextOverflow.ellipsis);
 }
+
+// Route document links through the active workspace's save/history handlers.
+Future<void> Function(String)? openWorkspaceDocument;

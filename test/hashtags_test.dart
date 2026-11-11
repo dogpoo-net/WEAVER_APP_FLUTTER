@@ -29,7 +29,7 @@ void main() {
       ..project = WritingProject(
         [const Paragraph('작은 생각을 모은다', ParagraphRole.body)],
         [],
-        name: '독서 프로젝트',
+        name: '독서 문서',
       );
     Note? opened;
     await tester.pumpWidget(
@@ -49,9 +49,9 @@ void main() {
       ),
     );
     expect(tester.widget<Text>(find.byKey(const ValueKey('tag-paragraphs'))).data, '생각 1');
-    expect(find.text('프로젝트 1'), findsOneWidget);
+    expect(find.text('문서 1'), findsOneWidget);
     expect(find.text('관계없는 글'), findsNothing);
-    await tester.tap(find.text('독서 프로젝트'));
+    await tester.tap(find.text('독서 문서'));
     await tester.pump();
     expect(opened, same(project));
   });
@@ -90,6 +90,6 @@ void main() {
     expect(find.text('생각 1'), findsOneWidget);
     expect(find.text('작은 생각'), findsOneWidget);
     expect(find.text('생각 0'), findsOneWidget);
-    expect(find.text('프로젝트 0'), findsOneWidget);
+    expect(find.text('문서 0'), findsOneWidget);
   });
 }

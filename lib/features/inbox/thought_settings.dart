@@ -15,6 +15,7 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
   Future<void> Function()? onDownload,
   Future<void> Function()? onReset,
   Future<void> Function()? onSignIn,
+  Future<void> Function()? onInvite,
 }) async {
   var busy = false;
   var linkingAccount = false;
@@ -71,6 +72,7 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
         ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.delete_outline), title: const Text('데이터 초기화'),
           onTap: busy || onReset == null ? null : () { Navigator.pop(dialogContext); onReset(); }),
         const Divider(),
+        if(signedIn)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.group_add_outlined),title:const Text('초대하기'),onTap:busy||onInvite==null?null:()=>onInvite()),
         if (guest) ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.login), title: const Text('로그인 / 회원가입'),
           onTap: busy ? null : () => run(onSignIn ?? auth!.leaveGuest))
         else ListTile(contentPadding: EdgeInsets.zero, title: const Text('로그아웃', style: TextStyle(color: Color(0xFFD64550))),

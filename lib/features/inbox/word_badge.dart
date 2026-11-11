@@ -153,13 +153,13 @@ class WordBadge extends StatelessWidget {
     final title = displayText ?? word;
     var prefixWidth = 0.0;
     if (project) {
-      final prefix = TextPainter(text: TextSpan(text: '프로젝트:', style: Theme.of(context).textTheme.labelLarge!.copyWith(fontSize: 12, fontWeight: FontWeight.w300)),
+      final prefix = TextPainter(text: TextSpan(text: '문서:', style: Theme.of(context).textTheme.labelLarge!.copyWith(fontSize: 12, fontWeight: FontWeight.w300)),
         textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
       prefixWidth = prefix.width;
       prefix.dispose();
     }
     final label = project ? TextSpan(children: [
-      const TextSpan(text: '프로젝트:', style: TextStyle(fontWeight: FontWeight.w300)),
+      const TextSpan(text: '문서:', style: TextStyle(fontWeight: FontWeight.w300)),
       TextSpan(style: const TextStyle(fontWeight: FontWeight.w700), children: [
         _badgeExcerpt(context, title, query, (maxWidth - 24 - prefixWidth).clamp(0.0, double.infinity)),
       ]),
@@ -186,7 +186,7 @@ class WordBadge extends StatelessWidget {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
         if (indicators) AttachmentIndicators(record: record),
         Text.rich(label,
-        maxLines: fullText ? null : 1, softWrap: fullText, overflow: fullText ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '프로젝트:$title' : title),
+        maxLines: fullText ? null : 1, softWrap: fullText, overflow: fullText ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '문서:$title' : title),
       ]),
     ));
     return onDoubleTap == null ? badge : GestureDetector(onDoubleTap: onDoubleTap, child: badge);

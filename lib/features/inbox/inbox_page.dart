@@ -140,18 +140,18 @@ class _InboxPageState extends State<InboxPage> {
       final voice = _voiceDraft;
       if (voice != null) {
         final id = 'voice-$stamp';
-        written.add(id); await MediaStorage.write(id, voice.bytes);
+        written.add(id); await MediaStorage.write(id, voice.bytes,owner:widget.storage?.owner);
         _savedVoice = VoiceAttachment(id, voice.durationMs);
       }
       for (var i = 0; i < _photoDrafts.length; i++) {
         final photo = _photoDrafts[i], id = 'photo-$stamp-$i';
-        written.add(id); await MediaStorage.write(id, photo.bytes);
+        written.add(id); await MediaStorage.write(id, photo.bytes,owner:widget.storage?.owner);
         _savedPhotos.add(PhotoAttachment(id, photo.name));
       }
       if (!mounted) throw StateError('Composer closed');
       if (!_save()) throw StateError('Memo not saved');
     } catch (_) {
-      for (final id in written) { try { await MediaStorage.delete(id); } catch (_) {} }
+      for (final id in written) { try { await MediaStorage.delete(id,owner:widget.storage?.owner); } catch (_) {} }
       _savedVoice = null; _savedPhotos.clear();
       _captureError('첨부 저장에 실패했습니다. 작성한 메모와 첨부는 유지됩니다. 저장 공간을 확인해주세요.');
     } finally { if (mounted) setState(() => _captureSaving = false); }
@@ -184,8 +184,10 @@ class _InboxPageState extends State<InboxPage> {
   @override
   void initState() {
     super.initState();
+    openWorkspaceDocument = _openDocumentById;
     desktopMenu.visible = true;
     _draft.addListener(_imeUpdated);
+    widget.storage?.hasUnsavedInput=()=>_draft.text.trim().isNotEmpty||_hasCapture;
     projectFolders.clear();
     paragraphFolders.clear();
     elementFolders.clear();
@@ -365,7 +367,7 @@ class _InboxPageState extends State<InboxPage> {
     final failed = <String>[];
     for (final id in pending) {
       if (referenced.contains(id)) continue;
-      try { await MediaStorage.delete(id); } catch (_) { failed.add(id); }
+      try { await MediaStorage.delete(id,owner:widget.storage?.owner); } catch (_) { failed.add(id); }
     }
     await preferences.setStringList(_mediaCleanupKey, failed);
   }
@@ -405,7 +407,7 @@ class _InboxPageState extends State<InboxPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('모든 데이터를 초기화할까요?'),
-        content: const Text('생각·문단·프로젝트·폴더와 이 브라우저에 저장된 앱 데이터를 삭제합니다.'),
+        content: const Text('생각·문단·문서·폴더와 이 브라우저에 저장된 앱 데이터를 삭제합니다.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -425,7 +427,7 @@ class _InboxPageState extends State<InboxPage> {
           widget.storage?.preferences.getString('${WorkspaceStorage.key}.beforeImport') != null;
       if (hasMedia) {
         for (final record in [...elements.records.values, ...elements.trash.values]) {
-          for (final id in [...record.photos.map((p) => p.id), ...record.recordings.map((c) => c.id)]) { await MediaStorage.delete(id); }
+          for (final id in [...record.photos.map((p) => p.id), ...record.recordings.map((c) => c.id)]) { await MediaStorage.delete(id,owner:widget.storage?.owner); }
         }
       }
       await widget.storage?.clear();
@@ -466,6 +468,7 @@ class _InboxPageState extends State<InboxPage> {
 
   @override
   void dispose() {
+    if(openWorkspaceDocument == _openDocumentById)openWorkspaceDocument=null;
     WidgetsBinding.instance.addPostFrameCallback((_) => desktopMenu.detach(this));
     elements.removeListener(_elementDeleted);
     elements.onRenamed = null;
@@ -800,12 +803,17 @@ class _InboxPageState extends State<InboxPage> {
     await _showProject(note);
   }
 
+  Future<void> _openDocumentById(String id) async {
+    final note=_notes.where((n)=>n.project?.id==id).firstOrNull;
+    if(note!=null && mounted)await _showProject(note);
+  }
+
   Future<void> _showProject(Note note) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) =>
-            ProjectPage(project: note.project!, projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: _persist, onSave: _saveAndSync),
+            ProjectPage(project: note.project!, projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: _persist, onSave: _saveAndSync, onHistory:widget.storage?.openHistory, onLease:widget.storage?.documentLease),
       ),
     );
     if (!mounted) return;
@@ -905,7 +913,7 @@ class _InboxPageState extends State<InboxPage> {
     List<String> tags,
   ) async {
     if (!mounted || choice == null || choice == -1) return;
-    if (choice == WorkspaceMenu.settings) { await showThoughtSettings(context, widget.storage?.preferences, onUpload: _uploadBackup, onDownload: _downloadBackup, onReset: _reset, onSignIn: () async {
+    if (choice == WorkspaceMenu.settings) { await showThoughtSettings(context, widget.storage?.preferences, onUpload: _uploadBackup, onDownload: _downloadBackup, onReset: _reset, onInvite:widget.storage?.openSharing, onSignIn: () async {
       if (_draft.text.trim().isNotEmpty || _hasCapture) throw const BackupFailure('작성 중인 메모를 저장한 뒤 로그인해주세요.');
       if (_captureSaving || _locationBusy || _photoBusy) throw const BackupFailure('메모와 첨부 처리 완료 후 다시 시도해주세요.');
       await _persist();
@@ -1196,7 +1204,7 @@ class _InboxPageState extends State<InboxPage> {
           if ((isProject ? projects : paragraphs).isNotEmpty) ...[
             Divider(key: ValueKey(isProject ? 'main-project-divider' : 'main-paragraph-divider'),
               height: 18, thickness: 1, color: colors.outlineVariant.withValues(alpha: .45)),
-            Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(isProject ? '프로젝트' : '문단', style: Theme.of(context).textTheme.labelMedium)),
+            Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(isProject ? '문서' : '문단', style: Theme.of(context).textTheme.labelMedium)),
             for (final note in (isProject ? projects : paragraphs).take(_query.isNotEmpty
               ? (isProject ? projects.length : paragraphs.length) : (isProject ? _projectLimit : _paragraphLimit)))
               _recentNoteCard(note),
@@ -1227,7 +1235,7 @@ class _InboxPageState extends State<InboxPage> {
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
-                '${note.createdAt.month}월 ${note.createdAt.day}일 · ${note.project != null ? '프로젝트' : '문단'}${note.tags.isEmpty ? '' : ' · ${note.tags.map((t) => '#$t').join(' ')}'}',
+                '${note.createdAt.month}월 ${note.createdAt.day}일 · ${note.project != null ? '문서' : '문단'}${note.tags.isEmpty ? '' : ' · ${note.tags.map((t) => '#$t').join(' ')}'}',
                 style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
               ),
               trailing: const Icon(Icons.chevron_right, size: 20),

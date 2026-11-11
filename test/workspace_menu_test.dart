@@ -70,7 +70,7 @@ void main() {
                 selected = await showDialog<int>(
                   context: context,
                   builder: (_) => WorkspaceMenu(
-                    projects: List.generate(30, (i) => '프로젝트 $i'),
+                    projects: List.generate(30, (i) => '문서 $i'),
                   ),
                 );
               },
@@ -84,7 +84,7 @@ void main() {
     await tester.pumpAndSettle();
     final before = tester.getTopLeft(find.text('모든 생각 보기'));
     await tester.scrollUntilVisible(
-      find.text('프로젝트 29'),
+      find.text('문서 29'),
       200,
       scrollable: find.descendant(
         of: find.byKey(const ValueKey('menu-projects')),
@@ -92,9 +92,9 @@ void main() {
       ),
     );
     expect(tester.getTopLeft(find.text('모든 생각 보기')), before);
-    await tester.ensureVisible(find.text('프로젝트 29'));
+    await tester.ensureVisible(find.text('문서 29'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('프로젝트 29'));
+    await tester.tap(find.text('문서 29'));
     await tester.pumpAndSettle();
     expect(selected, 29);
   });

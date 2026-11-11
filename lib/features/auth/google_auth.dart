@@ -97,8 +97,7 @@ class GoogleAuthController extends ChangeNotifier {
   void _changed() { if (!_disposed) notifyListeners(); }
   Future<void> initialize() => _initializing ??= _initialize();
   Future<void> _initialize() async {
-    // Deliberately a non-expiring test account marker, not an OAuth session.
-    // Do not persist ID tokens or ask Google to refresh this local marker.
+    // Restore only a server-issued session; old local markers are not credentials.
     try {
       if (preferences?.getBool(guestModeKey) == true) {
         isGuest = true; _changed(); return;
@@ -136,7 +135,7 @@ class GoogleAuthController extends ChangeNotifier {
       });
       _sessionWrite = write;
     }, onError: _failure);
-    try { await client.initialize(); ready = true; }
+    try { await client.initialize().timeout(const Duration(seconds: 10)); ready = true; }
     catch (_) { error = 'Google 로그인을 준비하지 못했습니다. 연결 및 OAuth 설정을 확인해 주세요.'; }
     finally { busy = false; _changed(); }
   }

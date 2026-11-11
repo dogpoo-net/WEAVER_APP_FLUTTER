@@ -30,7 +30,7 @@ reload server data; local recovery is retained until that confirmation.
 
 Media bytes live under /home/ocaptain/resource/{image,audio}/<account UUID>/ with
 hashed filenames. DB records relative paths, media type, size and SHA-256. Reads
-require the owning session. The server's current 64 MiB workspace cap is retained;
+require authenticated workspace membership. The server's current 64 MiB workspace cap includes content, media and document history;
 paid tiers and billing are not implemented by this migration.
 
 Measured from three existing server backup samples (not current unsaved browser
@@ -39,3 +39,34 @@ layouts 3907–17457 bytes. A one-position delta request example is 186 UTF-8 by
 excluding HTTP/TLS and response overhead. At 1000 concurrently dragging users and
 one release per 5 seconds: 200 requests/second and ~37.2 KB/second of delta request
 bodies. This is a traffic calculation, not a measured server throughput claim.
+
+
+Shared workspaces use the owner's user UUID as workspace ID. Every read, write,
+media and history route checks membership. A workspace row lock serializes member
+changes, seat reservations and writes. Free workspaces have two editor seats,
+including their owner; unexpired pending editor invitations reserve the second
+seat. Viewers use no editor seat. Only owners manage invitations and roles.
+Invites expire after seven days, require the invited verified email on acceptance,
+and can be revoked. Joining never removes one's personal workspace. Each joined
+workspace has a separate account-local namespace. Viewer UI exposes no editing.
+
+Document history starts at legacy migration/import or the first server save.
+Every changed body version records server-authenticated actor, UTC timestamp,
+before/after content and line/offset diff. Add/remove counts use Unicode code
+points (including markup and whitespace), so emoji surrogate pairs count once.
+Unchanged bodies and rejected stale writes create no extra version. History is
+paged in batches of 50 and readable by workspace members. Historical restoration
+and realtime collaboration are not included. Internal project identifiers and
+serialized keys remain compatible; only displayed terminology changes to 문서.
+
+Rollout: apply 007 and 008 additive migrations, deploy backend before frontend.
+Old email-only backup routes intentionally return 410 after this rollout. Retain
+legacy backup rows for recovery. No production HTTP smoke checks are performed
+when the user has requested deployment without response validation.
+
+Existing document editors obtain an exclusive 120-second lease, renewed every
+30 seconds and released on close. Another editor sees read-only content. Losing
+the lease blocks saves without discarding the current input. Forced tab closure
+recovers after lease expiry. Lease acquisition is authorized and serialized with
+saves; actor plus per-editor token must match. Optimistic revisions still protect
+stale content after a lease is transferred. Lease renewal does not save content.

@@ -5,8 +5,9 @@ import 'google_button.dart';
 import 'login_provider_button.dart';
 
 class LoginPage extends StatelessWidget {
-  const LoginPage({super.key, required this.auth});
+  const LoginPage({super.key, required this.auth,this.invitationPending=false});
   final GoogleAuthController auth;
+  final bool invitationPending;
   @override
   Widget build(BuildContext context) => Scaffold(body: SafeArea(child: Center(
     child: SingleChildScrollView(padding: const EdgeInsets.all(24), child: ConstrainedBox(
@@ -15,6 +16,7 @@ class LoginPage extends StatelessWidget {
         Text('WEAVER', style: Theme.of(context).textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 5)),
         const SizedBox(height: 12),
         const Text('생각을 기록하고 연결하세요.'),
+        if(invitationPending)const Padding(padding:EdgeInsets.only(top:12),child:Text('초대받은 이메일 계정으로 로그인하면 워크스페이스 초대를 수락할 수 있습니다.',textAlign:TextAlign.center)),
         const SizedBox(height: 36),
         LoginProviderButton(label: '이메일로 로그인 / 회원가입', icon: Icons.mail_outline,
           onPressed: auth.busy ? null : () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => EmailLoginPage(auth: auth)))),

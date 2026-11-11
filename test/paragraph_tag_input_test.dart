@@ -49,9 +49,9 @@ void main() {
   testWidgets('project prose keeps inline hashtags untouched', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: ParagraphEditor(projectEditing: true, words: [])));
     final field = find.byKey(const ValueKey('paragraph-0'));
-    await tester.enterText(field, '프로젝트 #본문 ');
+    await tester.enterText(field, '문서 #본문 ');
     await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field).controller!.text, '프로젝트 #본문 ');
+    expect(tester.widget<TextField>(field).controller!.text, '문서 #본문 ');
     expect(find.byKey(const ValueKey('paragraph-tags')), findsNothing);
   });
 }

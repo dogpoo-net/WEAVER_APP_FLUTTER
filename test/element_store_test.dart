@@ -40,7 +40,7 @@ void main() {
     expect(find.text('글로벌 생각 저장'), findsNothing);
     await tester.tap(find.byWidgetPredicate((w) => w is WordBadge && w.word == '작은 생각'));
     await tester.pumpAndSettle();
-    expect(find.text('프로젝트 사용'), findsNothing);
+    expect(find.text('문서 사용'), findsNothing);
     expect(find.byKey(const ValueKey('element-editor')), findsOneWidget);
     expect(find.text('독립 문단 · 2회'), findsNothing);
     expect(tester.takeException(), isNull);

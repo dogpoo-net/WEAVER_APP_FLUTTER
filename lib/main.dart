@@ -52,6 +52,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late final GoogleAuthController _auth;
   String? _verificationToken;
+  String? _inviteToken;
 
   ThemeMode _mode = ThemeMode.dark;
   LightPalette _lightPalette = LightPalette.neutral;
@@ -62,13 +63,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     final fragment = Uri.base.fragment;
+    if(fragment.startsWith('invite='))_inviteToken=fragment.substring('invite='.length);
     if (fragment.startsWith('verify-email=')) {
       _verificationToken = fragment.substring('verify-email='.length);
     }
     _auth = GoogleAuthController(widget.authClient ?? SdkGoogleAuthClient(), preferences: widget.storage?.preferences, emailApi: widget.emailApi);
     if (widget.requireLogin) {
       final storage=widget.storage;
-      (storage==null ? Future<void>.value() : OwnedWorkspaces(storage).initialize()).then((_) => _auth.initialize());
+      (storage==null ? Future<void>.value() : OwnedWorkspaces(storage).initialize()).then((_) {if(mounted)return _auth.initialize();}).catchError((Object error){if(mounted){_auth.error='로컬 작업공간을 준비하지 못했습니다. 자료를 보존했습니다.';setState((){});}});
     }
     elements.clear();
     showClosedThoughts = widget.storage?.preferences.getBool(closedThoughtsPreference) ?? true;
@@ -184,7 +186,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             uri: Uri(path: Uri.base.path, query: Uri.base.hasQuery ? Uri.base.query : null), replace: true);
         }
         setState(() => _verificationToken = null);
-      }) : widget.requireLogin && !_auth.isGuest && _auth.identity == null ? LoginPage(auth: _auth) : widget.requireLogin && widget.storage != null ? OwnedWorkspaceGate(root:widget.storage!,auth:_auth,builder:_inbox) : _inbox(widget.storage),
+      }) : widget.requireLogin && !_auth.isGuest && _auth.identity == null ? LoginPage(auth: _auth,invitationPending:_inviteToken!=null) : widget.requireLogin && widget.storage != null ? OwnedWorkspaceGate(root:widget.storage!,auth:_auth,builder:_inbox,inviteToken:_inviteToken,onInviteHandled:(){if(kIsWeb)SystemNavigator.routeInformationUpdated(uri:Uri(path:Uri.base.path),replace:true);if(mounted)setState(()=>_inviteToken=null);}) : _inbox(widget.storage),
   )));
 
   Widget _inbox(WorkspaceStorage? storage) => InboxPage(

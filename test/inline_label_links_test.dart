@@ -75,11 +75,11 @@ void main() {
     expect(documentTitle('====== 제목 ======'), '제목');
   });
   test('project heading titles resolve to stable identities and survive renaming and storage', () {
-    final project = WritingProject([], [], name: '이전 제목')..document = '서문\n======프로젝트 제목======\n내용';
+    final project = WritingProject([], [], name: '이전 제목')..document = '서문\n======문서 제목======\n내용';
     elements.indexProject(project);
-    expect(documentTitle(project.content), '프로젝트 제목');
+    expect(documentTitle(project.content), '문서 제목');
     expect(labelAssistTargets(), contains('project:${project.id}'));
-    final c = LabelTextController()..text = '[[문서|프로젝트 제목]]';
+    final c = LabelTextController()..text = '[[문서|문서 제목]]';
     expect(c.text, '문서'); expect(c.bindings.single.id, 'project:${project.id}');
     project.document = '======새 제목======';
     expect(projectTarget(c.bindings.single.id), same(project));

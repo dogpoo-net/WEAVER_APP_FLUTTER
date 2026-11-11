@@ -21,7 +21,7 @@ void main() {
     final p = const Paragraph('작은 생각', ParagraphRole.title);
     final notes = [
       Note('작은 생각')..paragraphs = [p],
-      Note('작은 생각')..project = WritingProject([p], ['작은 생각'], name: '내 프로젝트'),
+      Note('작은 생각')..project = WritingProject([p], ['작은 생각'], name: '내 문서'),
     ];
     final json = WorkspaceSnapshot.encode(notes);
     elements.clear();
@@ -32,7 +32,7 @@ void main() {
     expect(exportWordColors()['작은 생각'], 210);
     expect(elements.records['작은 생각']!.labelColor, 0xFF90A4AE);
     expect(snapshot.notes.first.paragraphs!.single.role, ParagraphRole.title);
-    expect(snapshot.notes.last.project!.name, '내 프로젝트');
+    expect(snapshot.notes.last.project!.name, '내 문서');
     expect(elements.sources.values.single.single.isProject, isTrue);
     final broken = jsonDecode(json) as Map<String, dynamic>;
     broken['version'] = 999;

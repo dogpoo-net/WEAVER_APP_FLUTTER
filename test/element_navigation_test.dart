@@ -16,7 +16,7 @@ void main() {
         const Paragraph('첫 기억. 두번째 기억을 담은 문장.', ParagraphRole.body),
       ],
       [],
-      name: '프로젝트',
+      name: '문서',
     );
     elements.indexProject(project);
     await tester.pumpWidget(
@@ -33,7 +33,7 @@ void main() {
     );
     await tester.tap(find.text('정보'));
     await tester.pumpAndSettle();
-    expect(find.text('프로젝트 사용'), findsNothing);
+    expect(find.text('문서 사용'), findsNothing);
     expect(find.text('사용 위치'), findsNothing);
     expect(find.text('함께 쓰인 생각'), findsNothing);
     expect(find.byType(ProjectPage), findsNothing);

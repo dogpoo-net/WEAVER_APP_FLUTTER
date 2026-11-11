@@ -10,14 +10,14 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     final projectMoves = <String?>[];
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: WorkspaceMenu(
-      embedded: true, projects: const ['프로젝트 글'],
-      folders: const ['프로젝트 폴더'], projectFolderNames: const ['프로젝트 폴더'],
+      embedded: true, projects: const ['문서 글'],
+      folders: const ['문서 폴더'], projectFolderNames: const ['문서 폴더'],
       onProjectMoved: (index, folder) => projectMoves.add(folder),
     ))));
-    await tester.tap(find.text('프로젝트 폴더'));
+    await tester.tap(find.text('문서 폴더'));
     await tester.pumpAndSettle();
-    final nestedProjectX = tester.getTopLeft(find.text('프로젝트 글')).dx;
-    expect(tester.widget<Text>(find.text('프로젝트 글')).style!.fontSize, 13);
+    final nestedProjectX = tester.getTopLeft(find.text('문서 글')).dx;
+    expect(tester.widget<Text>(find.text('문서 글')).style!.fontSize, 13);
     Future<void> move(String item, String gap) async {
       final source = find.byKey(ValueKey(item));
       final target = find.byKey(ValueKey(gap));
@@ -37,8 +37,8 @@ void main() {
     expect(projectMoves, isEmpty);
     await move('menu-project-0', 'drop-project-outside');
     expect(projectMoves, [null]);
-    expect(tester.widget<Text>(find.text('프로젝트 글')).style!.fontSize, 13);
-    expect(tester.getTopLeft(find.text('프로젝트 글')).dx, lessThan(nestedProjectX));
+    expect(tester.widget<Text>(find.text('문서 글')).style!.fontSize, 13);
+    expect(tester.getTopLeft(find.text('문서 글')).dx, lessThan(nestedProjectX));
     expect(find.text('미분류'), findsNothing);
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.android}));

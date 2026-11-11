@@ -328,9 +328,13 @@ class WorkspaceSnapshot {
 class WorkspaceStorage {
   WorkspaceStorage(this.preferences, {this.owner});
   final String? owner;
+  Future<Map<String,dynamic>> Function(String,String,bool)? documentLease;
   void Function()? onChanged;
   Future<void> Function()? syncNow;
   Future<void> Function()? pullNow;
+  Future<void> Function()? openSharing;
+  Future<void> Function(String)? openHistory;
+  bool Function()? hasUnsavedInput;
   bool suspended = false;
   String scoped(String name) => owner == null ? name : 'weaver.owned.${base64Url.encode(utf8.encode(owner!))}.$name';
   String get workspaceKey => scoped(key);

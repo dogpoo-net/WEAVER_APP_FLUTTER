@@ -78,6 +78,9 @@ class OwnedWorkspaces {
       final target=scope(guest?guestOwner:'quarantine');
       if(target.read()==null){if(!await p.setString(target.workspaceKey,raw))throw StateError('Migration failed');}
       final graphs=root.readGraphLayouts();if(graphs!=null)await p.setString(target.layoutsKey,graphs);
+      WorkspaceSnapshot? legacy;try {legacy=WorkspaceSnapshot.decode(raw);}catch(_) { /* Keep malformed legacy bytes in quarantine for recovery. */ }
+      if(legacy!=null)for(final record in [...legacy.records,...legacy.trashRecords]){for(final id in [...record.photos.map((p)=>p.id),...record.recordings.map((p)=>p.id)]){final bytes=await MediaStorage.read(id,owner:null);if(bytes!=null)await MediaStorage.write(id,bytes,owner:target.owner);}}
+      for(final suffix in ['.previous','.beforeImport']){final value=p.getString('${WorkspaceStorage.key}$suffix');if(value!=null && !await p.setString('${target.workspaceKey}$suffix',value))throw StateError('Recovery migration failed');}
       if(!await p.setBool('weaver.owner-migrated.v1',true))throw StateError('Migration failed');
       await root.clear();
     }else {if(!await p.setBool('weaver.owner-migrated.v1',true))throw StateError('Migration failed');}
@@ -111,9 +114,17 @@ class OwnedWorkspaces {
 }
 
 class WorkspaceSync extends ChangeNotifier {
-  WorkspaceSync(this.storage,this.api,{required this.isCurrent});
+  WorkspaceSync(this.storage,this.api,{required this.isCurrent,this.workspaceId,this.readOnly=false});
   final WorkspaceStorage storage;
   final EmailAuthApi api;
+  final String? workspaceId;final bool readOnly;
+  final documentLeases=<String,String>{};
+  Future<Map<String,dynamic>> documentLease(String id,String token,bool release)async{
+    final result=await request('document-lease',{'documentId':id,'leaseToken':token,'release':release});
+    if(release || result['acquired']!=true){if(documentLeases[id]==token)documentLeases.remove(id);}else{documentLeases[id]=token;}
+    return result;
+  }
+  Future<void> settle()async{try{await _running;}catch(_){} }
   final bool Function() isCurrent;
   Map<String,Map<String,dynamic>> base={};
   int cursor=0;
@@ -126,7 +137,8 @@ class WorkspaceSync extends ChangeNotifier {
   void schedule(){changed();}
   Future<Map<String,dynamic>> request(String action,Map<String,Object?> body) async {
     if(_disposed || !isCurrent())throw const EmailAuthFailure('계정이 변경되었습니다.');
-    final result=await api.workspace(action,body);
+    if(readOnly && {'save','claim','media/write','document-lease'}.contains(action))throw const EmailAuthFailure('읽기 전용 워크스페이스입니다.');
+    final result=await api.workspace(action,{...body,if(workspaceId!=null)'workspaceId':workspaceId});
     if(_disposed || !isCurrent())throw const EmailAuthFailure('계정이 변경되었습니다.');return result;
   }
   void loadBase(){
@@ -146,16 +158,16 @@ class WorkspaceSync extends ChangeNotifier {
     final snapshot=WorkspaceSnapshot.decode(raw);
     for(final record in [...snapshot.records,...snapshot.trashRecords]){
       for(final id in [...record.photos.map((p)=>p.id),...record.recordings.map((p)=>p.id)]){
-        if(await MediaStorage.read(id)==null){final result=await request('media/read',{'mediaId':id});await MediaStorage.write(id,base64Decode(result['data'] as String));}
+        if(await MediaStorage.read(id,owner:storage.owner)==null){final result=await request('media/read',{'mediaId':id});await MediaStorage.write(id,base64Decode(result['data'] as String),owner:storage.owner);}
       }
     }
   }
-  Future<void> uploadMedia(String raw) async {
+  Future<void> uploadMedia(String raw,{String? sourceOwner}) async {
     final snapshot=WorkspaceSnapshot.decode(raw);
     for(final record in [...snapshot.records,...snapshot.trashRecords]){
       for(final id in [...record.photos.map((p)=>p.id),...record.recordings.map((p)=>p.id)]){
         final flag=storage.scoped('media-sent.$id');if(storage.preferences.getBool(flag)==true)continue;
-        final bytes=await MediaStorage.read(id);if(bytes==null)throw const EmailAuthFailure('첨부파일을 읽지 못했습니다. 로컬 자료를 보존합니다.');
+        final bytes=await MediaStorage.read(id,owner:sourceOwner??storage.owner);if(bytes==null)throw const EmailAuthFailure('첨부파일을 읽지 못했습니다. 로컬 자료를 보존합니다.');
         await request('media/write',{'mediaId':id,'mediaType':record.recordings.any((clip)=>clip.id==id)?'audio':'image','data':base64Encode(bytes)});await storage.preferences.setBool(flag,true);
       }
     }
@@ -202,7 +214,7 @@ class WorkspaceSync extends ChangeNotifier {
       }
       if(changes.isNotEmpty){
         await uploadMedia(raw);
-        final result=await request('save',{'since':cursor,'changes':changes});
+        final result=await request('save',{'since':cursor,'changes':changes,'documentLeases':documentLeases});
         // Only acknowledge the submitted local snapshot. Remote-only edits are
         // fetched on the next workspace open, not applied over an active editor.
         final returned={for(final row in result['changes'] as List)itemKey(row['kind'],row['id']):row};
@@ -231,7 +243,7 @@ class WorkspaceSync extends ChangeNotifier {
       }
       changes.add({...entry.value,'baseRevision':previous?['revision']??0,'deleted':false});
     }
-    await uploadMedia(raw);
+    await uploadMedia(raw,sourceOwner:guest.owner);
     final result=await request('claim',{'since':0,'guestId':claim['guestId'],'sourceHash':claim['sourceHash'],'changes':changes});
     base.clear();accept(result);final combined=joinWorkspace(base);await ensureMedia(combined);
     await storage.replaceFromBackup(combined,closed:true);_lastSynced=combined;await saveBase();
@@ -243,7 +255,7 @@ class WorkspaceSync extends ChangeNotifier {
   }
   Future<void> removeCleanCache() async {
     await storage.flush();if(storage.read()==_lastSynced){final raw=storage.read();await storage.clear();await storage.preferences.remove(storage.syncKey);
-      if(raw!=null){final snapshot=WorkspaceSnapshot.decode(raw);for(final r in [...snapshot.records,...snapshot.trashRecords]){for(final id in [...r.photos.map((p)=>p.id),...r.recordings.map((c)=>c.id)]){try{await MediaStorage.delete(id);}catch(_){}await storage.preferences.remove(storage.scoped('media-sent.$id'));}}}}
+      if(raw!=null){final snapshot=WorkspaceSnapshot.decode(raw);for(final r in [...snapshot.records,...snapshot.trashRecords]){for(final id in [...r.photos.map((p)=>p.id),...r.recordings.map((c)=>c.id)]){try{await MediaStorage.delete(id,owner:storage.owner);}catch(_){}await storage.preferences.remove(storage.scoped('media-sent.$id'));}}}}
   }
   @override void dispose(){_disposed=true;_timer?.cancel();storage.onChanged=null;storage.syncNow=null;super.dispose();}
 }

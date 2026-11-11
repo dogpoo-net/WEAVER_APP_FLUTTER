@@ -9,7 +9,7 @@ void main() {
   testWidgets('project title assist inserts an atomic alias and help replaces folder action', (tester) async {
     elements.clear();
     final source = WritingProject([], [], name: '작성')..document = '';
-    final target = WritingProject([], [], name: '옛 이름')..document = '서문\n======참고 프로젝트======';
+    final target = WritingProject([], [], name: '옛 이름')..document = '서문\n======참고 문서======';
     await tester.pumpWidget(MaterialApp(home: ProjectPage(project: source, projects: [source, target])));
     await tester.pumpAndSettle();
     final field = find.byKey(const ValueKey('project-document'));
@@ -22,9 +22,9 @@ void main() {
     controller.clear();
     await tester.enterText(field, '<code>참고'); await tester.pumpAndSettle();
     expect(suggestion, findsNothing);
-    expect(find.byTooltip('프로젝트 폴더'), findsNothing);
+    expect(find.byTooltip('문서 폴더'), findsNothing);
     await tester.tap(find.byTooltip('작성 문법 안내')); await tester.pumpAndSettle();
-    expect(find.text('프로젝트 작성 문법'), findsOneWidget);
+    expect(find.text('문서 작성 문법'), findsOneWidget);
     expect(find.textContaining('<code>code</code>'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });

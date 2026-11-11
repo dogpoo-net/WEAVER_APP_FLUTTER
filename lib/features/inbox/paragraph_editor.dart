@@ -465,7 +465,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
             icon: const Icon(Icons.arrow_back),
             tooltip: '돌아가기',
           ),
-          title: Text(widget.projectEditing ? (widget.projectCreation ? '프로젝트 생성' : '프로젝트 편집') : '문단 쓰기'),
+          title: Text(widget.projectEditing ? (widget.projectCreation ? '문서 생성' : '문서 편집') : '문단 쓰기'),
           actions: [
             TextButton(
                 onPressed: hasText
@@ -554,7 +554,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                       }
                     }
                   : null,
-              child: Text(widget.projectCreation ? '프로젝트 만들기' : '저장'),
+              child: Text(widget.projectCreation ? '문서 만들기' : '저장'),
             ),
           ],
         ),
@@ -573,7 +573,7 @@ class _ParagraphEditorState extends State<ParagraphEditor> with WidgetsBindingOb
                   sliver: SliverMainAxisGroup(slivers: [
                   SliverToBoxAdapter(child: Column(children: [
                   if (widget.projectCreation) TextField(key: const ValueKey('project-name'), controller: _name,
-                    decoration: const InputDecoration(labelText: '프로젝트 이름', helperText: '비워두면 제목 또는 첫 문장을 사용합니다.'),
+                    decoration: const InputDecoration(labelText: '문서 이름', helperText: '비워두면 제목 또는 첫 문장을 사용합니다.'),
                     onChanged: (_) => setState(() => _dirty = true)),
                   if (widget.projectEditing) Align(alignment: AlignmentDirectional.centerEnd,
                     child: OutlinedButton.icon(onPressed: _loadParagraph, icon: const Icon(Icons.search), label: const Text('문단 찾기'))),

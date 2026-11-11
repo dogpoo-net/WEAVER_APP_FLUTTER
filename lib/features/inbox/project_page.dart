@@ -26,10 +26,12 @@ class WritingProject {
 }
 
 class ProjectPage extends StatelessWidget {
-  const ProjectPage({super.key, required this.project, this.onChanged, this.onSave, this.projects = const []});
+  const ProjectPage({super.key, required this.project, this.onChanged, this.onSave, this.onHistory, this.onLease, this.projects = const []});
+  final Future<Map<String,dynamic>> Function(String,String,bool)? onLease;
   final WritingProject project;
   final List<WritingProject> projects;
   final Future<void> Function()? onChanged, onSave;
+  final Future<void> Function(String)? onHistory;
   @override
-  Widget build(BuildContext context) => DesktopMenuFrame(child: ProjectDocumentEditor(project: project, projects: projects, onChanged: onChanged, onSave: onSave));
+  Widget build(BuildContext context) => DesktopMenuFrame(child: ProjectDocumentEditor(project: project, projects: projects, onChanged: onChanged, onSave: onSave,onHistory:onHistory,onLease:onLease));
 }

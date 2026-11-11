@@ -14,10 +14,10 @@ void main() {
   List<Note> notes() => [
     Note('관찰'), // Creating a quick element is not a use in a saved sentence.
     Note('관찰 관찰 질문')..paragraphs = const [Paragraph('관찰 관찰 질문', ParagraphRole.body)],
-    Note('프로젝트')..project = WritingProject(const [
+    Note('문서')..project = WritingProject(const [
       Paragraph('관찰 연결', ParagraphRole.body), Paragraph('질문 연결', ParagraphRole.body),
       Paragraph('관찰 질문 관찰', ParagraphRole.body),
-    ], [], name: '프로젝트'),
+    ], [], name: '문서'),
   ];
   void records() {
     for (final word in ['관찰', '질문', '연결', '미사용']) { elements.add(word); }

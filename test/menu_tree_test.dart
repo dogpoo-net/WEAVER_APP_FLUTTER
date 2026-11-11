@@ -5,18 +5,18 @@ import 'package:weaver/features/inbox/workspace_menu.dart';
 void main() {
   testWidgets('folder children are indented, smaller and open over 200ms without borders', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: SizedBox(width: 320, child: WorkspaceMenu(
-      embedded: true, folders: ['폴더'], projects: ['폴더 안 프로젝트', '바깥 프로젝트'], projectFolderNames: ['폴더', null],
+      embedded: true, folders: ['폴더'], projects: ['폴더 안 문서', '바깥 문서'], projectFolderNames: ['폴더', null],
     )))));
     expect(find.text('미분류'), findsNothing);
     await tester.tap(find.text('폴더'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
-    final halfway = tester.getTopLeft(find.text('바깥 프로젝트')).dy;
+    final halfway = tester.getTopLeft(find.text('바깥 문서')).dy;
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pumpAndSettle();
-    expect(tester.getTopLeft(find.text('바깥 프로젝트')).dy, greaterThan(halfway));
-    expect(tester.getTopLeft(find.text('폴더 안 프로젝트')).dx, greaterThan(tester.getTopLeft(find.text('바깥 프로젝트')).dx));
-    expect(tester.widget<Text>(find.text('폴더 안 프로젝트')).style!.fontSize, 13);
+    expect(tester.getTopLeft(find.text('바깥 문서')).dy, greaterThan(halfway));
+    expect(tester.getTopLeft(find.text('폴더 안 문서')).dx, greaterThan(tester.getTopLeft(find.text('바깥 문서')).dx));
+    expect(tester.widget<Text>(find.text('폴더 안 문서')).style!.fontSize, 13);
     final tile = tester.widget<ExpansionTile>(find.byType(ExpansionTile));
     expect((tile.shape! as RoundedRectangleBorder).side, BorderSide.none);
     expect(tester.takeException(), isNull);
@@ -28,7 +28,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: SizedBox(width: 320, child: WorkspaceMenu(
-      embedded: true, projects: List.generate(12, (i) => '프로젝트$i'), tags: List.generate(30, (i) => '태그$i'),
+      embedded: true, projects: List.generate(12, (i) => '문서$i'), tags: List.generate(30, (i) => '태그$i'),
     )))));
     final scroll = find.byKey(const ValueKey('menu-projects'));
     final controller = tester.widget<CustomScrollView>(scroll).controller!;

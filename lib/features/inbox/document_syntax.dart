@@ -11,5 +11,5 @@ String documentTitle(String text) {
     final heading = projectHeading.firstMatch(line);
     if (heading != null) return heading.group(2)!.trim();
   }
-  return prose.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).firstOrNull ?? '프로젝트';
+  return prose.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).firstOrNull ?? '문서';
 }

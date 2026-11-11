@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'save_shortcuts.dart';
 import 'thought_settings.dart';
 import 'thought_filters.dart';
@@ -14,16 +16,27 @@ import 'element_store.dart';
 import 'word_badge.dart';
 
 class ProjectDocumentEditor extends StatefulWidget {
-  const ProjectDocumentEditor({super.key, this.project, this.onChanged, this.onSave, this.projects = const []});
+  const ProjectDocumentEditor({super.key, this.project, this.onChanged, this.onSave, this.onHistory, this.onLease, this.projects = const []});
+  final Future<Map<String,dynamic>> Function(String,String,bool)? onLease;
   final WritingProject? project;
   final List<WritingProject> projects;
   final Future<void> Function()? onChanged, onSave;
+  final Future<void> Function(String)? onHistory;
   @override
   State<ProjectDocumentEditor> createState() => _ProjectDocumentEditorState();
 }
 class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   late final LabelTextController _body;
   bool _preview = false;
+  late final String _leaseToken=List.generate(32,(_)=>math.Random.secure().nextInt(256).toRadixString(16).padLeft(2,'0')).join();
+  Timer? _leaseTimer;bool _leaseGranted=true,_leaseBusy=false;String? _leaseMessage;
+  bool get _needsLease=>widget.project!=null && widget.onLease!=null;
+  Future<bool> _renewLease()async{
+    if(!_needsLease)return true;if(_leaseBusy)return false;_leaseBusy=true;
+    try{final result=await widget.onLease!(widget.project!.id,_leaseToken,false);if(!mounted)return false;setState((){_leaseGranted=result['acquired']==true;_leaseMessage=_leaseGranted?null:'${result['holder']??'다른 사용자'} 편집 중 · 읽기 전용';});}
+    catch(_){if(mounted)setState((){_leaseGranted=false;_leaseMessage='편집 권한을 확인하지 못했습니다. 작성 중인 내용은 유지됩니다.';});}
+    finally{_leaseBusy=false;}return _leaseGranted;
+  }
   final _search = TextEditingController();
   final _bodyFocus = FocusNode();
   final _tags = <String>{};
@@ -34,6 +47,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   @override
   void initState() {
     super.initState();
+    if(_needsLease){_leaseGranted=false;unawaited(_renewLease());_leaseTimer=Timer.periodic(const Duration(seconds:30),(_)=>unawaited(_renewLease()));}
     _body = LabelTextController( widget.project?.document ?? widget.project?.paragraphs.map((p) =>
       p.role == ParagraphRole.title ? '======${p.text}======' : p.role == ParagraphRole.subtitle ? '=====${p.text}=====' : p.text).join('\n\n') ?? '', widget.project?.documentLinks ?? const []);
     for (final project in widget.projects) { elements.indexProject(project); }
@@ -53,7 +67,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   void _edited() { if (mounted) setState(() => _dirty = true); }
   void _refresh() { if (mounted) setState(() {}); }
   @override
-  void dispose() { elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
+  void dispose() { _leaseTimer?.cancel();if(_needsLease)unawaited(widget.onLease!(widget.project!.id,_leaseToken,true).then<void>((_){}).catchError((Object _){}));elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
   void _insertLabel(String word) {
     _body.insertTarget(word); _bodyFocus.requestFocus();
   }
@@ -70,6 +84,8 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     if(_saving)return;
     _saving=true;
     try {
+    if(_needsLease && !await _renewLease())return;
+    if(!mounted)return;
     _body.completeLinks();
     _tags.addAll(cleanLinkedInput(_body).tags);
     if (_body.text.trim().isEmpty) {
@@ -112,10 +128,13 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('계속 작성')),
       TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('나가기'))]));
     if (discard == true && mounted) { setState(() => _dirty = false); WidgetsBinding.instance.addPostFrameCallback((_) { if (context.mounted) Navigator.pop(context); }); }
-  }, child: Scaffold(appBar: AppBar(title: WorkspaceTitle(widget.project?.name ?? '프로젝트 만들기'), actions: [const KeyboardDismissAction(), const DesktopMenuAction(), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _preview = !_preview)), TextButton(style: TextButton.styleFrom(minimumSize: Size(_wide ? 40 : 32, 40), padding: EdgeInsets.symmetric(horizontal: _wide ? 6 : 2), tapTargetSize: _wide ? MaterialTapTargetSize.padded : MaterialTapTargetSize.shrinkWrap), onPressed: _save, child: const Text('저장')),
+  }, child: Scaffold(appBar: AppBar(title: WorkspaceTitle(widget.project?.name ?? '문서 만들기'), actions: [const KeyboardDismissAction(), const DesktopMenuAction(), if(_needsLease)IconButton(tooltip:_leaseMessage??'이 문서를 편집 중입니다',onPressed:()=>_renewLease(),icon:Icon(_leaseGranted?Icons.lock_open:Icons.lock_outline)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _preview = !_preview)), TextButton(style: TextButton.styleFrom(minimumSize: Size(_wide ? 40 : 32, 40), padding: EdgeInsets.symmetric(horizontal: _wide ? 6 : 2), tapTargetSize: _wide ? MaterialTapTargetSize.padded : MaterialTapTargetSize.shrinkWrap), onPressed: _leaseGranted?_save:null, child: const Text('저장')),
+    if(widget.project!=null && widget.onHistory!=null)IconButton(tooltip:'문서 변경 이력',icon:const Icon(Icons.history),onPressed:()=>widget.onHistory!(widget.project!.id)),
     IconButton(tooltip: '작성 문법 안내', icon: const Icon(Icons.info_outline), onPressed: _showHelp),
-  ]), body: DesktopMenuBody(child: SafeArea(top: false, child: LayoutBuilder(builder: (context, constraints) {
-      final document = _preview
+   ]), bottomNavigationBar: _leaseGranted?null:SafeArea(child:Padding(padding:const EdgeInsets.all(12),child:Text(_leaseMessage??'편집 권한을 확인하고 있습니다.'))), body: DesktopMenuBody(child: SafeArea(top: false, child: LayoutBuilder(builder: (context, constraints) {
+      final document = !_leaseGranted
+        ? SingleChildScrollView(child:SelectableText(_body.text))
+        : _preview
         ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
         : CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true,
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
@@ -152,14 +171,14 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     })))));
 
   void _showHelp() => showDialog<void>(context: context, builder: (context) => AlertDialog(
-    title: const Text('프로젝트 작성 문법'),
+    title: const Text('문서 작성 문법'),
     content: const SingleChildScrollView(child: Text(
       '제목 1: ======제목======\n제목 2: =====제목=====\n제목 3: ====제목====\n제목 4: ===제목===\n제목 5: ==제목==\n'
-      '제목 안의 공백은 그대로 표시됩니다. 가장 먼저 나오는 제목을 프로젝트 이름으로 사용합니다.\n\n'
+      '제목 안의 공백은 그대로 표시됩니다. 가장 먼저 나오는 제목을 문서 이름으로 사용합니다.\n\n'
       '굵게: **텍스트**\n기울임: //텍스트//\n밑줄: __텍스트__\n취소선: --텍스트--\n\n'
       '왼쪽 정렬: |텍스트 |\n오른쪽 정렬: | 텍스트|\n가운데 정렬: | 텍스트 |\n\n'
-      '링크: [[표시명|라벨 또는 프로젝트 제목]]\n웹 링크: [[표시명|https://example.com]]\n'
-      '[[표시명|까지 입력하면 어시스트가 열립니다. Ctrl + Space로 선택할 수 있습니다. 프로젝트는 프로젝트: 접두어와 굵은 제목으로 표시됩니다.\n\n'
+      '링크: [[표시명|라벨 또는 문서 제목]]\n웹 링크: [[표시명|https://example.com]]\n'
+      '[[표시명|까지 입력하면 어시스트가 열립니다. Ctrl + Space로 선택할 수 있습니다. 문서는 문서: 접두어와 굵은 제목으로 표시됩니다.\n\n'
       '코드: <code>code</code>\n여러 줄도 가능하며 코드 안의 문법은 해석하지 않습니다.\n\n'
       '상단 미리보기 버튼으로 서식과 링크를 확인하세요.')),
     actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],

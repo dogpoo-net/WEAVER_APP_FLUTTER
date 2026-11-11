@@ -55,7 +55,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     _Kind.box => memoBoxFolders, _Kind.element => widget.elementFolders, _Kind.tag => widget.tagFolders,
   };
   String _label(_Kind kind) => switch (kind) {
-    _Kind.project => '프로젝트', _Kind.paragraph => '문단', _Kind.box => '메모상자', _Kind.element => '생각', _Kind.tag => '해시태그',
+    _Kind.project => '문서', _Kind.paragraph => '문단', _Kind.box => '메모상자', _Kind.element => '생각', _Kind.tag => '해시태그',
   };
   void _sync() {
     normalizeMemoFolders();
@@ -197,7 +197,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     child: Row(children: [
       Expanded(child: Text(_label(kind), style: Theme.of(context).textTheme.labelMedium)),
       if (kind == _Kind.box) IconButton(tooltip: '메모상자 만들기', iconSize: 18, visualDensity: VisualDensity.compact, icon: const Icon(Icons.add), onPressed: () => _select(WorkspaceMenu.createBox)),
-      if (kind == _Kind.project || kind == _Kind.paragraph) IconButton(tooltip: kind == _Kind.project ? '프로젝트 생성' : '문단 추가', visualDensity: VisualDensity.compact,
+      if (kind == _Kind.project || kind == _Kind.paragraph) IconButton(tooltip: kind == _Kind.project ? '문서 생성' : '문단 추가', visualDensity: VisualDensity.compact,
         iconSize: 18, onPressed: () => _select(kind == _Kind.project ? WorkspaceMenu.createProject : WorkspaceMenu.createParagraph), icon: const Icon(Icons.add)),
       IconButton(tooltip: kind == _Kind.project ? '폴더 만들기' : '${_label(kind)} 폴더 만들기',
         visualDensity: VisualDensity.compact, iconSize: 18,

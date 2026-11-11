@@ -395,7 +395,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               context: context,
               builder: (dialogContext) => AlertDialog(
                 title: const Text('생각을 삭제할까요?'),
-                content: const Text('휴지통으로 이동합니다. 프로젝트의 글은 유지됩니다.'),
+                content: const Text('휴지통으로 이동합니다. 문서의 글은 유지됩니다.'),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(dialogContext, false),

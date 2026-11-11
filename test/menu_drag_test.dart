@@ -46,7 +46,7 @@ void main() {
               embedded: true,
               projects: const ['글'],
               tags: const ['책'],
-              folders: const ['프로젝트 폴더'],
+              folders: const ['문서 폴더'],
               tagFolders: const ['태그 폴더'],
               onProjectMoved: (i, f) {
                 expect(i, 0);
@@ -83,12 +83,12 @@ void main() {
       await move('menu-project-0', 'drop-tag-태그 폴더');
       expect(projectMoves, isEmpty);
       expect(tagMoves, isEmpty);
-      await move('menu-project-0', 'drop-project-프로젝트 폴더');
-      expect(projectMoves, ['프로젝트 폴더']);
-      await tester.tap(find.text('프로젝트 폴더'));
+      await move('menu-project-0', 'drop-project-문서 폴더');
+      expect(projectMoves, ['문서 폴더']);
+      await tester.tap(find.text('문서 폴더'));
       await tester.pumpAndSettle();
       await move('menu-project-0', 'drop-project-unfiled');
-      expect(projectMoves, ['프로젝트 폴더', null]);
+      expect(projectMoves, ['문서 폴더', null]);
       await move('menu-tag-0', 'drop-tag-태그 폴더');
       expect(tagMoves, ['태그 폴더']);
       await tester.tap(find.text('태그 폴더'));
