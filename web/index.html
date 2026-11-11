@@ -31,14 +31,47 @@
 
   <title>weaver</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    html, body { margin: 0; background: #121318; }
+    #weaver-loading {
+      position: fixed; inset: 0; display: grid; place-items: center;
+      background: #121318; z-index: 9999; perspective: 600px;
+    }
+    #weaver-loading img { width: 192px; height: 192px; object-fit: contain; }
+    #weaver-loading.leaving { pointer-events: none; animation: weaver-reveal 300ms ease-in forwards; }
+    #weaver-loading.leaving img {
+      will-change: transform, opacity;
+      animation: weaver-depart 300ms cubic-bezier(.3, 0, .65, 1) forwards;
+    }
+    @keyframes weaver-depart {
+      0% { transform: translateZ(0); opacity: 1; }
+      28% { transform: translateZ(90px); opacity: 1; }
+      100% { transform: translateZ(-1800px) scale(.15); opacity: 0; }
+    }
+    @keyframes weaver-reveal { 0%, 28% { opacity: 1; } 100% { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) {
+      #weaver-loading.leaving, #weaver-loading.leaving img { animation: none; }
+    }
+  </style>
 </head>
 <body>
-  <div id="weaver-loading" style="position:fixed;inset:0;display:grid;place-items:center;background:#fff;z-index:9999">
-    <img src="icons/splash.png?v=weaver-logo-2" alt="WEAVER" width="192" height="192">
+  <div id="weaver-loading" role="status" aria-label="WEAVER 로딩 중">
+    <img src="icons/loading-logo.png" alt="WEAVER" width="192" height="192">
   </div>
   <script>
     window.addEventListener('flutter-first-frame', function () {
-      document.getElementById('weaver-loading')?.remove();
+      const loading = document.getElementById('weaver-loading');
+      if (!loading) return;
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        loading.remove();
+        return;
+      }
+      loading.addEventListener('animationend', function (event) {
+        if (event.target === loading) loading.remove();
+      });
+      loading.classList.add('leaving');
+      // Also release the overlay when animation events are suppressed by the browser.
+      window.setTimeout(() => loading.remove(), 400);
     }, { once: true });
   </script>
   <!--
