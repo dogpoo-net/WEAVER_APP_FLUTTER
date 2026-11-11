@@ -226,6 +226,9 @@ class WorkspaceSync extends ChangeNotifier {
   }
   Future<void> importGuest(OwnedWorkspaces owned,Map<String,dynamic> claim) async {
     if(claim['account']!=storage.owner)throw const EmailAuthFailure('비회원 자료는 가져오기를 시작한 계정에만 복구할 수 있습니다.');
+    // Preserve this account's pending edits before merging a guest source.
+    // Re-read on retry to recover a server commit whose local checkpoint failed.
+    await initialize();if(!ready)throw EmailAuthFailure(error??'자료를 불러오지 못했습니다.');await flush();
     final guest=owned.scope(claim['scope'] as String);final raw=guest.read();
     if(raw==null){await owned.finishClaim(claim);return;}
     if(digest(raw)!=claim['sourceHash'])throw const EmailAuthFailure('비회원 자료가 변경되었습니다. 자료를 보존했습니다.');
@@ -245,8 +248,10 @@ class WorkspaceSync extends ChangeNotifier {
     }
     await uploadMedia(raw,sourceOwner:guest.owner);
     final result=await request('claim',{'since':0,'guestId':claim['guestId'],'sourceHash':claim['sourceHash'],'changes':changes});
-    base.clear();accept(result);final combined=joinWorkspace(base);await ensureMedia(combined);
-    await storage.replaceFromBackup(combined,closed:true);_lastSynced=combined;await saveBase();
+    final previous=Map<String,Map<String,dynamic>>.from(base),previousCursor=cursor,previousSnapshot=_lastSynced;
+    try{base.clear();accept(result);final combined=joinWorkspace(base);await ensureMedia(combined);
+      await storage.replaceFromBackup(combined,closed:true);_lastSynced=combined;await saveBase();
+    }catch(_){base=previous;cursor=previousCursor;_lastSynced=previousSnapshot;rethrow;}
     await owned.finishClaim(claim);error=null;changed();
   }
   Future<void> discardLocalAndPull() async {

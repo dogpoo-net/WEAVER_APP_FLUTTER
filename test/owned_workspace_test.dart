@@ -48,4 +48,10 @@ void main(){
   await expectLater(sync.flush(),throwsA(isA<EmailAuthFailure>()));await sync.removeCleanCache();expect(storage.read(),contains('unsent'));
   api.fail=false;await sync.flush();await sync.removeCleanCache();expect(storage.read(),isNull);sync.dispose();api.dispose();
  });
+ test('Guest import preserves already pending account edits',()async{
+  final root=WorkspaceStorage(await SharedPreferences.getInstance());final owned=OwnedWorkspaces(root);await owned.initialize();final storage=owned.scope('account-a');final api=DeltaApi();final sync=WorkspaceSync(storage,api,isCurrent:()=>true);await sync.initialize();
+  String identified(String title,String id){final value=jsonDecode(data(title)) as Map<String,dynamic>;value['notes'][0]['id']=id;return jsonEncode(value);}
+  await storage.write(identified('pending account','account-note'));final guest=await owned.guest();await guest.write(identified('guest material','guest-note'));final claim=await owned.sealGuest('account-a',guest);await sync.importGuest(owned,claim);
+  expect(storage.read(),contains('pending account'));expect(storage.read(),contains('guest material'));expect(guest.read(),isNull);expect(await owned.pendingClaim(),isNull);sync.dispose();api.dispose();
+ });
 }
