@@ -1,3 +1,5 @@
+import 'package:weaver/features/auth/email_auth.dart';
+import 'support/memory_session_store.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -39,7 +41,7 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     final storage = WorkspaceStorage(prefs);
     final first = RememberedClient();
-    await tester.pumpWidget(MyApp(storage: storage, authClient: first));
+    await tester.pumpWidget(MyApp(emailApi: EmailAuthApi(store: MemorySessionStore()), storage: storage, authClient: first));
     await tester.pumpAndSettle();
     // Inject the same SDK success event on all test platforms, including web.
     await first.signIn(); await tester.pumpAndSettle();
@@ -49,7 +51,7 @@ void main() {
     expect(raw, isNot(contains('do-not-store-token')));
     await tester.pumpWidget(const SizedBox());
     final second = RememberedClient();
-    await tester.pumpWidget(MyApp(storage: storage, authClient: second));
+    await tester.pumpWidget(MyApp(emailApi: EmailAuthApi(store: MemorySessionStore()), storage: storage, authClient: second));
     await tester.pumpAndSettle();
     expect(find.byType(InboxPage), findsOneWidget);
     expect(second.initialized, 0);
@@ -63,7 +65,7 @@ void main() {
     expect(find.byType(LoginPage), findsOneWidget);
     expect(find.byType(InboxPage), findsNothing);
     await tester.pumpWidget(const SizedBox());
-    await tester.pumpWidget(MyApp(storage: storage, authClient: RememberedClient()));
+    await tester.pumpWidget(MyApp(emailApi: EmailAuthApi(store: MemorySessionStore()), storage: storage, authClient: RememberedClient()));
     await tester.pumpAndSettle();
     expect(find.byType(LoginPage), findsOneWidget);
   }, skip: kIsWeb);

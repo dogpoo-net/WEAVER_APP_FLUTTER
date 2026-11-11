@@ -1,5 +1,6 @@
 import '../sync/workspace_backup.dart';
 import '../auth/google_auth.dart';
+import '../auth/email_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'element_store.dart';
@@ -24,7 +25,7 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
       catch (error) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
-            error is BackupFailure ? error.message : '데이터 작업을 완료하지 못했습니다. 현재 데이터를 확인하고 다시 시도해주세요.')));
+            error is BackupFailure ? error.message : error is EmailAuthFailure ? error.message : '데이터 작업을 완료하지 못했습니다. 현재 데이터를 확인하고 다시 시도해주세요.')));
         }
       } finally { if (context.mounted) update(() => busy = false); }
     }
@@ -39,7 +40,8 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
             }
     }
     final auth = GoogleAuthScope.maybeOf(context);
-    final signedIn = auth?.canUseCloud ?? false;
+    final signedIn = auth?.identity != null;
+    final cloudEnabled = auth?.canUseCloud ?? false;
     final guest = auth?.isGuest ?? false;
     final mobile = MediaQuery.sizeOf(context).width < 760;
     final settings = ListTileTheme(
@@ -48,6 +50,9 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
       titleTextStyle: Theme.of(context).textTheme.bodySmall,
       iconColor: Theme.of(context).colorScheme.onSurfaceVariant),
       child: IconTheme(data: const IconThemeData(size: 20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (signedIn) ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.person_outline),
+          title: Text(auth!.identity!.displayName?.trim().isNotEmpty == true ? auth.identity!.displayName! : '내 계정'),
+          subtitle: Text(auth.identity!.email)),
         ListTile(contentPadding: EdgeInsets.zero, title: const Text('닫힌 생각 숨기기'),
           onTap: busy ? null : () => changeVisibility(!showClosedThoughts),
           trailing: SizedBox(width: 44, height: 36, child: Transform.scale(scale: .75, child: Switch(value: !showClosedThoughts,
@@ -55,10 +60,10 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
         const Divider(),
         if (guest) const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.person_outline),
           title: Text('비회원 · 로컬 저장 전용'), subtitle: Text('클라우드 저장·가져오기는 로그인 후 사용할 수 있습니다. 저장한 로컬 데이터는 로그인 후에도 유지됩니다.')),
-        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_upload_outlined), title: const Text('데이터 저장하기'), enabled: signedIn && !busy,
-          onTap: busy || !signedIn || onUpload == null ? null : () => run(onUpload)),
-        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_download_outlined), title: const Text('데이터 가져오기'), enabled: signedIn && !busy,
-          onTap: busy || !signedIn || onDownload == null ? null : () => run(onDownload)),
+        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_upload_outlined), title: const Text('데이터 저장하기'), enabled: cloudEnabled && !busy,
+          onTap: busy || !cloudEnabled || onUpload == null ? null : () => run(onUpload)),
+        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_download_outlined), title: const Text('데이터 가져오기'), enabled: cloudEnabled && !busy,
+          onTap: busy || !cloudEnabled || onDownload == null ? null : () => run(onDownload)),
         if (busy) const LinearProgressIndicator(),
         ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.delete_outline), title: const Text('데이터 초기화'),
           onTap: busy || onReset == null ? null : () { Navigator.pop(dialogContext); onReset(); }),
@@ -71,6 +76,38 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
             if (auth.error != null) throw BackupFailure(auth.error!);
           })),
         const Divider(),
+        if (auth?.isEmailAccount == true && auth!.kakaoClient.configured) ListTile(contentPadding: EdgeInsets.zero,
+          title: const Text('카카오 계정 연결'), onTap: busy ? null : () => run(() async {
+            final linked = await auth.linkKakao();
+            if (linked && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('카카오 계정을 연결했습니다.')));
+          })),
+        if (auth?.isEmailAccount == true) ListTile(contentPadding: EdgeInsets.zero,
+          title: const Text('네이버 계정 연결'), onTap: busy ? null : () => run(() async {
+            final linked = await auth!.linkBrowser('naver');
+            if (linked && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('네이버 계정을 연결했습니다.')));
+          })),
+        if (auth?.isEmailAccount == true) ListTile(contentPadding: EdgeInsets.zero,
+          title: const Text('GitHub 계정 연결'), onTap: busy ? null : () => run(() async {
+            final linked = await auth!.linkBrowser('github');
+            if (linked && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('GitHub 계정을 연결했습니다.')));
+          })),
+        if (auth?.isEmailAccount == true) ListTile(contentPadding: EdgeInsets.zero,
+          title: const Text('GitLab 계정 연결'), onTap: busy ? null : () => run(() async {
+            final linked = await auth!.linkBrowser('gitlab');
+            if (linked && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('GitLab 계정을 연결했습니다.')));
+          })),
+        if (auth?.isEmailAccount == true) ListTile(contentPadding: EdgeInsets.zero,
+          title: const Text('모든 기기에서 로그아웃'), onTap: busy ? null : () => run(() async {
+            final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+              title: const Text('모든 기기에서 로그아웃할까요?'),
+              content: const Text('현재 계정의 모든 기기 세션을 폐기합니다. 저장한 로컬 데이터는 유지됩니다.'),
+              actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+                TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('전체 로그아웃'))]));
+            if (confirmed == true) {
+              await auth!.signOut(allDevices: true);
+              if (auth.error != null) throw BackupFailure(auth.error!);
+            }
+          })),
         ListTile(contentPadding: EdgeInsets.zero, title: const Text('오픈소스 사용 정보'), trailing: const Icon(Icons.chevron_right),
           onTap: busy ? null : () => showLicensePage(context: context, applicationName: 'WEAVER')),
       ])));

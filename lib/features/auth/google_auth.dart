@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'email_auth.dart';
+import 'kakao_auth.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
@@ -14,9 +15,10 @@ const googleWebClientId = _configuredGoogleWebClientId == ''
     ? defaultGoogleWebClientId : _configuredGoogleWebClientId;
 
 class GoogleIdentity {
-  const GoogleIdentity({required this.id, required this.email, required this.idToken});
+  const GoogleIdentity({required this.id, required this.email, required this.idToken, this.displayName});
   final String id, email;
   final String? idToken;
+  final String? displayName;
   // Keep credentials in memory only. The future backend must verify this token
   // before issuing its own session; client-side identity is not API authorization.
 }
@@ -50,7 +52,7 @@ class SdkGoogleAuthClient implements GoogleAuthClient {
           if (token == null || token.isEmpty) {
             _changes.addError(StateError('Missing ID token'));
           } else {
-            _changes.add(GoogleIdentity(id: user.id, email: user.email, idToken: token));
+            _changes.add(GoogleIdentity(id: user.id, email: user.email, idToken: token, displayName: user.displayName));
           }
         case GoogleSignInAuthenticationEventSignOut():
           _changes.add(null);
@@ -67,14 +69,21 @@ class SdkGoogleAuthClient implements GoogleAuthClient {
 }
 
 class GoogleAuthController extends ChangeNotifier {
-  GoogleAuthController(this.client, {this.preferences, EmailAuthApi? emailApi}) : emailApi = emailApi ?? EmailAuthApi();
+  GoogleAuthController(this.client, {this.preferences, EmailAuthApi? emailApi, KakaoAuthClient? kakaoClient})
+      : emailApi = emailApi ?? EmailAuthApi(), kakaoClient = kakaoClient ?? SdkKakaoAuthClient();
+  final KakaoAuthClient kakaoClient;
   final EmailAuthApi emailApi;
-  String? _emailSessionToken;
+  bool _emailSignedIn = false;
+  bool emailRestorePending = false;
+  bool signingInWithBrowser = false;
+  DateTime? _emailAccessExpires;
+  bool get isEmailAccount => _emailSignedIn;
   Timer? _emailExpiry;
   static const rememberedAccountKey = 'weaver.test-login.v1';
   static const guestModeKey = 'weaver.guest-mode.v1';
   bool isGuest = false;
-  bool get canUseCloud => !isGuest && identity != null;
+  bool get canUseCloud => !isGuest && identity != null &&
+      (!_emailSignedIn || (_emailAccessExpires?.isAfter(DateTime.now()) ?? false));
   final SharedPreferences? preferences;
   final GoogleAuthClient client;
   GoogleIdentity? identity;
@@ -94,18 +103,27 @@ class GoogleAuthController extends ChangeNotifier {
       if (preferences?.getBool(guestModeKey) == true) {
         isGuest = true; _changed(); return;
       }
+      try {
+        final generation = _generation;
+        final restored = await emailApi.restore();
+        if (_disposed || isGuest || generation != _generation) return;
+        if (restored != null) { _acceptEmail(restored); return; }
+      } catch (_) {
+        emailRestorePending = true;
+        error = '로그인 상태를 복원하지 못했습니다. 연결 또는 기기 보안 저장소를 확인해주세요.';
+      }
       final raw = preferences?.getString(rememberedAccountKey);
       if (raw != null) {
         final data = jsonDecode(raw);
         if (data is Map && data['id'] is String && (data['id'] as String).isNotEmpty &&
             data['email'] is String && (data['email'] as String).isNotEmpty) {
-          identity = GoogleIdentity(id: data['id'] as String, email: data['email'] as String, idToken: null);
+          identity = GoogleIdentity(id: data['id'] as String, email: data['email'] as String, idToken: null, displayName: data['name'] as String?);
           _changed();
           return;
         }
       }
     } catch (_) { /* Invalid local markers require a real Google sign-in. */ }
-    await _initializeSdk();
+    if (!_disposed && !isGuest) await _initializeSdk();
   }
   Future<void>? _sdkInitializing;
   Future<void> _initializeSdk() => _sdkInitializing ??= _startSdk();
@@ -113,16 +131,17 @@ class GoogleAuthController extends ChangeNotifier {
     if (!client.configured) { _changed(); return; }
     busy = true; _changed();
     _subscription = client.changes.listen((value) {
-      if (value == null || _loggingOut || _disposed || _emailSessionToken != null || isGuest) return;
+      if (value == null || _loggingOut || _disposed || _emailSignedIn || isGuest) return;
       final generation = _generation;
       final write = _sessionWrite.catchError((Object _) {}).then((_) async {
         if (generation != _generation || _disposed || isGuest) return;
         try {
           if (preferences != null && !await preferences!.setString(rememberedAccountKey,
-              jsonEncode({'id': value.id, 'email': value.email}))) {
+              jsonEncode({'id': value.id, 'email': value.email, if (value.displayName != null) 'name': value.displayName}))) {
             throw StateError('Account persistence failed');
           }
           if (generation != _generation || _disposed || isGuest) return;
+          emailRestorePending = false;
           identity = value; error = null; busy = false; _changed();
         } catch (_) {
           if (generation == _generation && !_disposed) {
@@ -152,6 +171,7 @@ class GoogleAuthController extends ChangeNotifier {
   Future<void> useGuest() async {
     if (identity != null || _loggingOut || isGuest) return;
     isGuest = true;
+    emailApi.cancelOAuth();
     _generation++;
     try {
       await _sessionWrite;
@@ -176,42 +196,116 @@ class GoogleAuthController extends ChangeNotifier {
     isGuest = false; error = null; _changed();
     if (!ready && !_disposed) await _initializeSdk();
   }
+  void _acceptEmail(Map<String, dynamic> data) {
+    _emailSignedIn = true; isGuest = false; emailRestorePending = false;
+    identity = GoogleIdentity(id: 'email:${data['id']}', email: data['email'] as String, idToken: null, displayName: data['name'] as String?);
+    error = null;
+    _emailAccessExpires = DateTime.now().add(Duration(seconds: data['expiresIn'] as int));
+    _emailExpiry?.cancel();
+    _emailExpiry = Timer(const Duration(minutes: 25), resumeEmailSession);
+    _changed();
+  }
+  Future<void> resumeEmailSession() async {
+    if (_disposed || _loggingOut || isGuest || (!_emailSignedIn && !emailRestorePending)) return;
+    final generation = _generation;
+    try {
+      final data = emailRestorePending ? await emailApi.restore() : await emailApi.refresh();
+      if (_disposed || generation != _generation) return;
+      if (data == null) {
+        _emailSignedIn = false; identity = null; emailRestorePending = false;
+        _emailExpiry?.cancel(); _changed();
+        if (!ready) await _initializeSdk();
+      } else { _acceptEmail(data); }
+    } catch (_) {
+      if (_disposed || generation != _generation) return;
+      error = '로그인 갱신에 연결이 필요합니다. 저장한 기기 인증 정보는 유지됩니다.';
+      _emailExpiry?.cancel();
+      _emailExpiry = Timer(const Duration(minutes: 1), resumeEmailSession);
+      _changed();
+    }
+  }
   Future<void> signInWithEmail(String email, String password) async {
-    final data = await emailApi.post('login', {'email': email, 'password': password});
-    _generation++;
+    final generation = ++_generation;
+    final data = await emailApi.login(email, password);
+    if (_disposed || generation != _generation || isGuest) {
+      try { await emailApi.logout(); } catch (_) {}
+      return;
+    }
     await _sessionWrite;
     await preferences?.remove(rememberedAccountKey);
     await preferences?.remove(guestModeKey);
-    if (_disposed) return;
-    isGuest = false;
-    _emailSessionToken = data['sessionToken'] as String;
-    identity = GoogleIdentity(id: 'email:${data['id']}', email: data['email'] as String, idToken: null);
-    error = null;
-    _emailExpiry?.cancel();
-    _emailExpiry = Timer(Duration(seconds: data['expiresIn'] as int), () {
-      _emailSessionToken = null; identity = null; _changed();
-    });
-    _changed();
+    if (_disposed || generation != _generation) return;
+    _acceptEmail(data);
   }
-  Future<void> signOut() async {
+  Future<void> signInWithKakao() async {
+    if (busy || isGuest) return;
+    final generation = ++_generation;
+    busy = true; error = null; _changed();
+    try {
+      final token = await kakaoClient.accessToken();
+      if (token == null || _disposed || generation != _generation) return;
+      final data = await emailApi.loginKakao(token);
+      if (_disposed || generation != _generation) {
+        try { await emailApi.logout(); } catch (_) {}
+        return;
+      }
+      await _sessionWrite;
+      await preferences?.remove(rememberedAccountKey);
+      await preferences?.remove(guestModeKey);
+      if (!_disposed && generation == _generation) _acceptEmail(data);
+    } on EmailAuthFailure catch (e) { error = e.message; }
+    catch (_) { error = '카카오 로그인에 실패했습니다. 다시 시도해주세요.'; }
+    finally { busy = false; _changed(); }
+  }
+  void cancelBrowserSignIn() {
+    emailApi.cancelOAuth(); _generation++; signingInWithBrowser = false; error = '로그인 요청을 취소하고 있습니다.'; _changed();
+  }
+  Future<void> signInWithBrowser(String provider) async {
+    if (busy || isGuest) return;
+    final generation = ++_generation;
+    busy = true; signingInWithBrowser = true; error = null; _changed();
+    try {
+      final data = await emailApi.loginBrowser(provider);
+      if (data == null) return;
+      if (_disposed || generation != _generation) {
+        try { await emailApi.logout(); } catch (_) {}
+        return;
+      }
+      await _sessionWrite;
+      await preferences?.remove(rememberedAccountKey);
+      await preferences?.remove(guestModeKey);
+      if (!_disposed && generation == _generation) _acceptEmail(data);
+    } on EmailAuthFailure catch (e) { error = e.message; }
+    catch (_) { error = '로그인에 실패했습니다. 다시 시도해주세요.'; }
+    finally { busy = false; signingInWithBrowser = false; _changed(); }
+  }
+  Future<bool> linkBrowser(String provider) async {
+    if (!_emailSignedIn || isGuest) throw const EmailAuthFailure('먼저 이메일로 로그인해주세요.');
+    return await emailApi.loginBrowser(provider, link: true) != null;
+  }
+  Future<bool> linkKakao() async {
+    if (!_emailSignedIn || isGuest) throw const EmailAuthFailure('먼저 이메일로 로그인해주세요.');
+    final token = await kakaoClient.accessToken();
+    if (token == null) return false;
+    await emailApi.linkKakao(token);
+    return true;
+  }
+  Future<void> signOut({bool allDevices = false}) async {
     if (_loggingOut) return;
     _loggingOut = true; _generation++; busy = true; _changed();
     try {
+      if (_emailSignedIn) await emailApi.logout(all: allDevices);
       await _sessionWrite;
       if (preferences != null && !await preferences!.remove(rememberedAccountKey)) {
         throw StateError('Account removal failed');
       }
-      final session = _emailSessionToken;
-      _emailSessionToken = null; _emailExpiry?.cancel();
+      _emailSignedIn = false; _emailAccessExpires = null; _emailExpiry?.cancel();
       identity = null; error = null; _changed();
-      if (session != null) {
-        try { await emailApi.post('logout', {}, sessionToken: session); } catch (_) {}
-      }
       // Local logout must work even if Google's network/provider is unavailable.
       if (ready) {
         try { await client.signOut().timeout(const Duration(seconds: 5)); } catch (_) {}
       }
-    } catch (_) { error = '로그인 상태를 지우지 못했습니다. 다시 로그아웃해주세요.'; }
+    } catch (_) { error = '서버의 세션을 폐기하지 못했습니다. 연결을 확인하고 다시 로그아웃해주세요.'; }
     finally { _loggingOut = false; busy = false; _changed(); }
     if (identity == null && !ready && !_disposed) await _initializeSdk();
   }

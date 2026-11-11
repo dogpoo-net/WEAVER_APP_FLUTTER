@@ -1,3 +1,4 @@
+import 'support/memory_session_store.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -22,9 +23,9 @@ void main() {
     SharedPreferences.setMockInitialValues({GoogleAuthController.rememberedAccountKey: jsonEncode({'id':'old','email':'old@example.com'})});
     final prefs = await SharedPreferences.getInstance();
     final requests = <http.Request>[];
-    final api = EmailAuthApi(client: MockClient((r) async {
+    final api = EmailAuthApi(store: MemorySessionStore(), client: MockClient((r) async {
       requests.add(r);
-      return http.Response(jsonEncode(r.url.path.endsWith('login') ? {'id':'123','email':'person@example.com','sessionToken':'secret','expiresIn':43200} : {'message':'ok'}),200);
+      return http.Response(jsonEncode(r.url.path.endsWith('login') ? {'id':'123','email':'person@example.com','refreshToken':'secret','accessToken':'access','expiresIn':43200} : {'message':'ok'}),200);
     }));
     final auth = GoogleAuthController(FakeGoogle(), preferences:prefs,emailApi:api);
     await auth.signInWithEmail('person@example.com','long-password');
@@ -32,17 +33,18 @@ void main() {
     expect(prefs.getString(GoogleAuthController.rememberedAccountKey),isNull);
     expect(auth.identity?.idToken,isNull);
     await auth.signOut();
-    expect(requests.last.headers['Authorization'],'Bearer secret');
+    expect(jsonDecode(requests.last.body)['refreshToken'],'secret');
     expect(auth.identity,isNull);auth.dispose();
   });
   testWidgets('Signup rejects mismatched passwords before contacting server', (tester) async {
     var calls=0;
-    final auth=GoogleAuthController(FakeGoogle(),emailApi:EmailAuthApi(client:MockClient((_) async {calls++;return http.Response('{}',200);})));
+    final auth=GoogleAuthController(FakeGoogle(),emailApi:EmailAuthApi(store: MemorySessionStore(), client:MockClient((_) async {calls++;return http.Response('{}',200);})));
     await tester.pumpWidget(MaterialApp(home:EmailLoginPage(auth:auth)));
     await tester.tap(find.text('계정이 없나요? Sign up'));await tester.pump();
-    await tester.enterText(find.byType(TextFormField).at(0),'person@example.com');
-    await tester.enterText(find.byType(TextFormField).at(1),'long-password');
-    await tester.enterText(find.byType(TextFormField).at(2),'different-password');
+    await tester.enterText(find.byType(TextFormField).at(0),'테스트 사용자');
+    await tester.enterText(find.byType(TextFormField).at(1),'person@example.com');
+    await tester.enterText(find.byType(TextFormField).at(2),'long-password');
+    await tester.enterText(find.byType(TextFormField).at(3),'different-password');
     await tester.ensureVisible(find.text('Sign up · 인증메일 받기'));
     await tester.tap(find.text('Sign up · 인증메일 받기'));await tester.pump();
     expect(find.text('비밀번호가 일치하지 않습니다.'),findsOneWidget);expect(calls,0);
@@ -50,7 +52,7 @@ void main() {
   });
   testWidgets('Verification requires explicit button and does not log in automatically', (tester) async {
     var calls=0;
-    final auth=GoogleAuthController(FakeGoogle(),emailApi:EmailAuthApi(client:MockClient((r) async {
+    final auth=GoogleAuthController(FakeGoogle(),emailApi:EmailAuthApi(store: MemorySessionStore(), client:MockClient((r) async {
       calls++;expect(jsonDecode(r.body)['token'],'test-token');return http.Response(jsonEncode({'message':'인증 완료'}),200,headers:{'content-type':'application/json; charset=utf-8'});
     })));
     await tester.pumpWidget(MaterialApp(home:EmailLoginPage(auth:auth,verificationToken:'test-token',onVerified:(){})));

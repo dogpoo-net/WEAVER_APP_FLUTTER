@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>CFBundleURLTypes</key>
+    <array><dict><key>CFBundleURLSchemes</key><array><string>kakaoc94f1617112a7f6f29fd26b529c4c180</string></array></dict></array>
+    <key>LSApplicationQueriesSchemes</key>
+    <array><string>kakaokompassauth</string><string>kakaolink</string></array>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>위치 기록을 선택한 생각에 현재 좌표를 첨부합니다.</string>
     <key>NSMicrophoneUsageDescription</key>

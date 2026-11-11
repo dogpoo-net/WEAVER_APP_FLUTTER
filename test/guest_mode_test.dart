@@ -1,3 +1,4 @@
+import 'support/memory_session_store.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -32,7 +33,7 @@ void main() {
     final storage = WorkspaceStorage(prefs);
     await storage.write(WorkspaceSnapshot.encode([Note('비회원의 로컬 기록')]));
     final before = storage.read();
-    await tester.pumpWidget(MyApp(storage: storage, authClient: GuestGoogleClient()));
+    await tester.pumpWidget(MyApp(emailApi: EmailAuthApi(store: MemorySessionStore()), storage: storage, authClient: GuestGoogleClient()));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('비회원으로 사용하기'));
     await tester.tap(find.text('비회원으로 사용하기'));
@@ -78,8 +79,8 @@ void main() {
     final storage = WorkspaceStorage(prefs);
     final original = WorkspaceSnapshot.encode([Note('회원가입 전 작성한 생각')]);
     await storage.write(original);
-    final auth = GoogleAuthController(GuestGoogleClient(),preferences:prefs,emailApi:EmailAuthApi(client:MockClient((_) async =>
-      http.Response(jsonEncode({'id':'email-user','email':'guest@example.com','sessionToken':'session','expiresIn':43200}),200))));
+    final auth = GoogleAuthController(GuestGoogleClient(),preferences:prefs,emailApi:EmailAuthApi(store: MemorySessionStore(), client:MockClient((_) async =>
+      http.Response(jsonEncode({'id':'email-user','email':'guest@example.com','refreshToken':'session','accessToken':'access','expiresIn':43200}),200))));
     await auth.useGuest();
     expect(auth.canUseCloud,isFalse);
     await auth.leaveGuest();

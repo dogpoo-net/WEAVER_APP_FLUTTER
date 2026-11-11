@@ -1,4 +1,5 @@
 import 'features/auth/google_auth.dart';
+import 'features/auth/email_auth.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/email_login_page.dart';
 import 'features/inbox/thought_settings.dart';
@@ -37,15 +38,16 @@ Future<void> main() async {
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key, this.storage, this.requireLogin = true, this.authClient});
+  const MyApp({super.key, this.storage, this.requireLogin = true, this.authClient, this.emailApi});
   final WorkspaceStorage? storage;
   final bool requireLogin;
   final GoogleAuthClient? authClient;
+  final EmailAuthApi? emailApi;
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late final GoogleAuthController _auth;
   String? _verificationToken;
 
@@ -56,11 +58,12 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final fragment = Uri.base.fragment;
     if (fragment.startsWith('verify-email=')) {
       _verificationToken = fragment.substring('verify-email='.length);
     }
-    _auth = GoogleAuthController(widget.authClient ?? SdkGoogleAuthClient(), preferences: widget.storage?.preferences);
+    _auth = GoogleAuthController(widget.authClient ?? SdkGoogleAuthClient(), preferences: widget.storage?.preferences, emailApi: widget.emailApi);
     if (widget.requireLogin) _auth.initialize();
     elements.clear();
     showClosedThoughts = widget.storage?.preferences.getBool(closedThoughtsPreference) ?? true;
@@ -80,7 +83,12 @@ class _MyAppState extends State<MyApp> {
   }
 
   @override
-  void dispose() { _auth.dispose(); super.dispose(); }
+  void dispose() { WidgetsBinding.instance.removeObserver(this); _auth.dispose(); super.dispose(); }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _auth.resumeEmailSession();
+  }
 
   void _persistTheme() {
     widget.storage?.writeTheme(jsonEncode({'mode': _mode.name, 'palette': _lightPalette.name, 'darkPalette': _darkPalette.name})).catchError((Object _) {

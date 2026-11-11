@@ -14,11 +14,12 @@ class EmailLoginPage extends StatefulWidget {
 
 class _EmailLoginPageState extends State<EmailLoginPage> {
   final _form = GlobalKey<FormState>();
+  final _name = TextEditingController();
   final _email = TextEditingController(), _password = TextEditingController(), _confirmation = TextEditingController();
   bool _signup = false, _busy = false, _verified = false;
   String? _message, _error;
   @override
-  void dispose() { _email.dispose(); _password.dispose(); _confirmation.dispose(); super.dispose(); }
+  void dispose() { _name.dispose(); _email.dispose(); _password.dispose(); _confirmation.dispose(); super.dispose(); }
   Future<void> _run(Future<void> Function() action) async {
     if (_busy) return;
     setState(() { _busy = true; _message = null; _error = null; });
@@ -31,7 +32,7 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
     if (!_form.currentState!.validate()) return;
     await _run(() async {
       if (_signup) {
-        final data = await widget.auth.emailApi.post('signup', {'email': _email.text.trim(),
+        final data = await widget.auth.emailApi.post('signup', {'name': _name.text.trim(), 'email': _email.text.trim(),
           'password': _password.text, 'passwordConfirmation': _confirmation.text});
         if (mounted) setState(() { _message = data['message'] as String; _password.clear(); _confirmation.clear(); _signup = false; });
       } else {
@@ -57,6 +58,13 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
               }), child: Text(_verified ? '로그인 화면으로' : '이메일 인증')),
               if (!_verified) TextButton(onPressed: _busy ? null : widget.onVerified, child: const Text('로그인 / 인증메일 다시 받기')),
             ] else ...[
+              if (_signup) ...[
+                TextFormField(controller: _name, enabled: !_busy, autofillHints: const [AutofillHints.name],
+                  textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: '이름'),
+                  validator: (v) => v == null || v.trim().isEmpty || v.trim().runes.length > 80 || RegExp(r'[\x00-\x1f\x7f]').hasMatch(v)
+                    ? '이름을 1~80자로 입력해주세요.' : null),
+                const SizedBox(height: 16),
+              ],
               TextFormField(controller: _email, enabled: !_busy, keyboardType: TextInputType.emailAddress,
                 autofillHints: const [AutofillHints.username, AutofillHints.email], autocorrect: false,
                 decoration: const InputDecoration(labelText: '이메일'), validator: _validateEmail),
