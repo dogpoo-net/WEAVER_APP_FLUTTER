@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'email_auth.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
@@ -66,7 +67,10 @@ class SdkGoogleAuthClient implements GoogleAuthClient {
 }
 
 class GoogleAuthController extends ChangeNotifier {
-  GoogleAuthController(this.client, {this.preferences});
+  GoogleAuthController(this.client, {this.preferences, EmailAuthApi? emailApi}) : emailApi = emailApi ?? EmailAuthApi();
+  final EmailAuthApi emailApi;
+  String? _emailSessionToken;
+  Timer? _emailExpiry;
   static const rememberedAccountKey = 'weaver.test-login.v1';
   final SharedPreferences? preferences;
   final GoogleAuthClient client;
@@ -103,7 +107,7 @@ class GoogleAuthController extends ChangeNotifier {
     if (!client.configured) { _changed(); return; }
     busy = true; _changed();
     _subscription = client.changes.listen((value) {
-      if (value == null || _loggingOut || _disposed) return;
+      if (value == null || _loggingOut || _disposed || _emailSessionToken != null) return;
       final generation = _generation;
       final write = _sessionWrite.catchError((Object _) {}).then((_) async {
         if (generation != _generation || _disposed) return;
@@ -139,6 +143,21 @@ class GoogleAuthController extends ChangeNotifier {
     try { await client.signIn(); } catch (e) { _failure(e); }
     finally { busy = false; _changed(); }
   }
+  Future<void> signInWithEmail(String email, String password) async {
+    final data = await emailApi.post('login', {'email': email, 'password': password});
+    _generation++;
+    await _sessionWrite;
+    await preferences?.remove(rememberedAccountKey);
+    if (_disposed) return;
+    _emailSessionToken = data['sessionToken'] as String;
+    identity = GoogleIdentity(id: 'email:${data['id']}', email: data['email'] as String, idToken: null);
+    error = null;
+    _emailExpiry?.cancel();
+    _emailExpiry = Timer(Duration(seconds: data['expiresIn'] as int), () {
+      _emailSessionToken = null; identity = null; _changed();
+    });
+    _changed();
+  }
   Future<void> signOut() async {
     if (_loggingOut) return;
     _loggingOut = true; _generation++; busy = true; _changed();
@@ -147,7 +166,12 @@ class GoogleAuthController extends ChangeNotifier {
       if (preferences != null && !await preferences!.remove(rememberedAccountKey)) {
         throw StateError('Account removal failed');
       }
+      final session = _emailSessionToken;
+      _emailSessionToken = null; _emailExpiry?.cancel();
       identity = null; error = null; _changed();
+      if (session != null) {
+        try { await emailApi.post('logout', {}, sessionToken: session); } catch (_) {}
+      }
       // Local logout must work even if Google's network/provider is unavailable.
       if (ready) {
         try { await client.signOut().timeout(const Duration(seconds: 5)); } catch (_) {}
@@ -160,6 +184,8 @@ class GoogleAuthController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _emailExpiry?.cancel();
+    emailApi.dispose();
     unawaited(_subscription?.cancel());
     unawaited(client.dispose());
     super.dispose();

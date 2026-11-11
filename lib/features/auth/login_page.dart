@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'google_auth.dart';
+import 'email_login_page.dart';
 import 'google_button.dart';
 
 class LoginPage extends StatelessWidget {
@@ -16,6 +17,12 @@ class LoginPage extends StatelessWidget {
         const SizedBox(height: 36),
         if (auth.ready) googleSignInButton(onPressed: auth.busy ? null : auth.signIn)
         else const OutlinedButton(onPressed: null, child: Text('Google로 로그인')),
+        const SizedBox(height: 12),
+        OutlinedButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => EmailLoginPage(auth: auth))), child: const Text('이메일로 로그인 / 회원가입')),
+        const SizedBox(height: 12),
+        const OutlinedButton(onPressed: null, child: Text('Apple 로그인 · 준비 중')),
+        const OutlinedButton(onPressed: null, child: Text('카카오 로그인 · 준비 중')),
+        const OutlinedButton(onPressed: null, child: Text('네이버 로그인 · 준비 중')),
         if (auth.busy) const Padding(padding: EdgeInsets.only(top: 16), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
         if (!auth.client.configured) const Padding(padding: EdgeInsets.only(top: 16), child: Text('Google 로그인 설정을 준비 중입니다.', textAlign: TextAlign.center)),
         if (auth.error != null) Padding(padding: const EdgeInsets.only(top: 16), child: Text(auth.error!, textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.error))),

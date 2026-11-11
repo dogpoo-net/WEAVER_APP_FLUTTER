@@ -1,5 +1,6 @@
 import 'features/auth/google_auth.dart';
 import 'features/auth/login_page.dart';
+import 'features/auth/email_login_page.dart';
 import 'features/inbox/thought_settings.dart';
 import 'features/inbox/keyboard_dismiss.dart';
 import 'dart:convert';
@@ -46,6 +47,8 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   late final GoogleAuthController _auth;
+  String? _verificationToken;
+
   ThemeMode _mode = ThemeMode.dark;
   LightPalette _lightPalette = LightPalette.neutral;
   DarkPalette _darkPalette = DarkPalette.classic;
@@ -53,6 +56,10 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    final fragment = Uri.base.fragment;
+    if (fragment.startsWith('verify-email=')) {
+      _verificationToken = fragment.substring('verify-email='.length);
+    }
     _auth = GoogleAuthController(widget.authClient ?? SdkGoogleAuthClient(), preferences: widget.storage?.preferences);
     if (widget.requireLogin) _auth.initialize();
     elements.clear();
@@ -143,6 +150,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) => GoogleAuthScope(controller: _auth, child: ListenableBuilder(listenable: _auth, builder: (context, _) => MaterialApp(
     key: ValueKey(widget.requireLogin ? _auth.identity?.id : 'local-test'),
     title: 'WEAVER',
+    initialRoute: '/',
     builder: (context, child) => Actions(actions: <Type, Action<Intent>>{
       EditableTextTapOutsideIntent: CallbackAction<EditableTextTapOutsideIntent>(onInvoke: (intent) {
         intent.focusNode.unfocus();
@@ -156,7 +164,12 @@ class _MyAppState extends State<MyApp> {
     theme: _theme(Brightness.light),
     darkTheme: _theme(Brightness.dark),
     themeMode: _mode,
-    home: widget.requireLogin && _auth.identity == null ? LoginPage(auth: _auth) : InboxPage(
+    home: _verificationToken != null ? EmailLoginPage(auth: _auth, verificationToken: _verificationToken,
+      onVerified: () {
+        if (kIsWeb) SystemNavigator.routeInformationUpdated(
+          uri: Uri(path: Uri.base.path, query: Uri.base.hasQuery ? Uri.base.query : null), replace: true);
+        setState(() => _verificationToken = null);
+      }) : widget.requireLogin && _auth.identity == null ? LoginPage(auth: _auth) : InboxPage(
       storage: widget.storage,
       onSettingsImported: () => setState(_restoreTheme),
       themeMode: _mode,
