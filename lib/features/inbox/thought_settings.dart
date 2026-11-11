@@ -13,6 +13,7 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
   Future<void> Function()? onUpload,
   Future<void> Function()? onDownload,
   Future<void> Function()? onReset,
+  Future<void> Function()? onSignIn,
 }) async {
   var busy = false;
   await showDialog<void>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (context, update) {
@@ -38,7 +39,8 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
             }
     }
     final auth = GoogleAuthScope.maybeOf(context);
-    final signedIn = auth?.identity != null;
+    final signedIn = auth?.canUseCloud ?? false;
+    final guest = auth?.isGuest ?? false;
     final mobile = MediaQuery.sizeOf(context).width < 760;
     final settings = ListTileTheme(
       data: ListTileThemeData(dense: true, minLeadingWidth: 20, horizontalTitleGap: 8,
@@ -51,15 +53,19 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
           trailing: SizedBox(width: 44, height: 36, child: Transform.scale(scale: .75, child: Switch(value: !showClosedThoughts,
           onChanged: busy ? null : (hidden) => changeVisibility(!hidden))))),
         const Divider(),
-        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_upload_outlined), title: const Text('데이터 저장하기'),
+        if (guest) const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.person_outline),
+          title: Text('비회원 · 로컬 저장 전용'), subtitle: Text('클라우드 저장·가져오기는 로그인 후 사용할 수 있습니다. 저장한 로컬 데이터는 로그인 후에도 유지됩니다.')),
+        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_upload_outlined), title: const Text('데이터 저장하기'), enabled: signedIn && !busy,
           onTap: busy || !signedIn || onUpload == null ? null : () => run(onUpload)),
-        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_download_outlined), title: const Text('데이터 가져오기'),
+        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_download_outlined), title: const Text('데이터 가져오기'), enabled: signedIn && !busy,
           onTap: busy || !signedIn || onDownload == null ? null : () => run(onDownload)),
         if (busy) const LinearProgressIndicator(),
         ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.delete_outline), title: const Text('데이터 초기화'),
           onTap: busy || onReset == null ? null : () { Navigator.pop(dialogContext); onReset(); }),
         const Divider(),
-        ListTile(contentPadding: EdgeInsets.zero, title: const Text('로그아웃', style: TextStyle(color: Color(0xFFD64550))),
+        if (guest) ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.login), title: const Text('로그인 / 회원가입'),
+          onTap: busy ? null : () => run(onSignIn ?? auth!.leaveGuest))
+        else ListTile(contentPadding: EdgeInsets.zero, title: const Text('로그아웃', style: TextStyle(color: Color(0xFFD64550))),
           onTap: busy || !signedIn ? null : () => run(() async {
             await auth!.signOut();
             if (auth.error != null) throw BackupFailure(auth.error!);

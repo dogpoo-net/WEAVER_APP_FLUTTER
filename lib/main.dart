@@ -148,7 +148,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) => GoogleAuthScope(controller: _auth, child: ListenableBuilder(listenable: _auth, builder: (context, _) => MaterialApp(
-    key: ValueKey(widget.requireLogin ? _auth.identity?.id : 'local-test'),
+    key: ValueKey(widget.requireLogin ? (_auth.isGuest ? 'guest' : _auth.identity?.id) : 'local-test'),
     title: 'WEAVER',
     initialRoute: '/',
     builder: (context, child) => Actions(actions: <Type, Action<Intent>>{
@@ -171,7 +171,7 @@ class _MyAppState extends State<MyApp> {
             uri: Uri(path: Uri.base.path, query: Uri.base.hasQuery ? Uri.base.query : null), replace: true);
         }
         setState(() => _verificationToken = null);
-      }) : widget.requireLogin && _auth.identity == null ? LoginPage(auth: _auth) : InboxPage(
+      }) : widget.requireLogin && !_auth.isGuest && _auth.identity == null ? LoginPage(auth: _auth) : InboxPage(
       storage: widget.storage,
       onSettingsImported: () => setState(_restoreTheme),
       themeMode: _mode,

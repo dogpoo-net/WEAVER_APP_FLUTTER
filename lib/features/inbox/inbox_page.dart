@@ -394,7 +394,7 @@ class _InboxPageState extends State<InboxPage> {
     final auth = GoogleAuthScope.maybeOf(context);
     final identity = auth?.identity;
     final storage = widget.storage;
-    if (identity == null || storage == null || _restoreBlocked) throw const BackupFailure('로그인과 로컬 저장 상태를 확인해주세요.');
+    if (auth?.canUseCloud != true || identity == null || storage == null || _restoreBlocked) throw const BackupFailure('로그인과 로컬 저장 상태를 확인해주세요.');
     if (!await _confirmTransfer('서버에 데이터를 저장할까요?', '${identity.email} 계정의 기존 서버 백업을 현재 데이터로 덮어씁니다. 사진·음성·위치와 휴지통도 포함됩니다.')) return;
     final api = WeaverBackupApi();
     try {
@@ -411,7 +411,7 @@ class _InboxPageState extends State<InboxPage> {
     final auth = GoogleAuthScope.maybeOf(context);
     final identity = auth?.identity;
     final storage = widget.storage;
-    if (identity == null || storage == null) throw const BackupFailure('로그인과 로컬 저장 상태를 확인해주세요.');
+    if (auth?.canUseCloud != true || identity == null || storage == null) throw const BackupFailure('로그인과 로컬 저장 상태를 확인해주세요.');
     final api = WeaverBackupApi();
     final media = DeviceBackupMedia();
     WorkspaceBackup? staged;
@@ -948,7 +948,13 @@ class _InboxPageState extends State<InboxPage> {
     List<String> tags,
   ) async {
     if (!mounted || choice == null || choice == -1) return;
-    if (choice == WorkspaceMenu.settings) { await showThoughtSettings(context, widget.storage?.preferences, onUpload: _uploadBackup, onDownload: _downloadBackup, onReset: _reset); return; }
+    if (choice == WorkspaceMenu.settings) { await showThoughtSettings(context, widget.storage?.preferences, onUpload: _uploadBackup, onDownload: _downloadBackup, onReset: _reset, onSignIn: () async {
+      if (_draft.text.trim().isNotEmpty || _hasCapture) throw const BackupFailure('작성 중인 메모를 저장한 뒤 로그인해주세요.');
+      if (_captureSaving || _locationBusy || _photoBusy) throw const BackupFailure('메모와 첨부 처리 완료 후 다시 시도해주세요.');
+      await _persist();
+      if (_storageError != null || _restoreBlocked) throw const BackupFailure('로컬 저장 상태를 확인한 뒤 로그인해주세요.');
+      if (mounted) await GoogleAuthScope.maybeOf(context)?.leaveGuest();
+    }); return; }
     if (choice == WorkspaceMenu.createBoxFolder) { await _createFolder(kind: 'box'); return; }
     if (choice == WorkspaceMenu.createBox) {
       final box = await createMemoBox(context);

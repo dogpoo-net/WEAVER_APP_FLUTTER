@@ -131,11 +131,11 @@ class WeaverBackupApi {
     catch (_) { throw const BackupFailure('서버에 연결하지 못했거나 응답을 읽지 못했습니다. 네트워크와 서버의 CORS 설정을 확인해주세요.'); }
   }
   Future<void> upload(String account, WorkspaceBackup backup) async {
-    if (account.isEmpty) throw const BackupFailure('Google 로그인이 필요합니다.');
+    if (account.isEmpty) throw const BackupFailure('로그인이 필요합니다.');
     await _post('insertWeaverTestData', {'account': account, 'jsonData': backup.encode()});
   }
   Future<WorkspaceBackup> download(String account) async {
-    if (account.isEmpty) throw const BackupFailure('Google 로그인이 필요합니다.');
+    if (account.isEmpty) throw const BackupFailure('로그인이 필요합니다.');
     final response = await _post('getWeaverTestData', {'account': account});
     dynamic data = response['DATA'];
     if (data is Map && data.containsKey('jsonData')) data = data['jsonData'];

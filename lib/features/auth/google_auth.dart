@@ -72,6 +72,9 @@ class GoogleAuthController extends ChangeNotifier {
   String? _emailSessionToken;
   Timer? _emailExpiry;
   static const rememberedAccountKey = 'weaver.test-login.v1';
+  static const guestModeKey = 'weaver.guest-mode.v1';
+  bool isGuest = false;
+  bool get canUseCloud => !isGuest && identity != null;
   final SharedPreferences? preferences;
   final GoogleAuthClient client;
   GoogleIdentity? identity;
@@ -88,6 +91,9 @@ class GoogleAuthController extends ChangeNotifier {
     // Deliberately a non-expiring test account marker, not an OAuth session.
     // Do not persist ID tokens or ask Google to refresh this local marker.
     try {
+      if (preferences?.getBool(guestModeKey) == true) {
+        isGuest = true; _changed(); return;
+      }
       final raw = preferences?.getString(rememberedAccountKey);
       if (raw != null) {
         final data = jsonDecode(raw);
@@ -107,16 +113,16 @@ class GoogleAuthController extends ChangeNotifier {
     if (!client.configured) { _changed(); return; }
     busy = true; _changed();
     _subscription = client.changes.listen((value) {
-      if (value == null || _loggingOut || _disposed || _emailSessionToken != null) return;
+      if (value == null || _loggingOut || _disposed || _emailSessionToken != null || isGuest) return;
       final generation = _generation;
       final write = _sessionWrite.catchError((Object _) {}).then((_) async {
-        if (generation != _generation || _disposed) return;
+        if (generation != _generation || _disposed || isGuest) return;
         try {
           if (preferences != null && !await preferences!.setString(rememberedAccountKey,
               jsonEncode({'id': value.id, 'email': value.email}))) {
             throw StateError('Account persistence failed');
           }
-          if (generation != _generation || _disposed) return;
+          if (generation != _generation || _disposed || isGuest) return;
           identity = value; error = null; busy = false; _changed();
         } catch (_) {
           if (generation == _generation && !_disposed) {
@@ -143,12 +149,41 @@ class GoogleAuthController extends ChangeNotifier {
     try { await client.signIn(); } catch (e) { _failure(e); }
     finally { busy = false; _changed(); }
   }
+  Future<void> useGuest() async {
+    if (identity != null || _loggingOut || isGuest) return;
+    isGuest = true;
+    _generation++;
+    try {
+      await _sessionWrite;
+      if (preferences != null) {
+        if (!await preferences!.remove(rememberedAccountKey) ||
+            !await preferences!.setBool(guestModeKey, true)) {
+          throw StateError('Guest preference could not be saved');
+        }
+      }
+      if (_disposed) return;
+      isGuest = true; error = null; _changed();
+    } catch (_) {
+      isGuest = false;
+      error = '비회원 사용 상태를 저장하지 못했습니다. 저장 공간을 확인해주세요.'; _changed();
+    }
+  }
+  Future<void> leaveGuest() async {
+    if (!isGuest) return;
+    if (preferences != null && !await preferences!.remove(guestModeKey)) {
+      throw StateError('Guest preference could not be removed');
+    }
+    isGuest = false; error = null; _changed();
+    if (!ready && !_disposed) await _initializeSdk();
+  }
   Future<void> signInWithEmail(String email, String password) async {
     final data = await emailApi.post('login', {'email': email, 'password': password});
     _generation++;
     await _sessionWrite;
     await preferences?.remove(rememberedAccountKey);
+    await preferences?.remove(guestModeKey);
     if (_disposed) return;
+    isGuest = false;
     _emailSessionToken = data['sessionToken'] as String;
     identity = GoogleIdentity(id: 'email:${data['id']}', email: data['email'] as String, idToken: null);
     error = null;
