@@ -19,7 +19,7 @@ class LoginProviderButton extends StatelessWidget {
         side: BorderSide(color: onPressed == null ? const Color(0xFFDADCE0) : const Color(0xFF747775)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(fontSize: 14, fontWeight: FontWeight.w500),
       ),
       child: Row(children: [Icon(icon, size: 20), const SizedBox(width: 12),
         Expanded(child: Text(label, textAlign: TextAlign.center)), const SizedBox(width: 32)]),
