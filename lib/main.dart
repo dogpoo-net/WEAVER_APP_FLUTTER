@@ -166,8 +166,10 @@ class _MyAppState extends State<MyApp> {
     themeMode: _mode,
     home: _verificationToken != null ? EmailLoginPage(auth: _auth, verificationToken: _verificationToken,
       onVerified: () {
-        if (kIsWeb) SystemNavigator.routeInformationUpdated(
-          uri: Uri(path: Uri.base.path, query: Uri.base.hasQuery ? Uri.base.query : null), replace: true);
+        if (kIsWeb) {
+          SystemNavigator.routeInformationUpdated(
+            uri: Uri(path: Uri.base.path, query: Uri.base.hasQuery ? Uri.base.query : null), replace: true);
+        }
         setState(() => _verificationToken = null);
       }) : widget.requireLogin && _auth.identity == null ? LoginPage(auth: _auth) : InboxPage(
       storage: widget.storage,
