@@ -32,7 +32,7 @@ class LoginPage extends StatelessWidget {
         LoginProviderButton(label: 'GitLab으로 로그인', symbolAsset: 'assets/branding/social/gitlab.png', onPressed: auth.busy ? null : () => auth.signInWithBrowser('gitlab')),
         const SizedBox(height: 20),
         TextButton(onPressed: auth.signingInWithBrowser ? null : auth.useGuest, child: const Text('비회원으로 사용하기')),
-        Text('비회원은 이 기기에만 저장됩니다. 로그인 후 클라우드에 올릴 수 있습니다.',
+        Text('비회원은 이 기기에만 저장됩니다. 로그인 후 기기 간 동기화가 가능합니다.',
           textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
         if (auth.signingInWithBrowser) TextButton(onPressed: auth.cancelBrowserSignIn, child: const Text('로그인 취소')),
         if (auth.busy) const Padding(padding: EdgeInsets.only(top: 16), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
