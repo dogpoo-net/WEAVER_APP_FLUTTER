@@ -40,7 +40,7 @@ void main() {
     var calls=0;
     final auth=GoogleAuthController(FakeGoogle(),emailApi:EmailAuthApi(store: MemorySessionStore(), client:MockClient((_) async {calls++;return http.Response('{}',200);})));
     await tester.pumpWidget(MaterialApp(home:EmailLoginPage(auth:auth)));
-    await tester.tap(find.text('계정이 없나요? Sign up'));await tester.pump();
+    await tester.tap(find.text('계정이 없으신가요? Sign up'));await tester.pump();
     await tester.enterText(find.byType(TextFormField).at(0),'테스트 사용자');
     await tester.enterText(find.byType(TextFormField).at(1),'person@example.com');
     await tester.enterText(find.byType(TextFormField).at(2),'long-password');

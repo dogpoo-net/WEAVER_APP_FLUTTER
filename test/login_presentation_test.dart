@@ -40,7 +40,7 @@ void main(){
    sent=jsonDecode(r.body);return http.Response(jsonEncode({'message':'메일 발송'}),200,headers:{'content-type':'application/json; charset=utf-8'});
   })));
   await tester.pumpWidget(MaterialApp(home:EmailLoginPage(auth:auth)));
-  await tester.tap(find.text('계정이 없나요? Sign up'));await tester.pump();
+  await tester.tap(find.text('계정이 없으신가요? Sign up'));await tester.pump();
   await tester.enterText(find.byType(TextFormField).at(1),'name@example.com');
   await tester.enterText(find.byType(TextFormField).at(2),'long-password');
   await tester.enterText(find.byType(TextFormField).at(3),'long-password');

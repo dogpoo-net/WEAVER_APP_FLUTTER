@@ -83,7 +83,7 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
               const SizedBox(height: 24),
               FilledButton(onPressed: _busy ? null : _submit, child: Text(_signup ? 'Sign up · 인증메일 받기' : 'Sign in')),
               TextButton(onPressed: _busy ? null : () => setState(() { _signup = !_signup; _message = null; _error = null; _password.clear(); _confirmation.clear(); }),
-                child: Text(_signup ? '이미 계정이 있나요? Sign in' : '계정이 없나요? Sign up')),
+                child: Text(_signup ? '이미 계정이 있나요? Sign in' : '계정이 없으신가요? Sign up')),
               TextButton(onPressed: _busy ? null : () {
                 if (_validateEmail(_email.text) != null) { setState(() => _error = '먼저 이메일 주소를 입력해주세요.'); return; }
                 _run(() async {
