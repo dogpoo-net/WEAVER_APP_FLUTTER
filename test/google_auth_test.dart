@@ -1,5 +1,5 @@
-import 'package:weaver/features/auth/email_auth.dart';
-import 'support/memory_session_store.dart';
+import 'support/test_server_auth.dart';
+import 'package:weaver/features/sync/owned_workspace.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,15 +34,16 @@ void main() {
   testWidgets('missing OAuth config gates workspace without modifying local data', (tester) async {
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: 'existing-data'});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
-    await tester.pumpWidget(MyApp(emailApi: EmailAuthApi(store: MemorySessionStore()), storage: storage, authClient: FakeGoogleClient(configured: false)));
+    await tester.pumpWidget(MyApp(emailApi: testServerAuth(), storage: storage, authClient: FakeGoogleClient(configured: false)));
     await tester.pumpAndSettle();
     expect(find.byType(LoginPage), findsOneWidget);
     expect(find.byType(InboxPage), findsNothing);
-    expect(storage.read(), 'existing-data');
+    expect(OwnedWorkspaces(storage).scope('quarantine').read(), 'existing-data');
+    expect(storage.read(), isNull);
   });
   testWidgets('sign in enters workspace and sign out removes nested routes', (tester) async {
     final client = FakeGoogleClient();
-    await tester.pumpWidget(MyApp(emailApi: EmailAuthApi(store: MemorySessionStore()), authClient: client));
+    await tester.pumpWidget(MyApp(emailApi: testServerAuth(), authClient: client));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Google로 로그인'));
     await tester.pumpAndSettle();
@@ -54,12 +55,12 @@ void main() {
     await auth.signOut();
     await tester.pumpAndSettle();
     expect(find.text('Private route'), findsNothing);
-    expect(find.byType(LoginPage), findsOneWidget);
-    expect(find.byType(InboxPage), findsNothing);
+    expect(find.byType(LoginPage), findsNothing);
+    expect(find.byType(InboxPage), findsOneWidget);
   });
   testWidgets('failed sign in does not unlock workspace and can retry', (tester) async {
     final client = FakeGoogleClient()..fail = true;
-    await tester.pumpWidget(MyApp(emailApi: EmailAuthApi(store: MemorySessionStore()), authClient: client));
+    await tester.pumpWidget(MyApp(emailApi: testServerAuth(), authClient: client));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Google로 로그인'));
     await tester.pumpAndSettle();

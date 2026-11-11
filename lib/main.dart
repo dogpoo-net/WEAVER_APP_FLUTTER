@@ -1,3 +1,5 @@
+import 'features/sync/owned_workspace_gate.dart';
+import 'features/sync/owned_workspace.dart';
 import 'features/auth/google_auth.dart';
 import 'features/auth/email_auth.dart';
 import 'features/auth/login_page.dart';
@@ -64,7 +66,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       _verificationToken = fragment.substring('verify-email='.length);
     }
     _auth = GoogleAuthController(widget.authClient ?? SdkGoogleAuthClient(), preferences: widget.storage?.preferences, emailApi: widget.emailApi);
-    if (widget.requireLogin) _auth.initialize();
+    if (widget.requireLogin) {
+      final storage=widget.storage;
+      (storage==null ? Future<void>.value() : OwnedWorkspaces(storage).initialize()).then((_) => _auth.initialize());
+    }
     elements.clear();
     showClosedThoughts = widget.storage?.preferences.getBool(closedThoughtsPreference) ?? true;
     _restoreTheme();
@@ -179,8 +184,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             uri: Uri(path: Uri.base.path, query: Uri.base.hasQuery ? Uri.base.query : null), replace: true);
         }
         setState(() => _verificationToken = null);
-      }) : widget.requireLogin && !_auth.isGuest && _auth.identity == null ? LoginPage(auth: _auth) : InboxPage(
-      storage: widget.storage,
+      }) : widget.requireLogin && !_auth.isGuest && _auth.identity == null ? LoginPage(auth: _auth) : widget.requireLogin && widget.storage != null ? OwnedWorkspaceGate(root:widget.storage!,auth:_auth,builder:_inbox) : _inbox(widget.storage),
+  )));
+
+  Widget _inbox(WorkspaceStorage? storage) => InboxPage(
+      storage: storage,
       onSettingsImported: () => setState(_restoreTheme),
       themeMode: _mode,
       lightPalette: _lightPalette,
@@ -193,6 +201,5 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         _persistTheme();
       },
       onThemeChanged: (mode) { setState(() => _mode = mode); _persistTheme(); },
-    ),
-  )));
+    );
 }

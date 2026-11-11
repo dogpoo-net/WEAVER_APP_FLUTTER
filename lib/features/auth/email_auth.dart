@@ -78,6 +78,11 @@ class EmailAuthApi {
     return refresh();
   }
   Future<Map<String, dynamic>> login(String email, String password) => _login('login', {'email': email, 'password': password});
+  Future<Map<String, dynamic>> loginGoogle(String token) => _login('google', {'idToken': token});
+  Future<Map<String, dynamic>> workspace(String action, Map<String, Object?> body) async {
+    if (!store.isWeb && accessToken == null) { if (await refresh() == null) throw const EmailAuthFailure('다시 로그인해주세요.', status: 401); }
+    return post('session/$_platform/workspace/$action', body, sessionToken: accessToken);
+  }
   Future<Map<String, dynamic>> loginKakao(String token) => _login('kakao', {'kakaoToken': token});
   Future<void> linkKakao(String token) async {
     final renewed = await refresh();

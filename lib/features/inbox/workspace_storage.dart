@@ -6,6 +6,7 @@ import 'tag_colors.dart';
 import 'project_folders.dart';
 
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -15,8 +16,9 @@ import 'project_page.dart';
 import 'word_badge.dart';
 
 class Note {
-  Note(this.content, {DateTime? created})
-    : createdAt = created ?? DateTime.now();
+  Note(this.content, {DateTime? created, String? id})
+    : id = id ?? 'note-${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(0x7fffffff)}', createdAt = created ?? DateTime.now();
+  final String id;
   String content;
   String? folder;
   List<ElementBinding> bindings = [];
@@ -98,6 +100,7 @@ class WorkspaceSnapshot {
     'notes': notes
         .map(
           (n) => {
+            'id': n.id,
             'content': n.content,
             'bindings': n.bindings.map((link) => link.toJson()).toList(),
             'folder': n.folder,
@@ -179,10 +182,12 @@ class WorkspaceSnapshot {
         records.map((r) => r.id).toSet().length != records.length) {
       throw const FormatException('Duplicate elements');
     }
+    var noteIndex=0;
     final notes = (data['notes'] as List).map((n) {
       final note = Note(
         n['content'] as String,
         created: DateTime.parse(n['createdAt'] as String),
+        id: n['id'] as String? ?? 'legacy-note-${n['createdAt']}-${noteIndex++}',
       );
       note.bindings = bindings({'text': n['content'], 'bindings': n['bindings']});
       if (n['paragraphs'] == null && n['project'] == null) note.bindings.removeWhere((b) => !b.id.startsWith('label:') && !b.id.startsWith('url:') && !b.id.startsWith('project:'));
@@ -212,8 +217,9 @@ class WorkspaceSnapshot {
     final migrated = <Note>[];
     for (final note in notes) {
       if (note.project == null && note.paragraphs != null && note.paragraphs!.length > 1) {
-        for (final p in note.paragraphs!) {
-          migrated.add(Note(p.text, created: note.createdAt)
+        for (var index=0;index<note.paragraphs!.length;index++) {
+          final p=note.paragraphs![index];
+          migrated.add(Note(p.text, created: note.createdAt,id:'${note.id}-p$index')
             ..folder = note.folder
             ..paragraphs = [Paragraph(p.text, ParagraphRole.body, tags: p.tags)]
             ..tags.addAll({...note.tags, ...p.tags}));
@@ -320,16 +326,33 @@ class WorkspaceSnapshot {
 }
 
 class WorkspaceStorage {
-  WorkspaceStorage(this.preferences);
+  WorkspaceStorage(this.preferences, {this.owner});
+  final String? owner;
+  void Function()? onChanged;
+  Future<void> Function()? syncNow;
+  Future<void> Function()? pullNow;
+  bool suspended = false;
+  String scoped(String name) => owner == null ? name : 'weaver.owned.${base64Url.encode(utf8.encode(owner!))}.$name';
+  String get workspaceKey => scoped(key);
+  String get layoutsKey => scoped(graphKey);
+  String get syncKey => scoped('sync.v1');
+  Future<void> flush() => _pending;
+  Future<void> writable() async {
+    if (suspended) throw StateError('Workspace is no longer active');
+    await preferences.reload();
+    final claim=preferences.getString('weaver.guest.claim.v1');
+    if (claim!=null && (jsonDecode(claim) as Map)['scope']==owner) throw StateError('Guest workspace is being transferred');
+  }
   final SharedPreferences preferences;
   static const key = 'weaver.workspace.v1';
   static const themeKey = 'weaver.theme.v1';
   static const graphKey = 'weaver.graph-layouts.v1';
-  String? readGraphLayouts() => preferences.getString(graphKey);
+  String? readGraphLayouts() => preferences.getString(layoutsKey);
   Future<void> writeGraphLayouts(String data) {
     final task = _pending.catchError((Object _) {}).then((_) async {
-      if (preferences.getString(graphKey) == data) return;
-      if (!await preferences.setString(graphKey, data)) throw StateError('Graph save failed');
+      await writable();
+      if (preferences.getString(layoutsKey) == data) return;
+      if (!await preferences.setString(layoutsKey, data)) throw StateError('Graph save failed');
     });
     _pending = task;
     return task;
@@ -343,23 +366,23 @@ class WorkspaceStorage {
     return task;
   }
   Future<void> _pending = Future.value();
-  String? read() => preferences.getString(key);
+  String? read() => preferences.getString(workspaceKey);
   Future<void> replaceFromBackup(String workspace, {String? graphs, String? theme, required bool closed}) {
     WorkspaceSnapshot.decode(workspace);
     final task = _pending.catchError((Object _) {}).then((_) async {
       const closedKey = 'weaver.showClosedThoughts.v1';
-      final before = <String, Object?>{for (final k in [key, graphKey, themeKey, closedKey]) k: preferences.get(k)};
-      if (!await preferences.setString('$key.beforeImport', jsonEncode(before))) throw StateError('Backup failed');
+      final before = <String, Object?>{for (final k in [workspaceKey, layoutsKey, themeKey, closedKey]) k: preferences.get(k)};
+      if (!await preferences.setString('$workspaceKey.beforeImport', jsonEncode(before))) throw StateError('Backup failed');
       Future<void> put(String k, Object? value) async {
         final ok = value == null ? await preferences.remove(k) : value is bool
           ? await preferences.setBool(k, value) : await preferences.setString(k, value as String);
         if (!ok) throw StateError('Import save failed');
       }
       try {
-        await put(graphKey, graphs);
+        await put(layoutsKey, graphs);
         if (theme != null) await put(themeKey, theme);
         await put(closedKey, closed);
-        await put(key, workspace);
+        await put(workspaceKey, workspace);
       } catch (_) {
         for (final entry in before.entries) { await put(entry.key, entry.value); }
         rethrow;
@@ -371,10 +394,10 @@ class WorkspaceStorage {
 
   Future<void> clear() {
     final task = _pending.catchError((Object _) {}).then((_) async {
-      if (!await preferences.remove(key)) throw StateError('Clear failed');
-      if (!await preferences.remove(graphKey)) throw StateError('Graph clear failed');
-      await preferences.remove('$key.beforeImport');
-      if (!await preferences.remove('$key.previous')) {
+      if (!await preferences.remove(workspaceKey)) throw StateError('Clear failed');
+      if (!await preferences.remove(layoutsKey)) throw StateError('Graph clear failed');
+      await preferences.remove('$workspaceKey.beforeImport');
+      if (!await preferences.remove('$workspaceKey.previous')) {
         throw StateError('Clear backup failed');
       }
     });
@@ -384,13 +407,15 @@ class WorkspaceStorage {
 
   Future<void> write(String data) {
     final task = _pending.catchError((Object _) {}).then((_) async {
-      final old = preferences.getString(key);
-      if (old != null && !await preferences.setString('$key.previous', old)) {
+      await writable();
+      final old = preferences.getString(workspaceKey);
+      if (old != null && !await preferences.setString('$workspaceKey.previous', old)) {
         throw StateError('Backup failed');
       }
-      if (!await preferences.setString(key, data)) {
+      if (!await preferences.setString(workspaceKey, data)) {
         throw StateError('Save failed');
       }
+      onChanged?.call();
     });
     _pending = task;
     return task;

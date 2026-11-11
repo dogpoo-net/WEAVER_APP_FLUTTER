@@ -170,9 +170,10 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
 enum ThoughtView { boxes, diagram, page, geolog }
 
 class AllThoughtsPage extends StatefulWidget {
-  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox, this.initialView = ThoughtView.boxes});
+  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.onSave, this.initialBox, this.initialView = ThoughtView.boxes});
   final List<Note> notes;
   final VoidCallback? onChanged, onLayoutChanged;
+  final Future<void> Function()? onSave;
   final MemoBox? initialBox;
   final ThoughtView initialView;
   @override
@@ -212,6 +213,6 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(filters: _filters, notes: widget.notes, initialBox: widget.initialBox,
       onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector)); }
     return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey(_view), box: widget.initialBox, blocks: _view == ThoughtView.page,
-      onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, viewSelector: selector));
+      onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, onSave:widget.onSave, viewSelector: selector));
   }
 }

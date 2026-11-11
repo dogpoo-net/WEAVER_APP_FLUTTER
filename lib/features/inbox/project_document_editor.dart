@@ -1,3 +1,4 @@
+import 'save_shortcuts.dart';
 import 'thought_settings.dart';
 import 'thought_filters.dart';
 import 'label_links.dart';
@@ -13,10 +14,10 @@ import 'element_store.dart';
 import 'word_badge.dart';
 
 class ProjectDocumentEditor extends StatefulWidget {
-  const ProjectDocumentEditor({super.key, this.project, this.onChanged, this.projects = const []});
+  const ProjectDocumentEditor({super.key, this.project, this.onChanged, this.onSave, this.projects = const []});
   final WritingProject? project;
   final List<WritingProject> projects;
-  final Future<void> Function()? onChanged;
+  final Future<void> Function()? onChanged, onSave;
   @override
   State<ProjectDocumentEditor> createState() => _ProjectDocumentEditorState();
 }
@@ -64,7 +65,11 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       selection: TextSelection.collapsed(offset: end - token.length + tag.length + 2));
     _tags.add(tag); _bodyFocus.requestFocus();
   }
+  bool _saving=false;
   Future<void> _save() async {
+    if(_saving)return;
+    _saving=true;
+    try {
     _body.completeLinks();
     _tags.addAll(cleanLinkedInput(_body).tags);
     if (_body.text.trim().isEmpty) {
@@ -76,8 +81,10 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     project.documentLinks = List.of(_body.bindings);
     project.words.clear(); project.tags..clear()..addAll({..._tags, ..._filters.tags});
     if (widget.project == null) { Navigator.pop(context, project); return; }
-    elements.indexProject(project); await widget.onChanged?.call();
-    if (mounted) { setState(() => _dirty = false); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('저장했습니다.'))); }
+    elements.indexProject(project); await widget.onChanged?.call(); await widget.onSave?.call();
+    if (mounted) { setState(() => _dirty = false); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('저장되었습니다.'))); }
+    } catch(e) { if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('저장 또는 동기화에 실패했습니다. 로컬 자료는 유지됩니다. $e'))); }
+    finally {_saving=false;}
   }
   Widget _referencesPanel() {
     final query = _search.text.trim().replaceFirst('#', '').toLowerCase();
@@ -98,7 +105,8 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     ]);
   }
   @override
-  Widget build(BuildContext context) => PopScope(canPop: !_dirty, onPopInvokedWithResult: (didPop, result) async {
+  Widget build(BuildContext context) => SaveShortcuts(onSave:_save,child:_build(context));
+  Widget _build(BuildContext context) => PopScope(canPop: !_dirty, onPopInvokedWithResult: (didPop, result) async {
     if (didPop) return;
     final discard = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('변경 내용을 저장하지 않고 나갈까요?'), actions: [
       TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('계속 작성')),

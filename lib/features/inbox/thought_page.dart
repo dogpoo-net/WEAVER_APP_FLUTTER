@@ -1,3 +1,4 @@
+import 'save_shortcuts.dart';
 import 'thought_label.dart';
 import 'package:flutter/gestures.dart';
 import 'canvas_geometry.dart';
@@ -23,9 +24,10 @@ import 'graph_arrangement.dart';
 
 /// A live workspace over the same thoughts and tags.
 class ThoughtPage extends StatefulWidget {
-  const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.box, this.blocks = false, this.viewSelector, this.filters});
+  const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.onSave, this.box, this.blocks = false, this.viewSelector, this.filters});
   final VoidCallback onChanged;
   final VoidCallback? onLayoutChanged;
+  final Future<void> Function()? onSave;
   final MemoBox? box;
   final bool blocks;
   final ThoughtFilterSelection? filters;
@@ -621,7 +623,16 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   String? _frontThought;
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => SaveShortcuts(onSave:_saveCanvas,child:_build(context));
+  bool _savingCanvas=false;
+  Future<void> _saveCanvas() async {
+    if(_savingCanvas)return;_savingCanvas=true;
+    try { widget.onLayoutChanged?.call();widget.onChanged();await widget.onSave?.call();
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('저장되었습니다.')));
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('저장 또는 동기화에 실패했습니다. 로컬 자료는 유지됩니다. $e')));}
+    finally {_savingCanvas=false;}
+  }
+  Widget _build(BuildContext context) {
     final ranks = {for (var i = 0; i < _layout.layers.length; i++) _layout.layers[i]: i};
     final records = _records..sort((a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0));
     if (_frontThought != null) {
@@ -666,9 +677,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       PopupMenuButton<bool>(tooltip: '생각 만들기', icon: const Icon(Icons.add),
         onSelected: (box) { if (box) { _createBox(); } else { _create(); } },
         itemBuilder: (_) => const [PopupMenuItem(value: false, child: Text('생각 만들기')), PopupMenuItem(value: true, child: Text('상자 만들기'))]),
-      PopupMenuButton<bool>(tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: _resetArrangement,
-        itemBuilder: (_) => const [PopupMenuItem(value: false, child: Text('펼쳐보기')), PopupMenuItem(value: true, child: Text('겹쳐보기'))]),
-      IconButton(tooltip: '전체 위치 보기', onPressed: () => setState(() => _centered = false), icon: const Icon(Icons.center_focus_strong)),
+      PopupMenuButton<String>(tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: (value) {if(value=='all'){setState(() => _centered=false);}else{_resetArrangement(value=='stack');}},
+        itemBuilder: (_) => const [PopupMenuItem(value:'all',child:Text('전체 보기')),PopupMenuItem(value: 'spread', child: Text('펼쳐보기')), PopupMenuItem(value: 'stack', child: Text('겹쳐보기'))]),
+      IconButton(tooltip: '저장 (Ctrl+S)', onPressed: _saveCanvas, icon: const Icon(Icons.save_outlined)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('사용 안내'),
           content: const Text('생각·태그를 드래그해 배치하세요. 생각을 누르면 수정할 수 있습니다. 라벨을 누르는 동안 해당 생각을 앞으로 볼 수 있습니다.'),

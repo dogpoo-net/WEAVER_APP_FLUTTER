@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'email_auth.dart';
 import 'kakao_auth.dart';
-import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -73,6 +72,7 @@ class GoogleAuthController extends ChangeNotifier {
       : emailApi = emailApi ?? EmailAuthApi(), kakaoClient = kakaoClient ?? SdkKakaoAuthClient();
   final KakaoAuthClient kakaoClient;
   final EmailAuthApi emailApi;
+  Future<void> Function()? onSessionEnding;
   bool _emailSignedIn = false;
   bool emailRestorePending = false;
   bool signingInWithBrowser = false;
@@ -83,7 +83,7 @@ class GoogleAuthController extends ChangeNotifier {
   static const guestModeKey = 'weaver.guest-mode.v1';
   bool isGuest = false;
   bool get canUseCloud => !isGuest && identity != null &&
-      (!_emailSignedIn || (_emailAccessExpires?.isAfter(DateTime.now()) ?? false));
+      _emailSignedIn && (_emailAccessExpires?.isAfter(DateTime.now()) ?? false);
   final SharedPreferences? preferences;
   final GoogleAuthClient client;
   GoogleIdentity? identity;
@@ -112,16 +112,6 @@ class GoogleAuthController extends ChangeNotifier {
         emailRestorePending = true;
         error = '로그인 상태를 복원하지 못했습니다. 연결 또는 기기 보안 저장소를 확인해주세요.';
       }
-      final raw = preferences?.getString(rememberedAccountKey);
-      if (raw != null) {
-        final data = jsonDecode(raw);
-        if (data is Map && data['id'] is String && (data['id'] as String).isNotEmpty &&
-            data['email'] is String && (data['email'] as String).isNotEmpty) {
-          identity = GoogleIdentity(id: data['id'] as String, email: data['email'] as String, idToken: null, displayName: data['name'] as String?);
-          _changed();
-          return;
-        }
-      }
     } catch (_) { /* Invalid local markers require a real Google sign-in. */ }
     if (!_disposed && !isGuest) await _initializeSdk();
   }
@@ -136,19 +126,13 @@ class GoogleAuthController extends ChangeNotifier {
       final write = _sessionWrite.catchError((Object _) {}).then((_) async {
         if (generation != _generation || _disposed || isGuest) return;
         try {
-          if (preferences != null && !await preferences!.setString(rememberedAccountKey,
-              jsonEncode({'id': value.id, 'email': value.email, if (value.displayName != null) 'name': value.displayName}))) {
-            throw StateError('Account persistence failed');
-          }
+          if (value.idToken == null) throw const EmailAuthFailure('Google 계정으로 다시 로그인해주세요.');
+          final data = await emailApi.loginGoogle(value.idToken!);
           if (generation != _generation || _disposed || isGuest) return;
-          emailRestorePending = false;
-          identity = value; error = null; busy = false; _changed();
-        } catch (_) {
-          if (generation == _generation && !_disposed) {
-            error = '로그인 상태를 기기에 저장하지 못했습니다. 다시 시도해주세요.';
-            busy = false; _changed();
-          }
-        }
+          await preferences?.remove(rememberedAccountKey);
+          await preferences?.remove(guestModeKey);
+          _acceptEmail(data); busy = false; _changed();
+        } catch (e) { error = e is EmailAuthFailure ? e.message : 'Google 서버 인증에 실패했습니다.'; busy = false; _changed(); }
       });
       _sessionWrite = write;
     }, onError: _failure);
@@ -212,6 +196,7 @@ class GoogleAuthController extends ChangeNotifier {
       final data = emailRestorePending ? await emailApi.restore() : await emailApi.refresh();
       if (_disposed || generation != _generation) return;
       if (data == null) {
+        try { await onSessionEnding?.call(); } catch (_) { /* Retain account-scoped recovery data, but end the expired session. */ }
         _emailSignedIn = false; identity = null; emailRestorePending = false;
         _emailExpiry?.cancel(); _changed();
         if (!ready) await _initializeSdk();
@@ -306,12 +291,13 @@ class GoogleAuthController extends ChangeNotifier {
     _loggingOut = true; _generation++; busy = true; _changed();
     try {
       if (_emailSignedIn) await emailApi.logout(all: allDevices);
+      try { await onSessionEnding?.call(); } catch (_) { /* Cleanup failure must not keep a revoked session active. */ }
       await _sessionWrite;
       if (preferences != null && !await preferences!.remove(rememberedAccountKey)) {
         throw StateError('Account removal failed');
       }
       _emailSignedIn = false; _emailAccessExpires = null; _emailExpiry?.cancel();
-      identity = null; error = null; _changed();
+      identity = null; isGuest = true; await preferences?.setBool(guestModeKey, true); error = null; _changed();
       // Local logout must work even if Google's network/provider is unavailable.
       if (ready) {
         try { await client.signOut().timeout(const Duration(seconds: 5)); } catch (_) {}

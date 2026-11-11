@@ -12,7 +12,7 @@ import 'package:weaver/features/auth/login_page.dart';
 import 'package:weaver/features/inbox/inbox_page.dart';
 import 'package:weaver/features/inbox/thought_settings.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
-import 'package:weaver/features/sync/workspace_backup.dart';
+import 'package:weaver/features/sync/owned_workspace.dart';
 import 'package:weaver/main.dart';
 
 class GuestGoogleClient implements GoogleAuthClient {
@@ -31,8 +31,9 @@ void main() {
   testWidgets('Guest entry blocks cloud actions and retains data when opening login', (tester) async {
     final prefs = await SharedPreferences.getInstance();
     final storage = WorkspaceStorage(prefs);
-    await storage.write(WorkspaceSnapshot.encode([Note('비회원의 로컬 기록')]));
-    final before = storage.read();
+    final owned=OwnedWorkspaces(storage);await owned.initialize();final guest=await owned.guest();
+    await guest.write(WorkspaceSnapshot.encode([Note('비회원의 로컬 기록')]));
+    final before = guest.read();
     await tester.pumpWidget(MyApp(emailApi: EmailAuthApi(store: MemorySessionStore()), storage: storage, authClient: GuestGoogleClient()));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('비회원으로 사용하기'));
@@ -53,7 +54,7 @@ void main() {
     await tester.ensureVisible(find.text('로그인 / 회원가입'));
     await tester.tap(find.text('로그인 / 회원가입'));await tester.pumpAndSettle();
     expect(find.byType(LoginPage), findsOneWidget);
-    expect(storage.read(), before);
+    expect(guest.read(), before);
     expect(prefs.getBool(GoogleAuthController.guestModeKey), isNull);
     await tester.pumpWidget(const SizedBox());
   });
@@ -74,31 +75,12 @@ void main() {
     second.dispose();
   });
 
-  test('Email login retains guest data and permits explicit upload of that data', () async {
-    final prefs = await SharedPreferences.getInstance();
-    final storage = WorkspaceStorage(prefs);
-    final original = WorkspaceSnapshot.encode([Note('회원가입 전 작성한 생각')]);
-    await storage.write(original);
-    final auth = GoogleAuthController(GuestGoogleClient(),preferences:prefs,emailApi:EmailAuthApi(store: MemorySessionStore(), client:MockClient((_) async =>
-      http.Response(jsonEncode({'id':'email-user','email':'guest@example.com','refreshToken':'session','accessToken':'access','expiresIn':43200}),200))));
-    await auth.useGuest();
-    expect(auth.canUseCloud,isFalse);
-    await auth.leaveGuest();
-    await auth.signInWithEmail('guest@example.com','test-password');
-    expect(auth.isGuest,isFalse);expect(auth.canUseCloud,isTrue);
-    expect(storage.read(),original);expect(prefs.getBool(GoogleAuthController.guestModeKey),isNull);
-    var uploads = 0;
-    final api = WeaverBackupApi(client:MockClient((request) async {
-      uploads++;
-      final body=jsonDecode(request.body) as Map;
-      expect(body['account'],'guest@example.com');
-      final backup=WorkspaceBackup.decode(body['jsonData']);
-      expect(WorkspaceSnapshot.decode(backup.workspace).notes.single.content,'회원가입 전 작성한 생각');
-      return http.Response('{"code":0}',200);
-    }));
-    expect(uploads,0);
-    await api.upload(auth.identity!.email,WorkspaceBackup(storage.read()!,{}));
-    expect(uploads,1);expect(storage.read(),original);
-    api.close();auth.dispose();
+  test('Email authentication alone never reclassifies guest data as account data', () async {
+    final prefs=await SharedPreferences.getInstance();final owned=OwnedWorkspaces(WorkspaceStorage(prefs));await owned.initialize();final guest=await owned.guest();
+    final original=WorkspaceSnapshot.encode([Note('회원가입 전 작성한 생각')]);await guest.write(original);
+    final auth=GoogleAuthController(GuestGoogleClient(),preferences:prefs,emailApi:EmailAuthApi(store:MemorySessionStore(),client:MockClient((_)async=>http.Response(jsonEncode({'id':'user','email':'guest@example.com','refreshToken':'refresh','accessToken':'access','expiresIn':1800}),200))));
+    await auth.signInWithEmail('guest@example.com','password');
+    expect(guest.read(),original);expect(owned.scope(auth.identity!.id).read(),isNull);
+    auth.dispose();
   });
 }

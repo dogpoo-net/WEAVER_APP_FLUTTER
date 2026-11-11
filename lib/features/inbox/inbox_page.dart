@@ -354,7 +354,7 @@ class _InboxPageState extends State<InboxPage> {
     }
   }
 
-  static const _mediaCleanupKey = 'weaver.pendingMediaDeletion.v1';
+  String get _mediaCleanupKey => widget.storage?.scoped('weaver.pendingMediaDeletion.v1') ?? 'weaver.pendingMediaDeletion.v1';
   Future<void> _cleanupDeletedMedia() async {
     final preferences = widget.storage?.preferences;
     if (preferences == null) return;
@@ -389,63 +389,15 @@ class _InboxPageState extends State<InboxPage> {
       actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
         TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('계속'))])) == true;
 
-  Future<void> _uploadBackup() async {
-    if (_captureSaving || _locationBusy || _photoBusy) throw const BackupFailure('메모와 첨부 처리 완료 후 다시 시도해주세요.');
-    final auth = GoogleAuthScope.maybeOf(context);
-    final identity = auth?.identity;
-    final storage = widget.storage;
-    if (auth?.canUseCloud != true || identity == null || storage == null || _restoreBlocked) throw const BackupFailure('로그인과 로컬 저장 상태를 확인해주세요.');
-    if (!await _confirmTransfer('서버에 데이터를 저장할까요?', '${identity.email} 계정의 기존 서버 백업을 현재 데이터로 덮어씁니다. 사진·음성·위치와 휴지통도 포함됩니다.')) return;
-    final api = WeaverBackupApi();
-    try {
-      for (final note in _notes.where((n) => n.project != null)) { note.content = note.project!.content; }
-      final backup = await WorkspaceBackup.capture(WorkspaceSnapshot.encode(_notes), DeviceBackupMedia(),
-        theme: storage.readTheme(), graphs: encodeGraphLayouts({for (final box in memoBoxes) box.name: box.layout}), closed: showClosedThoughts);
-      if (!mounted || auth!.identity?.id != identity.id) throw const BackupFailure('로그인 계정이 변경되어 저장을 중단했습니다.');
-      await api.upload(identity.email, backup);
-      if (mounted) _captureError('서버에 데이터를 저장했습니다.');
-    } finally { api.close(); }
+  Future<void> _saveAndSync() async {
+    await _persist();
+    if (_storageError != null || _restoreBlocked) throw BackupFailure(_storageError ?? '로컬 저장을 확인해주세요.');
+    await widget.storage?.syncNow?.call();
   }
+  Future<void> _uploadBackup() async {await _saveAndSync();if(mounted)_captureError('저장되었습니다.');}
   Future<void> _downloadBackup() async {
-    if (_captureSaving || _locationBusy || _photoBusy) throw const BackupFailure('메모와 첨부 처리 완료 후 다시 시도해주세요.');
-    final auth = GoogleAuthScope.maybeOf(context);
-    final identity = auth?.identity;
-    final storage = widget.storage;
-    if (auth?.canUseCloud != true || identity == null || storage == null) throw const BackupFailure('로그인과 로컬 저장 상태를 확인해주세요.');
-    final api = WeaverBackupApi();
-    final media = DeviceBackupMedia();
-    WorkspaceBackup? staged;
-    var committed = false;
-    try {
-      final backup = await api.download(identity.email);
-      if (!mounted || auth!.identity?.id != identity.id) throw const BackupFailure('로그인 계정이 변경되어 가져오기를 중단했습니다.');
-      if (!await _confirmTransfer('현재 데이터를 덮어쓸까요?', '${identity.email} 계정의 서버 데이터로 현재 생각·프로젝트·상자·휴지통과 설정을 교체합니다. 작성 중인 입력도 비워집니다.')) return;
-      final imported = await backup.stage(media);
-      staged = imported;
-      if (!mounted || auth.identity?.id != identity.id) throw const BackupFailure('로그인 계정이 변경되어 가져오기를 중단했습니다.');
-      await storage.replaceFromBackup(imported.workspace, graphs: imported.graphs, theme: imported.theme, closed: imported.closed);
-      committed = true;
-      if (!mounted) return;
-      final snapshot = WorkspaceSnapshot.decode(imported.workspace);
-      setState(() {
-        snapshot.apply();
-        _notes..clear()..addAll(snapshot.notes);
-        if (imported.graphs != null) restoreGraphLayouts(imported.graphs!, {for (final box in memoBoxes) box.name: box.layout});
-        ensureUnclassifiedBox();
-        _draft.clear(); _draftTags.clear();  _clearCapture(); _editing = null;
-        _restoreBlocked = false; _storageError = null;
-        showClosedThoughts = imported.closed;
-      });
-      widget.onSettingsImported?.call(); desktopMenu.refresh();
-      // Existing editors and diagrams hold references to the replaced objects.
-      Navigator.of(context).popUntil((route) => route.isFirst);
-      _captureError('서버 데이터를 가져왔습니다.');
-    } finally {
-      api.close();
-      if (!committed && staged != null) {
-        for (final id in staged.media.keys) { try { await media.delete(id); } catch (_) {} }
-      }
-    }
+    if(!await _confirmTransfer('서버 자료로 다시 불러올까요?', '현재 계정의 미동기화 수정을 서버 자료로 교체합니다. 다른 계정의 자료는 가져올 수 없습니다.'))return;
+    await widget.storage?.pullNow?.call();
   }
 
   Future<void> _reset() async {
@@ -471,7 +423,11 @@ class _InboxPageState extends State<InboxPage> {
       final hasMedia = [...elements.records.values, ...elements.trash.values].any((r) => r.recordings.isNotEmpty || r.photos.isNotEmpty) ||
           (widget.storage?.preferences.getStringList(_mediaCleanupKey)?.isNotEmpty ?? false) ||
           widget.storage?.preferences.getString('${WorkspaceStorage.key}.beforeImport') != null;
-      if (hasMedia) await MediaStorage.clear();
+      if (hasMedia) {
+        for (final record in [...elements.records.values, ...elements.trash.values]) {
+          for (final id in [...record.photos.map((p) => p.id), ...record.recordings.map((c) => c.id)]) { await MediaStorage.delete(id); }
+        }
+      }
       await widget.storage?.clear();
       await widget.storage?.preferences.remove(_mediaCleanupKey);
       if (!mounted) return;
@@ -804,7 +760,7 @@ class _InboxPageState extends State<InboxPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('기록함에 담았어요. 다음 생각도 남겨보세요.')));
-    _persist();
+    _saveAndSync().catchError((Object e) { if(mounted)_captureError(e.toString()); });
     if (_desktopQuickMemo) { _focus.requestFocus(); } else { dismissKeyboard(); }
     return true;
   }
@@ -823,7 +779,7 @@ class _InboxPageState extends State<InboxPage> {
     ..._notes.where((n) => n.project == null && n.paragraphs != null).expand((n) => n.tags)}.toList()..sort();
 
   Future<void> _allThoughts([MemoBox? box]) async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onLayoutChanged: _persistLayouts, onChanged: _persist, initialBox: box)));
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onLayoutChanged: _persistLayouts, onChanged: _persist, onSave:_saveAndSync, initialBox: box)));
     if (mounted) setState(() {});
   }
 
@@ -839,7 +795,8 @@ class _InboxPageState extends State<InboxPage> {
       ..project = project
       ..paragraphs = project.paragraphs;
     setState(() => _notes.insert(0, note));
-    await _persist();
+    await _saveAndSync();
+    if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('저장되었습니다.')));
     await _showProject(note);
   }
 
@@ -848,7 +805,7 @@ class _InboxPageState extends State<InboxPage> {
       context,
       MaterialPageRoute(
         builder: (_) =>
-            ProjectPage(project: note.project!, projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: _persist),
+            ProjectPage(project: note.project!, projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: _persist, onSave: _saveAndSync),
       ),
     );
     if (!mounted) return;
