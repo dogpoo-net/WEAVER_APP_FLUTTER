@@ -279,17 +279,28 @@ class GoogleAuthController extends ChangeNotifier {
     catch (_) { error = '로그인에 실패했습니다. 다시 시도해주세요.'; }
     finally { busy = false; signingInWithBrowser = false; _changed(); }
   }
-  Future<bool> linkBrowser(String provider) async {
-    if (!_emailSignedIn || isGuest) throw const EmailAuthFailure('먼저 이메일로 로그인해주세요.');
-    return await emailApi.loginBrowser(provider, link: true) != null;
+  Completer<bool>? _linkCancelled;
+  void cancelAccountLink() {
+    emailApi.cancelOAuth();
+    final pending = _linkCancelled;
+    if (pending != null && !pending.isCompleted) pending.complete(false);
   }
-  Future<bool> linkKakao() async {
-    if (!_emailSignedIn || isGuest) throw const EmailAuthFailure('먼저 이메일로 로그인해주세요.');
+  Future<bool> _link(Future<bool> Function(Completer<bool>) action) async {
+    if (!_emailSignedIn || isGuest) throw const EmailAuthFailure('먼저 로그인해주세요.');
+    cancelAccountLink();
+    final cancelled = Completer<bool>();
+    _linkCancelled = cancelled;
+    try { return await Future.any([action(cancelled), cancelled.future]); }
+    finally { if (identical(_linkCancelled, cancelled)) _linkCancelled = null; }
+  }
+  Future<bool> linkBrowser(String provider) => _link((_) async =>
+    await emailApi.loginBrowser(provider, link: true) != null);
+  Future<bool> linkKakao() => _link((cancelled) async {
     final token = await kakaoClient.accessToken();
-    if (token == null) return false;
+    if (token == null || cancelled.isCompleted || _disposed) return false;
     await emailApi.linkKakao(token);
-    return true;
-  }
+    return !cancelled.isCompleted;
+  });
   Future<void> signOut({bool allDevices = false}) async {
     if (_loggingOut) return;
     _loggingOut = true; _generation++; busy = true; _changed();
@@ -313,6 +324,7 @@ class GoogleAuthController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    cancelAccountLink();
     _emailExpiry?.cancel();
     emailApi.dispose();
     unawaited(_subscription?.cancel());

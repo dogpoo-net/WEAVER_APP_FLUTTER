@@ -17,17 +17,18 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
   Future<void> Function()? onSignIn,
 }) async {
   var busy = false;
+  var linkingAccount = false;
   await showDialog<void>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (context, update) {
-    Future<void> run(Future<void> Function() action) async {
+    Future<void> run(Future<void> Function() action, {bool accountLink = false}) async {
       if (busy) return;
-      update(() => busy = true);
+      update(() { busy = true; linkingAccount = accountLink; });
       try { await action(); }
       catch (error) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
             error is BackupFailure ? error.message : error is EmailAuthFailure ? error.message : '데이터 작업을 완료하지 못했습니다. 현재 데이터를 확인하고 다시 시도해주세요.')));
         }
-      } finally { if (context.mounted) update(() => busy = false); }
+      } finally { if (context.mounted) update(() { busy = false; linkingAccount = false; }); }
     }
     Future<void> changeVisibility(bool value) async {
       if (busy) return;
@@ -65,6 +66,8 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
         ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_download_outlined), title: const Text('데이터 가져오기'), enabled: cloudEnabled && !busy,
           onTap: busy || !cloudEnabled || onDownload == null ? null : () => run(onDownload)),
         if (busy) const LinearProgressIndicator(),
+        if (linkingAccount) TextButton(onPressed: auth?.cancelAccountLink,
+          child: const Text('계정 연결 취소')),
         ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.delete_outline), title: const Text('데이터 초기화'),
           onTap: busy || onReset == null ? null : () { Navigator.pop(dialogContext); onReset(); }),
         const Divider(),
@@ -76,26 +79,26 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
             if (auth.error != null) throw BackupFailure(auth.error!);
           })),
         const Divider(),
-        if (auth?.isEmailAccount == true && auth!.kakaoClient.configured) ListTile(contentPadding: EdgeInsets.zero,
-          title: const Text('카카오 계정 연결'), onTap: busy ? null : () => run(() async {
-            final linked = await auth.linkKakao();
-            if (linked && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('카카오 계정을 연결했습니다.')));
-          })),
-        if (auth?.isEmailAccount == true) ListTile(contentPadding: EdgeInsets.zero,
-          title: const Text('네이버 계정 연결'), onTap: busy ? null : () => run(() async {
-            final linked = await auth!.linkBrowser('naver');
-            if (linked && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('네이버 계정을 연결했습니다.')));
-          })),
         if (auth?.isEmailAccount == true) ListTile(contentPadding: EdgeInsets.zero,
           title: const Text('GitHub 계정 연결'), onTap: busy ? null : () => run(() async {
             final linked = await auth!.linkBrowser('github');
             if (linked && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('GitHub 계정을 연결했습니다.')));
-          })),
+          }, accountLink: true)),
         if (auth?.isEmailAccount == true) ListTile(contentPadding: EdgeInsets.zero,
           title: const Text('GitLab 계정 연결'), onTap: busy ? null : () => run(() async {
             final linked = await auth!.linkBrowser('gitlab');
             if (linked && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('GitLab 계정을 연결했습니다.')));
-          })),
+          }, accountLink: true)),
+        if (auth?.isEmailAccount == true && auth!.kakaoClient.configured) ListTile(contentPadding: EdgeInsets.zero,
+          title: const Text('카카오 계정 연결'), onTap: busy ? null : () => run(() async {
+            final linked = await auth.linkKakao();
+            if (linked && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('카카오 계정을 연결했습니다.')));
+          }, accountLink: true)),
+        if (auth?.isEmailAccount == true) ListTile(contentPadding: EdgeInsets.zero,
+          title: const Text('네이버 계정 연결'), onTap: busy ? null : () => run(() async {
+            final linked = await auth!.linkBrowser('naver');
+            if (linked && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('네이버 계정을 연결했습니다.')));
+          }, accountLink: true)),
         if (auth?.isEmailAccount == true) ListTile(contentPadding: EdgeInsets.zero,
           title: const Text('모든 기기에서 로그아웃'), onTap: busy ? null : () => run(() async {
             final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(

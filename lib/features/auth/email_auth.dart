@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'oauth_window_handle.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
@@ -14,11 +16,14 @@ class EmailAuthFailure implements Exception {
 }
 
 class EmailAuthApi {
-  EmailAuthApi({http.Client? client, Uri? base, SessionStore? store})
-      : _client = client ?? sessionHttpClient(),
+  EmailAuthApi({http.Client? client, Uri? base, SessionStore? store, OAuthWindowHandle Function()? oauthWindowFactory})
+      : _windowFactory = oauthWindowFactory ?? OAuthWindow.new,
+        _client = client ?? sessionHttpClient(),
         store = store ?? sessionStore(),
         _base = base ?? Uri.parse(const String.fromEnvironment('WEAVER_AUTH_URL',
             defaultValue: 'https://api.dogpoo.net/dogpoo/weaver/api/auth/'));
+  final OAuthWindowHandle Function() _windowFactory;
+  Completer<void>? _oauthCancelled;
   final http.Client _client;
   final Uri _base;
   final SessionStore store;
@@ -29,7 +34,7 @@ class EmailAuthApi {
   Future<Map<String, dynamic>?>? _refreshing;
   bool _disposed = false;
   int _oauthAttempt = 0;
-  void cancelOAuth() { _oauthAttempt++; }
+  void cancelOAuth() { _oauthAttempt++; final cancel = _oauthCancelled; if (cancel != null && !cancel.isCompleted) cancel.complete(); }
   String get _platform => store.isWeb ? 'web' : 'native';
   String _random(int count) => base64UrlEncode(List<int>.generate(count, (_) => Random.secure().nextInt(256))).replaceAll('=', '');
   Future<Map<String, dynamic>> post(String action, Map<String, Object?> body,
@@ -88,31 +93,48 @@ class EmailAuthApi {
     }
   }
   Future<Map<String, dynamic>?> loginBrowser(String provider, {bool link = false}) async {
-    final window = OAuthWindow(); // Open synchronously within the browser's user gesture.
+    cancelOAuth();
+    final window = _windowFactory(); // Must open during the user gesture.
     final attempt = ++_oauthAttempt;
+    final cancelled = Completer<void>();
+    _oauthCancelled = cancelled;
+    void cancel() { if (!cancelled.isCompleted) cancelled.complete(); }
+    final monitor = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (_disposed || attempt != _oauthAttempt || window.closed) cancel();
+    });
+    Future<T> wait<T>(Future<T> future) async {
+      final value = await Future.any<T>([future, cancelled.future.then<T>((_) => throw const _OAuthCancelled())]);
+      if (cancelled.isCompleted || _disposed || attempt != _oauthAttempt || window.closed) throw const _OAuthCancelled();
+      return value;
+    }
     try {
-      await _prepareTab();
-      if (link && await refresh() == null) throw const EmailAuthFailure('다시 로그인해주세요.', status: 401);
+      if (window.closed) throw const EmailAuthFailure('로그인 팝업을 허용해주세요.');
+      await wait(_prepareTab());
+      if (link && await wait(refresh()) == null) throw const EmailAuthFailure('다시 로그인해주세요.', status: 401);
       final proof = _random(32);
-      final flow = await post('session/$_platform/$provider/start', {'proof': proof, 'link': link}, sessionToken: accessToken);
+      final flow = await wait(post('session/$_platform/$provider/start', {'proof': proof, 'link': link}, sessionToken: accessToken));
       final url = flow['authorizeUrl'] as String;
       final target = Uri.parse(url);
       if (target.scheme != 'https' || !{'nid.naver.com', 'github.com', 'gitlab.com'}.contains(target.host)) throw const EmailAuthFailure('로그인 주소를 확인하지 못했습니다.');
-      await window.navigate(url);
+      await wait(window.navigate(url));
       for (var i = 0; i < 300; i++) {
-        if (_disposed || attempt != _oauthAttempt || window.closed) return null;
-        final result = await post('session/$_platform/$provider/finish', {'flow': flow['flow'] as String, 'proof': proof}, sessionToken: accessToken);
+        final result = await wait(post('session/$_platform/$provider/finish', {'flow': flow['flow'] as String, 'proof': proof}, sessionToken: accessToken));
         if (result['pending'] != true) {
           if (!link) await _accept(result);
           return result;
         }
-        await Future<void>.delayed(const Duration(seconds: 2));
+        await wait(Future<void>.delayed(const Duration(seconds: 2)));
       }
       throw const EmailAuthFailure('로그인 시간이 만료되었습니다. 다시 시도해주세요.');
-    } on EmailAuthFailure { rethrow; }
+    } on _OAuthCancelled { return null; }
+    on EmailAuthFailure { rethrow; }
     catch (_) { throw const EmailAuthFailure('로그인 창을 열지 못했습니다. 브라우저의 팝업 설정을 확인해주세요.'); }
-    finally { window.close(); }
+    finally {
+      monitor.cancel(); window.close();
+      if (identical(_oauthCancelled, cancelled)) _oauthCancelled = null;
+    }
   }
+
   Future<Map<String, dynamic>> _login(String action, Map<String,String> credentials) async {
     await _prepareTab();
     final result = await post('session/$_platform/$action', credentials);
@@ -166,3 +188,5 @@ class EmailAuthApi {
   Future<void> clear() async { await store.clear();_tab = null;_refreshToken = null;_refreshId = null;accessToken = null; }
   void dispose() { _disposed = true;cancelOAuth();_client.close(); }
 }
+
+class _OAuthCancelled implements Exception { const _OAuthCancelled(); }
