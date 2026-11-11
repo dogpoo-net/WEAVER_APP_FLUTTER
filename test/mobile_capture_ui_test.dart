@@ -1,3 +1,4 @@
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/main.dart';
@@ -32,11 +33,17 @@ void main() {
     expect(find.byType(ThoughtBoxView), findsOneWidget);
     expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('thought-filter-box-미분류'))).selected, isTrue);
   }, variant: TargetPlatformVariant({TargetPlatform.android}));
-  testWidgets('geolog tab opens without requesting location or loading an empty map', (tester) async {
+  testWidgets('geolog tab opens with a blurred map and top notice without requesting location', (tester) async {
     elements.clear();
     await tester.pumpWidget(const MaterialApp(home: AllThoughtsPage(notes: [])));
     await tester.tap(find.text('지오로그')); await tester.pumpAndSettle();
     expect(find.byType(GeologPage), findsOneWidget);
+    expect(find.byType(FlutterMap), findsOneWidget);
+    expect(find.byType(ImageFiltered), findsOneWidget);
+    final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
+    expect(map.options.initialCenter.latitude, 20);
+    expect(tester.getTopLeft(find.textContaining('위치가 기록된 생각이 없습니다.')).dy,
+      lessThan(tester.getCenter(find.byType(FlutterMap)).dy));
     expect(find.textContaining('위치가 기록된 생각이 없습니다.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

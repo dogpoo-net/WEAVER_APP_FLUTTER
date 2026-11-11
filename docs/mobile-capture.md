@@ -43,3 +43,28 @@ approximate coordinates, phone/audio interruption, background/foreground,
 attempt, narrow screen/keyboard, playback/photo zoom after process restart,
 low-storage failure, deletion/reset and offline map errors. Native permissions
 and recording require a device; CI tests do not exercise physical GPS/microphone.
+
+## Regional map tiles and empty geolog
+
+Geolog and location previews share `RegionalTileProvider`. Zoom levels below 7
+use the global OSM raster tiles. At zoom 7+, tiles whose centers fall inside
+33–38.7° N, 124.5–132° E use
+`https://tiles.osm.kr/hot/{z}/{x}/{y}.png`; other tiles use the global source.
+This is an approximate regional split, not a country polygon or a guarantee of
+security-facility masking. At low zoom Korea is included in global tiles. There
+is no global fallback for failed Korean tile requests. Verified on 2026-11-11: the provider homepage documents `/hot/`, zoom 7–20,
+viewer bounds 32–44° N / 123–132.5° E, and free commercial/noncommercial use.
+Seoul (z16), Jeju/Dokdo/Pyongyang (z14), and a Korean overview (z7) returned
+HTTP 200, 256×256 PNGs and `Access-Control-Allow-Origin: *`. Global world (z2)
+and Paris (z12) tiles passed the same checks. Seoul and Dokdo samples were
+visually inspected. The viewer bounds are not a guarantee of complete coverage.
+The provider describes military-feature removal and publishes non-military OSM
+extracts; this does not establish removal of every security facility or legal
+compliance. The app still uses its narrower South Korea selection rectangle.
+Sources: https://tiles.osm.kr/ and https://tiles.osm.kr/download/.
+OSM public tile usage policy still applies; this is not an offline tile cache.
+
+An empty geolog shows a noninteractive, blurred world map centered on 20° N, 0° E
+with the existing notice at the top and readable attribution at the bottom.
+It does not request the user's location. Nonempty results retain interactive
+markers and the recorded-location camera.

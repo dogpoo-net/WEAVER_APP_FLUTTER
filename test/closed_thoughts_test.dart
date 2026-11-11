@@ -39,7 +39,9 @@ void main() {
       onPressed: () => showThoughtSettings(context, preferences), child: const Text('설정'))))));
     await tester.tap(find.text('설정')); await tester.pumpAndSettle();
     expect(tester.widget<ListTile>(find.widgetWithText(ListTile, '로그아웃')).onTap, isNull);
-    await tester.tap(find.text('닫힌 생각 조회')); await tester.pumpAndSettle();
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+    await tester.tap(find.byType(Switch)); await tester.pumpAndSettle();
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
     expect(showClosedThoughts, isFalse);
     expect(preferences.getBool(closedThoughtsPreference), isFalse);
     expect(find.text('오픈소스 사용 정보'), findsOneWidget);

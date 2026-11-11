@@ -46,10 +46,10 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
       titleTextStyle: Theme.of(context).textTheme.bodySmall,
       iconColor: Theme.of(context).colorScheme.onSurfaceVariant),
       child: IconTheme(data: const IconThemeData(size: 20), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        ListTile(contentPadding: EdgeInsets.zero, title: const Text('닫힌 생각 조회'),
+        ListTile(contentPadding: EdgeInsets.zero, title: const Text('닫힌 생각 숨기기'),
           onTap: busy ? null : () => changeVisibility(!showClosedThoughts),
-          trailing: SizedBox(width: 44, height: 36, child: Transform.scale(scale: .75, child: Switch(value: showClosedThoughts,
-          onChanged: busy ? null : changeVisibility)))),
+          trailing: SizedBox(width: 44, height: 36, child: Transform.scale(scale: .75, child: Switch(value: !showClosedThoughts,
+          onChanged: busy ? null : (hidden) => changeVisibility(!hidden))))),
         const Divider(),
         ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_upload_outlined), title: const Text('데이터 저장하기'),
           onTap: busy || !signedIn || onUpload == null ? null : () => run(onUpload)),

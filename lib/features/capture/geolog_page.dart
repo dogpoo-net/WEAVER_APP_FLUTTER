@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+import 'regional_tiles.dart';
 import '../inbox/word_badge.dart';
 import '../inbox/thought_settings.dart';
 import 'package:flutter/material.dart';
@@ -78,13 +80,14 @@ class _GeologPageState extends State<GeologPage> {
       if (_tileError && records.isNotEmpty) MaterialBanner(content: const Text('지도를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.'), actions: [
         TextButton(onPressed: () => setState(() { _tileError = false; _mapRevision++; }), child: const Text('다시 시도')),
       ]),
-      Expanded(child: records.isEmpty
-        ? const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('위치가 기록된 생각이 없습니다.\n모바일 빠른 메모에서 위치 기록을 켜고 저장해주세요.', textAlign: TextAlign.center)))
-        : FlutterMap(key: ValueKey(_mapRevision), mapController: _map,
-          options: MapOptions(initialCenter: _point(records.first), initialZoom: 14, minZoom: 2, maxZoom: 19,
+      Expanded(child: Stack(children: [
+        Positioned.fill(child: ClipRect(child: ImageFiltered(
+          imageFilter: ui.ImageFilter.blur(sigmaX: records.isEmpty ? 5 : 0, sigmaY: records.isEmpty ? 5 : 0),
+          child: IgnorePointer(ignoring: records.isEmpty, child: FlutterMap(key: ValueKey('$_mapRevision-${records.isEmpty}'), mapController: _map,
+          options: MapOptions(initialCenter: records.isEmpty ? const LatLng(20, 0) : _point(records.first), initialZoom: records.isEmpty ? 2 : 14, minZoom: 2, maxZoom: 19,
             initialCameraFit: records.length > 1 ? CameraFit.bounds(bounds: LatLngBounds.fromPoints(records.map(_point).toList()), padding: const EdgeInsets.all(48), maxZoom: 16) : null),
           children: [
-            TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'net.dogpoo.weaver', maxNativeZoom: 19,
+            TileLayer(urlTemplate: globalTileTemplate, tileProvider: RegionalTileProvider(), userAgentPackageName: 'net.dogpoo.weaver', maxNativeZoom: 19,
               errorTileCallback: (_, error, stack) => _tileFailed()),
             MarkerLayer(markers: [for (final group in groups.values) Marker(point: _point(group.first), width: 132, height: 84, alignment: Alignment.topCenter, rotate: true,
               child: Semantics(button: true, label: group.first.text, child: InkWell(onTap: () => _open(group), child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
@@ -105,8 +108,12 @@ class _GeologPageState extends State<GeologPage> {
                 Icon(Icons.location_on, color: group.every((r) => r.hiddenFromSearch) ? Colors.grey : const Color(0xFFB52D39), size: 28,
                   shadows: const [Shadow(color: Colors.white, blurRadius: 3)]),
               ]))))]),
-            const MapAttribution(),
-          ])),
+          ]))))),
+        if (records.isEmpty) Positioned(top: 16, left: 16, right: 16,
+          child: Card(child: Padding(padding: const EdgeInsets.all(16),
+            child: Text('위치가 기록된 생각이 없습니다.\n모바일 빠른 메모에서 위치 기록을 켜고 저장해주세요.', textAlign: TextAlign.center)))),
+        const Positioned(right: 0, bottom: 0, child: MapAttribution()),
+      ])),
       ThoughtFilters(tags: _scope.expand((r) => r.tags).toSet().toList()..sort(), selection: _filters,
         onChanged: () { widget.onChanged(); setState(() {}); }, onFilter: _filters.toggle),
     ])));

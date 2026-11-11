@@ -1,3 +1,4 @@
+import 'thought_settings.dart';
 import 'thought_filters.dart';
 import 'label_links.dart';
 import 'document_markup.dart';
@@ -26,7 +27,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   final _bodyFocus = FocusNode();
   final _tags = <String>{};
   final _filters = ThoughtFilterSelection();
-  bool _dirty = false, _boxPanelOpen = false, _keyboardVisible = false;
+  bool _dirty = false, _boxPanelOpen = false, _thoughtPanelOpen = true, _keyboardVisible = false;
   final _thoughtScroll = ScrollController(), _documentScroll = ScrollController();
   bool get _wide => MediaQuery.sizeOf(context).width >= 800;
   @override
@@ -80,7 +81,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   }
   Widget _referencesPanel() {
     final query = _search.text.trim().replaceFirst('#', '').toLowerCase();
-    final thoughts = elements.records.values.where((r) => _filters.matches(r) &&
+    final thoughts = elements.records.values.where((r) => canBrowseThought(r) && _filters.matches(r) &&
       (r.text.toLowerCase().contains(query) || r.indexLabel.toLowerCase().contains(query) || r.tags.any((tag) => tag.contains(query)))).toList();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       TextField(key: const ValueKey('project-reference-search'), controller: _search,
@@ -120,17 +121,23 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(12),
         child: Padding(padding: const EdgeInsets.all(4), child: _referencesPanel()));
       return Column(children: [
-        Expanded(child: Padding(padding: EdgeInsets.fromLTRB(_wide ? 12 : 6, 2, _wide ? 12 : 6, 0), child: _wide
+        Expanded(child: Padding(padding: EdgeInsets.fromLTRB(_wide ? 12 : 6, 2, _wide ? 12 : 6, 0), child: !_thoughtPanelOpen ? document : _wide
           ? Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Expanded(child: document), const SizedBox(width: 12),
               SizedBox(width: (constraints.maxWidth * .45).clamp(300.0, 560.0), child: panel)])
           : Column(children: [Expanded(child: document), const SizedBox(height: 4), Expanded(child: panel)]))),
-        if (!_wide) TextButton.icon(key: const ValueKey('project-panel-toggle'),
+        TextButton.icon(key: const ValueKey('project-thought-panel-toggle'),
+          style: TextButton.styleFrom(minimumSize: const Size(double.infinity, 24), padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap, textStyle: const TextStyle(fontSize: 10)),
+          onPressed: () => setState(() => _thoughtPanelOpen = !_thoughtPanelOpen),
+          icon: Icon(_thoughtPanelOpen ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up, size: 14),
+          label: Text(_thoughtPanelOpen ? '생각 패널 숨기기' : '생각 패널 보이기')),
+        TextButton.icon(key: const ValueKey('project-panel-toggle'),
           style: TextButton.styleFrom(minimumSize: const Size(double.infinity, 24), padding: EdgeInsets.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap, textStyle: const TextStyle(fontSize: 10)),
           onPressed: () => setState(() => _boxPanelOpen = !_boxPanelOpen),
           icon: Icon(_boxPanelOpen ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up, size: 14),
           label: Text(_boxPanelOpen ? '상자 패널 숨기기' : '상자 패널 보이기')),
-        if (_wide || _boxPanelOpen) ThoughtFilters(key: const ValueKey('project-box-panel'),
+        if (_boxPanelOpen) ThoughtFilters(key: const ValueKey('project-box-panel'),
           compact: !_wide, tags: elements.tags.toList()..sort(), selection: _filters,
           onFilter: _filters.toggle, onChanged: () { _refresh(); widget.onChanged?.call(); }),
       ]);

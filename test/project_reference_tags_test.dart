@@ -12,6 +12,7 @@ void main() {
     memoBoxes.add(MemoBox('보관함', ids: [a.id]));
     await tester.pumpWidget(MaterialApp(home: ProjectPage(project: WritingProject([], [], name: '문서')..document = '내용')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('project-panel-toggle'))); await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('thought-filter-box-보관함'))); await tester.pumpAndSettle();
     expect(find.byWidgetPredicate((w) => w is WordBadge && w.word == a.text), findsOneWidget);
     expect(find.byWidgetPredicate((w) => w is WordBadge && w.word == b.text), findsNothing);
