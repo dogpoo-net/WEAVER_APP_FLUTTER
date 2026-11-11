@@ -6,6 +6,7 @@ import '../auth/google_auth.dart';
 import '../inbox/workspace_storage.dart';
 import '../inbox/element_store.dart';
 import '../inbox/word_badge.dart';
+import '../inbox/workspace_routes.dart';
 import '../capture/media_storage.dart';
 import 'owned_workspace.dart';
 import 'sharing_pages.dart';
@@ -170,7 +171,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
           }
         }
         target.documentLease = engine.documentLease;
-      engine.addListener(refresh);
+        engine.addListener(refresh);
         target.pullNow = () async {
           await engine.discardLocalAndPull();
           if (valid() && mounted) {
@@ -198,6 +199,8 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
                   });
                 }
               }
+            }).catchError((Object error) {
+              if(valid())setState(()=>notice='초대 목록을 새로고침하지 못했습니다.');
             });
         target.openHistory = (id) => Navigator.of(context).push<void>(
           MaterialPageRoute(
@@ -275,6 +278,9 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
       );
       return;
     }
+    final navigator=Navigator.of(context);
+    await navigateHome(context);
+    if(!mounted || navigator.canPop())return;
     try {
       await sync?.settle();
       await storage?.flush();
