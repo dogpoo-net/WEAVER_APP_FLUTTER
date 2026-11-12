@@ -393,7 +393,7 @@ class WorkspaceStorage {
   }
   Future<void> _pending = Future.value();
   String? read() => preferences.getString(workspaceKey);
-  Future<void> replaceFromBackup(String workspace, {String? graphs, String? theme, required bool closed}) {
+  Future<void> replaceFromBackup(String workspace, {String? graphs, String? theme, bool? closed}) {
     WorkspaceSnapshot.decode(workspace);
     final task = _pending.catchError((Object _) {}).then((_) async {
       const closedKey = 'weaver.showClosedThoughts.v1';
@@ -407,7 +407,7 @@ class WorkspaceStorage {
       try {
         await put(layoutsKey, graphs);
         if (theme != null) await put(themeKey, theme);
-        await put(closedKey, closed);
+        if(closed!=null)await put(closedKey, closed);
         await put(workspaceKey, workspace);
       } catch (_) {
         for (final entry in before.entries) { await put(entry.key, entry.value); }

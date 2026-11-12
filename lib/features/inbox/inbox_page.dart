@@ -184,24 +184,32 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
   String? _storageError;
   Timer? _liveTimer, _contentTimer;
   bool _checkingRemote=false, _applyingRemote=false;
+  Future<void>? _contentSync;
   int _pollFailures=0;DateTime? _retryAfter;
   Future<void> _pollRemote() async {
     final storage=widget.storage;
     if(_retryAfter!=null && DateTime.now().isBefore(_retryAfter!))return;
-    if(_checkingRemote || !mounted || storage?.checkRemote==null || WidgetsBinding.instance.lifecycleState==AppLifecycleState.paused || WidgetsBinding.instance.lifecycleState==AppLifecycleState.hidden || WidgetsBinding.instance.lifecycleState==AppLifecycleState.inactive)return;
+    if(_checkingRemote || _contentTimer?.isActive==true || _contentSync!=null || !mounted || storage?.checkRemote==null || WidgetsBinding.instance.lifecycleState==AppLifecycleState.paused || WidgetsBinding.instance.lifecycleState==AppLifecycleState.hidden || WidgetsBinding.instance.lifecycleState==AppLifecycleState.inactive)return;
     _checkingRemote=true;
     try {
       final changed=await storage!.checkRemote!();
       _pollFailures=0;_retryAfter=null;
-      if(changed && storage.editorResources.isEmpty && mounted && workspaceRouteObserver.current is! PopupRoute)await _refreshForBrowse();
+      if(changed && _contentTimer?.isActive!=true && _contentSync==null && storage.editorResources.isEmpty && mounted && workspaceRouteObserver.current is! PopupRoute)await _refreshForBrowse();
     } catch(e) { _pollFailures=(_pollFailures+1).clamp(1,4);_retryAfter=DateTime.now().add(Duration(seconds:(2<<_pollFailures).clamp(4,30)));if(mounted && _storageError==null)setState(()=>_storageError='서버 동기화를 확인하지 못했습니다. $e'); }
     finally{_checkingRemote=false;}
   }
   void _scheduleContentSync(){
     if(_applyingRemote || widget.storage?.syncContent==null)return;
     _contentTimer?.cancel();_contentTimer=Timer(const Duration(milliseconds:400),()async{
-      try{await widget.storage?.syncContent?.call();}catch(e){if(mounted)setState(()=>_storageError='변경을 기기에 보관했습니다. 서버 동기화에 실패했습니다. $e');}
+      try{await _syncContentNow();}catch(e){if(mounted)setState(()=>_storageError='변경을 기기에 보관했습니다. 서버 동기화에 실패했습니다. $e');}
     });
+  }
+  Future<void> _syncContentNow() async {
+    while(_contentSync!=null){await _contentSync;}
+    final request=widget.storage?.syncContent?.call();
+    if(request==null)return;
+    _contentSync=request;
+    try{await request;}finally{_contentSync=null;}
   }
   bool _restoreBlocked = false;
   @override
@@ -835,8 +843,12 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
   Future<void> _performBrowseRefresh() async {
     final storage = widget.storage;
     if (storage?.refreshNow == null || _restoreBlocked) return;
+    final pending=_contentTimer?.isActive==true;
+    await _contentSync;
     await _persist();
+    _contentTimer?.cancel();
     if (_storageError != null) throw StateError(_storageError!);
+    if(pending)await _syncContentNow();
     await storage!.refreshNow!();
     if(mounted)_applyRemoteSnapshot();
   }

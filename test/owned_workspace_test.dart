@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:weaver/features/auth/email_auth.dart';
@@ -17,8 +18,37 @@ class DeltaApi extends EmailAuthApi {
   return {'revision':rev,'changes':items.values.toList()};
  }
 }
+class DelayedReadApi extends DeltaApi {
+  Completer<void>? entered, release;
+  @override Future<Map<String,dynamic>> workspace(String action,Map<String,Object?> body) async {
+    final result=await super.workspace(action,body);
+    if(action=='read' && release!=null){entered!.complete();await release!.future;}
+    return result;
+  }
+}
 String data(String title)=>jsonEncode({'version':1,'colors':{},'elements':[],'trash':[],'notes':[{'content':title,'createdAt':'2026-01-01T00:00:00.000','tags':[],'bindings':[]}]});
 void main(){
+ test('thought close save survives an older in-flight server read',()async{
+  SharedPreferences.setMockInitialValues({});
+  final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'account-a');
+  await storage.preferences.setBool('weaver.showClosedThoughts.v1',false);
+  final api=DelayedReadApi();final sync=WorkspaceSync(storage,api,isCurrent:()=>true);await sync.initialize();
+  final initial=jsonDecode(data('note')) as Map<String,dynamic>;
+  initial['elements']=[{'id':'thought','text':'note','createdAt':'2026-01-01T00:00:00.000','tags':[],'hiddenFromSearch':false}];
+  await storage.write(jsonEncode(initial));await sync.flush();
+  api.entered=Completer<void>();api.release=Completer<void>();
+  final reading=sync.refreshFromServer();await api.entered!.future;
+  initial['elements'][0]['hiddenFromSearch']=true;
+  await storage.write(jsonEncode(initial));
+  final saving=storage.syncContent!();await Future<void>.delayed(Duration.zero);
+  api.release!.complete();await reading;
+  expect((jsonDecode(storage.read()!)['elements'] as List).single['hiddenFromSearch'],true);
+  await saving;
+  expect(storage.preferences.getBool('weaver.showClosedThoughts.v1'),false);
+  expect(jsonDecode(api.items[itemKey('list:elements','thought')]!['payload'])['hiddenFromSearch'],true);
+  sync.dispose();api.dispose();
+ });
+
  setUp(()=>SharedPreferences.setMockInitialValues({}));
  test('Account caches are never a guest source, including expired-session restarts',()async{
   final p=await SharedPreferences.getInstance();final owned=OwnedWorkspaces(WorkspaceStorage(p));await owned.initialize();

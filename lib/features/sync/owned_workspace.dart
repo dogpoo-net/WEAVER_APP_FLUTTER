@@ -182,7 +182,7 @@ class WorkspaceSync extends ChangeNotifier {
         if(remote[key]==null){base.remove(key);}else{base[key]=remote[key]!;}
         if(discard){if(remote[key]==null || remote[key]!['deleted']==true){local.remove(key);}else{local[key]=remote[key]!;}}
       }
-      if(discard){await storage.replaceFromBackup(joinWorkspace(local),closed:true);_observedRevision=null;}
+      if(discard){await storage.replaceFromBackup(joinWorkspace(local));_observedRevision=null;}
       await saveBase();
     })().whenComplete(()=>_running=null));
   }
@@ -190,6 +190,7 @@ class WorkspaceSync extends ChangeNotifier {
   final bool Function() isCurrent;
   Map<String,Map<String,dynamic>> base={};
   int cursor=0;
+  int _pendingSaves=0;
   String? error;
   bool busy=false,ready=false,_disposed=false;
   Timer? _timer;
@@ -236,18 +237,27 @@ class WorkspaceSync extends ChangeNotifier {
   }
   Future<void> initialize() async {
     loadBase();
+    final beforeRead=splitWorkspace(storage.read());
     try {
       Map<String,dynamic> result;
       try{result=await request('read',{'since':cursor});}
       on EmailAuthFailure catch(e){if(e.status!=409)rethrow;result=await request('read',{'since':0});base.clear();}
       await storage.flush();
       final local=splitWorkspace(storage.read());
+      final previousBase=Map<String,Map<String,dynamic>>.from(base);
       accept(result);
       final displayed=Map<String,Map<String,dynamic>>.from(base);
       displayed.removeWhere((_,item)=>storage.editorResources.contains(editResource(item)));
       for(final entry in local.entries){if(storage.editorResources.contains(editResource(entry.value)))displayed[entry.key]=entry.value;}
+      // A server response must not undo edits made while it was in flight,
+      // or an explicit save already waiting behind this read.
+      for(final key in {...beforeRead.keys,...local.keys,...previousBase.keys}){
+        if(!sameItem(local[key],beforeRead[key]) || (_pendingSaves>0 && !sameItem(local[key],previousBase[key]))){
+          if(local[key]==null){displayed.remove(key);}else{displayed[key]=local[key]!;}
+        }
+      }
       final raw=joinWorkspace(displayed);await ensureMedia(raw);
-      await storage.replaceFromBackup(raw,closed:true);
+      await storage.replaceFromBackup(raw);
       _lastSynced=joinWorkspace(base);
       await saveBase();_observedRevision=result['revision'] as int;ready=true;error=null;
     }catch(e){error=e.toString();}
@@ -268,10 +278,13 @@ class WorkspaceSync extends ChangeNotifier {
   Future<void> _enqueueFlush(bool deletionsOnly, {bool foldersOnly = false, bool contentOnly=false, String? resource}) async {
     // Capture explicit saves before waiting for an in-flight server read.
     await storage.flush();
-    final requestedSnapshot=resource==null?null:storage.read();
-    while (_running != null) { await _running; }
-    await (_running = _flush(deletionsOnly: deletionsOnly, foldersOnly: foldersOnly, contentOnly:contentOnly, resource:resource, requestedSnapshot:requestedSnapshot).whenComplete(() => _running = null));
-    if(error!=null)throw EmailAuthFailure(error!);
+    final requestedSnapshot=storage.read();
+    _pendingSaves++;
+    try {
+      while (_running != null) { await _running; }
+      await (_running = _flush(deletionsOnly: deletionsOnly, foldersOnly: foldersOnly, contentOnly:contentOnly, resource:resource, requestedSnapshot:requestedSnapshot).whenComplete(() => _running = null));
+      if(error!=null)throw EmailAuthFailure(error!);
+    } finally {_pendingSaves--; }
   }
   Future<void> _flush({bool deletionsOnly = false, bool foldersOnly = false, bool contentOnly=false, String? resource, String? requestedSnapshot}) async {
     if(_disposed || !isCurrent())return;
@@ -325,7 +338,7 @@ class WorkspaceSync extends ChangeNotifier {
           for(final row in returned.values){final item=Map<String,dynamic>.from(row as Map);item['value']=item['payload']==null?null:jsonDecode(item.remove('payload') as String);base[itemKey(item['kind'],item['id'])]=item;}
           final current=splitWorkspace(storage.read())..removeWhere((_,item)=>editResource(item)==resource);
           for(final entry in base.entries){if(entry.value['deleted']!=true && editResource(entry.value)==resource)current[entry.key]=entry.value;}
-          await storage.replaceFromBackup(joinWorkspace(current),closed:true);storage.applyServerSnapshot?.call();
+          await storage.replaceFromBackup(joinWorkspace(current));storage.applyServerSnapshot?.call();
         }
 
       }
@@ -365,13 +378,13 @@ class WorkspaceSync extends ChangeNotifier {
     final result=await request('claim',{'since':0,'guestId':claim['guestId'],'sourceHash':claim['sourceHash'],'changes':changes});
     final previous=Map<String,Map<String,dynamic>>.from(base),previousCursor=cursor,previousSnapshot=_lastSynced;
     try{base.clear();accept(result);final combined=joinWorkspace(base);await ensureMedia(combined);
-      await storage.replaceFromBackup(combined,closed:true);_lastSynced=combined;await saveBase();
+      await storage.replaceFromBackup(combined);_lastSynced=combined;await saveBase();
     }catch(_){base=previous;cursor=previousCursor;_lastSynced=previousSnapshot;rethrow;}
     await owned.finishClaim(claim);error=null;changed();
   }
   Future<void> discardLocalAndPull() async {
     final result=await request('read',{'since':0});base.clear();accept(result);final raw=joinWorkspace(base);await ensureMedia(raw);
-    await storage.replaceFromBackup(raw,closed:true);_lastSynced=raw;await saveBase();ready=true;error=null;changed();
+    await storage.replaceFromBackup(raw);_lastSynced=raw;await saveBase();ready=true;error=null;changed();
   }
   Future<void> removeCleanCache() async {
     await storage.flush();if(storage.read()==_lastSynced){final raw=storage.read();await storage.clear();await storage.preferences.remove(storage.syncKey);
