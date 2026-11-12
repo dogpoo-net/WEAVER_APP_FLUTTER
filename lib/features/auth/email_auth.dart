@@ -183,6 +183,7 @@ class EmailAuthApi {
   Future<void> _accept(Map<String, dynamic> result) async {
     if (_disposed) return;
     _authenticated = true;
+    if (store.isWeb && _tab != null) await store.write(jsonEncode(_tab));
     if (!store.isWeb) {
       final token = result['refreshToken'] as String;
       try { await store.write(jsonEncode({'refreshToken': token})); }

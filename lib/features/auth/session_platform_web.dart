@@ -7,8 +7,8 @@ SessionStore sessionStore() => WebSessionStore();
 class WebSessionStore implements SessionStore {
   static const _key = 'weaver.email.tab.v2';
   @override bool get isWeb => true;
-  // Only tab ID/proof are stored here. Authentication cookie is HttpOnly.
-  @override Future<String?> read() async => web.window.sessionStorage.getItem(_key);
-  @override Future<void> write(String value) async => web.window.sessionStorage.setItem(_key, value);
-  @override Future<void> clear() async => web.window.sessionStorage.removeItem(_key);
+  // Browser-restorable ID/proof only; authentication remains in an HttpOnly cookie.
+  @override Future<String?> read() async => web.window.localStorage.getItem(_key) ?? web.window.sessionStorage.getItem(_key);
+  @override Future<void> write(String value) async { web.window.localStorage.setItem(_key, value); web.window.sessionStorage.removeItem(_key); }
+  @override Future<void> clear() async { web.window.localStorage.removeItem(_key); web.window.sessionStorage.removeItem(_key); }
 }
