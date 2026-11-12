@@ -75,7 +75,7 @@ class ElementStore extends ChangeNotifier {
     if (parsed.text != oldText && records.containsKey(parsed.text)) {
       return '같은 내용의 생각이 이미 있어요.';
     }
-    records.remove(oldText);
+    final ordered = records.entries.map((e) => MapEntry(e.key == oldText ? parsed.text : e.key, e.value)).toList();
     if (inlineLinks != null) { record.inlineLinks = List.of(inlineLinks); }
     else if (parsed.text != oldText) { record.inlineLinks.clear(); }
     if (indexLabel != null) record.indexLabel = indexLabel.replaceAll(RegExp(r'\s+'), ' ').trim();
@@ -87,7 +87,7 @@ class ElementStore extends ChangeNotifier {
     record.tags
       ..clear()
       ..addAll({...parsed.tags, ...?tags});
-    records[parsed.text] = record;
+    records..clear()..addEntries(ordered);
     if (oldText != parsed.text) {
       renameWordColor(oldText, parsed.text);
       onRenamed?.call(oldText, parsed.text);
