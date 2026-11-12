@@ -218,6 +218,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     openWorkspaceDocument = _openDocumentById;
     refreshWorkspaceForRead = _refreshForBrowse;
+    saveWorkspaceContent = _saveAndSync;
     widget.storage?.applyServerSnapshot=_applyRemoteSnapshot;
     desktopMenu.visible = true;
     _draft.addListener(_imeUpdated);
@@ -441,7 +442,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
   Future<void> _saveAndSync({String? resource}) async {
     await _persist();
     if (_storageError != null || _restoreBlocked) throw BackupFailure(_storageError ?? '로컬 저장을 확인해주세요.');
-    if(resource==null){await (widget.storage?.syncContent ?? widget.storage?.syncNow)?.call();}
+    if(resource==null){_contentTimer?.cancel();if(widget.storage?.syncContent!=null){await _syncContentNow();}else{await widget.storage?.syncNow?.call();}}
     else {await widget.storage?.syncResource?.call(resource);}
   }
   Future<void> _uploadBackup() async {await _saveAndSync();if(mounted)_captureError('저장되었습니다.');}
@@ -521,6 +522,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     if(openWorkspaceDocument == _openDocumentById)openWorkspaceDocument=null;
     if(refreshWorkspaceForRead == _refreshForBrowse)refreshWorkspaceForRead=null;
+    if(saveWorkspaceContent == _saveAndSync)saveWorkspaceContent=null;
     WidgetsBinding.instance.addPostFrameCallback((_) => desktopMenu.detach(this));
     elements.removeListener(_elementDeleted);
     elements.onRenamed = null;

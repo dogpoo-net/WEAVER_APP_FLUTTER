@@ -62,7 +62,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     super.dispose();
   }
   Widget _badge(String word, bool desktop) => WordBadge(word: word, compact: true, fullText: true, singleLine: true, query: _query,
-    onTap: () => showElementMetadata(context, word));
+    onTap: () => showElementMetadata(context, word, onSaved: _refresh));
   Widget _tile(ElementRecord record, bool desktop, {double width = 280}) {
     final tile = SizedBox(key: ValueKey('thought-${record.id}'), width: width, child: _badge(record.text, desktop));
     final feedback = Material(color: Colors.transparent, child: SizedBox(width: 180, child: _badge(record.text, false)));

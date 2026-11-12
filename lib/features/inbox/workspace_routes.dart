@@ -45,3 +45,6 @@ class WorkspaceTitle extends StatelessWidget {
 Future<void> Function(String)? openWorkspaceDocument;
 
 Future<void> Function()? refreshWorkspaceForRead;
+
+/// Persist an explicit thought save without fetching a server snapshot.
+Future<void> Function()? saveWorkspaceContent;

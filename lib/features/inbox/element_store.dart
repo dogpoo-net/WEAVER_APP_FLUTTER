@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'workspace_routes.dart';
 import 'label_links.dart';
 import 'element_binding.dart';
@@ -196,7 +197,7 @@ class ElementStore extends ChangeNotifier {
 
 final elements = ElementStore();
 
-Future<void> showElementMetadata(BuildContext context, String word) async {
+Future<void> showElementMetadata(BuildContext context, String word, {VoidCallback? onSaved}) async {
   final id = elements.records[word]?.id;
   final host = context.findAncestorStateOfType<_ElementMetadataState>() ??
     (context is StatefulElement && context.state is _ElementMetadataState ? context.state as _ElementMetadataState : null);
@@ -209,12 +210,13 @@ Future<void> showElementMetadata(BuildContext context, String word) async {
   word = record.text;
   await showDialog<void>(
     context: context,
-    builder: (_) => _ElementMetadata(word: word),
+    builder: (_) => _ElementMetadata(word: word, onSaved: onSaved),
   );
 }
 
 class _ElementMetadata extends StatefulWidget {
-  const _ElementMetadata({required this.word});
+  const _ElementMetadata({required this.word, this.onSaved});
+  final VoidCallback? onSaved;
   final String word;
   @override
   State<_ElementMetadata> createState() => _ElementMetadataState();
@@ -393,7 +395,13 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               setState(() => _error = error);
               return;
             }
+            final messenger=ScaffoldMessenger.of(context);
             Navigator.pop(context);
+            widget.onSaved?.call();
+            final save=saveWorkspaceContent;
+            if(save!=null){unawaited(save().catchError((Object error){
+              if(messenger.mounted)messenger.showSnackBar(SnackBar(content:Text('변경은 기기에 보관했습니다. 서버 저장에 실패했습니다. $error')));
+            }));}
           },
           child: const Text('저장'),
         ),
