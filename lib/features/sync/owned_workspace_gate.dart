@@ -39,11 +39,11 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
   late final userId = account.startsWith('email:')
       ? account.substring(6)
       : account;
-  String? selected;
+  String? selected, primaryWorkspace;
   String role = 'owner';
   List<dynamic> catalog = [];
   int invitations = 0;
-  bool handledInvite = false;
+  bool handledInvite = false, erasingAccount = false;
   bool get current =>
       mounted &&
       (widget.auth.isGuest ? 'guest' : widget.auth.identity?.id) == account;
@@ -64,7 +64,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
 
   Future<void> open() async {
     final run = ++generation;
-    bool valid() => current && run == generation;
+    bool valid() => current && run == generation && !erasingAccount;
     try {
       final owned = OwnedWorkspaces(widget.root);
       await owned.initialize();
@@ -108,12 +108,13 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         final list = await widget.auth.emailApi.workspace('catalog', {});
         if (!valid()) return;
         catalog = list['workspaces'] as List;
+        primaryWorkspace = list['defaultWorkspaceId'] as String? ?? userId;
         invitations = (list['invitations'] as List).length;
         selected ??= widget.root.preferences.getString(
           'weaver.selected-workspace.$account',
         );
         if (!catalog.any((row) => row['workspaceId'] == selected)) {
-          selected = userId;
+          selected = list['defaultWorkspaceId'] as String? ?? userId;
         }
         role =
             catalog.firstWhere((row) => row['workspaceId'] == selected)['role']
@@ -136,7 +137,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         if (!engine.ready && target.read() == null) {
           throw StateError(engine.error ?? '서버 자료를 불러오지 못했습니다.');
         }
-        if (engine.ready && workspaceId == userId) {
+        if (engine.ready && workspaceId == primaryWorkspace) {
           var claim = await owned.pendingClaim();
           if (claim == null) {
             final guest = await owned.guest();
@@ -197,7 +198,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
                 builder: (_) => SharingPage(
                   sync: engine,
                   role: role,
-                  onAccepted: switchWorkspace,
+                  onAccepted: (id)=>switchWorkspace(id,force:true),
                 ),
               ),
             )
@@ -225,6 +226,8 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
           target.owner!,
         };
         await widget.root.preferences.setStringList(scopesKey, scopes.toList());
+        widget.auth.onAccountErasureStarted=(){erasingAccount=true;target.suspended=true;};
+        widget.auth.onAccountErasureFailed=(){erasingAccount=false;target.suspended=role=='viewer';};
         widget.auth.onSessionEnding = () async {
           await engine.settle();
           await target.flush();
@@ -271,7 +274,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     try {
       final owned = OwnedWorkspaces(widget.root);
       final claim = await owned.pendingClaim();
-      if (claim != null && claim['account'] == account && selected == userId) {
+      if (claim != null && claim['account'] == account && selected == primaryWorkspace) {
         await sync!.importGuest(owned, claim);
         if (current) setState(() => epoch++);
       } else {
@@ -289,8 +292,8 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     if(id!=null && current)await switchWorkspace(id);
   }
 
-  Future<void> switchWorkspace(String id) async {
-    if (!current || selected == id) return;
+  Future<void> switchWorkspace(String id,{bool force=false}) async {
+    if (!current || (!force && selected == id)) return;
     if (storage?.hasUnsavedInput?.call() == true) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('작성 중인 메모를 저장한 뒤 워크스페이스를 전환해주세요.')),
@@ -332,6 +335,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     MediaStorage.activeOwner = null;
     storage?.suspended = true;
     widget.auth.onSessionEnding = null;
+    widget.auth.onAccountErasureStarted=null;widget.auth.onAccountErasureFailed=null;
     super.dispose();
   }
 

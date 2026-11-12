@@ -141,6 +141,14 @@ class _SharingPageState extends State<SharingPage> {
                 ? PopupMenuButton<String>(
                     enabled: !busy,
                     onSelected: (action) => run(() async {
+                      if(action=='transfer'){
+                        final yes=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('소유권을 이전할까요?'),content:Text('${person['name']??person['email']}님이 소유자가 되며, 나는 편집자로 남습니다. 이 작업을 임의로 되돌릴 수 없습니다.'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('취소')),TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('이전'))]));
+                        if(yes!=true)return;
+                        await widget.sync.request('transfer',{'userId':person['userId']});
+                        if(context.mounted)Navigator.pop(context);
+                        await widget.onAccepted(widget.sync.workspaceId!);
+                        return;
+                      }
                       await widget.sync.request(
                         action == 'remove' ? 'remove-member' : 'member-role',
                         {
@@ -154,6 +162,7 @@ class _SharingPageState extends State<SharingPage> {
                       PopupMenuItem(value: 'editor', child: Text('편집자로 변경')),
                       PopupMenuItem(value: 'viewer', child: Text('읽기 전용으로 변경')),
                       PopupMenuItem(value: 'remove', child: Text('참여자 제거')),
+                      PopupMenuItem(value: 'transfer', child: Text('소유권 이전')),
                     ],
                   )
                 : null,

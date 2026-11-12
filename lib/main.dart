@@ -2,6 +2,7 @@ import 'features/sync/owned_workspace_gate.dart';
 import 'features/sync/owned_workspace.dart';
 import 'features/auth/google_auth.dart';
 import 'features/auth/email_auth.dart';
+import 'features/auth/account_cache.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/email_login_page.dart';
 import 'features/inbox/thought_settings.dart';
@@ -71,7 +72,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _auth = GoogleAuthController(widget.authClient ?? SdkGoogleAuthClient(), preferences: widget.storage?.preferences, emailApi: widget.emailApi);
     if (widget.requireLogin) {
       final storage=widget.storage;
-      (storage==null ? Future<void>.value() : OwnedWorkspaces(storage).initialize()).then((_) {if(mounted)return _auth.initialize();}).catchError((Object error){if(mounted){_auth.error='로컬 작업공간을 준비하지 못했습니다. 자료를 보존했습니다.';setState((){});}}).whenComplete(() { if (mounted) setState(() => _restoringSession = false); });
+      (storage==null ? Future<void>.value() : retryAccountErasures(storage.preferences).then((_)=>OwnedWorkspaces(storage).initialize())).then((_) {if(mounted)return _auth.initialize();}).catchError((Object error){if(mounted){_auth.error='로컬 작업공간을 준비하지 못했습니다. 자료를 보존했습니다.';setState((){});}}).whenComplete(() { if (mounted) setState(() => _restoringSession = false); });
     }
     elements.clear();
     showClosedThoughts = widget.storage?.preferences.getBool(closedThoughtsPreference) ?? true;

@@ -340,7 +340,7 @@ class WorkspaceSync extends ChangeNotifier {
     finally {busy=false;changed();if(!_disposed && error==null && storage.read()!=_lastSynced)schedule();}
   }
   Future<void> importGuest(OwnedWorkspaces owned,Map<String,dynamic> claim) async {
-    if(claim['account']!=storage.owner)throw const EmailAuthFailure('비회원 자료는 가져오기를 시작한 계정에만 복구할 수 있습니다.');
+    if(claim['account']!=storage.owner?.split('@workspace:').first)throw const EmailAuthFailure('비회원 자료는 가져오기를 시작한 계정에만 복구할 수 있습니다.');
     // Preserve this account's pending edits before merging a guest source.
     // Re-read on retry to recover a server commit whose local checkpoint failed.
     await initialize();if(!ready)throw EmailAuthFailure(error??'자료를 불러오지 못했습니다.');await flush();

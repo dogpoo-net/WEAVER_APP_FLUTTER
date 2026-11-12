@@ -105,9 +105,15 @@ void main() {
       for (final label in ['로그아웃', '모든 기기에서 로그아웃']) {
         expect(
           tester.widget<Text>(find.text(label)).style?.color,
-          const Color(0xFFD64550),
+          isNull,
         );
       }
+      final resetTile=tester.widget<ListTile>(find.ancestor(of:find.text('데이터 초기화'),matching:find.byType(ListTile)));
+      expect((resetTile.leading as Icon).icon,Icons.refresh);
+      final withdrawal=tester.widget<ListTile>(find.byKey(const ValueKey('settings-withdrawal')));
+      expect(withdrawal.leading,isNull);
+      expect((withdrawal.title as Text).style?.color,const Color(0xFFD64550));
+      expect(tester.getTopLeft(find.text('회원탈퇴')).dy,greaterThan(tester.getTopLeft(find.text('오픈소스 사용 정보')).dy));
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 1));
       auth.dispose();

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'email_auth.dart';
+import 'account_cache.dart';
 import 'kakao_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
@@ -80,6 +81,7 @@ class GoogleAuthController extends ChangeNotifier {
   final KakaoAuthClient kakaoClient;
   final EmailAuthApi emailApi;
   Future<void> Function()? onSessionEnding;
+  VoidCallback? onAccountErasureStarted,onAccountErasureFailed;
   Map<String, dynamic>? profile;
   Uint8List? profilePhoto;
   bool _googleLinkArmed = false;
@@ -324,6 +326,30 @@ class GoogleAuthController extends ChangeNotifier {
     await emailApi.linkKakao(token);
     return !cancelled.isCompleted;
   });
+  Future<void> withdrawAccount(Map<String,Object?> request) async {
+    final account=identity?.id;if(account==null || isGuest)throw const EmailAuthFailure('로그인이 필요합니다.');
+    if(_loggingOut)return;
+    _loggingOut=true;busy=true;_generation++;_changed();
+    var deleted=false;
+    try {
+      await onSessionEnding?.call();
+      await _sessionWrite;
+      onAccountErasureStarted?.call();
+      await emailApi.profile('withdrawal/confirm',request);
+      deleted=true;
+      if(preferences!=null){
+        final pending=<String>{...?preferences!.getStringList(pendingAccountErasureKey),account};
+        try {
+          if(!await preferences!.setStringList(pendingAccountErasureKey,pending.toList()))throw StateError('Erasure marker failed');
+          await retryAccountErasures(preferences!);
+        }catch(_){error='탈퇴는 완료되었지만 이 기기의 저장 자료 삭제를 완료하지 못했습니다. 앱 또는 브라우저의 사이트 데이터를 삭제해주세요.';}
+        await preferences!.remove(rememberedAccountKey);await preferences!.setBool(guestModeKey,true);
+      }
+      try{await emailApi.clear();}catch(_){error='탈퇴는 완료되었습니다. 기기의 앱 또는 사이트 데이터도 삭제해주세요.';}
+      _emailSignedIn=false;_emailAccessExpires=null;_emailExpiry?.cancel();identity=null;profile=null;profilePhoto=null;isGuest=true;
+      if(ready){try{await client.signOut().timeout(const Duration(seconds:5));}catch(_){}}
+    }finally{if(!deleted)onAccountErasureFailed?.call();if(deleted){_emailSignedIn=false;_emailAccessExpires=null;_emailExpiry?.cancel();identity=null;profile=null;profilePhoto=null;isGuest=true;}_loggingOut=false;busy=false;_changed();}
+  }
   Future<void> signOut({bool allDevices = false}) async {
     if (_loggingOut) return;
     _loggingOut = true; _generation++; busy = true; _changed();
