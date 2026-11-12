@@ -34,6 +34,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   late final _filters = widget.filters ?? ThoughtFilterSelection(initialBox: widget.initialBox);
   MemoBox? get _filterBox => _filters.singleBox;
   int _columns = 2;
+  bool _square = false;
   int _scaleColumns = 2;
   void _changed() { setState(() {}); widget.onChanged?.call(); }
   ModalRoute<dynamic>? _route;
@@ -61,10 +62,10 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     elements.removeListener(_refresh);
     super.dispose();
   }
-  Widget _badge(String word, bool desktop) => WordBadge(word: word, compact: true, fullText: true, singleLine: true, query: _query,
+  Widget _badge(String word, bool desktop) => WordBadge(word: word, compact: true, fullText: true, singleLine: !_square, square: _square, query: _query,
     onTap: () => showElementMetadata(context, word, onSaved: _refresh));
   Widget _tile(ElementRecord record, bool desktop, {double width = 280}) {
-    final tile = SizedBox(key: ValueKey('thought-${record.id}'), width: width, child: _badge(record.text, desktop));
+    final tile = SizedBox(key: ValueKey('thought-${record.id}'), width: width, height: _square ? width : null, child: _badge(record.text, desktop));
     final feedback = Material(color: Colors.transparent, child: SizedBox(width: 180, child: _badge(record.text, false)));
     if (desktop) { return Draggable<MemoDrag>(data: MemoDrag(record.id), feedback: feedback,
       childWhenDragging: Opacity(opacity: .4, child: tile), child: tile); }
@@ -84,6 +85,13 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
     final grid = LayoutBuilder(builder: (context, bounds) {
       final available = math.min(1000.0, math.max(0.0, bounds.maxWidth - 24));
+      if(_square){
+        final columns=_columns.clamp(1, math.max(1,(available/80).floor())).toInt();
+        return Column(children:[Row(mainAxisAlignment:MainAxisAlignment.end,children:[
+          IconButton(tooltip:'확대',onPressed:columns>1?()=>setState(()=>_columns=columns-1):null,icon:const Icon(Icons.zoom_in)),
+          Text('$columns열'),IconButton(tooltip:'축소',onPressed:columns<math.max(1,(available/80).floor())?()=>setState(()=>_columns=columns+1):null,icon:const Icon(Icons.zoom_out)),
+        ]),Expanded(child:GridView.builder(key:const ValueKey('thought-square-grid'),padding:const EdgeInsets.all(12),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:columns,crossAxisSpacing:8,mainAxisSpacing:8),itemCount:records.length,itemBuilder:(_,i)=>_tile(records[i],desktop,width:(available-8*(columns-1))/columns)))]);
+      }
       final maxWidth = desktop ? math.min(480.0, available)
         : (available * 2 / _columns).clamp(math.min(48.0, available), available);
       final rows = <List<({ElementRecord record, double width})>>[];
@@ -152,8 +160,8 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
       IconButton(tooltip: '음성 있는 생각', isSelected: _audioOnly,
         style: IconButton.styleFrom(backgroundColor: _audioOnly ? Theme.of(context).colorScheme.primaryContainer : null),
         icon: const Icon(Icons.volume_up_outlined), onPressed: () => setState(() => _audioOnly = !_audioOnly)),
-      IconButton(tooltip: '닫힌 생각 보기', icon: const Icon(Icons.archive_outlined), onPressed: () => showClosedThoughtsDialog(context)),
       MemoBoxActions(filters: _filters, onDelete: widget.onDeleteBoxes, onCreate: () async { final box = await createMemoBox(context); if (mounted && box != null) _changed(); }),
+      IconButton(tooltip: _square ? '바둑판식 보기 · 행으로 전환' : '행으로 보기 · 바둑판으로 전환', icon: Icon(_square ? Icons.grid_view : Icons.view_stream), onPressed:()=>setState(()=>_square=!_square)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('생각 보기 안내'),
           content: const Text('생각이나 해시태그로 검색하고, 아래의 메모상자·태그를 눌러 분류별로 볼 수 있습니다.\n\n사진·음성 버튼을 켜면 해당 첨부가 있는 생각을 보여줍니다. 둘 다 켜면 사진 또는 음성이 있는 생각을 보여줍니다.\n\n생각을 메모상자로 드래그해 정리하세요. 모바일에서는 길게 눌러 드래그할 수 있습니다. 해시태그는 생각 본문에 #태그를 입력해 추가합니다.'),

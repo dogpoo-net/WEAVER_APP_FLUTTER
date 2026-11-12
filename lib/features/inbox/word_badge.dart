@@ -129,7 +129,7 @@ class WordBadge extends StatelessWidget {
     this.compact = false,
     this.dense = false, this.project = false, this.memo = false,
     this.query = '',
-    this.fullText = false, this.singleLine = false,
+    this.fullText = false, this.singleLine = false, this.square = false,
     this.onLongPress,
     this.onDoubleTap,
   });
@@ -141,7 +141,7 @@ class WordBadge extends StatelessWidget {
   final bool tag;
   final bool compact;
   final bool dense, project, memo;
-  final bool fullText, singleLine;
+  final bool fullText, singleLine, square;
   final VoidCallback? onLongPress;
   final VoidCallback? onDoubleTap;
   @override
@@ -188,7 +188,7 @@ class WordBadge extends StatelessWidget {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         if (indicators) ...[AttachmentIndicators(record: record), const SizedBox(width: 4)],
         Flexible(child: Text.rich(label,
-        maxLines: fullText && !singleLine ? null : 1, softWrap: fullText && !singleLine, overflow: fullText && !singleLine ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '문서:$title' : memo ? '메모:$title' : title)),
+        maxLines: square ? ((constraints.maxHeight - 20) / 20).floor().clamp(1, 100) : fullText && !singleLine ? null : 1, softWrap: fullText && !singleLine, overflow: square ? TextOverflow.ellipsis : fullText && !singleLine ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '문서:$title' : memo ? '메모:$title' : title)),
       ]),
     ));
     return onDoubleTap == null ? badge : GestureDetector(onDoubleTap: onDoubleTap, child: badge);
