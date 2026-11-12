@@ -22,7 +22,7 @@ class LoginPage extends StatelessWidget {
           onPressed: auth.busy ? null : () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => EmailLoginPage(auth: auth)))),
         const SizedBox(height: 12),
         if (auth.ready) googleSignInButton(width: constraints.maxWidth, onPressed: auth.busy ? null : auth.signIn)
-        else const LoginProviderButton(label: 'Google로 로그인', icon: Icons.login),
+        else const LoginProviderButton(label: 'Google로 로그인', symbolAsset: 'assets/branding/social/google.png'),
         const SizedBox(height: 12),
         LoginProviderButton(label: 'GitHub로 로그인', symbolAsset: 'assets/branding/social/github.png', onPressed: auth.busy ? null : () => auth.signInWithBrowser('github')),
         const SizedBox(height: 12),

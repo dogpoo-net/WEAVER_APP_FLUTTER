@@ -95,7 +95,7 @@ class EmailAuthApi {
     return null;
   }
   Future<Map<String, dynamic>> login(String email, String password) => _login('login', {'email': email, 'password': password});
-  Future<Map<String, dynamic>> loginGoogle(String token) => _login('google', {'idToken': token});
+  Future<Map<String, dynamic>> loginGoogle(String? token, {String? accessToken}) => _login('google', {'idToken': ?token, 'googleAccessToken': ?accessToken});
   Future<Map<String, dynamic>> workspace(String action, Map<String, Object?> body) async {
     if (!store.isWeb && accessToken == null) { if (await refresh() == null) throw const EmailAuthFailure('다시 로그인해주세요.', status: 401); }
     return post('session/$_platform/workspace/$action', body, sessionToken: accessToken);
@@ -104,10 +104,10 @@ class EmailAuthApi {
     if (!store.isWeb && accessToken == null && await refresh() == null) throw const EmailAuthFailure('다시 로그인해주세요.', status: 401);
     return post('session/$_platform/profile/$action', body, sessionToken: accessToken);
   }
-  Future<void> linkGoogle(String token, {bool Function()? isCurrent}) async {
+  Future<void> linkGoogle(String? token, {String? accessToken, bool Function()? isCurrent}) async {
     if (await refresh() == null) throw const EmailAuthFailure('다시 로그인해주세요.', status: 401);
     if (isCurrent != null && !isCurrent()) return;
-    await post('session/$_platform/google/link', {'idToken': token}, sessionToken: accessToken);
+    await post('session/$_platform/google/link', {'idToken': ?token, 'googleAccessToken': ?accessToken}, sessionToken: this.accessToken);
   }
   Future<Map<String, dynamic>> loginKakao(String token) => _login('kakao', {'kakaoToken': token});
   Future<void> linkKakao(String token) async {

@@ -65,8 +65,7 @@ class _GeologPageState extends State<GeologPage> {
       final location = record.location!;
       groups.putIfAbsent('${location.latitude.toStringAsFixed(5)},${location.longitude.toStringAsFixed(5)}', () => []).add(record);
     }
-    return Scaffold(appBar: AppBar(titleSpacing: MediaQuery.sizeOf(context).width < 1000 ? 0 : null,
-      leadingWidth: MediaQuery.sizeOf(context).width < 1000 ? 44 : null, title: WorkspaceTitle(_filters.singleBox?.name ?? '전체 보기'), actions: [
+    return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filters.singleBox?.name ?? '전체 보기'), actions: [
       const DesktopMenuAction(),
       IconButton(tooltip: '위치 전체 보기', onPressed: records.isEmpty ? null : () => _fit(records), icon: const Icon(Icons.center_focus_strong)),
     ]), body: DesktopMenuBody(child: Column(children: [

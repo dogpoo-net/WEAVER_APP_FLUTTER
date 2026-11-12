@@ -18,6 +18,7 @@ class DocumentMarkup extends StatefulWidget {
 class _DocumentMarkupState extends State<DocumentMarkup> {
   Map<int, ElementBinding> _linksAt = {};
   bool _inCode = false;
+  String? _hovered;
   final _recognizers = <String, TapGestureRecognizer>{};
   List<InlineSpan> _inline(String text, int base, TextStyle style) {
     final result = <InlineSpan>[];
@@ -42,7 +43,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
       if (link != null) {
         flush();
         final recognizer = _recognizers.putIfAbsent('${link.start}:${link.id}', () => TapGestureRecognizer())..onTap = () => openInlineLink(context, link.id);
-        result.add(TextSpan(text: text.substring(i, link.end - base), style: style.merge(inlineLinkStyle(context, link.id)), recognizer: recognizer));
+        result.add(TextSpan(text: text.substring(i, link.end - base), style: style.merge(inlineLinkStyle(context, link.id, hovered: _hovered == link.id)), recognizer: recognizer, mouseCursor: SystemMouseCursors.click, onEnter: (_) => setState(() => _hovered = link.id), onExit: (_) => setState(() => _hovered = null)));
         i = link.end - base; continue;
       }
       var matched = false;

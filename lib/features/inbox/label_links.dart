@@ -15,9 +15,14 @@ WritingProject? projectTarget(String id) => id.startsWith('project:')
   ? indexedProjects.where((p) => p.id == id.substring(8)).firstOrNull : null;
 String assistTargetTitle(String key) => projectTarget(key)?.title ?? elements.records[key]?.title ?? key;
 List<String> labelAssistTargets({WritingProject? excludeProject}) => [
-  ...elements.visibleWords.where((word) => elements.records[word]!.indexLabel.isNotEmpty),
+  ...elements.visibleWords,
   for (final project in indexedProjects) if (project != excludeProject) 'project:${project.id}',
 ];
+bool assistTargetMatches(String key, String query) {
+  final needle = query.trim().toLowerCase();
+  return matchesWord(assistTargetTitle(key), query) ||
+      (projectTarget(key)?.content ?? elements.records[key]?.text ?? '').toLowerCase().contains(needle);
+}
 String? resolveLabelTarget(String target) {
   final uri = Uri.tryParse(target);
   if (uri != null && (uri.scheme == 'https' || uri.scheme == 'http') && uri.host.isNotEmpty) return 'url:$uri';
@@ -46,11 +51,13 @@ Future<void> openInlineLink(BuildContext context, String id) async {
     if (record != null) await showElementMetadata(context, record.text);
   }
 }
-TextStyle inlineLinkStyle(BuildContext context, String id) {
+TextStyle inlineLinkStyle(BuildContext context, String id, {bool hovered = false}) {
   final target = labelTarget(id);
-  final color = target == null ? Theme.of(context).colorScheme.primary : wordColor(context, target.text);
-  return TextStyle(color: color, decoration: TextDecoration.underline, decorationColor: color,
-    decorationThickness: 2.5, fontWeight: FontWeight.w600);
+  final color = target == null ? const Color(0xFFFF9800) : wordColor(context, target.text);
+  final memo = id.startsWith('label:');
+  return TextStyle(color: color, decoration: memo || hovered ? TextDecoration.underline : TextDecoration.none, decorationColor: color,
+    decorationStyle: memo ? TextDecorationStyle.dotted : TextDecorationStyle.solid,
+    decorationThickness: 1, fontWeight: FontWeight.normal);
 }
 /// A partially entered alias; only the target after the pipe is searched.
 ({int start, String display, String query})? pendingLabelLink(TextEditingValue value) {
@@ -63,6 +70,7 @@ class LabelTextController extends BoundTextController {
   LabelTextController([String text = '', Iterable<ElementBinding> links = const []])
     : super(text, links.where((b) => isInlineLink(b.id)));
   bool _parsing = false;
+  String? _hoveredLink;
   @override
   set value(TextEditingValue next) {
     super.value = next;
@@ -85,14 +93,22 @@ class LabelTextController extends BoundTextController {
       }
     } finally { _parsing = false; }
   }
-  void insertLabel(ElementRecord record) => _insert('label:${record.id}', record.indexLabel);
+  void insertLabel(ElementRecord record) => _insert('label:${record.id}', record.title);
   void insertTarget(String key) {
     final project = projectTarget(key);
     if (project != null) { _insert('project:${project.id}', project.title); return; }
     final record = elements.records[key];
-    if (record != null && record.indexLabel.isNotEmpty) insertLabel(record);
+    if (record != null) insertLabel(record);
   }
   void _insert(String id, String title) {
+    if (selection.isValid && !selection.isCollapsed) {
+      final selected = selection;
+      if (bindings.any((b) => selected.start < b.end && selected.end > b.start &&
+          !(selected.start <= b.start && selected.end >= b.end))) { return; }
+      bindings.removeWhere((b) => selected.start <= b.start && selected.end >= b.end);
+      bind(selected.start, selected.end, id, text.substring(selected.start, selected.end));
+      return;
+    }
     final pending = pendingLabelLink(value);
     final end = selection.isValid ? selection.end : text.length;
     final prefix = completionPrefix(value, labelAssistTargets().map(assistTargetTitle).toList());
@@ -120,7 +136,10 @@ class LabelTextController extends BoundTextController {
     }
     for (final link in bindings) {
       plain(offset, link.start);
-      children.add(TextSpan(text: text.substring(link.start, link.end), style: inlineLinkStyle(context, link.id)));
+      children.add(TextSpan(text: text.substring(link.start, link.end), style: inlineLinkStyle(context, link.id, hovered: _hoveredLink == link.id),
+        mouseCursor: SystemMouseCursors.click,
+        onEnter: (_) { _hoveredLink = link.id; notifyListeners(); },
+        onExit: (_) { _hoveredLink = null; notifyListeners(); }));
       offset = link.end;
     }
     plain(offset, text.length);

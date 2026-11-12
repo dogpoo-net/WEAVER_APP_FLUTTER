@@ -31,8 +31,9 @@ class CaretAssist extends StatefulWidget {
     this.enterSelectsVisible = false,
     this.showShortcutHint = false,
     this.useThoughtLabels = false,
+    this.selectionAssist = false,
   });
-  final bool useThoughtLabels;
+  final bool useThoughtLabels, selectionAssist;
   final TextEditingController controller;
   final FocusNode focus;
   final List<String> words;
@@ -50,6 +51,16 @@ class CaretAssist extends StatefulWidget {
 
 class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   final _anchor = GlobalKey();
+  final _selectionFilter = TextEditingController();
+  final _filterFocus = FocusNode();
+  TextEditingValue? _selectionValue;
+  bool get _selectionMode => _selectionValue != null;
+  void _filterSelected() {
+    _query = _selectionFilter.text;
+    _tagMode = false;
+    _selected = 0;
+    _matches = widget.words.where((word) => assistTargetMatches(word, _query)).toList();
+  }
   final _suggestionScroll = ScrollController();
   OverlayEntry? _entry;
   WidgetBuilder? _overlayBuilder;
@@ -73,7 +84,14 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   void _choose(String word) {
     _controlling = false;
     _manualSelection = null; _manualValue = null;
+    final selected = _selectionValue;
+    if (selected != null) {
+      if (selected.text != widget.controller.text) { _hide(); return; }
+      widget.controller.selection = selected.selection;
+    }
     if (_tagMode) { widget.onTag?.call(word.substring(1)); } else { widget.onWord(word); }
+    _selectionValue = null;
+    _filterFocus.unfocus();
     _dismissed = widget.controller.text;
     _hide();
   }
@@ -310,6 +328,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     widget.focus.onKeyEvent = _inputKey;
     widget.controller.addListener(_update);
     widget.focus.addListener(_update);
+    _filterFocus.addListener(_update);
   }
 
   void _hide({bool immediate = false}) {
@@ -328,6 +347,18 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   }
 
   void _refreshMatches(TextEditingValue value, {bool autoSelect = true}) {
+    if (widget.selectionAssist && value.selection.isValid && !value.selection.isCollapsed &&
+        (!value.composing.isValid || value.composing.isCollapsed) &&
+        !caretInsideCode(value.text, value.selection.start)) {
+      if (_selectionValue?.selection != value.selection || _selectionValue?.text != value.text) {
+        _selectionFilter.clear();
+      }
+      _selectionValue = value;
+      _filterSelected();
+      _controlling = false;
+      return;
+    }
+    _selectionValue = null;
     final manualValue = _manualValue;
     if (manualValue != null && value.text == manualValue.text &&
         (value.selection == manualValue.selection ||
@@ -359,7 +390,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     final query = tagMode ? token.substring(1) : pending?.query ?? completionPrefix(value, widget.words.map(_title).toList());
     if (_query != query || _tagMode != tagMode) _selected = 0;
     _tagMode = tagMode; _query = query;
-    _matches = tagMode ? wordSuggestions(widget.tags.where((tag) => !hiddenSearchTags.contains(tag)).toList(), query).map((tag) => '#$tag').toList() : (widget.useThoughtLabels ? widget.words.where((word) => matchesWord(_title(word), query)).toList() : wordSuggestions(widget.words, query));
+    _matches = tagMode ? wordSuggestions(widget.tags.where((tag) => !hiddenSearchTags.contains(tag)).toList(), query).map((tag) => '#$tag').toList() : (widget.useThoughtLabels ? widget.words.where((word) => assistTargetMatches(word, query)).toList() : wordSuggestions(widget.words, query));
     if (_selected >= _matches.length) _selected = 0;
     final manual = _manualSelection;
     if (manual != null) {
@@ -382,10 +413,17 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   }
 
   void _update({bool refreshMatches = true}) {
+    final selection = widget.controller.selection;
+    if (widget.selectionAssist && selection.isValid && !selection.isCollapsed && selection != _selectionValue?.selection) _dismissed = null;
     if (_dismissed != null && _dismissed != widget.controller.text) _dismissed = null;
     if (_explicitOpenText != widget.controller.text) _explicitOpenText = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      if (_filterFocus.hasFocus && _selectionValue?.text == widget.controller.text) {
+        _filterSelected();
+        _entry?.markNeedsBuild();
+        return;
+      }
       if (!widget.focus.hasFocus || _dismissed == widget.controller.text) {
         if (!widget.focus.hasFocus) _acceptEnterHeld = false;
         _controlling = false;
@@ -409,7 +447,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       }
       final value = widget.controller.value;
       if (refreshMatches) _refreshMatches(value);
-      if (_matches.isEmpty || (!widget.showWhenEmpty && !_tagMode && _query.isEmpty && pendingLabelLink(widget.controller.value) == null && _explicitOpenText == null)) {
+      if (!_selectionMode && (_matches.isEmpty || (!widget.showWhenEmpty && !_tagMode && _query.isEmpty && pendingLabelLink(widget.controller.value) == null && _explicitOpenText == null))) {
         _controlling = false;
         _controlValue = null;
         _hide();
@@ -494,6 +532,15 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: height),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (_selectionMode) Padding(padding: const EdgeInsets.fromLTRB(8, 8, 8, 0), child: TextField(
+            key: const ValueKey('selection-link-filter'), controller: _selectionFilter, focusNode: _filterFocus,
+            style: const TextStyle(fontSize: 12),
+            decoration: const InputDecoration(isDense: true, hintText: '메모·문서 검색', prefixIcon: Icon(Icons.search, size: 16),
+              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
+            onChanged: (_) { _filterSelected(); _entry?.markNeedsBuild(); },
+            onSubmitted: (_) { if (_matches.isNotEmpty) _choose(_matches.first); },
+          )),
+          if (_selectionMode && _matches.isEmpty) const Padding(padding: EdgeInsets.all(12), child: Text('검색 결과가 없습니다.')),
           if (_desktop && widget.showShortcutHint) Padding(
             padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
             child: Align(alignment: Alignment.centerRight, child: Text('ctrl + space',
@@ -523,6 +570,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
                               word: word,
                               displayText: _tagMode ? word : _title(word),
                               tag: _tagMode,
+                              memo: !_tagMode && widget.useThoughtLabels && projectTarget(word) == null,
                               project: !_tagMode && widget.useThoughtLabels && projectTarget(word) != null,
                               query: _query,
                               selected:
@@ -548,6 +596,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   void dispose() {
     widget.focus.onKeyEvent = _previousKeyHandler;
     _suggestionScroll.dispose();
+    _filterFocus.removeListener(_update); _filterFocus.dispose(); _selectionFilter.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _scrollObserver?.removeListener(_scrolled);
     widget.controller.removeListener(_update);

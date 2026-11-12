@@ -62,6 +62,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     _tags.addAll(widget.project?.tags ?? {});
     if (widget.project?.document == null) _tags.addAll(widget.project?.paragraphs.expand((p) => p.tags) ?? <String>[]);
     _filters.tags.addAll(_tags); _filters.addListener(_refresh);
+    _lastEdit = _editSignature;
     _body.addListener(_edited); elements.addListener(_refresh);
   }
   @override
@@ -71,7 +72,14 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     if (visible && !_keyboardVisible) _boxPanelOpen = false;
     _keyboardVisible = visible;
   }
-  void _edited() { if (mounted) setState(() => _dirty = true); }
+  String? _lastEdit;
+  String get _editSignature => '${_body.text}|${_body.bindings.map((b) => '${b.id}:${b.start}:${b.end}').join(',')}';
+  void _edited() {
+    final edit = _editSignature;
+    if (_lastEdit == edit) return;
+    _lastEdit = edit;
+    if (mounted) setState(() => _dirty = true);
+  }
   void _refresh() { if (mounted) setState(() {}); }
   @override
   void dispose() { widget.storage?.editorResources.remove(widget.project?.id??'new-document');_lock?.removeListener(_refresh);_lock?.dispose();elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
@@ -143,14 +151,14 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         ? SingleChildScrollView(child:SelectableText(_body.text))
         : _preview
         ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
-        : CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true,
+        : CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true,
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
           showWhenEmpty: false, enterSelectsVisible: true, showShortcutHint: true,
           child: TextField(key: const ValueKey('project-document'), controller: _body, focusNode: _bodyFocus, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
           onTapOutside: _wide ? null : (_) {},
           onTap: () => _body.openAtCaret(context), textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
-          decoration: const InputDecoration(hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: OutlineInputBorder())));
+          decoration: InputDecoration(fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder())));
       final panel = Material(key: const ValueKey('project-reference-panel'),
         color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(12),
         child: Padding(padding: const EdgeInsets.all(4), child: _referencesPanel()));

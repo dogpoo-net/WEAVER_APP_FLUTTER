@@ -15,9 +15,10 @@ const googleWebClientId = _configuredGoogleWebClientId == ''
     ? defaultGoogleWebClientId : _configuredGoogleWebClientId;
 
 class GoogleIdentity {
-  const GoogleIdentity({required this.id, required this.email, required this.idToken, this.displayName});
+  const GoogleIdentity({required this.id, required this.email, required this.idToken, this.displayName, this.accessToken});
   final String id, email;
   final String? idToken;
+  final String? accessToken;
   final String? displayName;
   // Keep credentials in memory only. The future backend must verify this token
   // before issuing its own session; client-side identity is not API authorization.
@@ -61,7 +62,12 @@ class SdkGoogleAuthClient implements GoogleAuthClient {
     // Explicit sign-in only: logging out must not silently sign in again.
   }
   @override
-  Future<void> signIn() async { await _sdk.authenticate(); }
+  Future<void> signIn() async {
+    if (kIsWeb) {
+      final authorization = await _sdk.authorizationClient.authorizeScopes(['openid', 'email', 'profile']);
+      _changes.add(GoogleIdentity(id: '', email: '', idToken: null, accessToken: authorization.accessToken));
+    } else { await _sdk.authenticate(); }
+  }
   @override
   Future<void> signOut() async { await _sdk.signOut(); }
   @override
@@ -95,10 +101,10 @@ class GoogleAuthController extends ChangeNotifier {
   void endGoogleLink() { _googleLinkArmed = false; cancelAccountLink(); }
   Future<void> startGoogleLink() async { if (_googleLinkArmed && ready) { try { await client.signIn(); } catch (e) { _failure(e); } } }
   Future<void> _acceptGoogleLink(GoogleIdentity value) async {
-    if (googleLinkBusy || value.idToken == null) return;
+    if (googleLinkBusy || (value.idToken == null && value.accessToken == null)) return;
     final owner = identity?.id;
     googleLinkBusy = true; error = null; _changed();
-    try { await emailApi.linkGoogle(value.idToken!, isCurrent: () => !_disposed && _googleLinkArmed && identity?.id == owner); await loadProfile(); }
+    try { await emailApi.linkGoogle(value.idToken, accessToken: value.accessToken, isCurrent: () => !_disposed && _googleLinkArmed && identity?.id == owner); await loadProfile(); }
     catch (e) { error = e is EmailAuthFailure ? e.message : 'Google 계정을 연결하지 못했습니다.'; }
     finally { googleLinkBusy = false; _changed(); }
   }
@@ -155,8 +161,8 @@ class GoogleAuthController extends ChangeNotifier {
       final write = _sessionWrite.catchError((Object _) {}).then((_) async {
         if (generation != _generation || _disposed || isGuest) return;
         try {
-          if (value.idToken == null) throw const EmailAuthFailure('Google 계정으로 다시 로그인해주세요.');
-          final data = await emailApi.loginGoogle(value.idToken!);
+          if (value.idToken == null && value.accessToken == null) throw const EmailAuthFailure('Google 계정으로 다시 로그인해주세요.');
+          final data = await emailApi.loginGoogle(value.idToken, accessToken: value.accessToken);
           if (generation != _generation || _disposed || isGuest) return;
           await preferences?.remove(rememberedAccountKey);
           await preferences?.remove(guestModeKey);

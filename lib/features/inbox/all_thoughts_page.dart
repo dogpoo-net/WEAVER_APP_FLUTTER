@@ -61,7 +61,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     elements.removeListener(_refresh);
     super.dispose();
   }
-  Widget _badge(String word, bool desktop) => WordBadge(word: word, compact: true, fullText: true, query: _query,
+  Widget _badge(String word, bool desktop) => WordBadge(word: word, compact: true, fullText: true, singleLine: true, query: _query,
     onTap: () => showElementMetadata(context, word));
   Widget _tile(ElementRecord record, bool desktop, {double width = 280}) {
     final tile = SizedBox(key: ValueKey('thought-${record.id}'), width: width, child: _badge(record.text, desktop));
@@ -91,12 +91,13 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
       var used = 0.0;
       for (final record in records) {
         final textWidth = _textWidths.putIfAbsent(record.text, () {
-          final painter = TextPainter(text: TextSpan(text: record.text,
+          final painter = TextPainter(text: TextSpan(text: record.text.replaceAll(RegExp(r'[\r\n]+'), ' '),
             style: DefaultTextStyle.of(context).style.merge(const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
             textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
           final width = painter.width; painter.dispose(); return width;
         });
-        final width = (textWidth + 24).clamp(math.min(32.0, maxWidth), maxWidth).toDouble();
+        final iconCount = (record.photos.isNotEmpty ? 1 : 0) + (record.recordings.isNotEmpty ? 1 : 0) + (record.location != null ? 1 : 0);
+        final width = (textWidth + 24 + iconCount * 13 + (iconCount > 0 ? 4 : 0)).clamp(math.min(32.0, maxWidth), maxWidth).toDouble();
         if (row.isNotEmpty && used + 6 + width > available) {
           rows.add(row); row = []; used = 0;
         }
@@ -221,7 +222,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
       AnimatedBuilder(animation:_tabPosition,builder:(context,_)=>Positioned(left:_tabPosition.value*104,top:0,bottom:0,width:104,child:ColoredBox(key:const ValueKey('thought-tab-highlight'),color:Theme.of(context).colorScheme.secondaryContainer))),
       Row(children:[for(final view in ThoughtView.values)SizedBox(width:104,height:40,child:Semantics(selected:view==_view,child:TextButton(style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),onPressed:(){setState(()=>_view=view);_tabPosition.animateTo(view.index.toDouble(),duration:const Duration(milliseconds:200),curve:Curves.easeInOutCubic);_reload();},child:Text(switch(view){ThoughtView.documents=>'문서',ThoughtView.boxes=>'생각',ThoughtView.diagram=>'다이어그램',ThoughtView.page=>'메모상자',ThoughtView.photos=>'사진',ThoughtView.audio=>'음성',ThoughtView.geolog=>'지오로그'}))))])
     ])));
-    if (_loading) return Scaffold(appBar: AppBar(title: const WorkspaceTitle('전체 보기')), body: DesktopMenuBody(child: Column(children: [selector, const LinearProgressIndicator(), const Expanded(child: Center(child: Text('서버 변경을 불러오는 중입니다.')))])));
+    if (_loading) return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('전체 보기')), body: DesktopMenuBody(child: Column(children: [selector, const LinearProgressIndicator(), const Expanded(child: Center(child: Text('서버 변경을 불러오는 중입니다.')))])));
     if(_view==ThoughtView.documents)return DesktopMenuFrame(child:DocumentCollection(notes:widget.notes,selector:selector,storage:widget.storage,onOpen:widget.onDocument));
     if(_view==ThoughtView.photos || _view==ThoughtView.audio)return DesktopMenuFrame(child:AttachmentCollection(key:ValueKey(_view),audio:_view==ThoughtView.audio,selector:selector,filters:_filters,storage:widget.storage,onChanged:widget.onChanged));
     if (_view == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(filters: _filters, box: activeBox,
