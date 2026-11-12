@@ -199,7 +199,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('서버 변경을 확인하지 못했습니다. 기기의 자료를 표시합니다. $e'))); }
     finally { if (mounted) { _filters.boxes..clear()..addAll(memoBoxes.where((b) => names.contains(b.name))); setState(() { _loading = false; _epoch++; }); } }
   }
-  @override void didChangeAppLifecycleState(AppLifecycleState state) { if (state == AppLifecycleState.resumed && ModalRoute.of(context)?.isCurrent == true) _reload(); }
+  @override void didChangeAppLifecycleState(AppLifecycleState state) { if (state == AppLifecycleState.resumed && _view!=ThoughtView.diagram && _view!=ThoughtView.page && ModalRoute.of(context)?.isCurrent == true) _reload(); }
   late final AnimationController _tabPosition;
   late final _filters = ThoughtFilterSelection(initialBox: widget.initialBox);
   @override

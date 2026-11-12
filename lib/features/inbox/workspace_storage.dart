@@ -332,6 +332,8 @@ class WorkspaceSnapshot {
 class WorkspaceStorage {
   WorkspaceStorage(this.preferences, {this.owner});
   final String? owner;
+  String? currentUserId;
+  final editorResources=<String>[];
   Future<Map<String,dynamic>> Function(String,String,bool)? documentLease;
   bool lastSaveReplaced=false;
   VoidCallback? applyServerSnapshot;

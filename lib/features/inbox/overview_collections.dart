@@ -14,7 +14,13 @@ String overviewTime(DateTime value) {
  final d=value.toLocal();String two(int n)=>n.toString().padLeft(2,'0');
  return '${d.year}.${two(d.month)}.${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
 }
-String overviewAuthor(WorkspaceStorage? storage,String kind,String id)=>storage?.itemMetadata?.call(kind,id)?['author'] as String? ?? (storage?.owner?.startsWith('guest-')==true?'비회원':'작성자 정보 없음');
+String overviewAuthor(WorkspaceStorage? storage,String kind,String id){
+ final metadata=storage?.itemMetadata?.call(kind,id);
+ if(storage?.currentUserId!=null && (metadata?['authorId']==storage!.currentUserId || metadata==null && storage.itemMetadata!=null))return '나';
+ final name=metadata?['author'] as String?;
+ if(name!=null && name.trim().isNotEmpty)return name;
+ return storage?.owner?.startsWith('guest-')==true?'비회원':'작성자 정보 없음';
+}
 String excerpt(String text)=>text.replaceAll(RegExp(r'[=*_`<>]'),'').replaceAll(RegExp(r'\s+'),' ').trim();
 class DocumentCollection extends StatefulWidget {
  const DocumentCollection({super.key,required this.notes,required this.selector,this.storage,this.onOpen});

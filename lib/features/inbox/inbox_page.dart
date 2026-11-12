@@ -193,7 +193,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     try {
       final changed=await storage!.checkRemote!();
       _pollFailures=0;_retryAfter=null;
-      if(changed && mounted && workspaceRouteObserver.current is! PopupRoute)await _refreshForBrowse();
+      if(changed && storage.editorResources.isEmpty && mounted && workspaceRouteObserver.current is! PopupRoute)await _refreshForBrowse();
     } catch(e) { _pollFailures=(_pollFailures+1).clamp(1,4);_retryAfter=DateTime.now().add(Duration(seconds:(2<<_pollFailures).clamp(4,30)));if(mounted && _storageError==null)setState(()=>_storageError='서버 동기화를 확인하지 못했습니다. $e'); }
     finally{_checkingRemote=false;}
   }

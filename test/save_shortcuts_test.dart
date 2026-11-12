@@ -25,12 +25,12 @@ void main(){
   await saveKey(tester);expect(project.document,'original');await tester.tap(find.byTooltip('Other 편집 중 · 읽기 전용'));await tester.pumpAndSettle();await tester.tap(find.text('잠금 해제'));await tester.pumpAndSettle();expect(find.byKey(const ValueKey('project-document')),findsOneWidget);
   await tester.pumpWidget(const SizedBox());await tester.pumpAndSettle();expect(releases,1);
  });
- testWidgets('Server refresh replaces an unsaved editor and unchanged refresh preserves caret',(tester)async{
+ testWidgets('Background updates leave the active document and caret untouched',(tester)async{
   SharedPreferences.setMockInitialValues({});final storage=WorkspaceStorage(await SharedPreferences.getInstance());final project=WritingProject([],[],name:'doc')..document='saved';
   await tester.pumpWidget(MaterialApp(home:ProjectDocumentEditor(project:project,storage:storage)));
   final finder=find.byKey(const ValueKey('project-document'));await tester.enterText(finder,'unsaved local');
   project.document='server latest';storage.liveChanges.value++;await tester.pump();
-  final controller=tester.widget<TextField>(finder).controller!;expect(controller.text,'server latest');controller.selection=const TextSelection.collapsed(offset:3);
+  final controller=tester.widget<TextField>(finder).controller!;expect(controller.text,'unsaved local');controller.selection=const TextSelection.collapsed(offset:3);
   storage.liveChanges.value++;await tester.pump();expect(controller.selection.baseOffset,3);await tester.pumpWidget(const SizedBox());
  });
  for(final blocks in [false,true]){

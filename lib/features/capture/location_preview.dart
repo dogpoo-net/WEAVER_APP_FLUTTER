@@ -1,3 +1,4 @@
+import 'map_marker_style.dart';
 import 'regional_tiles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -13,7 +14,7 @@ Future<void> showLocationPreview(BuildContext context, ThoughtLocation location)
       Expanded(child: FlutterMap(options: MapOptions(initialCenter: LatLng(location.latitude, location.longitude), initialZoom: 16, minZoom: 2, maxZoom: 19), children: [
         TileLayer(urlTemplate: globalTileTemplate, tileProvider: RegionalTileProvider(), userAgentPackageName: 'net.dogpoo.weaver', maxNativeZoom: 19),
         MarkerLayer(markers: [Marker(point: LatLng(location.latitude, location.longitude), alignment: Alignment.topCenter,
-          child: Icon(Icons.location_on, size: 40, color: Theme.of(context).colorScheme.primary))]),
+          child: Icon(Icons.location_on, size: 40, color: activeMapMarkerColor))]),
         const MapAttribution(),
       ])),
       Padding(padding: const EdgeInsets.all(12), child: Text('${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)} · 정확도 약 ${location.accuracy.round()}m')),

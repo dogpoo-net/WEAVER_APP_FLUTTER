@@ -113,6 +113,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         target = owned.scope(
           workspaceId == userId ? account : '$account@workspace:$workspaceId',
         );
+        target.currentUserId=userId;
         final engine = WorkspaceSync(
           target,
           widget.auth.emailApi,

@@ -93,15 +93,15 @@ void main(){
   final note=changes.firstWhere((c)=>c['kind']=='list:notes')['value'];expect(note['folder'],isNull);expect(note['content'],'saved');expect(storage.read(),contains('pending local'));sync.dispose();api.dispose();
  });
 
- test('Server reads replace active document snapshots even with a lease',()async{
+ test('Reads preserve active editor snapshots until the editor closes',()async{
   final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'a');final api=DeltaApi();final sync=WorkspaceSync(storage,api,isCurrent:()=>true);await sync.initialize();
   final initial=jsonDecode(data('original')) as Map<String,dynamic>;
   initial['notes'][0]['id']='n';initial['notes'][0]['project']={'id':'p','name':'Document','document':'original','words':[],'paragraphs':[],'tags':[],'documentLinks':[]};
-  await storage.write(jsonEncode(initial));await sync.flush();sync.documentLeases['p']='lease';
+  await storage.write(jsonEncode(initial));await sync.flush();sync.documentLeases['p']='lease';storage.editorResources.add('p');
   final changed=jsonDecode(jsonEncode(initial['notes'][0])) as Map<String,dynamic>;changed['project']['document']='remote change';changed['content']='remote change';api.rev++;
   api.items[itemKey('list:notes','n')]={'kind':'list:notes','id':'n','payload':jsonEncode(changed),'revision':api.rev,'deleted':false};
-  await sync.refreshFromServer();expect(storage.read(),contains('remote change'));
-  sync.documentLeases.clear();await sync.refreshFromServer();expect(storage.read(),contains('remote change'));sync.dispose();api.dispose();
+  await sync.refreshFromServer();expect(storage.read(),contains('original'));
+  storage.editorResources.clear();sync.documentLeases.clear();await sync.refreshFromServer();expect(storage.read(),contains('remote change'));sync.dispose();api.dispose();
  });
 
 }

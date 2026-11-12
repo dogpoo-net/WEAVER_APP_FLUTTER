@@ -55,12 +55,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   late final GraphLayout _layout;
   GraphLayout get _targetLayout{final base=widget.box?.layout??pageGraphLayout;return widget.blocks?base.blockLayout:base;}
   EditLock? _lock;
-  void _remoteCanvasChanged(){
-    if(!mounted)return;
-    _saveTimer?.cancel();
-    _layout.copyFrom(_targetLayout);
-    setState((){_positions..clear()..addAll(_layout.positions);_tagPositions..clear()..addAll(_layout.tags);_emptyBoxBounds.clear();_frozenFolders.clear();_sync();});
-  }
   String get _resource=>widget.blocks?'canvas:boxes':'canvas:diagram';
   bool get _canEdit=>_lock?.granted??true;
   void _lockChanged(){if(mounted)setState((){});}
@@ -285,6 +279,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   @override
   void initState() {
     super.initState();
+    widget.storage?.editorResources.add(_resource);
     if(widget.storage?.documentLease!=null)_lock=EditLock(_resource,widget.storage)..addListener(_lockChanged);
     _filters.addListener(_filterChanged);
     final base = widget.box?.layout ?? pageGraphLayout;
@@ -299,7 +294,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _view.value = Matrix4.fromList(_layout.viewport!);
       _centered = true;
     }
-    widget.storage?.liveChanges.addListener(_remoteCanvasChanged);
     _view.addListener(_saveLayout);
     WidgetsBinding.instance.addObserver(this);
     elements.addListener(_storeChanged);
@@ -601,7 +595,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   @override
   void dispose() {
     _saveLayout(flush: true);
-    widget.storage?.liveChanges.removeListener(_remoteCanvasChanged);
+    widget.storage?.editorResources.remove(_resource);
     _lock?.removeListener(_lockChanged);_lock?.dispose();
     _saveTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);

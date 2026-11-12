@@ -205,12 +205,12 @@ class WorkspaceSync extends ChangeNotifier {
   }
   void loadBase(){
     final raw=storage.preferences.getString(storage.syncKey);if(raw==null)return;
-    final state=jsonDecode(raw) as Map;cursor=state['cursor'] as int;
+    final state=jsonDecode(raw) as Map;cursor=state['metadataVersion']==1?state['cursor'] as int:0;
     base={for(final e in (state['items'] as Map).entries)e.key as String:Map<String,dynamic>.from(e.value as Map)};
     _lastSynced=state['snapshot'] as String?;
   }
   Future<void> saveBase() async {
-    if(!await storage.preferences.setString(storage.syncKey,jsonEncode({'cursor':cursor,'items':base,'snapshot':_lastSynced})))throw StateError('Sync checkpoint failed');
+    if(!await storage.preferences.setString(storage.syncKey,jsonEncode({'metadataVersion':1,'cursor':cursor,'items':base,'snapshot':_lastSynced})))throw StateError('Sync checkpoint failed');
   }
   void accept(Map<String,dynamic> result){
     for(final raw in result['changes'] as List){final item=Map<String,dynamic>.from(raw as Map);item['value']=item['payload']==null?null:jsonDecode(item.remove('payload') as String);base[itemKey(item['kind'],item['id'])]=item;}
@@ -241,10 +241,14 @@ class WorkspaceSync extends ChangeNotifier {
       try{result=await request('read',{'since':cursor});}
       on EmailAuthFailure catch(e){if(e.status!=409)rethrow;result=await request('read',{'since':0});base.clear();}
       await storage.flush();
+      final local=splitWorkspace(storage.read());
       accept(result);
-      final raw=joinWorkspace(base);await ensureMedia(raw);
+      final displayed=Map<String,Map<String,dynamic>>.from(base);
+      displayed.removeWhere((_,item)=>storage.editorResources.contains(editResource(item)));
+      for(final entry in local.entries){if(storage.editorResources.contains(editResource(entry.value)))displayed[entry.key]=entry.value;}
+      final raw=joinWorkspace(displayed);await ensureMedia(raw);
       await storage.replaceFromBackup(raw,closed:true);
-      _lastSynced=raw;
+      _lastSynced=joinWorkspace(base);
       await saveBase();_observedRevision=result['revision'] as int;ready=true;error=null;
     }catch(e){error=e.toString();}
     storage.itemMetadata=(kind,id)=>base[itemKey(kind,id)];
@@ -316,7 +320,7 @@ class WorkspaceSync extends ChangeNotifier {
         // Only acknowledge the submitted local snapshot. Remote-only edits are
         // fetched on the next workspace open, not applied over an active editor.
         final returned={for(final row in result['changes'] as List)itemKey(row['kind'],row['id']):row};
-        for(final c in changes){final key=itemKey(c['kind'],c['id']);base[key]={...c,'revision':returned[key]?['revision']??result['revision'],'author':returned[key]?['author'],'updatedAt':returned[key]?['updatedAt']};}
+        for(final c in changes){final key=itemKey(c['kind'],c['id']);base[key]={...c,'revision':returned[key]?['revision']??result['revision'],'author':returned[key]?['author'],'authorId':returned[key]?['authorId'],'updatedAt':returned[key]?['updatedAt']};}
         if(resource!=null){
           for(final row in returned.values){final item=Map<String,dynamic>.from(row as Map);item['value']=item['payload']==null?null:jsonDecode(item.remove('payload') as String);base[itemKey(item['kind'],item['id'])]=item;}
           final current=splitWorkspace(storage.read())..removeWhere((_,item)=>editResource(item)==resource);

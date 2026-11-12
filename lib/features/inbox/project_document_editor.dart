@@ -31,12 +31,6 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   late final LabelTextController _body;
   bool _preview = false;
   EditLock? _lock;
-  void _remoteDocumentChanged(){
-    if(!mounted || widget.project==null)return;
-    if(_body.text!=widget.project!.content)_body.text=widget.project!.content;
-    _body.bindings..clear()..addAll(widget.project!.documentLinks);
-    _tags..clear()..addAll(widget.project!.tags);_filters.tags..clear()..addAll(_tags);setState(()=>_dirty=false);
-  }
   bool get _leaseGranted=>_lock?.granted??true;
   String? get _leaseMessage=>_lock?.message;
   bool get _needsLease=>widget.project!=null && (widget.onLease!=null || widget.storage?.documentLease!=null);
@@ -59,6 +53,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   @override
   void initState() {
     super.initState();
+    widget.storage?.editorResources.add(widget.project?.id??'new-document');
     if(_needsLease){_lock=EditLock(widget.project!.id,widget.storage,fallback:widget.onLease)..addListener(_refresh);}
     _body = LabelTextController( widget.project?.document ?? widget.project?.paragraphs.map((p) =>
       p.role == ParagraphRole.title ? '======${p.text}======' : p.role == ParagraphRole.subtitle ? '=====${p.text}=====' : p.text).join('\n\n') ?? '', widget.project?.documentLinks ?? const []);
@@ -67,7 +62,6 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     _tags.addAll(widget.project?.tags ?? {});
     if (widget.project?.document == null) _tags.addAll(widget.project?.paragraphs.expand((p) => p.tags) ?? <String>[]);
     _filters.tags.addAll(_tags); _filters.addListener(_refresh);
-    widget.storage?.liveChanges.addListener(_remoteDocumentChanged);
     _body.addListener(_edited); elements.addListener(_refresh);
   }
   @override
@@ -80,7 +74,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   void _edited() { if (mounted) setState(() => _dirty = true); }
   void _refresh() { if (mounted) setState(() {}); }
   @override
-  void dispose() { widget.storage?.liveChanges.removeListener(_remoteDocumentChanged);_lock?.removeListener(_refresh);_lock?.dispose();elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
+  void dispose() { widget.storage?.editorResources.remove(widget.project?.id??'new-document');_lock?.removeListener(_refresh);_lock?.dispose();elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
   void _insertLabel(String word) {
     _body.insertTarget(word); _bodyFocus.requestFocus();
   }

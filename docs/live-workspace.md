@@ -31,9 +31,12 @@ replaces an older larger layout. Other scopes remain unchanged. Transactions
 serialize competing saves. A save queued behind a read captures the explicit
 snapshot so that the user's already-requested save is not silently discarded.
 
-Every server read replaces local workspace data with the server version,
-including unsaved changes. Editors and canvases also refresh their displayed
-buffers. Other item revision conflicts trigger a fresh server read and update
+Server reads use the server version except for actively open document editors
+and canvases. While any of those three editors is mounted, automatic status
+checks continue for locks, but automatic data reads stop. The editors do not
+subscribe to global data refresh notifications. Explicit reads from nested views
+preserve active editor resources in the local snapshot; only the manual refresh
+button replaces the active resource. Canvas resume does not refetch data. Other item revision conflicts trigger a fresh server read and update
 the UI rather than abandoning synchronization. Genuine transport, permissions,
 and server errors are still surfaced. Guest source ownership checks remain.
 

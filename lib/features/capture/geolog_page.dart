@@ -1,3 +1,4 @@
+import 'map_marker_style.dart';
 import 'dart:ui' as ui;
 import 'regional_tiles.dart';
 import '../inbox/word_badge.dart';
@@ -105,7 +106,7 @@ class _GeologPageState extends State<GeologPage> {
                     Text(group.length > 1 ? '${group.length}개의 생각' : group.first.text,
                       maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: group.every((r) => r.hiddenFromSearch) ? wordColor(context, group.first.text) : Theme.of(context).colorScheme.onPrimaryContainer)),
                   ]))),
-                Icon(Icons.location_on, color: group.every((r) => r.hiddenFromSearch) ? Colors.grey : const Color(0xFFB52D39), size: 28,
+                Icon(Icons.location_on, color: group.every((r) => r.hiddenFromSearch) ? Colors.grey : activeMapMarkerColor, size: 28,
                   shadows: const [Shadow(color: Colors.white, blurRadius: 3)]),
               ]))))]),
           ]))))),
