@@ -53,6 +53,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late final GoogleAuthController _auth;
   String? _verificationToken;
   String? _inviteToken;
+  bool _restoringSession = true;
 
   ThemeMode _mode = ThemeMode.dark;
   LightPalette _lightPalette = LightPalette.neutral;
@@ -70,12 +71,21 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _auth = GoogleAuthController(widget.authClient ?? SdkGoogleAuthClient(), preferences: widget.storage?.preferences, emailApi: widget.emailApi);
     if (widget.requireLogin) {
       final storage=widget.storage;
-      (storage==null ? Future<void>.value() : OwnedWorkspaces(storage).initialize()).then((_) {if(mounted)return _auth.initialize();}).catchError((Object error){if(mounted){_auth.error='로컬 작업공간을 준비하지 못했습니다. 자료를 보존했습니다.';setState((){});}});
+      (storage==null ? Future<void>.value() : OwnedWorkspaces(storage).initialize()).then((_) {if(mounted)return _auth.initialize();}).catchError((Object error){if(mounted){_auth.error='로컬 작업공간을 준비하지 못했습니다. 자료를 보존했습니다.';setState((){});}}).whenComplete(() { if (mounted) setState(() => _restoringSession = false); });
     }
     elements.clear();
     showClosedThoughts = widget.storage?.preferences.getBool(closedThoughtsPreference) ?? true;
     _restoreTheme();
   }
+  @override
+  Future<bool> didPushRouteInformation(RouteInformation routeInformation) async {
+    final uri = routeInformation.uri;
+    final fragment = uri.fragment.isNotEmpty ? uri.fragment : uri.path.replaceFirst(RegExp(r'^/'), '');
+    if (!fragment.startsWith('invite=')) return false;
+    setState(() => _inviteToken = fragment.substring('invite='.length));
+    return true;
+  }
+
   void _restoreTheme() {
     try {
       final raw = widget.storage?.readTheme();
@@ -179,7 +189,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     theme: _theme(Brightness.light),
     darkTheme: _theme(Brightness.dark),
     themeMode: _mode,
-    home: _verificationToken != null ? EmailLoginPage(auth: _auth, verificationToken: _verificationToken,
+    home: widget.requireLogin && _restoringSession ? const Scaffold(body: Center(child: CircularProgressIndicator())) : _verificationToken != null ? EmailLoginPage(auth: _auth, verificationToken: _verificationToken,
       onVerified: () {
         if (kIsWeb) {
           SystemNavigator.routeInformationUpdated(

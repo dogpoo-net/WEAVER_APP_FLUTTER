@@ -53,6 +53,15 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     WidgetsBinding.instance.addPostFrameCallback((_) => open());
   }
 
+  @override
+  void didUpdateWidget(covariant OwnedWorkspaceGate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.inviteToken != null && widget.inviteToken != oldWidget.inviteToken) {
+      handledInvite = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) open(); });
+    }
+  }
+
   Future<void> open() async {
     final run = ++generation;
     bool valid() => current && run == generation;

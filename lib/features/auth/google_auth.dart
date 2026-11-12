@@ -128,7 +128,7 @@ class GoogleAuthController extends ChangeNotifier {
   Future<void> _initialize() async {
     // Restore only a server-issued session; old local markers are not credentials.
     try {
-      if (preferences?.getBool(guestModeKey) == true) {
+      if (preferences?.getBool(guestModeKey) == true && !Uri.base.fragment.startsWith('invite=')) {
         isGuest = true; _changed(); return;
       }
       try {

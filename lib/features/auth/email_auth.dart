@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'session_platform.dart';
 import 'session_store.dart';
+import 'session_peer.dart';
 import 'oauth_window.dart';
 
 class EmailAuthFailure implements Exception {
@@ -21,12 +22,18 @@ class EmailAuthApi {
         _client = client ?? sessionHttpClient(),
         store = store ?? sessionStore(),
         _base = base ?? Uri.parse(const String.fromEnvironment('WEAVER_AUTH_URL',
-            defaultValue: 'https://api.dogpoo.net/dogpoo/weaver/api/auth/'));
+            defaultValue: 'https://api.dogpoo.net/dogpoo/weaver/api/auth/')) {
+    _peer = SessionPeer(available: () => !_disposed && _authenticated && _tab != null, attach: (tab, proof) async {
+      await post('session/web/attach', {'tabId': tab, 'proof': proof});
+    });
+  }
   final OAuthWindowHandle Function() _windowFactory;
   Completer<void>? _oauthCancelled;
   final http.Client _client;
   final Uri _base;
   final SessionStore store;
+  late final SessionPeer _peer;
+  bool _authenticated = false;
   Map<String, String>? _tab;
   String? _refreshToken;
   String? _refreshId;
@@ -76,8 +83,16 @@ class EmailAuthApi {
   }
   Future<Map<String, dynamic>?> restore() async {
     await _load();
-    if (store.isWeb ? _tab == null : _refreshToken == null) return null;
-    return refresh();
+    if (store.isWeb ? _tab != null : _refreshToken != null) {
+      final restored = await refresh();
+      if (restored != null) return restored;
+    }
+    if (store.isWeb && Uri.base.fragment.startsWith('invite=')) {
+      await _prepareTab();
+      if (await _peer.request(_tab!['id']!, _tab!['proof']!)) return refresh();
+      await clear();
+    }
+    return null;
   }
   Future<Map<String, dynamic>> login(String email, String password) => _login('login', {'email': email, 'password': password});
   Future<Map<String, dynamic>> loginGoogle(String token) => _login('google', {'idToken': token});
@@ -159,6 +174,7 @@ class EmailAuthApi {
   }
   Future<void> _accept(Map<String, dynamic> result) async {
     if (_disposed) return;
+    _authenticated = true;
     if (!store.isWeb) {
       final token = result['refreshToken'] as String;
       try { await store.write(jsonEncode({'refreshToken': token})); }
@@ -201,8 +217,8 @@ class EmailAuthApi {
     } on EmailAuthFailure catch (e) { if (!e.unauthorized || all) rethrow; }
     await clear();
   }
-  Future<void> clear() async { await store.clear();_tab = null;_refreshToken = null;_refreshId = null;accessToken = null; }
-  void dispose() { _disposed = true;cancelOAuth();_client.close(); }
+  Future<void> clear() async { _authenticated = false; await store.clear();_tab = null;_refreshToken = null;_refreshId = null;accessToken = null; }
+  void dispose() { _disposed = true;_peer.dispose();cancelOAuth();_client.close(); }
 }
 
 class _OAuthCancelled implements Exception { const _OAuthCancelled(); }
