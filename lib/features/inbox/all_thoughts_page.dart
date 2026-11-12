@@ -171,12 +171,13 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
 enum ThoughtView { documents, boxes, diagram, page, photos, audio, geolog }
 
 class AllThoughtsPage extends StatefulWidget {
-  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.onDocument, this.onRefresh, this.onDeleteBoxes, this.initialBox, this.initialView = ThoughtView.boxes});
+  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.onDocument, this.onRefresh, this.onReloadResource, this.onDeleteBoxes, this.initialBox, this.initialView = ThoughtView.boxes});
   final List<Note> notes;
   final VoidCallback? onChanged, onLayoutChanged;
   final WorkspaceStorage? storage;
   final Future<void> Function(Note)? onDocument;
   final Future<void> Function()? onRefresh;
+  final Future<void> Function(String)? onReloadResource;
   final Future<void> Function(Set<String>)? onDeleteBoxes;
   final Future<void> Function()? onSave;
   final MemoBox? initialBox;
@@ -185,6 +186,7 @@ class AllThoughtsPage extends StatefulWidget {
   State<AllThoughtsPage> createState() => _ThoughtViewsState();
 }
 class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  void _liveChanged(){if(mounted)setState((){});}
   bool _loading = false;
   int _epoch = 0;
   Future<void> _reload() async {
@@ -204,12 +206,13 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
   void initState() {
     super.initState();
     ensureUnclassifiedBox();
+    widget.storage?.liveChanges.addListener(_liveChanged);
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _reload(); });
     _tabPosition=AnimationController(vsync:this,upperBound:ThoughtView.values.length-1.0,value:widget.initialView.index.toDouble());
   }
   @override
-  void dispose() { WidgetsBinding.instance.removeObserver(this); _filters.dispose(); _tabPosition.dispose(); super.dispose(); }
+  void dispose() { widget.storage?.liveChanges.removeListener(_liveChanged); WidgetsBinding.instance.removeObserver(this); _filters.dispose(); _tabPosition.dispose(); super.dispose(); }
   late ThoughtView _view = widget.initialView;
   @override
   Widget build(BuildContext context) {
@@ -226,6 +229,6 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(filters: _filters, notes: widget.notes, initialBox: activeBox,
       onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes)); }
     return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey('${_view.name}-$_epoch'), box: activeBox, blocks: _view == ThoughtView.page,
-      onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, onSave:widget.onSave, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes));
+      onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, onSave:widget.onSave, storage:widget.storage, onReload:()=>widget.onReloadResource?.call(_view==ThoughtView.page?'canvas:boxes':'canvas:diagram')??Future.value(), viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes));
   }
 }

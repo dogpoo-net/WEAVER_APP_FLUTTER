@@ -15,8 +15,8 @@ class GraphLayout {
   bool hideTags = false;
   bool stacked = false;
 
-  void copyFrom(GraphLayout other) {
-    _blocks = other._blocks;
+  void copyFrom(GraphLayout other, {bool includeBlocks=true}) {
+    if(includeBlocks){if(other._blocks!=null){blockLayout.copyFrom(other._blocks!);}else{_blocks=null;}}
     layers..clear()..addAll(other.layers);
     positions..clear()..addAll(other.positions);
     sizes..clear()..addAll(other.sizes);

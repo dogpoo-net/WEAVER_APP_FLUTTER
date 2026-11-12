@@ -65,28 +65,28 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
         const Divider(),
         if (guest) const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.person_outline),
           title: Text('비회원 · 로컬 저장 전용'), subtitle: Text('클라우드 저장·가져오기는 로그인 후 사용할 수 있습니다. 저장한 로컬 데이터는 로그인 후에도 유지됩니다.')),
-        ExpansionTile(tilePadding:EdgeInsets.zero,title:const Text('동기화 관리'),children:[
+        ExpansionTile(tilePadding:EdgeInsets.zero,title:Text('동기화 관리', style: Theme.of(context).textTheme.bodySmall),children:[
         ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_upload_outlined), title: const Text('변경사항 동기화'), enabled: cloudEnabled && !busy,
           onTap: busy || !cloudEnabled || onUpload == null ? null : () => run(onUpload)),
         ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_download_outlined), title: const Text('서버 변경 불러오기'), enabled: cloudEnabled && !busy,
           onTap: busy || !cloudEnabled || onDownload == null ? null : () => run(onDownload)),
         ]),
-        ListTile(contentPadding: EdgeInsets.zero, title: const Text('닫힌 생각 숨기기'),
+        ListTile(contentPadding: EdgeInsets.zero, title: Text('닫힌 생각 숨기기', style: Theme.of(context).textTheme.bodySmall),
           onTap: busy ? null : () => changeVisibility(!showClosedThoughts),
           trailing: SizedBox(width: 44, height: 36, child: Transform.scale(scale: .75, child: Switch(value: !showClosedThoughts,
           onChanged: busy ? null : (hidden) => changeVisibility(!hidden))))),
         if (busy) const LinearProgressIndicator(),
         const Divider(),
-        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.delete_outline), title: const Text('데이터 초기화', style: TextStyle(color: Color(0xFFD64550))),
+        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.delete_outline), title: const Text('데이터 초기화', style: TextStyle(color: Colors.white)),
           onTap: busy || onReset == null ? null : () { Navigator.pop(dialogContext); onReset(); }),
         if (guest) ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.login), title: const Text('로그인 / 회원가입'),
           onTap: busy ? null : () => run(onSignIn ?? auth!.leaveGuest))
-        else ListTile(contentPadding: EdgeInsets.zero, title: const Text('로그아웃', style: TextStyle(color: Color(0xFFD64550))),
+        else ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.logout, color: Colors.white), title: const Text('로그아웃', style: TextStyle(color: Color(0xFFD64550))),
           onTap: busy || !signedIn ? null : () => run(() async {
             await auth!.signOut();
             if (auth.error != null) throw BackupFailure(auth.error!);
           })),
-        if (auth?.isEmailAccount == true) ListTile(contentPadding: EdgeInsets.zero,
+        if (auth?.isEmailAccount == true) ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.logout, color: Colors.white),
           title: const Text('모든 기기에서 로그아웃', style: TextStyle(color: Color(0xFFD64550))), onTap: busy ? null : () => run(() async {
             final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
               title: const Text('모든 기기에서 로그아웃할까요?'),
@@ -99,7 +99,7 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
             }
           })),
         const Divider(),
-        ListTile(contentPadding: EdgeInsets.zero, title: const Text('오픈소스 사용 정보'), trailing: const Icon(Icons.chevron_right),
+        ListTile(contentPadding: EdgeInsets.zero, title: Text('오픈소스 사용 정보', style: Theme.of(context).textTheme.bodySmall), trailing: const Icon(Icons.chevron_right),
           onTap: busy ? null : () => showLicensePage(context: context, applicationName: 'WEAVER')),
       ])));
     final theme=ThemeControls.of(context);

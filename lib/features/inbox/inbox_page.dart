@@ -1,7 +1,7 @@
+import 'dart:async';
 import 'label_links.dart';
 import '../auth/google_auth.dart';
 import '../sync/workspace_backup.dart';
-import '../sync/owned_workspace.dart' show splitWorkspace, itemKey, sameItem;
 import 'trash_page.dart';
 import 'thought_settings.dart';
 import '../auth/profile_page.dart';
@@ -182,6 +182,27 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.linux;
   Note? _editing;
   String? _storageError;
+  Timer? _liveTimer, _contentTimer;
+  bool _checkingRemote=false, _applyingRemote=false;
+  int _pollFailures=0;DateTime? _retryAfter;
+  Future<void> _pollRemote() async {
+    final storage=widget.storage;
+    if(_retryAfter!=null && DateTime.now().isBefore(_retryAfter!))return;
+    if(_checkingRemote || !mounted || storage?.checkRemote==null || WidgetsBinding.instance.lifecycleState==AppLifecycleState.paused || WidgetsBinding.instance.lifecycleState==AppLifecycleState.hidden || WidgetsBinding.instance.lifecycleState==AppLifecycleState.inactive)return;
+    _checkingRemote=true;
+    try {
+      final changed=await storage!.checkRemote!();
+      _pollFailures=0;_retryAfter=null;
+      if(changed && mounted && workspaceRouteObserver.current is! PopupRoute)await _refreshForBrowse();
+    } catch(e) { _pollFailures=(_pollFailures+1).clamp(1,4);_retryAfter=DateTime.now().add(Duration(seconds:(2<<_pollFailures).clamp(4,30)));if(mounted && _storageError==null)setState(()=>_storageError='서버 동기화를 확인하지 못했습니다. $e'); }
+    finally{_checkingRemote=false;}
+  }
+  void _scheduleContentSync(){
+    if(_applyingRemote || widget.storage?.syncContent==null)return;
+    _contentTimer?.cancel();_contentTimer=Timer(const Duration(milliseconds:400),()async{
+      try{await widget.storage?.syncContent?.call();}catch(e){if(mounted)setState(()=>_storageError='변경을 기기에 보관했습니다. 서버 동기화에 실패했습니다. $e');}
+    });
+  }
   bool _restoreBlocked = false;
   @override
   void initState() {
@@ -228,6 +249,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       _storageError = '브라우저 저장 데이터를 읽지 못했습니다. 기존 데이터는 보존되며 새 저장은 중단됩니다.';
     }
     ensureUnclassifiedBox();
+    if(widget.storage?.checkRemote!=null)_liveTimer=Timer.periodic(const Duration(seconds:2),(_)=>_pollRemote());
     if (!_restoreBlocked) _cleanupDeletedMedia().catchError((Object _) {});
   }
 
@@ -263,6 +285,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
 
   int _seenDeletion = elements.deletionRevision;
   void _elementDeleted() {
+    if(_applyingRemote)return;
     final deleted = _seenDeletion != elements.deletionRevision;
     _seenDeletion = elements.deletionRevision;
     setState(() {
@@ -326,7 +349,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
 
   void _moveProject(List<Note> projects, int index, String? folder) {
     setState(() => projects[index].project!.folder = folder);
-    _persist();
+    _persist().then((_)=>widget.storage?.syncFolders?.call()).catchError((Object e){if(mounted)_captureError('폴더 변경 동기화에 실패했습니다. $e');});
   }
 
   void _moveTag(String tag, String? folder) {
@@ -358,6 +381,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       final layoutSave = _persistLayouts();
       await workspaceSave;
       await layoutSave;
+      _scheduleContentSync();
       if (mounted && _storageError != null) setState(() => _storageError = null);
     } catch (_) {
       if (mounted) {
@@ -405,10 +429,11 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
         TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('계속'))])) == true;
 
-  Future<void> _saveAndSync() async {
+  Future<void> _saveAndSync({String? resource}) async {
     await _persist();
     if (_storageError != null || _restoreBlocked) throw BackupFailure(_storageError ?? '로컬 저장을 확인해주세요.');
-    await widget.storage?.syncNow?.call();
+    if(resource==null){await (widget.storage?.syncContent ?? widget.storage?.syncNow)?.call();}
+    else {await widget.storage?.syncResource?.call(resource);}
   }
   Future<void> _uploadBackup() async {await _saveAndSync();if(mounted)_captureError('저장되었습니다.');}
   Future<void> _downloadBackup() async {
@@ -482,6 +507,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _liveTimer?.cancel();_contentTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     if(openWorkspaceDocument == _openDocumentById)openWorkspaceDocument=null;
     if(refreshWorkspaceForRead == _refreshForBrowse)refreshWorkspaceForRead=null;
@@ -809,15 +835,32 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     if (storage?.refreshNow == null || _restoreBlocked) return;
     await _persist();
     if (_storageError != null) throw StateError(_storageError!);
-    final previous = {for (final n in _notes) n.id: n};
-    final before = splitWorkspace(storage!.read());
-    await storage.refreshNow!();
-    if (!mounted) return;
-    final snapshot = WorkspaceSnapshot.decode(storage.read()!);
-    final after = splitWorkspace(storage.read());
-    final notes = [for (final n in snapshot.notes) if (previous.containsKey(n.id) && sameItem(before[itemKey('list:notes', n.id)], after[itemKey('list:notes', n.id)])) previous[n.id]! else n];
-    setState(() { snapshot.apply(); _notes..clear()..addAll(notes); elements.sources.clear(); for (final n in notes) { if (n.project != null) elements.indexProject(n.project!); } });
-    elements.refreshVisibility(); desktopMenu.refresh();
+    await storage!.refreshNow!();
+    if(mounted)_applyRemoteSnapshot();
+  }
+  void _applyRemoteSnapshot({String? replaceResource}){
+    final snapshot=WorkspaceSnapshot.decode(widget.storage!.read()!);
+    final previous={for(final n in _notes)n.id:n};
+    final oldBoxes={for(final b in memoBoxes)b.name:b};final oldLayout=pageGraphLayout;
+    final notes=[for(final n in snapshot.notes) if(previous[n.id]?.project!=null && n.project!=null) (() {
+      final old=previous[n.id]!,p=old.project!,next=n.project!;
+      p.document=next.document;p.documentLinks=next.documentLinks;p.name=next.name;p.folder=next.folder;p.paragraphs=next.paragraphs;p.words..clear()..addAll(next.words);p.tags..clear()..addAll(next.tags);old.content=n.content;old.updatedAt=n.updatedAt;old.folder=n.folder;return old;
+    })() else n];
+    _applyingRemote=true;
+    try{setState((){
+      snapshot.apply();
+      oldLayout.copyFrom(pageGraphLayout);pageGraphLayout=oldLayout;
+      for(var i=0;i<memoBoxes.length;i++){
+        final next=memoBoxes[i],old=oldBoxes[next.name];if(old==null)continue;
+        old.color=next.color;old.folder=next.folder;if(!old.isUnclassified)old.elementIds..clear()..addAll(next.elementIds);old.layout.copyFrom(next.layout);memoBoxes[i]=old;
+      }
+      _notes..clear()..addAll(notes);elements.sources.clear();for(final n in notes){if(n.project!=null)elements.indexProject(n.project!);}
+    });elements.refreshVisibility();desktopMenu.refresh();widget.storage!.liveChanges.value++;}
+    finally{_applyingRemote=false;}
+  }
+  Future<void> _reloadResource(String id) async {
+    await _persist();await widget.storage?.reloadResource?.call(id);
+    if(mounted)_applyRemoteSnapshot(replaceResource:id);
   }
   Future<void> _deleteBoxes(Set<String> names) async {
     final boxes = memoBoxes.where((b) => !b.isUnclassified && names.contains(b.name)).toList();
@@ -867,7 +910,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     elements.refreshVisibility(); if (mounted) setState(() {});
   }
   Future<void> _allThoughts([MemoBox? box]) async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onLayoutChanged: _persistLayouts, onChanged: _persist, onSave:_saveAndSync, initialBox: box, storage:widget.storage, onDocument:_showProject, onRefresh:_refreshForBrowse, onDeleteBoxes:_deleteBoxes)));
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onLayoutChanged: _persistLayouts, onChanged: _persist, onSave:_saveAndSync, initialBox: box, storage:widget.storage, onDocument:_showProject, onRefresh:_refreshForBrowse, onReloadResource:_reloadResource, onDeleteBoxes:_deleteBoxes)));
     if (mounted) setState(() {});
   }
 
@@ -883,7 +926,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       ..project = project
       ..paragraphs = project.paragraphs;
     setState(() => _notes.insert(0, note));
-    await _saveAndSync();
+    await _saveAndSync(resource:project.id);
     if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('저장되었습니다.')));
     await _showProject(note);
   }
@@ -903,7 +946,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       context,
       MaterialPageRoute(
         builder: (_) =>
-            ProjectPage(project: note.project!, projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: ()async{if(note.content!=note.project!.content)note.updatedAt=DateTime.now();note.content=note.project!.content;await _persist();}, onSave: _saveAndSync, onHistory:widget.storage?.openHistory, onLease:widget.storage?.documentLease),
+            ProjectPage(project: note.project!, projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: ()async{if(note.content!=note.project!.content)note.updatedAt=DateTime.now();note.content=note.project!.content;await _persist();}, onSave: () => _saveAndSync(resource:note.project!.id), onHistory:widget.storage?.openHistory, onLease:widget.storage?.documentLease, storage:widget.storage, onReload:()=>_reloadResource(note.project!.id)),
       ),
     );
     if (!mounted) return;

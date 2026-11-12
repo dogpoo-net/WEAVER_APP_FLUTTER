@@ -185,10 +185,10 @@ class WordBadge extends StatelessWidget {
         ),
         textStyle: TextStyle(fontSize: dense ? 11 : 12, fontWeight: FontWeight.w500),
       ),
-      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
-        if (indicators) AttachmentIndicators(record: record),
-        Text.rich(label,
-        maxLines: fullText ? null : 1, softWrap: fullText, overflow: fullText ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '문서:$title' : title),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (indicators) ...[AttachmentIndicators(record: record), const SizedBox(width: 4)],
+        Flexible(child: Text.rich(label,
+        maxLines: fullText ? null : 1, softWrap: fullText, overflow: fullText ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '문서:$title' : title)),
       ]),
     ));
     return onDoubleTap == null ? badge : GestureDetector(onDoubleTap: onDoubleTap, child: badge);

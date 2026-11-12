@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:collection/collection.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
@@ -57,7 +58,7 @@ String joinWorkspace(Map<String,Map<String,dynamic>> items) {
   return jsonEncode(result);
 }
 bool sameItem(Map<String,dynamic>? a,Map<String,dynamic>? b) =>
-  (a==null || a['deleted']==true) ? (b==null || b['deleted']==true) : b!=null && b['deleted']!=true && jsonEncode(a['value'])==jsonEncode(b['value']);
+  (a==null || a['deleted']==true) ? (b==null || b['deleted']==true) : b!=null && b['deleted']!=true && const DeepCollectionEquality().equals(a['value'],b['value']);
 
 class OwnedWorkspaces {
   OwnedWorkspaces(this.root);
@@ -113,16 +114,78 @@ class OwnedWorkspaces {
   }
 }
 
+String? editResource(Map<String,dynamic>? item) {
+  if (item == null) return null;
+  if (item['kind'] == 'layout') {
+    final path = jsonDecode(item['id'] as String) as List;
+    return path.length > 1 && path[1] == 'blocks' ? 'canvas:boxes' : 'canvas:diagram';
+  }
+  final value = item['value'];
+  return item['kind'] == 'list:notes' && value is Map && value['project'] is Map ? value['project']['id'] as String? : null;
+}
+
 class WorkspaceSync extends ChangeNotifier {
   WorkspaceSync(this.storage,this.api,{required this.isCurrent,this.workspaceId,this.readOnly=false});
   final WorkspaceStorage storage;
   final EmailAuthApi api;
   final String? workspaceId;final bool readOnly;
   final documentLeases=<String,String>{};
-  Future<Map<String,dynamic>> documentLease(String id,String token,bool release)async{
-    final result=await request('document-lease',{'documentId':id,'leaseToken':token,'release':release});
-    if(release || result['acquired']!=true){if(documentLeases[id]==token)documentLeases.remove(id);}else{documentLeases[id]=token;}
+  final observedLeases=<String,String>{};
+  final lostLeases=<String>{};
+  final protectedResources=<String>{};
+  int? _observedRevision;
+  int _leaseEpoch=0;
+  Future<Map<String,dynamic>> documentLease(String id,String token,bool release) async {
+    _leaseEpoch++;
+    if(release){
+      try{return await request('document-lease',{'documentId':id,'leaseToken':token,'release':true});}
+      finally{_leaseEpoch++;if(observedLeases[id]==token){observedLeases.remove(id);protectedResources.remove(id);documentLeases.remove(id);lostLeases.remove(id);storage.leaseStates.remove(id);_observedRevision=null;}}
+    }
+    final renewing=observedLeases[id]==token;
+    if (renewing && lostLeases.contains(id)) return {'acquired':false};
+    observedLeases[id]=token;
+    final result=await request('document-lease',{'documentId':id,'leaseToken':token,'renewOnly':renewing});
+    _leaseEpoch++;
+    if(observedLeases[id]==token)_acceptLease(id,token,result);
     return result;
+  }
+  void _acceptLease(String id,String token,Map<String,dynamic> result){
+    storage.leaseStates[id]=result;
+    if(result['acquired']==true){protectedResources.add(id);documentLeases[id]=token;lostLeases.remove(id);}
+    else {documentLeases.remove(id);lostLeases.add(id);}
+    storage.leaseChanges.value++;
+  }
+  Future<Map<String,dynamic>> takeLease(String id,String token) async {
+    _leaseEpoch++;observedLeases[id]=token;
+    final result=await request('document-lease',{'documentId':id,'leaseToken':token,'takeover':true});
+    _leaseEpoch++;_acceptLease(id,token,result);
+    if(result['acquired']==true) await _rebaseResource(id,discard:false);
+    return result;
+  }
+  Future<bool> checkRemote() async {
+    final leaseEpoch=_leaseEpoch;
+    final result=await request('status',{'documentLeases':observedLeases});
+    if(leaseEpoch==_leaseEpoch)for(final entry in ((result['leases'] as Map?)??{}).entries){final id=entry.key as String;final token=observedLeases[id];if(token!=null)_acceptLease(id,token,Map<String,dynamic>.from(entry.value as Map));}
+    final revision=result['revision'] as int;
+    if(_observedRevision==revision)return false;
+    return revision!=cursor;
+  }
+  Future<void> reloadResource(String id)=>_rebaseResource(id,discard:true);
+  Future<void> _rebaseResource(String id,{required bool discard}) async {
+    while(_running!=null){await _running;}
+    await (_running=(() async {
+      final result=await request('read',{'since':0});
+      await storage.flush();final local=splitWorkspace(storage.read());
+      final remote=<String,Map<String,dynamic>>{};
+      for(final raw in result['changes'] as List){final item=Map<String,dynamic>.from(raw as Map);item['value']=item['payload']==null?null:jsonDecode(item.remove('payload') as String);remote[itemKey(item['kind'],item['id'])]=item;}
+      for(final key in {...base.keys,...local.keys,...remote.keys}){
+        if(editResource(local[key])!=id && editResource(base[key])!=id && editResource(remote[key])!=id)continue;
+        if(remote[key]==null){base.remove(key);}else{base[key]=remote[key]!;}
+        if(discard){if(remote[key]==null || remote[key]!['deleted']==true){local.remove(key);}else{local[key]=remote[key]!;}}
+      }
+      if(discard){await storage.replaceFromBackup(joinWorkspace(local),closed:true);if(!documentLeases.containsKey(id))protectedResources.remove(id);_observedRevision=null;}
+      await saveBase();
+    })().whenComplete(()=>_running=null));
   }
   Future<void> settle()async{try{await _running;}catch(_){} }
   final bool Function() isCurrent;
@@ -181,9 +244,9 @@ class WorkspaceSync extends ChangeNotifier {
       final current=storage.read();final local=splitWorkspace(current);
       final incoming = result['changes'] as List;
       bool protectedDocument(dynamic item) {
-        if (item['kind'] != 'list:notes') return false;
         final value = item['payload'] == null ? (base[itemKey(item['kind'], item['id'])]?['value']) : jsonDecode(item['payload'] as String);
-        return value is Map && value['project'] is Map && documentLeases.containsKey(value['project']['id']);
+        final id=editResource({...Map<String,dynamic>.from(item as Map),'value':value});
+        return protectedResources.contains(id) || documentLeases.containsKey(id);
       }
       final deferred = incoming.any(protectedDocument);
       // An open editor owns its document snapshot/revision until its lease ends.
@@ -201,10 +264,10 @@ class WorkspaceSync extends ChangeNotifier {
       final raw=joinWorkspace(merged);await ensureMedia(raw);
       await storage.replaceFromBackup(raw,closed:true);
       if(current==null || current==_lastSynced)_lastSynced=raw;
-      await saveBase();ready=true;error=null;
+      await saveBase();_observedRevision=result['revision'] as int;ready=true;error=null;
     }catch(e){error=e.toString();}
     storage.itemMetadata=(kind,id)=>base[itemKey(kind,id)];
-    storage.onChanged=schedule;storage.syncNow=flush;storage.syncDeleted=flushDeletions;storage.syncFolders=flushFolders;storage.refreshNow=refreshFromServer;
+    storage.onChanged=schedule;storage.syncNow=flush;storage.syncDeleted=flushDeletions;storage.syncFolders=flushFolders;storage.refreshNow=refreshFromServer;storage.checkRemote=checkRemote;storage.syncContent=readOnly?null:()=>_enqueueFlush(false,contentOnly:true);storage.syncResource=(id)=>_enqueueFlush(false,resource:id);storage.reloadResource=reloadResource;storage.takeLease=takeLease;
     changed();if(ready && storage.read()!=_lastSynced)schedule();
   }
   Future<void> refreshFromServer() async {
@@ -217,13 +280,13 @@ class WorkspaceSync extends ChangeNotifier {
   Future<void> flushFolders() => _enqueueFlush(false, foldersOnly: true);
   Future<void> flush() => _enqueueFlush(false);
   Future<void> flushDeletions() => _enqueueFlush(true);
-  Future<void> _enqueueFlush(bool deletionsOnly, {bool foldersOnly = false}) async {
+  Future<void> _enqueueFlush(bool deletionsOnly, {bool foldersOnly = false, bool contentOnly=false, String? resource}) async {
     // A save/delete arriving during another request must not be dropped.
     while (_running != null) { await _running; }
-    await (_running = _flush(deletionsOnly: deletionsOnly, foldersOnly: foldersOnly).whenComplete(() => _running = null));
+    await (_running = _flush(deletionsOnly: deletionsOnly, foldersOnly: foldersOnly, contentOnly:contentOnly, resource:resource).whenComplete(() => _running = null));
     if(error!=null)throw EmailAuthFailure(error!);
   }
-  Future<void> _flush({bool deletionsOnly = false, bool foldersOnly = false}) async {
+  Future<void> _flush({bool deletionsOnly = false, bool foldersOnly = false, bool contentOnly=false, String? resource}) async {
     if(_disposed || !isCurrent())return;
     _timer?.cancel();_timer=null;busy=true;changed();
     try {
@@ -234,6 +297,9 @@ class WorkspaceSync extends ChangeNotifier {
       for(final key in {...base.keys,...local.keys}){
         if(sameItem(local[key],base[key]))continue;
         final item=local[key]??base[key]!;
+        final scope=editResource(item)??editResource(base[key]);
+        if(contentOnly && scope!=null)continue;
+        if(resource!=null && scope!=resource)continue;
         if (deletionsOnly) {
           final kind = item['kind'];
           final removed = !local.containsKey(key) && {'list:elements','list:notes','list:trash','list:memoBoxes'}.contains(kind);
@@ -269,7 +335,7 @@ class WorkspaceSync extends ChangeNotifier {
         final returned={for(final row in result['changes'] as List)itemKey(row['kind'],row['id']):row};
         for(final c in changes){final key=itemKey(c['kind'],c['id']);base[key]={...c,'revision':returned[key]?['revision']??result['revision'],'author':returned[key]?['author'],'updatedAt':returned[key]?['updatedAt']};}
       }
-      if ((!deletionsOnly && !foldersOnly) || {...base.keys,...local.keys}.every((key) => sameItem(local[key],base[key]))) _lastSynced=raw;
+      if ((!deletionsOnly && !foldersOnly && !contentOnly && resource==null) || {...base.keys,...local.keys}.every((key) => sameItem(local[key],base[key]))) _lastSynced=raw;
       await saveBase();error=null;
     }catch(e){error=e.toString();}
     finally {busy=false;changed();if(!_disposed && error==null && storage.read()!=_lastSynced)schedule();}
@@ -312,5 +378,5 @@ class WorkspaceSync extends ChangeNotifier {
     await storage.flush();if(storage.read()==_lastSynced){final raw=storage.read();await storage.clear();await storage.preferences.remove(storage.syncKey);
       if(raw!=null){final snapshot=WorkspaceSnapshot.decode(raw);for(final r in [...snapshot.records,...snapshot.trashRecords]){for(final id in [...r.photos.map((p)=>p.id),...r.recordings.map((c)=>c.id)]){try{await MediaStorage.delete(id,owner:storage.owner);}catch(_){}await storage.preferences.remove(storage.scoped('media-sent.$id'));}}}}
   }
-  @override void dispose(){_disposed=true;_timer?.cancel();storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;super.dispose();}
+  @override void dispose(){_disposed=true;_timer?.cancel();storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;super.dispose();}
 }

@@ -6,6 +6,7 @@ import 'tag_colors.dart';
 import 'project_folders.dart';
 
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'dart:math';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -332,6 +333,14 @@ class WorkspaceStorage {
   WorkspaceStorage(this.preferences, {this.owner});
   final String? owner;
   Future<Map<String,dynamic>> Function(String,String,bool)? documentLease;
+  final liveChanges = ValueNotifier<int>(0);
+  final leaseChanges = ValueNotifier<int>(0);
+  final leaseStates = <String,Map<String,dynamic>>{};
+  Future<bool> Function()? checkRemote;
+  Future<void> Function()? syncContent;
+  Future<void> Function(String)? syncResource;
+  Future<void> Function(String)? reloadResource;
+  Future<Map<String,dynamic>> Function(String,String)? takeLease;
   void Function()? onChanged;
   Future<void> Function()? syncNow;
   Future<void> Function()? syncDeleted;

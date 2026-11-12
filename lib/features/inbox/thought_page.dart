@@ -1,3 +1,5 @@
+import 'edit_lock.dart';
+import 'workspace_storage.dart';
 import 'save_shortcuts.dart';
 import 'memo_box_actions.dart';
 import 'thought_label.dart';
@@ -25,11 +27,12 @@ import 'graph_arrangement.dart';
 
 /// A live workspace over the same thoughts and tags.
 class ThoughtPage extends StatefulWidget {
-  const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.onSave, this.box, this.blocks = false, this.viewSelector, this.filters, this.onDeleteBoxes});
+  const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.onReload, this.box, this.blocks = false, this.viewSelector, this.filters, this.onDeleteBoxes});
   final Future<void> Function(Set<String>)? onDeleteBoxes;
   final VoidCallback onChanged;
   final VoidCallback? onLayoutChanged;
-  final Future<void> Function()? onSave;
+  final Future<void> Function()? onSave, onReload;
+  final WorkspaceStorage? storage;
   final MemoBox? box;
   final bool blocks;
   final ThoughtFilterSelection? filters;
@@ -50,6 +53,24 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   final _view = TransformationController();
   Timer? _saveTimer;
   late final GraphLayout _layout;
+  GraphLayout get _targetLayout{final base=widget.box?.layout??pageGraphLayout;return widget.blocks?base.blockLayout:base;}
+  EditLock? _lock;
+  bool _followServer=true;
+  void _remoteCanvasChanged(){
+    if(!mounted || _canEdit || !_followServer)return;
+    _layout.copyFrom(_targetLayout);
+    setState((){_positions..clear()..addAll(_layout.positions);_tagPositions..clear()..addAll(_layout.tags);_emptyBoxBounds.clear();_frozenFolders.clear();_sync();});
+  }
+  String get _resource=>widget.blocks?'canvas:boxes':'canvas:diagram';
+  bool get _canEdit=>_lock?.granted??true;
+  void _lockChanged(){if(_canEdit)_followServer=false;if(mounted)setState((){});}
+  Future<void> _reloadCanvas()async{
+    if(widget.onReload==null || !await confirmReload(context))return;
+    try{
+      _saveTimer?.cancel();await widget.onReload!();await _lock?.renew();if(!mounted)return;_followServer=!_canEdit;_layout.copyFrom(_targetLayout);
+      setState((){_positions..clear()..addAll(_layout.positions);_tagPositions..clear()..addAll(_layout.tags);_emptyBoxBounds.clear();_frozenFolders.clear();_centered=false;_sync();});
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('갱신하지 못했습니다. $e')));}
+  }
   late final TextEditingController _search;
   String? _draggingId;
   final _dragStartStacks = <String, Set<String>>{};
@@ -264,9 +285,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   @override
   void initState() {
     super.initState();
+    if(widget.storage?.documentLease!=null)_lock=EditLock(_resource,widget.storage)..addListener(_lockChanged);
     _filters.addListener(_filterChanged);
     final base = widget.box?.layout ?? pageGraphLayout;
-    _layout = widget.blocks ? base.blockLayout : base;
+    final target=widget.blocks?base.blockLayout:base;
+    _layout = widget.storage==null?target:GraphLayout.fromJson(target.toJson());
     _positions.addAll(_layout.positions);
     _tagPositions.addAll(_layout.tags);
     _query = _layout.query;
@@ -276,6 +299,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _view.value = Matrix4.fromList(_layout.viewport!);
       _centered = true;
     }
+    widget.storage?.liveChanges.addListener(_remoteCanvasChanged);
     _view.addListener(_saveLayout);
     WidgetsBinding.instance.addObserver(this);
     elements.addListener(_storeChanged);
@@ -294,11 +318,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     }
   }
   void _flushLayout() {
+    if(!_canEdit)return;
     _layout.positions..clear()..addAll(_positions);
     _layout.tags..clear()..addAll(_tagPositions);
     _layout.viewport = _view.value.storage.toList();
     _layout.query = _query;
     _layout.hideTags = _hideTags;
+    if(widget.storage!=null)_targetLayout.copyFrom(_layout,includeBlocks:widget.blocks);
     (widget.onLayoutChanged ?? widget.onChanged)();
   }
   @override
@@ -575,6 +601,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   @override
   void dispose() {
     _saveLayout(flush: true);
+    widget.storage?.liveChanges.removeListener(_remoteCanvasChanged);
+    _lock?.removeListener(_lockChanged);_lock?.dispose();
+    _saveTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     workspaceRouteObserver.unsubscribe(this);
     _filters.removeListener(_filterChanged);
@@ -628,8 +657,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   Widget build(BuildContext context) => SaveShortcuts(onSave:_saveCanvas,child:_build(context));
   bool _savingCanvas=false;
   Future<void> _saveCanvas() async {
-    if(_savingCanvas)return;_savingCanvas=true;
-    try { widget.onLayoutChanged?.call();widget.onChanged();await widget.onSave?.call();
+    if(_savingCanvas || !_canEdit)return;_savingCanvas=true;
+    try { if(_lock!=null && !await _lock!.renew())return;_saveLayout(flush:true);widget.onLayoutChanged?.call();widget.onChanged();if(widget.storage?.syncResource!=null){await widget.storage!.flush();await widget.storage!.syncResource!(_resource);}else{await widget.onSave?.call();}
       if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('저장되었습니다.')));
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('저장 또는 동기화에 실패했습니다. 로컬 자료는 유지됩니다. $e')));}
     finally {_savingCanvas=false;}
@@ -676,13 +705,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filters.singleBox?.name ?? '전체 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
-      if (widget.blocks) MemoBoxActions(filters: _filters, onCreate: _createBox, onDelete: widget.onDeleteBoxes)
-      else PopupMenuButton<bool>(tooltip: '생각 만들기', icon: const Icon(Icons.add),
+      if(_lock!=null)IconButton(tooltip:_lock!.message??'편집 가능',onPressed:()=>_canEdit?_lock!.renew():_lock!.takeOver(context),icon:Icon(_canEdit?Icons.lock_open:Icons.lock_outline)),
+      if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reloadCanvas,icon:const Icon(Icons.refresh)),
+      if (_canEdit && widget.blocks) MemoBoxActions(filters: _filters, onCreate: _createBox, onDelete: widget.onDeleteBoxes)
+      else if(_canEdit) PopupMenuButton<bool>(tooltip: '생각 만들기', icon: const Icon(Icons.add),
         onSelected: (box) { if (box) { _createBox(); } else { _create(); } },
         itemBuilder: (_) => const [PopupMenuItem(value: false, child: Text('생각 만들기')), PopupMenuItem(value: true, child: Text('상자 만들기'))]),
-      PopupMenuButton<String>(tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: (value) {if(value=='all'){setState(() => _centered=false);}else{_resetArrangement(value=='stack');}},
+      PopupMenuButton<String>(tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: (value) {if(value=='all'){setState(() => _centered=false);}else if(_canEdit){_resetArrangement(value=='stack');}},
         itemBuilder: (_) => const [PopupMenuItem(value:'all',child:Text('전체 보기')),PopupMenuItem(value: 'spread', child: Text('펼쳐보기')), PopupMenuItem(value: 'stack', child: Text('겹쳐보기'))]),
-      IconButton(tooltip: '저장 (Ctrl+S)', onPressed: _saveCanvas, icon: const Icon(Icons.save_outlined)),
+      IconButton(tooltip: '저장 (Ctrl+S)', onPressed: _canEdit?_saveCanvas:null, icon: const Icon(Icons.save_outlined)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('사용 안내'),
           content: const Text('생각·태그를 드래그해 배치하세요. 생각을 누르면 수정할 수 있습니다. 라벨을 누르는 동안 해당 생각을 앞으로 볼 수 있습니다.'),
@@ -701,7 +732,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onSelected: (value) => setState(() { _hideTags = value; _saveLayout(); })),
         ],
       ])),
-      Expanded(child: Stack(children: [Positioned.fill(child: LayoutBuilder(builder: (context, viewport) {
+      Expanded(child: AbsorbPointer(absorbing:!_canEdit,child: Stack(children: [Positioned.fill(child: LayoutBuilder(builder: (context, viewport) {
         if (!_centered) {
           _centered = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -848,9 +879,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _dropHighlights.contains(record.id) || _draggingId == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) ? 3 : 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: _dropHighlights.contains(record.id) || _draggingId == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) || _draggingId == record.id ? 3 : 2)),
                   child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    if (AttachmentIndicators.hasAttachments(record)) Padding(padding: const EdgeInsets.only(top: 4, right: 6), child: Align(alignment: Alignment.centerRight, child: AttachmentIndicators(record: record))),
-                    Expanded(child: Padding(padding: const EdgeInsets.all(8), child: Text(badgeLabel(record.text), maxLines: !_layout.sizes.containsKey(record.id) ? 3 : ((_size(record.id).height - 24 - (widget.blocks && record.tags.isNotEmpty ? 24 : 0)) / 22).floor().clamp(1, 20),
-                      overflow: TextOverflow.ellipsis, style: TextStyle(color: wordColor(context, record.text))))),
+                    Expanded(child: Padding(padding: const EdgeInsets.all(8), child: Row(crossAxisAlignment:CrossAxisAlignment.start,children:[if(AttachmentIndicators.hasAttachments(record))...[AttachmentIndicators(record:record),const SizedBox(width:4)],Expanded(child: Text(badgeLabel(record.text), maxLines: !_layout.sizes.containsKey(record.id) ? 3 : ((_size(record.id).height - 24 - (widget.blocks && record.tags.isNotEmpty ? 24 : 0)) / 22).floor().clamp(1, 20),
+                      overflow: TextOverflow.ellipsis, style: TextStyle(color: wordColor(context, record.text))))]))),
                     if ((widget.blocks || (_layout.stacked && !_hideTags)) && record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 8, 8), child: Align(alignment: Alignment.centerLeft,
                       child: Text(record.tags.map((tag) => '#$tag').join('  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)))),
                     if (_layout.stacked && (record.tags.isEmpty || (!widget.blocks && _hideTags))) const SizedBox(height: 24),
@@ -979,7 +1009,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               ]))),
           ]),
         )),
-      ])),
+      ]))),
       ThoughtFilters(tags: _scopeRecords.expand((r) => r.tags).toSet().toList()..sort(),
         selection: _filters, onChanged: _changed,
         onFilter: _filters.toggle),

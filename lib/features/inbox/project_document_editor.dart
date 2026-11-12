@@ -1,5 +1,5 @@
-import 'dart:async';
-import 'dart:math' as math;
+import 'edit_lock.dart';
+import 'workspace_storage.dart';
 import 'save_shortcuts.dart';
 import 'thought_settings.dart';
 import 'thought_filters.dart';
@@ -16,8 +16,10 @@ import 'element_store.dart';
 import 'word_badge.dart';
 
 class ProjectDocumentEditor extends StatefulWidget {
-  const ProjectDocumentEditor({super.key, this.project, this.onChanged, this.onSave, this.onHistory, this.onLease, this.projects = const []});
+  const ProjectDocumentEditor({super.key, this.project, this.onChanged, this.onSave, this.onHistory, this.onLease, this.storage, this.onReload, this.projects = const []});
   final Future<Map<String,dynamic>> Function(String,String,bool)? onLease;
+  final WorkspaceStorage? storage;
+  final Future<void> Function()? onReload;
   final WritingProject? project;
   final List<WritingProject> projects;
   final Future<void> Function()? onChanged, onSave;
@@ -28,14 +30,24 @@ class ProjectDocumentEditor extends StatefulWidget {
 class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   late final LabelTextController _body;
   bool _preview = false;
-  late final String _leaseToken=List.generate(32,(_)=>math.Random.secure().nextInt(256).toRadixString(16).padLeft(2,'0')).join();
-  Timer? _leaseTimer;bool _leaseGranted=true,_leaseBusy=false;String? _leaseMessage;
-  bool get _needsLease=>widget.project!=null && widget.onLease!=null;
-  Future<bool> _renewLease()async{
-    if(!_needsLease)return true;if(_leaseBusy)return false;_leaseBusy=true;
-    try{final result=await widget.onLease!(widget.project!.id,_leaseToken,false);if(!mounted)return false;setState((){_leaseGranted=result['acquired']==true;_leaseMessage=_leaseGranted?null:'${result['holder']??'다른 사용자'} 편집 중 · 읽기 전용';});}
-    catch(_){if(mounted)setState((){_leaseGranted=false;_leaseMessage='편집 권한을 확인하지 못했습니다. 작성 중인 내용은 유지됩니다.';});}
-    finally{_leaseBusy=false;}return _leaseGranted;
+  EditLock? _lock;
+  bool _followServer=true;
+  void _remoteDocumentChanged(){
+    if(!mounted || _leaseGranted || !_followServer || _dirty || widget.project==null)return;
+    _body.text=widget.project!.content;_body.bindings..clear()..addAll(widget.project!.documentLinks);setState(()=>_dirty=false);
+  }
+  bool get _leaseGranted=>_lock?.granted??true;
+  String? get _leaseMessage=>_lock?.message;
+  bool get _needsLease=>widget.project!=null && (widget.onLease!=null || widget.storage?.documentLease!=null);
+  Future<bool> _renewLease()async=>await _lock?.renew()??true;
+  Future<void> _reload()async{
+    if(widget.onReload==null || !await confirmReload(context))return;
+    try{
+      await widget.onReload!();await _renewLease();if(!mounted)return;
+      _followServer=!_leaseGranted;
+      _body.text=widget.project!.content;_body.bindings..clear()..addAll(widget.project!.documentLinks);
+      _tags..clear()..addAll(widget.project!.tags);_filters.tags..clear()..addAll(_tags);setState(()=>_dirty=false);
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('갱신하지 못했습니다. $e')));}
   }
   final _search = TextEditingController();
   final _bodyFocus = FocusNode();
@@ -47,7 +59,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   @override
   void initState() {
     super.initState();
-    if(_needsLease){_leaseGranted=false;unawaited(_renewLease());_leaseTimer=Timer.periodic(const Duration(seconds:30),(_)=>unawaited(_renewLease()));}
+    if(_needsLease){_lock=EditLock(widget.project!.id,widget.storage,fallback:widget.onLease)..addListener(_refresh);}
     _body = LabelTextController( widget.project?.document ?? widget.project?.paragraphs.map((p) =>
       p.role == ParagraphRole.title ? '======${p.text}======' : p.role == ParagraphRole.subtitle ? '=====${p.text}=====' : p.text).join('\n\n') ?? '', widget.project?.documentLinks ?? const []);
     for (final project in widget.projects) { elements.indexProject(project); }
@@ -55,6 +67,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     _tags.addAll(widget.project?.tags ?? {});
     if (widget.project?.document == null) _tags.addAll(widget.project?.paragraphs.expand((p) => p.tags) ?? <String>[]);
     _filters.tags.addAll(_tags); _filters.addListener(_refresh);
+    widget.storage?.liveChanges.addListener(_remoteDocumentChanged);
     _body.addListener(_edited); elements.addListener(_refresh);
   }
   @override
@@ -65,9 +78,9 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     _keyboardVisible = visible;
   }
   void _edited() { if (mounted) setState(() => _dirty = true); }
-  void _refresh() { if (mounted) setState(() {}); }
+  void _refresh() { if(_leaseGranted)_followServer=false;if (mounted) setState(() {}); }
   @override
-  void dispose() { _leaseTimer?.cancel();if(_needsLease)unawaited(widget.onLease!(widget.project!.id,_leaseToken,true).then<void>((_){}).catchError((Object _){}));elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
+  void dispose() { widget.storage?.liveChanges.removeListener(_remoteDocumentChanged);_lock?.removeListener(_refresh);_lock?.dispose();elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
   void _insertLabel(String word) {
     _body.insertTarget(word); _bodyFocus.requestFocus();
   }
@@ -128,7 +141,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('계속 작성')),
       TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('나가기'))]));
     if (discard == true && mounted) { setState(() => _dirty = false); WidgetsBinding.instance.addPostFrameCallback((_) { if (context.mounted) Navigator.pop(context); }); }
-  }, child: Scaffold(appBar: AppBar(title: WorkspaceTitle(widget.project?.name ?? '문서 만들기'), actions: [const KeyboardDismissAction(), const DesktopMenuAction(), if(_needsLease)IconButton(tooltip:_leaseMessage??'이 문서를 편집 중입니다',onPressed:()=>_renewLease(),icon:Icon(_leaseGranted?Icons.lock_open:Icons.lock_outline)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _preview = !_preview)), TextButton(style: TextButton.styleFrom(minimumSize: Size(_wide ? 40 : 32, 40), padding: EdgeInsets.symmetric(horizontal: _wide ? 6 : 2), tapTargetSize: _wide ? MaterialTapTargetSize.padded : MaterialTapTargetSize.shrinkWrap), onPressed: _leaseGranted?_save:null, child: const Text('저장')),
+  }, child: Scaffold(appBar: AppBar(title: WorkspaceTitle(widget.project?.name ?? '문서 만들기'), actions: [const KeyboardDismissAction(), const DesktopMenuAction(), if(_needsLease)IconButton(tooltip:_leaseMessage??'이 문서를 편집 중입니다',onPressed:()=>_leaseGranted?_renewLease():_lock?.takeOver(context),icon:Icon(_leaseGranted?Icons.lock_open:Icons.lock_outline)), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _preview = !_preview)), TextButton(style: TextButton.styleFrom(minimumSize: Size(_wide ? 40 : 32, 40), padding: EdgeInsets.symmetric(horizontal: _wide ? 6 : 2), tapTargetSize: _wide ? MaterialTapTargetSize.padded : MaterialTapTargetSize.shrinkWrap), onPressed: _leaseGranted?_save:null, child: const Text('저장')),
     if(widget.project!=null && widget.onHistory!=null)IconButton(tooltip:'문서 변경 이력',icon:const Icon(Icons.history),onPressed:()=>widget.onHistory!(widget.project!.id)),
     IconButton(tooltip: '작성 문법 안내', icon: const Icon(Icons.info_outline), onPressed: _showHelp),
    ]), bottomNavigationBar: _leaseGranted?null:SafeArea(child:Padding(padding:const EdgeInsets.all(12),child:Text(_leaseMessage??'편집 권한을 확인하고 있습니다.'))), body: DesktopMenuBody(child: SafeArea(top: false, child: LayoutBuilder(builder: (context, constraints) {

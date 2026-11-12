@@ -101,7 +101,8 @@ void main() {
         tester.getTopLeft(find.text('동기화 관리')).dy,
         lessThan(tester.getTopLeft(find.text('닫힌 생각 숨기기')).dy),
       );
-      for (final label in ['데이터 초기화', '로그아웃', '모든 기기에서 로그아웃']) {
+      expect(tester.widget<Text>(find.text('데이터 초기화')).style?.color, Colors.white);
+      for (final label in ['로그아웃', '모든 기기에서 로그아웃']) {
         expect(
           tester.widget<Text>(find.text(label)).style?.color,
           const Color(0xFFD64550),
