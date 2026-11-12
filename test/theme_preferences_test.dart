@@ -11,6 +11,7 @@ void main() {
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());
     await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
     Future<void> choose(String label) async {
+      if(find.byKey(const ValueKey('close-settings')).evaluate().isEmpty){if(find.text('환경설정').evaluate().isEmpty){await tester.tap(find.byTooltip('메뉴 열기'));await tester.pumpAndSettle();}await tester.tap(find.text('환경설정').first);await tester.pumpAndSettle();}
       await tester.tap(find.byTooltip('테마 선택')); await tester.pumpAndSettle();
       await tester.tap(find.text(label)); await tester.pumpAndSettle();
     }
@@ -34,6 +35,7 @@ void main() {
     await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
     await tester.enterText(find.byType(TextField).first, '유지할 초안');
     Future<void> choose(String label) async {
+      if(find.byKey(const ValueKey('close-settings')).evaluate().isEmpty){if(find.text('환경설정').evaluate().isEmpty){await tester.tap(find.byTooltip('메뉴 열기'));await tester.pumpAndSettle();}await tester.tap(find.text('환경설정').first);await tester.pumpAndSettle();}
       await tester.tap(find.byTooltip('테마 선택'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text(label));

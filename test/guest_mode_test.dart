@@ -46,7 +46,8 @@ void main() {
     var transfers = 0;
     unawaited(showThoughtSettings(context, prefs, onUpload: () async { transfers++; }, onDownload: () async { transfers++; }));
     await tester.pumpAndSettle();
-    for (final label in ['데이터 저장하기','데이터 가져오기']) {
+    await tester.tap(find.text('동기화 관리'));await tester.pumpAndSettle();
+    for (final label in ['변경사항 동기화','서버 변경 불러오기']) {
       final tile = tester.widget<ListTile>(find.widgetWithText(ListTile, label));
       expect(tile.enabled, isFalse);expect(tile.onTap, isNull);
     }

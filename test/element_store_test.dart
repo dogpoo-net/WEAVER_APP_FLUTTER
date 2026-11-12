@@ -35,6 +35,7 @@ void main() {
       name: '시험',
     );
     await tester.pumpWidget(MaterialApp(home: ProjectPage(project: project)));
+    await tester.tap(find.byTooltip('문서 수정'));await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('project-document')), findsOneWidget);
     expect(find.byWidgetPredicate((w) => w is WordBadge && w.word == '작은 생각'), findsOneWidget);
     expect(find.text('글로벌 생각 저장'), findsNothing);

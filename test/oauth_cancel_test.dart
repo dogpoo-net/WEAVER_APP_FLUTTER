@@ -34,7 +34,7 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
     window.closed = true; await tester.pump(const Duration(milliseconds: 250)); await tester.pump();
     expect(find.byType(LinearProgressIndicator), findsNothing);
-    final close = tester.widget<TextButton>(find.widgetWithText(TextButton, '닫기'));
+    final close = tester.widget<IconButton>(find.byKey(const ValueKey('close-settings')));
     expect(close.onPressed, isNotNull);
     pending.complete(response({'flow': 'late', 'authorizeUrl': 'https://github.com/login/oauth/authorize'}));
     await tester.pump(); await tester.pumpWidget(const SizedBox()); auth.dispose();

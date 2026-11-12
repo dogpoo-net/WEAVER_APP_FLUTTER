@@ -20,6 +20,7 @@ class Note {
     : id = id ?? 'note-${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(0x7fffffff)}', createdAt = created ?? DateTime.now();
   final String id;
   String content;
+  DateTime? updatedAt;
   String? folder;
   List<ElementBinding> bindings = [];
   final Set<String> tags = {};
@@ -106,6 +107,7 @@ class WorkspaceSnapshot {
             'folder': n.folder,
             'tags': n.tags.toList(),
             'createdAt': n.createdAt.toIso8601String(),
+            if(n.updatedAt!=null)'updatedAt':n.updatedAt!.toIso8601String(),
             'paragraphs': n.paragraphs?.map(paragraph).toList(),
             'project': n.project == null
                 ? null
@@ -189,6 +191,7 @@ class WorkspaceSnapshot {
         created: DateTime.parse(n['createdAt'] as String),
         id: n['id'] as String? ?? 'legacy-note-${n['createdAt']}-${noteIndex++}',
       );
+      note.updatedAt=DateTime.tryParse(n['updatedAt'] as String? ?? '');
       note.bindings = bindings({'text': n['content'], 'bindings': n['bindings']});
       if (n['paragraphs'] == null && n['project'] == null) note.bindings.removeWhere((b) => !b.id.startsWith('label:') && !b.id.startsWith('url:') && !b.id.startsWith('project:'));
       note.folder = n['folder'] as String?;
@@ -333,6 +336,9 @@ class WorkspaceStorage {
   Future<void> Function()? syncNow;
   Future<void> Function()? pullNow;
   Future<void> Function()? openSharing;
+  Future<void> Function()? openWorkspaces;
+  String? workspaceName;
+  Map<String,dynamic>? Function(String,String)? itemMetadata;
   Future<void> Function(String)? openHistory;
   bool Function()? hasUnsavedInput;
   bool suspended = false;

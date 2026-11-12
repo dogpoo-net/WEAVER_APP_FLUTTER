@@ -73,13 +73,13 @@ void main() {
 
   testWidgets('main and menu expose all thoughts', (tester) async {
     await tester.pumpWidget(const MyApp(requireLogin: false, ));
-    expect(find.text('모든 생각 보기'), findsOneWidget);
+    expect(find.text('전체 보기'), findsOneWidget);
     await tester.tap(find.byTooltip('메뉴 열기'));
     await tester.pumpAndSettle();
     final menu = find.byType(WorkspaceMenu);
-    expect(find.descendant(of: menu, matching: find.text('모든 생각 보기')), findsOneWidget);
+    expect(find.descendant(of: menu, matching: find.text('전체 보기')), findsOneWidget);
     expect(find.byTooltip('문단 추가'), findsNothing);
-    await tester.tap(find.descendant(of: menu, matching: find.text('모든 생각 보기')));
+    await tester.tap(find.descendant(of: menu, matching: find.text('전체 보기')));
     await tester.pumpAndSettle();
     expect(find.byTooltip('메모상자 만들기'), findsOneWidget);
   });

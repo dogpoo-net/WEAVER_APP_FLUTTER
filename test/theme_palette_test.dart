@@ -10,6 +10,7 @@ void main() {
     final originalDark = Theme.of(tester.element(find.byType(Scaffold).first)).colorScheme;
 
     Future<ColorScheme> choose(String label) async {
+      if(find.byKey(const ValueKey('close-settings')).evaluate().isEmpty){if(find.text('환경설정').evaluate().isEmpty){await tester.tap(find.byTooltip('메뉴 열기'));await tester.pumpAndSettle();}await tester.tap(find.text('환경설정').first);await tester.pumpAndSettle();}
       await tester.tap(find.byTooltip('테마 선택'));
       await tester.pumpAndSettle();
       expect(find.byType(PaletteSwatches), findsWidgets);

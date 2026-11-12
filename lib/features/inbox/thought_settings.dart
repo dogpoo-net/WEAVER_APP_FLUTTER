@@ -1,3 +1,4 @@
+import '../../app_theme.dart';
 import '../sync/workspace_backup.dart';
 import '../auth/google_auth.dart';
 import '../auth/email_auth.dart';
@@ -16,6 +17,8 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
   Future<void> Function()? onReset,
   Future<void> Function()? onSignIn,
   Future<void> Function()? onInvite,
+  Future<void> Function()? onWorkspaces,
+  String? workspaceName,
 }) async {
   var busy = false;
   var linkingAccount = false;
@@ -52,6 +55,8 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
       titleTextStyle: Theme.of(context).textTheme.bodySmall,
       iconColor: Theme.of(context).colorScheme.onSurfaceVariant),
       child: IconTheme(data: const IconThemeData(size: 20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.workspaces_outline),title:const Text('워크스페이스'),subtitle:Text(workspaceName??(guest?'비회원 작업공간':'내 워크스페이스')),trailing:const Icon(Icons.chevron_right),onTap:busy||onWorkspaces==null?null:(){Navigator.pop(dialogContext);onWorkspaces();}),
+        if(signedIn)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.group_add_outlined),title:const Text('초대하기'),onTap:busy||onInvite==null?null:(){Navigator.pop(dialogContext);onInvite();}),
         if (signedIn) ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.person_outline),
           title: Text(auth!.identity!.displayName?.trim().isNotEmpty == true ? auth.identity!.displayName! : '내 계정'),
           subtitle: Text(auth.identity!.email)),
@@ -62,25 +67,15 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
         const Divider(),
         if (guest) const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.person_outline),
           title: Text('비회원 · 로컬 저장 전용'), subtitle: Text('클라우드 저장·가져오기는 로그인 후 사용할 수 있습니다. 저장한 로컬 데이터는 로그인 후에도 유지됩니다.')),
-        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_upload_outlined), title: const Text('데이터 저장하기'), enabled: cloudEnabled && !busy,
+        ExpansionTile(tilePadding:EdgeInsets.zero,title:const Text('동기화 관리'),children:[
+        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_upload_outlined), title: const Text('변경사항 동기화'), enabled: cloudEnabled && !busy,
           onTap: busy || !cloudEnabled || onUpload == null ? null : () => run(onUpload)),
-        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_download_outlined), title: const Text('데이터 가져오기'), enabled: cloudEnabled && !busy,
+        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_download_outlined), title: const Text('서버 변경 불러오기'), enabled: cloudEnabled && !busy,
           onTap: busy || !cloudEnabled || onDownload == null ? null : () => run(onDownload)),
+        ]),
         if (busy) const LinearProgressIndicator(),
         if (linkingAccount) TextButton(onPressed: auth?.cancelAccountLink,
           child: const Text('계정 연결 취소')),
-        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.delete_outline), title: const Text('데이터 초기화'),
-          onTap: busy || onReset == null ? null : () { Navigator.pop(dialogContext); onReset(); }),
-        const Divider(),
-        if(signedIn)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.group_add_outlined),title:const Text('초대하기'),onTap:busy||onInvite==null?null:()=>onInvite()),
-        if (guest) ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.login), title: const Text('로그인 / 회원가입'),
-          onTap: busy ? null : () => run(onSignIn ?? auth!.leaveGuest))
-        else ListTile(contentPadding: EdgeInsets.zero, title: const Text('로그아웃', style: TextStyle(color: Color(0xFFD64550))),
-          onTap: busy || !signedIn ? null : () => run(() async {
-            await auth!.signOut();
-            if (auth.error != null) throw BackupFailure(auth.error!);
-          })),
-        const Divider(),
         if (auth?.isEmailAccount == true) ListTile(contentPadding: EdgeInsets.zero,
           title: const Text('GitHub 계정 연결'), onTap: busy ? null : () => run(() async {
             final linked = await auth!.linkBrowser('github');
@@ -101,6 +96,16 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
             final linked = await auth!.linkBrowser('naver');
             if (linked && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('네이버 계정을 연결했습니다.')));
           }, accountLink: true)),
+        ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.delete_outline), title: const Text('데이터 초기화'),
+          onTap: busy || onReset == null ? null : () { Navigator.pop(dialogContext); onReset(); }),
+        const Divider(),
+        if (guest) ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.login), title: const Text('로그인 / 회원가입'),
+          onTap: busy ? null : () => run(onSignIn ?? auth!.leaveGuest))
+        else ListTile(contentPadding: EdgeInsets.zero, title: const Text('로그아웃', style: TextStyle(color: Color(0xFFD64550))),
+          onTap: busy || !signedIn ? null : () => run(() async {
+            await auth!.signOut();
+            if (auth.error != null) throw BackupFailure(auth.error!);
+          })),
         if (auth?.isEmailAccount == true) ListTile(contentPadding: EdgeInsets.zero,
           title: const Text('모든 기기에서 로그아웃'), onTap: busy ? null : () => run(() async {
             final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
@@ -113,26 +118,26 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
               if (auth.error != null) throw BackupFailure(auth.error!);
             }
           })),
+        const Divider(),
         ListTile(contentPadding: EdgeInsets.zero, title: const Text('오픈소스 사용 정보'), trailing: const Icon(Icons.chevron_right),
           onTap: busy ? null : () => showLicensePage(context: context, applicationName: 'WEAVER')),
       ])));
-    final close = TextButton(onPressed: busy ? null : () => Navigator.pop(dialogContext), child: const Text('닫기'));
+    final theme=ThemeControls.of(context);
+    final header=Row(children:[Expanded(child:Text('환경설정',style:Theme.of(context).textTheme.titleMedium)),IconButton(tooltip:'테마 선택',onPressed:busy||theme==null?null:()=>theme.open(context),icon:Icon(Theme.of(context).brightness==Brightness.dark?Icons.dark_mode_outlined:Icons.light_mode_outlined)),IconButton(key:const ValueKey('close-settings'),tooltip:'닫기',onPressed:busy?null:()=>Navigator.pop(dialogContext),icon:const Icon(Icons.close))]);
     return PopScope(canPop: !busy, child: mobile ? Dialog(
       alignment: AlignmentDirectional.topStart,
       insetPadding: const EdgeInsets.fromLTRB(16, 64, 16, 12),
       child: SizedBox(width: double.infinity, height: double.infinity, child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('환경설정', style: Theme.of(context).textTheme.titleMedium),
+          header,
           const SizedBox(height: 12),
           Expanded(child: SingleChildScrollView(child: settings)),
-          Align(alignment: Alignment.centerRight, child: close),
         ]),
       )),
     ) : AlertDialog(
-      title: const Text('환경설정'),
+      title: header,
       content: SizedBox(width: 360, child: SingleChildScrollView(child: settings)),
-      actions: [close],
     ));
   }));
 }

@@ -170,6 +170,8 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
             }
           }
         }
+        target.workspaceName=catalog.firstWhere((row)=>row['workspaceId']==workspaceId)['name'] as String?;
+        target.openWorkspaces=chooseWorkspace;
         target.documentLease = engine.documentLease;
         engine.addListener(refresh);
         target.pullNow = () async {
@@ -270,6 +272,13 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     }
   }
 
+  Future<void> chooseWorkspace()async{
+    try{final result=await widget.auth.emailApi.workspace('catalog',{});if(!current)return;catalog=result['workspaces'] as List;}catch(_){if(!mounted)return;ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('워크스페이스 목록을 불러오지 못했습니다.')));return;}
+    if(!mounted)return;
+    final id=await showDialog<String>(context:context,builder:(context)=>SimpleDialog(title:const Text('워크스페이스 선택'),children:[for(final item in catalog)SimpleDialogOption(onPressed:()=>Navigator.pop(context,item['workspaceId']),child:Row(children:[Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(item['name']??'공유 워크스페이스'),Text(roleLabel(item['role']),style:Theme.of(context).textTheme.bodySmall)])),if(item['workspaceId']==selected)const Icon(Icons.check)]))]));
+    if(id!=null && current)await switchWorkspace(id);
+  }
+
   Future<void> switchWorkspace(String id) async {
     if (!current || selected == id) return;
     if (storage?.hasUnsavedInput?.call() == true) {
@@ -346,55 +355,6 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     }
     return Column(
       children: [
-        if (account != 'guest')
-          Material(
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButton<String>(
-                        isExpanded: true,
-                        value: selected,
-                        onChanged: (id) {
-                          if (id != null) unawaited(switchWorkspace(id));
-                        },
-                        items: [
-                          for (final item in catalog)
-                            DropdownMenuItem(
-                              value: item['workspaceId'] as String,
-                              child: Text(
-                                '${item['name'] ?? '공유'}${item['role'] == 'owner' ? '' : '의 워크스페이스'} · ${roleLabel(item['role'])}',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: invitations > 0
-                          ? '받은 초대 $invitations개'
-                          : '초대·참여자',
-                      icon: Badge(
-                        isLabelVisible: invitations > 0,
-                        label: Text('$invitations'),
-                        child: const Icon(Icons.group_add_outlined),
-                      ),
-                      onPressed: storage!.openSharing,
-                    ),
-                    if (role == 'viewer')
-                      IconButton(
-                        tooltip: '로그아웃',
-                        onPressed: () => widget.auth.signOut(),
-                        icon: const Icon(Icons.logout),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
         if (notice != null)
           Material(
             child: Padding(

@@ -23,7 +23,7 @@ void main() {
   testWidgets('editing preserves original paragraph roles and bindings across storage', (tester) async {
     final original = Paragraph('원본', ParagraphRole.title, bindings: [const ElementBinding('source', 0, 2)]);
     final project = WritingProject([original], [], name: '보존');
-    await tester.pumpWidget(MaterialApp(home: ProjectPage(project: project)));
+    await tester.pumpWidget(MaterialApp(home: ProjectDocumentEditor(project: project)));
     expect(tester.widget<TextField>(find.byKey(const ValueKey('project-document'))).controller!.text, '======원본======');
     await tester.enterText(find.byKey(const ValueKey('project-document')), '새 통합 본문');
     await tester.tap(find.text('저장')); await tester.pumpAndSettle();

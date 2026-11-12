@@ -1,3 +1,4 @@
+import 'overview_collections.dart';
 import 'thought_settings.dart';
 import '../capture/geolog_page.dart';
 import 'tag_colors.dart';
@@ -139,7 +140,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     });
     final footer = ThoughtFilters(tags: tags, selection: _filters,
       onChanged: _changed, onFilter: _filters.toggle);
-    return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filterBox?.name ?? '모든 생각 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
+    return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filterBox?.name ?? '전체 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
       IconButton(tooltip: '사진 있는 생각', isSelected: _photosOnly,
@@ -167,12 +168,14 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   }
 }
 
-enum ThoughtView { boxes, diagram, page, geolog }
+enum ThoughtView { documents, boxes, diagram, page, photos, audio, geolog }
 
 class AllThoughtsPage extends StatefulWidget {
-  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.onSave, this.initialBox, this.initialView = ThoughtView.boxes});
+  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.onDocument, this.initialBox, this.initialView = ThoughtView.boxes});
   final List<Note> notes;
   final VoidCallback? onChanged, onLayoutChanged;
+  final WorkspaceStorage? storage;
+  final Future<void> Function(Note)? onDocument;
   final Future<void> Function()? onSave;
   final MemoBox? initialBox;
   final ThoughtView initialView;
@@ -186,28 +189,19 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
   void initState() {
     super.initState();
     ensureUnclassifiedBox();
-    _tabPosition = AnimationController(vsync: this, upperBound: ThoughtView.values.length - 1.0, value: widget.initialView.index.toDouble());
+    _tabPosition=AnimationController(vsync:this,upperBound:ThoughtView.values.length-1.0,value:widget.initialView.index.toDouble());
   }
   @override
   void dispose() { _filters.dispose(); _tabPosition.dispose(); super.dispose(); }
   late ThoughtView _view = widget.initialView;
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final selector = SizedBox(height: 36, width: double.infinity, child: LayoutBuilder(builder: (context, bounds) => Stack(children: [
-      AnimatedBuilder(animation: _tabPosition,
-        builder: (context, _) => Positioned(left: _tabPosition.value * bounds.maxWidth / ThoughtView.values.length, top: 0, bottom: 0,
-          width: bounds.maxWidth / ThoughtView.values.length, child: ColoredBox(key: const ValueKey('thought-tab-highlight'), color: colors.secondaryContainer))),
-      Positioned.fill(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [for (final view in ThoughtView.values) Expanded(child: Semantics(selected: view == _view,
-        child: TextButton(style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap, shape: const RoundedRectangleBorder(), foregroundColor: view == _view ? colors.onSecondaryContainer : colors.onSurface),
-          onPressed: () {
-            if (_view == view) return;
-            setState(() => _view = view);
-            _tabPosition.animateTo(view.index.toDouble(), duration: const Duration(milliseconds: 200), curve: Curves.easeInOutCubic);
-          },
-          child: Text(switch (view) { ThoughtView.diagram => '다이어그램', ThoughtView.boxes => '생각', ThoughtView.page => '메모상자', ThoughtView.geolog => '지오로그' })))),
-      ])),
+    final selector=SingleChildScrollView(key:const PageStorageKey('overview-tabs'),scrollDirection:Axis.horizontal,child:SizedBox(height:40,width:ThoughtView.values.length*104,child:Stack(children:[
+      AnimatedBuilder(animation:_tabPosition,builder:(context,_)=>Positioned(left:_tabPosition.value*104,top:0,bottom:0,width:104,child:ColoredBox(key:const ValueKey('thought-tab-highlight'),color:Theme.of(context).colorScheme.secondaryContainer))),
+      Row(children:[for(final view in ThoughtView.values)SizedBox(width:104,height:40,child:Semantics(selected:view==_view,child:TextButton(style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),onPressed:(){setState(()=>_view=view);_tabPosition.animateTo(view.index.toDouble(),duration:const Duration(milliseconds:200),curve:Curves.easeInOutCubic);},child:Text(switch(view){ThoughtView.documents=>'문서',ThoughtView.boxes=>'생각',ThoughtView.diagram=>'다이어그램',ThoughtView.page=>'메모상자',ThoughtView.photos=>'사진',ThoughtView.audio=>'음성',ThoughtView.geolog=>'지오로그'}))))])
     ])));
+    if(_view==ThoughtView.documents)return DesktopMenuFrame(child:DocumentCollection(notes:widget.notes,selector:selector,storage:widget.storage,onOpen:widget.onDocument));
+    if(_view==ThoughtView.photos || _view==ThoughtView.audio)return DesktopMenuFrame(child:AttachmentCollection(key:ValueKey(_view),audio:_view==ThoughtView.audio,selector:selector,filters:_filters,storage:widget.storage,onChanged:widget.onChanged));
     if (_view == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(filters: _filters, box: widget.initialBox,
       viewSelector: selector, onChanged: () => widget.onChanged?.call())); }
     if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(filters: _filters, notes: widget.notes, initialBox: widget.initialBox,

@@ -27,8 +27,8 @@ void main(){
    await tester.pumpAndSettle();expect(find.byTooltip('전체 위치 보기'),findsNothing);
    await tester.tap(find.byTooltip('저장 (Ctrl+S)'));await tester.pumpAndSettle();expect(saves,1);expect(find.text('저장되었습니다.'),findsOneWidget);
    await saveKey(tester);expect(saves,2);
-   await tester.tap(find.byTooltip('배치 초기화'));await tester.pumpAndSettle();expect(find.text('전체 보기'),findsOneWidget);
-   expect(tester.getTopLeft(find.text('전체 보기')).dy,lessThan(tester.getTopLeft(find.text('펼쳐보기')).dy));
+   await tester.tap(find.byTooltip('배치 초기화'));await tester.pumpAndSettle();expect(find.descendant(of:find.byType(PopupMenuItem<String>),matching:find.text('전체 보기')),findsOneWidget);
+   expect(tester.getTopLeft(find.descendant(of:find.byType(PopupMenuItem<String>),matching:find.text('전체 보기'))).dy,lessThan(tester.getTopLeft(find.text('펼쳐보기')).dy));
   });
  }
 }

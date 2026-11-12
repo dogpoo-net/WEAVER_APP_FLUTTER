@@ -192,6 +192,7 @@ class WorkspaceSync extends ChangeNotifier {
       if(current==null || current==_lastSynced)_lastSynced=raw;
       await saveBase();ready=true;error=null;
     }catch(e){error=e.toString();}
+    storage.itemMetadata=(kind,id)=>base[itemKey(kind,id)];
     storage.onChanged=schedule;storage.syncNow=flush;
     changed();if(ready && storage.read()!=_lastSynced)schedule();
   }
@@ -218,7 +219,7 @@ class WorkspaceSync extends ChangeNotifier {
         // Only acknowledge the submitted local snapshot. Remote-only edits are
         // fetched on the next workspace open, not applied over an active editor.
         final returned={for(final row in result['changes'] as List)itemKey(row['kind'],row['id']):row};
-        for(final c in changes){final key=itemKey(c['kind'],c['id']);base[key]={...c,'revision':returned[key]?['revision']??result['revision']};}
+        for(final c in changes){final key=itemKey(c['kind'],c['id']);base[key]={...c,'revision':returned[key]?['revision']??result['revision'],'author':returned[key]?['author'],'updatedAt':returned[key]?['updatedAt']};}
       }
       _lastSynced=raw;await saveBase();error=null;
     }catch(e){error=e.toString();}

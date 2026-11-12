@@ -94,3 +94,45 @@ extension DarkPaletteColors on DarkPalette {
   };
   List<Color> get swatches => [colors.surface, colors.surfaceContainerHighest, colors.primary];
 }
+
+class ThemeControls extends InheritedWidget {
+ const ThemeControls({super.key,required this.mode,required this.light,required this.dark,required this.onChanged,required super.child});
+ final ThemeMode mode;final LightPalette light;final DarkPalette dark;final ValueChanged<Object> onChanged;
+ static ThemeControls? of(BuildContext context)=>context.dependOnInheritedWidgetOfExactType<ThemeControls>();
+ @override bool updateShouldNotify(ThemeControls old)=>old.mode!=mode || old.light!=light || old.dark!=dark;
+  Widget _themeChoice(BuildContext context, Object value, bool checked, Widget title) => ListTile(
+    dense: true, visualDensity: const VisualDensity(vertical: -2), minVerticalPadding: 0, selected: checked,
+    leading: checked ? const Icon(Icons.check, size: 18) : const SizedBox(width: 18),
+    title: title, onTap: () => Navigator.pop(context, value),
+  );
+
+  Future<void> open(BuildContext context) async {
+    final choice = await showDialog<Object>(context: context, builder: (context) => Dialog(
+      alignment: AlignmentDirectional.topEnd,
+      insetPadding: const EdgeInsets.fromLTRB(16, 64, 16, 12),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(width: 320, child: SingleChildScrollView(child: Column(
+        mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(padding: EdgeInsets.fromLTRB(16, 10, 16, 4), child: Text('화면 모드')),
+          _themeChoice(context, ThemeMode.system, mode == ThemeMode.system, const Text('시스템 설정')),
+          _themeChoice(context, ThemeMode.light, mode == ThemeMode.light,
+            Row(children: [const Expanded(child: Text('라이트')), PaletteSwatches(colors: light.swatches)])),
+          _themeChoice(context, ThemeMode.dark, mode == ThemeMode.dark,
+            Row(children: [const Expanded(child: Text('다크')), PaletteSwatches(colors: dark.swatches)])),
+          const Divider(),
+          const Padding(padding: EdgeInsets.fromLTRB(16, 4, 16, 4), child: Text('라이트 컬러셋')),
+          for (final palette in LightPalette.values) _themeChoice(context, palette, light == palette,
+            Row(children: [Expanded(child: Text(palette.label)), PaletteSwatches(colors: palette.swatches)])),
+          const Divider(height: 16),
+          const Padding(padding: EdgeInsets.fromLTRB(16, 4, 16, 4), child: Text('다크 컬러셋')),
+          for (final palette in DarkPalette.values) _themeChoice(context, palette, dark == palette,
+            Row(children: [Expanded(child: Text(palette.label)), PaletteSwatches(colors: palette.swatches)])),
+          const SizedBox(height: 6),
+
+        ],
+      ))),
+    ));
+    if(context.mounted && choice!=null)onChanged(choice);
+  }
+}

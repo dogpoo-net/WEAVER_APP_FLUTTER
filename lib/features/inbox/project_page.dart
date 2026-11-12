@@ -1,5 +1,6 @@
+import 'document_markup.dart';
+import 'workspace_routes.dart';
 import 'element_binding.dart';
-import 'document_syntax.dart';
 import 'dart:math';
 import 'desktop_menu_frame.dart';
 import 'paragraph_editor.dart';
@@ -25,13 +26,15 @@ class WritingProject {
   String get title => document == null ? name : documentTitle(document!);
 }
 
-class ProjectPage extends StatelessWidget {
+class ProjectPage extends StatefulWidget {
   const ProjectPage({super.key, required this.project, this.onChanged, this.onSave, this.onHistory, this.onLease, this.projects = const []});
   final Future<Map<String,dynamic>> Function(String,String,bool)? onLease;
   final WritingProject project;
   final List<WritingProject> projects;
   final Future<void> Function()? onChanged, onSave;
   final Future<void> Function(String)? onHistory;
-  @override
-  Widget build(BuildContext context) => DesktopMenuFrame(child: ProjectDocumentEditor(project: project, projects: projects, onChanged: onChanged, onSave: onSave,onHistory:onHistory,onLease:onLease));
+  @override State<ProjectPage> createState()=>_ProjectPageState();
+}
+class _ProjectPageState extends State<ProjectPage>{
+ @override Widget build(BuildContext context)=>DesktopMenuFrame(child:Scaffold(appBar:AppBar(title:WorkspaceTitle(widget.project.title),actions:[if(widget.onHistory!=null)IconButton(tooltip:'문서 변경 이력',onPressed:()=>widget.onHistory!(widget.project.id),icon:const Icon(Icons.history)),IconButton(tooltip:'문서 수정',icon:const Icon(Icons.edit_outlined),onPressed:()async{await Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>DesktopMenuFrame(child:ProjectDocumentEditor(project:widget.project,projects:widget.projects,onChanged:widget.onChanged,onSave:widget.onSave,onHistory:widget.onHistory,onLease:widget.onLease))));if(mounted)setState((){});})]),body:DesktopMenuBody(child:SelectionArea(child:SingleChildScrollView(padding:const EdgeInsets.all(20),child:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:900),child:DocumentMarkup(text:widget.project.content,links:widget.project.documentLinks))))))));
 }

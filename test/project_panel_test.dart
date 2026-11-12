@@ -1,3 +1,4 @@
+import 'package:weaver/features/inbox/project_document_editor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/project_page.dart';
@@ -15,7 +16,7 @@ void main() {
     elements.clear();
     elements.add('열린 참고');
     elements.add('닫힌 참고').hiddenFromSearch = true;
-    await tester.pumpWidget(MaterialApp(home: ProjectPage(project: WritingProject([], [], name: '필터 검증'))));
+    await tester.pumpWidget(MaterialApp(home: ProjectDocumentEditor(project: WritingProject([], [], name: '필터 검증'))));
     await tester.pumpAndSettle();
     expect(find.text('닫힌 참고'), findsOneWidget);
     showClosedThoughts = false; elements.refreshVisibility();
@@ -30,8 +31,9 @@ void main() {
   testWidgets('desktop reference list scrolls independently above a full-width filter footer', (tester) async {
     tester.view.physicalSize = const Size(1200, 900); tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(MaterialApp(home: ProjectPage(project: project()))); await tester.pumpAndSettle();
+    await tester.pumpWidget(MaterialApp(home: ProjectDocumentEditor(project: project()))); await tester.pumpAndSettle();
     expect(tester.getSize(find.byKey(const ValueKey('project-reference-panel'))).width, greaterThanOrEqualTo(400));
+    expect(tester.getCenter(find.byKey(const ValueKey('project-thought-panel-toggle'))).dx,greaterThan(tester.getRect(find.byKey(const ValueKey('project-reference-panel'))).right));
     expect(find.byKey(const ValueKey('project-box-panel')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('project-panel-toggle'))); await tester.pumpAndSettle();
     final thoughts = find.byKey(const ValueKey('project-thought-scroll'));
@@ -55,7 +57,7 @@ void main() {
     final draft = project();
     await tester.pumpWidget(MaterialApp(builder: (context, child) => Actions(actions: <Type, Action<Intent>>{
       EditableTextTapOutsideIntent: CallbackAction<EditableTextTapOutsideIntent>(onInvoke: (intent) { intent.focusNode.unfocus(); return null; }),
-    }, child: child!), home: ProjectPage(project: draft))); await tester.pumpAndSettle();
+    }, child: child!), home: ProjectDocumentEditor(project: draft))); await tester.pumpAndSettle();
     final toggle = find.byKey(const ValueKey('project-panel-toggle'));
     final panel = find.byKey(const ValueKey('project-reference-panel'));
     final boxes = find.byKey(const ValueKey('project-box-panel'));

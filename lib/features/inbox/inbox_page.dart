@@ -782,7 +782,7 @@ class _InboxPageState extends State<InboxPage> {
     ..._notes.where((n) => n.project == null && n.paragraphs != null).expand((n) => n.tags)}.toList()..sort();
 
   Future<void> _allThoughts([MemoBox? box]) async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onLayoutChanged: _persistLayouts, onChanged: _persist, onSave:_saveAndSync, initialBox: box)));
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onLayoutChanged: _persistLayouts, onChanged: _persist, onSave:_saveAndSync, initialBox: box, storage:widget.storage, onDocument:_showProject)));
     if (mounted) setState(() {});
   }
 
@@ -813,7 +813,7 @@ class _InboxPageState extends State<InboxPage> {
       context,
       MaterialPageRoute(
         builder: (_) =>
-            ProjectPage(project: note.project!, projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: _persist, onSave: _saveAndSync, onHistory:widget.storage?.openHistory, onLease:widget.storage?.documentLease),
+            ProjectPage(project: note.project!, projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: ()async{if(note.content!=note.project!.content)note.updatedAt=DateTime.now();note.content=note.project!.content;await _persist();}, onSave: _saveAndSync, onHistory:widget.storage?.openHistory, onLease:widget.storage?.documentLease),
       ),
     );
     if (!mounted) return;
@@ -913,7 +913,7 @@ class _InboxPageState extends State<InboxPage> {
     List<String> tags,
   ) async {
     if (!mounted || choice == null || choice == -1) return;
-    if (choice == WorkspaceMenu.settings) { await showThoughtSettings(context, widget.storage?.preferences, onUpload: _uploadBackup, onDownload: _downloadBackup, onReset: _reset, onInvite:widget.storage?.openSharing, onSignIn: () async {
+    if (choice == WorkspaceMenu.settings) { await showThoughtSettings(context, widget.storage?.preferences, onUpload: _uploadBackup, onDownload: _downloadBackup, onReset: _reset, onInvite:widget.storage?.openSharing, onWorkspaces:widget.storage?.openWorkspaces, workspaceName:widget.storage?.workspaceName, onSignIn: () async {
       if (_draft.text.trim().isNotEmpty || _hasCapture) throw const BackupFailure('작성 중인 메모를 저장한 뒤 로그인해주세요.');
       if (_captureSaving || _locationBusy || _photoBusy) throw const BackupFailure('메모와 첨부 처리 완료 후 다시 시도해주세요.');
       await _persist();
@@ -977,45 +977,6 @@ class _InboxPageState extends State<InboxPage> {
     } else {
       await _showProject(projects[choice]);
     }
-  }
-
-  Widget _themeChoice(BuildContext context, Object value, bool checked, Widget title) => ListTile(
-    dense: true, visualDensity: const VisualDensity(vertical: -2), minVerticalPadding: 0, selected: checked,
-    leading: checked ? const Icon(Icons.check, size: 18) : const SizedBox(width: 18),
-    title: title, onTap: () => Navigator.pop(context, value),
-  );
-
-  Future<void> _showTheme() async {
-    final choice = await showDialog<Object>(context: context, builder: (context) => Dialog(
-      alignment: AlignmentDirectional.topEnd,
-      insetPadding: const EdgeInsets.fromLTRB(16, 64, 16, 12),
-      clipBehavior: Clip.antiAlias,
-      child: SizedBox(width: 320, child: SingleChildScrollView(child: Column(
-        mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Padding(padding: EdgeInsets.fromLTRB(16, 10, 16, 4), child: Text('화면 모드')),
-          _themeChoice(context, ThemeMode.system, widget.themeMode == ThemeMode.system, const Text('시스템 설정')),
-          _themeChoice(context, ThemeMode.light, widget.themeMode == ThemeMode.light,
-            Row(children: [const Expanded(child: Text('라이트')), PaletteSwatches(colors: widget.lightPalette.swatches)])),
-          _themeChoice(context, ThemeMode.dark, widget.themeMode == ThemeMode.dark,
-            Row(children: [const Expanded(child: Text('다크')), PaletteSwatches(colors: widget.darkPalette.swatches)])),
-          const Divider(),
-          const Padding(padding: EdgeInsets.fromLTRB(16, 4, 16, 4), child: Text('라이트 컬러셋')),
-          for (final palette in LightPalette.values) _themeChoice(context, palette, widget.lightPalette == palette,
-            Row(children: [Expanded(child: Text(palette.label)), PaletteSwatches(colors: palette.swatches)])),
-          const Divider(height: 16),
-          const Padding(padding: EdgeInsets.fromLTRB(16, 4, 16, 4), child: Text('다크 컬러셋')),
-          for (final palette in DarkPalette.values) _themeChoice(context, palette, widget.darkPalette == palette,
-            Row(children: [Expanded(child: Text(palette.label)), PaletteSwatches(colors: palette.swatches)])),
-          const SizedBox(height: 6),
-
-        ],
-      ))),
-    ));
-    if (!mounted) return;
-    if (choice is ThemeMode) widget.onThemeChanged(choice);
-    if (choice is LightPalette) widget.onLightPaletteChanged?.call(choice);
-    if (choice is DarkPalette) widget.onDarkPaletteChanged?.call(choice);
   }
 
   ColorScheme get colors => Theme.of(context).colorScheme;
@@ -1314,12 +1275,6 @@ class _InboxPageState extends State<InboxPage> {
         ),
         actions: [
           const KeyboardDismissAction(),
-          IconButton(
-            tooltip: '테마 선택',
-            onPressed: _showTheme,
-            icon: Icon(Theme.of(context).brightness == Brightness.dark
-              ? Icons.dark_mode_outlined : Icons.light_mode_outlined),
-          ),
           const SizedBox(width: 12),
         ],
         title: GestureDetector(onTap: MediaQuery.sizeOf(context).width >= 1000 ? () => navigateHome(context) : null, child: Text(
@@ -1358,7 +1313,7 @@ class _InboxPageState extends State<InboxPage> {
                           runSpacing: 8,
                           children: [
                             TextButton.icon(onPressed: _allThoughts, icon: const Icon(Icons.bubble_chart_outlined, size: 18),
-                              label: const Text('모든 생각 보기')),
+                              label: const Text('전체 보기')),
                             TextButton.icon(
                               onPressed: () => _allThoughts(ensureUnclassifiedBox()),
                               icon: const Icon(

@@ -1,3 +1,4 @@
+import 'package:weaver/features/inbox/project_document_editor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/element_store.dart';
@@ -10,7 +11,7 @@ void main() {
     elements.clear();
     final source = WritingProject([], [], name: '작성')..document = '';
     final target = WritingProject([], [], name: '옛 이름')..document = '서문\n======참고 문서======';
-    await tester.pumpWidget(MaterialApp(home: ProjectPage(project: source, projects: [source, target])));
+    await tester.pumpWidget(MaterialApp(home: ProjectDocumentEditor(project: source, projects: [source, target])));
     await tester.pumpAndSettle();
     final field = find.byKey(const ValueKey('project-document'));
     await tester.enterText(field, '[[별칭|참고'); await tester.pumpAndSettle();

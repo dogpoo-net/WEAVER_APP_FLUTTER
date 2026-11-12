@@ -11,7 +11,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const MyApp(requireLogin: false, )); await tester.pumpAndSettle();
     final menu = find.byType(WorkspaceMenu);
-    await tester.tap(find.descendant(of: menu, matching: find.text('모든 생각 보기')));
+    await tester.tap(find.descendant(of: menu, matching: find.text('전체 보기')));
     await tester.pumpAndSettle();
     expect(find.byType(AllThoughtsPage), findsOneWidget);
     expect(tester.widget<WorkspaceMenu>(menu).embedded, isTrue);

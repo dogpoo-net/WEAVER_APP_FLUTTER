@@ -82,7 +82,7 @@ void main() {
     );
     await tester.tap(find.text('열기'));
     await tester.pumpAndSettle();
-    final before = tester.getTopLeft(find.text('모든 생각 보기'));
+    final before = tester.getTopLeft(find.text('전체 보기'));
     await tester.scrollUntilVisible(
       find.text('문서 29'),
       200,
@@ -91,7 +91,7 @@ void main() {
         matching: find.byType(Scrollable),
       ),
     );
-    expect(tester.getTopLeft(find.text('모든 생각 보기')), before);
+    expect(tester.getTopLeft(find.text('전체 보기')), before);
     await tester.ensureVisible(find.text('문서 29'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('문서 29'));

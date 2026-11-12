@@ -166,13 +166,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     key: ValueKey(widget.requireLogin ? (_auth.isGuest ? 'guest' : _auth.identity?.id) : 'local-test'),
     title: 'WEAVER',
     initialRoute: '/',
-    builder: (context, child) => Actions(actions: <Type, Action<Intent>>{
+    builder: (context, child) => ThemeControls(mode:_mode,light:_lightPalette,dark:_darkPalette,onChanged:(choice){setState((){if(choice is ThemeMode)_mode=choice;if(choice is LightPalette){_lightPalette=choice;_mode=ThemeMode.light;}if(choice is DarkPalette){_darkPalette=choice;_mode=ThemeMode.dark;}});_persistTheme();},child:Actions(actions: <Type, Action<Intent>>{
       EditableTextTapOutsideIntent: CallbackAction<EditableTextTapOutsideIntent>(onInvoke: (intent) {
         intent.focusNode.unfocus();
         dismissKeyboard();
         return null;
       }),
-    }, child: child!),
+    }, child: child!)),
     scaffoldMessengerKey: _messenger,
     navigatorObservers: [workspaceRouteObserver],
     debugShowCheckedModeBanner: false,
