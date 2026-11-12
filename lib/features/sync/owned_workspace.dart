@@ -175,9 +175,20 @@ class WorkspaceSync extends ChangeNotifier {
   Future<void> initialize() async {
     loadBase();
     try {
-      final current=storage.read();final local=splitWorkspace(current);
       final old=Map<String,Map<String,dynamic>>.from(base);
-      final result=await request('read',{'since':cursor});accept(result);
+      final result=await request('read',{'since':cursor});
+      await storage.flush();
+      final current=storage.read();final local=splitWorkspace(current);
+      final incoming = result['changes'] as List;
+      bool protectedDocument(dynamic item) {
+        if (item['kind'] != 'list:notes') return false;
+        final value = item['payload'] == null ? (base[itemKey(item['kind'], item['id'])]?['value']) : jsonDecode(item['payload'] as String);
+        return value is Map && value['project'] is Map && documentLeases.containsKey(value['project']['id']);
+      }
+      final deferred = incoming.any(protectedDocument);
+      // An open editor owns its document snapshot/revision until its lease ends.
+      // Keep the cursor behind deferred documents so a later read fetches them.
+      accept({...result, 'changes': incoming.where((item) => !protectedDocument(item)).toList(), 'revision': deferred ? cursor : result['revision']});
       final merged=Map<String,Map<String,dynamic>>.from(base);
       if(current!=null && current!=_lastSynced){
         for(final key in {...old.keys,...local.keys}){
@@ -193,14 +204,26 @@ class WorkspaceSync extends ChangeNotifier {
       await saveBase();ready=true;error=null;
     }catch(e){error=e.toString();}
     storage.itemMetadata=(kind,id)=>base[itemKey(kind,id)];
-    storage.onChanged=schedule;storage.syncNow=flush;
+    storage.onChanged=schedule;storage.syncNow=flush;storage.syncDeleted=flushDeletions;storage.syncFolders=flushFolders;storage.refreshNow=refreshFromServer;
     changed();if(ready && storage.read()!=_lastSynced)schedule();
   }
-  Future<void> flush() async {
-    await (_running??= _flush().whenComplete(()=>_running=null));
+  Future<void> refreshFromServer() async {
+    while (_running != null) { await _running; }
+    final previous = Map<String,Map<String,dynamic>>.from(base), oldCursor = cursor;
+    final oldSnapshot = _lastSynced;
+    await (_running = initialize().whenComplete(() => _running = null));
+    if (error != null) { base = previous; cursor = oldCursor; _lastSynced = oldSnapshot; throw EmailAuthFailure(error!); }
+  }
+  Future<void> flushFolders() => _enqueueFlush(false, foldersOnly: true);
+  Future<void> flush() => _enqueueFlush(false);
+  Future<void> flushDeletions() => _enqueueFlush(true);
+  Future<void> _enqueueFlush(bool deletionsOnly, {bool foldersOnly = false}) async {
+    // A save/delete arriving during another request must not be dropped.
+    while (_running != null) { await _running; }
+    await (_running = _flush(deletionsOnly: deletionsOnly, foldersOnly: foldersOnly).whenComplete(() => _running = null));
     if(error!=null)throw EmailAuthFailure(error!);
   }
-  Future<void> _flush() async {
+  Future<void> _flush({bool deletionsOnly = false, bool foldersOnly = false}) async {
     if(_disposed || !isCurrent())return;
     _timer?.cancel();_timer=null;busy=true;changed();
     try {
@@ -211,17 +234,43 @@ class WorkspaceSync extends ChangeNotifier {
       for(final key in {...base.keys,...local.keys}){
         if(sameItem(local[key],base[key]))continue;
         final item=local[key]??base[key]!;
-        changes.add({'kind':item['kind'],'id':item['id'],'value':local[key]?['value'],'deleted':!local.containsKey(key),'baseRevision':base[key]?['revision']??0});
+        if (deletionsOnly) {
+          final kind = item['kind'];
+          final removed = !local.containsKey(key) && {'list:elements','list:notes','list:trash','list:memoBoxes'}.contains(kind);
+          final trashed = kind == 'list:trash' && local.containsKey(key) &&
+            !local.containsKey(itemKey('list:elements', item['id'] as String));
+          final unusedColor = kind == 'map:colors' && !local.containsKey(key) && !local.values.any((v) => {'list:elements','list:trash'}.contains(v['kind']) && v['value'] is Map && v['value']['text'] == item['id']);
+          if (!removed && !trashed && !unusedColor) continue;
+        }
+        var value = local[key]?['value'];
+        if (foldersOnly) {
+          final kind = item['kind'] as String;
+          final folderList = {'list:folders','list:paragraphFolders','list:elementFolders','list:hashtagFolders','list:memoBoxFolders','map:memoBoxFolderParents','map:hashtagFolderAssignments'}.contains(kind);
+          if (!folderList) {
+            if (!{'list:notes','list:elements','list:memoBoxes'}.contains(kind) || base[key]?['deleted'] == true || base[key]?['value'] is! Map || value is! Map) continue;
+            final previous = base[key]!['value'] as Map;
+            final folderChanged = previous['folder'] != value['folder'] || (previous['project'] is Map && value['project'] is Map && previous['project']['folder'] != value['project']['folder']);
+            if (!folderChanged) continue;
+            final copy = jsonDecode(jsonEncode(previous)) as Map<String,dynamic>;
+            copy['folder'] = value['folder'];
+            if (copy['project'] is Map && value['project'] is Map) copy['project']['folder'] = value['project']['folder'];
+            if (jsonEncode(copy) == jsonEncode(previous)) continue;
+            value = copy;
+          }
+        }
+        changes.add({'kind':item['kind'],'id':item['id'],'value':value,'deleted':!local.containsKey(key),'baseRevision':base[key]?['revision']??0});
       }
       if(changes.isNotEmpty){
-        await uploadMedia(raw);
+        if (!deletionsOnly && !foldersOnly) { await uploadMedia(raw); }
+        else { await uploadMedia(joinWorkspace({for (final c in changes) if (c['kind'] == 'list:trash' && c['deleted'] != true) itemKey(c['kind'],c['id']): c})); }
         final result=await request('save',{'since':cursor,'changes':changes,'documentLeases':documentLeases});
         // Only acknowledge the submitted local snapshot. Remote-only edits are
         // fetched on the next workspace open, not applied over an active editor.
         final returned={for(final row in result['changes'] as List)itemKey(row['kind'],row['id']):row};
         for(final c in changes){final key=itemKey(c['kind'],c['id']);base[key]={...c,'revision':returned[key]?['revision']??result['revision'],'author':returned[key]?['author'],'updatedAt':returned[key]?['updatedAt']};}
       }
-      _lastSynced=raw;await saveBase();error=null;
+      if ((!deletionsOnly && !foldersOnly) || {...base.keys,...local.keys}.every((key) => sameItem(local[key],base[key]))) _lastSynced=raw;
+      await saveBase();error=null;
     }catch(e){error=e.toString();}
     finally {busy=false;changed();if(!_disposed && error==null && storage.read()!=_lastSynced)schedule();}
   }
@@ -263,5 +312,5 @@ class WorkspaceSync extends ChangeNotifier {
     await storage.flush();if(storage.read()==_lastSynced){final raw=storage.read();await storage.clear();await storage.preferences.remove(storage.syncKey);
       if(raw!=null){final snapshot=WorkspaceSnapshot.decode(raw);for(final r in [...snapshot.records,...snapshot.trashRecords]){for(final id in [...r.photos.map((p)=>p.id),...r.recordings.map((c)=>c.id)]){try{await MediaStorage.delete(id,owner:storage.owner);}catch(_){}await storage.preferences.remove(storage.scoped('media-sent.$id'));}}}}
   }
-  @override void dispose(){_disposed=true;_timer?.cancel();storage.onChanged=null;storage.syncNow=null;super.dispose();}
+  @override void dispose(){_disposed=true;_timer?.cancel();storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;super.dispose();}
 }

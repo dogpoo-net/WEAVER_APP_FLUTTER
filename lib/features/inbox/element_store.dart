@@ -1,3 +1,4 @@
+import 'workspace_routes.dart';
 import 'label_links.dart';
 import 'element_binding.dart';
 import 'document_markup.dart';
@@ -113,11 +114,13 @@ class ElementStore extends ChangeNotifier {
     ];
   }
 
+  int deletionRevision = 0;
   void remove(String word) {
     final removed = records.remove(word);
     if (removed == null) return;
     removed.deletedAt = DateTime.now();
     trash[removed.id] = removed;
+    deletionRevision++;
     notifyListeners();
   }
 
@@ -194,10 +197,16 @@ class ElementStore extends ChangeNotifier {
 final elements = ElementStore();
 
 Future<void> showElementMetadata(BuildContext context, String word) async {
-  if (!elements.records.containsKey(word)) return;
+  final id = elements.records[word]?.id;
   final host = context.findAncestorStateOfType<_ElementMetadataState>() ??
     (context is StatefulElement && context.state is _ElementMetadataState ? context.state as _ElementMetadataState : null);
   if (host != null) { host._navigate(word); return; }
+  try { await refreshWorkspaceForRead?.call(); }
+  catch (e) { if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('서버 변경을 확인하지 못했습니다. 기기의 자료를 표시합니다. $e'))); }
+  if (!context.mounted) return;
+  final record = id == null ? elements.records[word] : elements.records.values.where((r) => r.id == id).firstOrNull;
+  if (record == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('다른 기기에서 삭제된 생각입니다.'))); return; }
+  word = record.text;
   await showDialog<void>(
     context: context,
     builder: (_) => _ElementMetadata(word: word),

@@ -17,7 +17,8 @@ class WorkspaceMenu extends StatefulWidget {
     this.projectFolderNames = const [], this.tagFolders = const [], this.tagFolderNames = const {},
     this.paragraphFolders = const [], this.elementFolders = const [],
     this.paragraphFolderNames = const [], this.elementFolderNames = const [],
-    this.onBoxChanged, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
+    this.onBoxChanged, this.onDeleteFolder, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
+  final Future<void> Function(String kind, String folder)? onDeleteFolder;
   final bool embedded;
   final VoidCallback? onBoxChanged;
   static const createBox = -1000007, createBoxFolder = -1000008;
@@ -25,6 +26,7 @@ class WorkspaceMenu extends StatefulWidget {
   final ValueChanged<int>? onSelected;
   final VoidCallback? onHide, onPin, onFloat;
   static const allThoughts = -1000006, createParagraph = -2;
+  static const home = -1000010;
   static const settings = -1000009;
   static const createProject = -1000002, trash = -1000003;
   static const createFolder = -1000000, createTagFolder = -1000001;
@@ -172,6 +174,12 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     onWillAcceptWithDetails: (d) => canMoveMemoFolder(d.data.name, folder),
     onAcceptWithDetails: (d) { setState(() => moveMemoFolder(d.data.name, folder)); widget.onBoxChanged?.call(); },
     builder: (context, candidates, rejected) => ColoredBox(color: candidates.isEmpty ? Colors.transparent : Theme.of(context).colorScheme.secondaryContainer, child: child));
+  Widget _folderActions(_Kind kind, String folder) => PopupMenuButton<String>(tooltip: '$folder 폴더 관리', icon: const Icon(Icons.more_vert, size: 18), onSelected: (_) async {
+    final yes = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('폴더를 삭제할까요?'), content: const Text('폴더와 하위 폴더를 삭제하고 안의 자료는 미분류로 이동합니다. 자료는 삭제하지 않습니다.'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('삭제'))]));
+    if (yes != true || !mounted) return;
+    try { await widget.onDeleteFolder?.call(kind.name, folder); if (mounted) setState(_sync); }
+    catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('폴더 변경을 동기화하지 못했습니다. $e'))); }
+  }, itemBuilder: (_) => [PopupMenuItem(value: 'delete', enabled: widget.onDeleteFolder != null, child: const Text('폴더 삭제'))]);
   Widget _boxFolder(String folder) {
     final label = Row(children: [const Icon(Icons.folder_outlined, size: 20), const SizedBox(width: 8), Expanded(child: Text(folder))]);
     final feedback = Material(child: Padding(padding: const EdgeInsets.all(12), child: Text(folder)));
@@ -184,7 +192,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           onDragStarted: _startDrag, onDragUpdate: (d) => _pointer = d.globalPosition,
           onDragEnd: (_) { _autoScroll?.cancel(); _pointer = null; }, child: label);
     return _folderDrop(folder, _target(_Kind.box, folder, ExpansionTile(
-      key: PageStorageKey('box-$folder'), title: title,
+      key: PageStorageKey('box-$folder'), title: title, trailing: _folderActions(_Kind.box, folder),
       childrenPadding: const EdgeInsetsDirectional.only(start: 16),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
       collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
@@ -212,7 +220,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     return [
       if (kind == _Kind.box) ...[for (final folder in folders.where((f) => memoFolderParent(f) == null)) _boxFolder(folder)],
       if (kind != _Kind.box) for (final folder in folders) _target(kind, folder, ExpansionTile(
-        key: PageStorageKey('${kind.name}-$folder'), leading: const Icon(Icons.folder_outlined), title: Text(folder),
+        key: PageStorageKey('${kind.name}-$folder'), leading: const Icon(Icons.folder_outlined), title: Text(folder), trailing: _folderActions(kind, folder),
         childrenPadding: const EdgeInsetsDirectional.only(start: 16),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
         collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
@@ -238,10 +246,10 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         Center(child: IconButton(tooltip: '메뉴 고정하기', onPressed: widget.onPin,
           icon: const Icon(Icons.push_pin_outlined))),
       if (MediaQuery.sizeOf(context).width < 1000) const SizedBox(height: 8),
-      ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), leading: Icon(Icons.bubble_chart_outlined, size: MediaQuery.sizeOf(context).width < 1000 ? 20 : 19), title: Text('전체 보기', style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 14 : 13)),
-        trailing: IconButton(tooltip: '메뉴 닫기', icon: const Icon(Icons.close, size: 18),
-          onPressed: widget.embedded ? widget.onHide : () => Navigator.pop(context)),
-        onTap: () => _select(WorkspaceMenu.allThoughts)),
+      ListTile(dense: true, leading: const Icon(Icons.home_outlined, size: 20), title: const Text('기록함'),
+        trailing: IconButton(tooltip: '메뉴 닫기', icon: const Icon(Icons.close, size: 18), onPressed: widget.embedded ? widget.onHide : () => Navigator.pop(context)),
+        onTap: () => _select(WorkspaceMenu.home)),
+      ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), leading: const Icon(Icons.bubble_chart_outlined, size: 20), title: const Text('전체 보기'), onTap: () => _select(WorkspaceMenu.allThoughts)),
       const Divider(indent: 16, endIndent: 16),
       Expanded(child: SizedBox(key: _viewport, child: Scrollbar(controller: _scroll,
         child: CustomScrollView(controller: _scroll, key: const ValueKey('menu-projects'), slivers: [

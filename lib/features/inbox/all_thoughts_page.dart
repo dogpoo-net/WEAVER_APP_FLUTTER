@@ -1,4 +1,5 @@
 import 'overview_collections.dart';
+import 'memo_box_actions.dart';
 import 'thought_settings.dart';
 import '../capture/geolog_page.dart';
 import 'tag_colors.dart';
@@ -14,7 +15,8 @@ import 'workspace_routes.dart';
 import 'workspace_storage.dart';
 
 class ThoughtBoxView extends StatefulWidget {
-  const ThoughtBoxView({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox, this.filters, this.viewSelector});
+  const ThoughtBoxView({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox, this.filters, this.viewSelector, this.onDeleteBoxes});
+  final Future<void> Function(Set<String>)? onDeleteBoxes;
   final ThoughtFilterSelection? filters;
   final Widget? viewSelector;
   final List<Note> notes;
@@ -150,9 +152,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         style: IconButton.styleFrom(backgroundColor: _audioOnly ? Theme.of(context).colorScheme.primaryContainer : null),
         icon: const Icon(Icons.volume_up_outlined), onPressed: () => setState(() => _audioOnly = !_audioOnly)),
       IconButton(tooltip: '닫힌 생각 보기', icon: const Icon(Icons.archive_outlined), onPressed: () => showClosedThoughtsDialog(context)),
-      IconButton(tooltip: '메모상자 만들기', icon: const Icon(Icons.inventory_2_outlined), onPressed: () async {
-        final box = await createMemoBox(context); if (mounted && box != null) _changed();
-      }),
+      MemoBoxActions(filters: _filters, onDelete: widget.onDeleteBoxes, onCreate: () async { final box = await createMemoBox(context); if (mounted && box != null) _changed(); }),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('생각 보기 안내'),
           content: const Text('생각이나 해시태그로 검색하고, 아래의 메모상자·태그를 눌러 분류별로 볼 수 있습니다.\n\n사진·음성 버튼을 켜면 해당 첨부가 있는 생각을 보여줍니다. 둘 다 켜면 사진 또는 음성이 있는 생각을 보여줍니다.\n\n생각을 메모상자로 드래그해 정리하세요. 모바일에서는 길게 눌러 드래그할 수 있습니다. 해시태그는 생각 본문에 #태그를 입력해 추가합니다.'),
@@ -171,42 +171,61 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
 enum ThoughtView { documents, boxes, diagram, page, photos, audio, geolog }
 
 class AllThoughtsPage extends StatefulWidget {
-  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.onDocument, this.initialBox, this.initialView = ThoughtView.boxes});
+  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.onDocument, this.onRefresh, this.onDeleteBoxes, this.initialBox, this.initialView = ThoughtView.boxes});
   final List<Note> notes;
   final VoidCallback? onChanged, onLayoutChanged;
   final WorkspaceStorage? storage;
   final Future<void> Function(Note)? onDocument;
+  final Future<void> Function()? onRefresh;
+  final Future<void> Function(Set<String>)? onDeleteBoxes;
   final Future<void> Function()? onSave;
   final MemoBox? initialBox;
   final ThoughtView initialView;
   @override
   State<AllThoughtsPage> createState() => _ThoughtViewsState();
 }
-class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProviderStateMixin {
+class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  bool _loading = false;
+  int _epoch = 0;
+  Future<void> _reload() async {
+    if (_loading || widget.onRefresh == null) return;
+    final names = _filters.boxes.map((b) => b.name).toSet();
+    setState(() => _loading = true);
+    // Dispose the old canvas before merging its saved local placement with server changes.
+    await WidgetsBinding.instance.endOfFrame;
+    try { await widget.onRefresh!(); }
+    catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('서버 변경을 확인하지 못했습니다. 기기의 자료를 표시합니다. $e'))); }
+    finally { if (mounted) { _filters.boxes..clear()..addAll(memoBoxes.where((b) => names.contains(b.name))); setState(() { _loading = false; _epoch++; }); } }
+  }
+  @override void didChangeAppLifecycleState(AppLifecycleState state) { if (state == AppLifecycleState.resumed && ModalRoute.of(context)?.isCurrent == true) _reload(); }
   late final AnimationController _tabPosition;
   late final _filters = ThoughtFilterSelection(initialBox: widget.initialBox);
   @override
   void initState() {
     super.initState();
     ensureUnclassifiedBox();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _reload(); });
     _tabPosition=AnimationController(vsync:this,upperBound:ThoughtView.values.length-1.0,value:widget.initialView.index.toDouble());
   }
   @override
-  void dispose() { _filters.dispose(); _tabPosition.dispose(); super.dispose(); }
+  void dispose() { WidgetsBinding.instance.removeObserver(this); _filters.dispose(); _tabPosition.dispose(); super.dispose(); }
   late ThoughtView _view = widget.initialView;
   @override
   Widget build(BuildContext context) {
+    final activeBox = widget.initialBox == null ? null : memoBoxes.where((b) => b.name == widget.initialBox!.name).firstOrNull;
     final selector=SingleChildScrollView(key:const PageStorageKey('overview-tabs'),scrollDirection:Axis.horizontal,child:SizedBox(height:40,width:ThoughtView.values.length*104,child:Stack(children:[
       AnimatedBuilder(animation:_tabPosition,builder:(context,_)=>Positioned(left:_tabPosition.value*104,top:0,bottom:0,width:104,child:ColoredBox(key:const ValueKey('thought-tab-highlight'),color:Theme.of(context).colorScheme.secondaryContainer))),
-      Row(children:[for(final view in ThoughtView.values)SizedBox(width:104,height:40,child:Semantics(selected:view==_view,child:TextButton(style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),onPressed:(){setState(()=>_view=view);_tabPosition.animateTo(view.index.toDouble(),duration:const Duration(milliseconds:200),curve:Curves.easeInOutCubic);},child:Text(switch(view){ThoughtView.documents=>'문서',ThoughtView.boxes=>'생각',ThoughtView.diagram=>'다이어그램',ThoughtView.page=>'메모상자',ThoughtView.photos=>'사진',ThoughtView.audio=>'음성',ThoughtView.geolog=>'지오로그'}))))])
+      Row(children:[for(final view in ThoughtView.values)SizedBox(width:104,height:40,child:Semantics(selected:view==_view,child:TextButton(style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),onPressed:(){setState(()=>_view=view);_tabPosition.animateTo(view.index.toDouble(),duration:const Duration(milliseconds:200),curve:Curves.easeInOutCubic);_reload();},child:Text(switch(view){ThoughtView.documents=>'문서',ThoughtView.boxes=>'생각',ThoughtView.diagram=>'다이어그램',ThoughtView.page=>'메모상자',ThoughtView.photos=>'사진',ThoughtView.audio=>'음성',ThoughtView.geolog=>'지오로그'}))))])
     ])));
+    if (_loading) return Scaffold(appBar: AppBar(title: const WorkspaceTitle('전체 보기')), body: Column(children: [selector, const LinearProgressIndicator(), const Expanded(child: Center(child: Text('서버 변경을 불러오는 중입니다.')))]));
     if(_view==ThoughtView.documents)return DesktopMenuFrame(child:DocumentCollection(notes:widget.notes,selector:selector,storage:widget.storage,onOpen:widget.onDocument));
     if(_view==ThoughtView.photos || _view==ThoughtView.audio)return DesktopMenuFrame(child:AttachmentCollection(key:ValueKey(_view),audio:_view==ThoughtView.audio,selector:selector,filters:_filters,storage:widget.storage,onChanged:widget.onChanged));
-    if (_view == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(filters: _filters, box: widget.initialBox,
+    if (_view == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(filters: _filters, box: activeBox,
       viewSelector: selector, onChanged: () => widget.onChanged?.call())); }
-    if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(filters: _filters, notes: widget.notes, initialBox: widget.initialBox,
-      onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector)); }
-    return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey(_view), box: widget.initialBox, blocks: _view == ThoughtView.page,
-      onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, onSave:widget.onSave, viewSelector: selector));
+    if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(filters: _filters, notes: widget.notes, initialBox: activeBox,
+      onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes)); }
+    return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey('${_view.name}-$_epoch'), box: activeBox, blocks: _view == ThoughtView.page,
+      onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, onSave:widget.onSave, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes));
   }
 }

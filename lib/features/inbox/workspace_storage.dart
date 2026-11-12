@@ -334,6 +334,9 @@ class WorkspaceStorage {
   Future<Map<String,dynamic>> Function(String,String,bool)? documentLease;
   void Function()? onChanged;
   Future<void> Function()? syncNow;
+  Future<void> Function()? syncDeleted;
+  Future<void> Function()? syncFolders;
+  Future<void> Function()? refreshNow;
   Future<void> Function()? pullNow;
   Future<void> Function()? openSharing;
   Future<void> Function()? openWorkspaces;

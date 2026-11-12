@@ -54,4 +54,54 @@ void main(){
   await storage.write(identified('pending account','account-note'));final guest=await owned.guest();await guest.write(identified('guest material','guest-note'));final claim=await owned.sealGuest('account-a',guest);await sync.importGuest(owned,claim);
   expect(storage.read(),contains('pending account'));expect(storage.read(),contains('guest material'));expect(guest.read(),isNull);expect(await owned.pendingClaim(),isNull);sync.dispose();api.dispose();
  });
+ test('Deleting a thought syncs its tombstone without uploading unsaved document or canvas edits',()async{
+  final prefs=await SharedPreferences.getInstance();final storage=WorkspaceStorage(prefs,owner:'device-a');final api=DeltaApi();final sync=WorkspaceSync(storage,api,isCurrent:()=>true);await sync.initialize();
+  final first=jsonDecode(data('saved document')) as Map<String,dynamic>;
+  final thought={'id':'thought-1','text':'delete me','createdAt':'2026-01-01T00:00:00.000','tags':[],'photos':[],'recordings':[],'inlineLinks':[]};
+  first['elements']=[thought];first['graphLayout']={'positions':{'thought-1':[1,2]}};
+  await storage.write(jsonEncode(first));await sync.flush();api.requests.clear();
+  final edited=jsonDecode(jsonEncode(first)) as Map<String,dynamic>;
+  edited['notes'][0]['content']='unsaved document';edited['graphLayout']['positions']['thought-1']=[40,80];
+  edited['elements']=[];edited['trash']=[{...thought,'deletedAt':'2026-01-02T00:00:00.000'}];
+  await storage.write(jsonEncode(edited));await storage.syncDeleted!();
+  final changes=api.requests.single['changes'] as List;
+  expect(changes.map((c)=>c['kind']).toSet(),{'list:elements','list:trash'});
+  expect(changes.firstWhere((c)=>c['kind']=='list:elements')['deleted'],true);
+  final other=WorkspaceStorage(prefs,owner:'device-b');final receiver=WorkspaceSync(other,api,isCurrent:()=>true);await receiver.initialize();
+  final remote=jsonDecode(other.read()!) as Map;
+  expect(remote['elements'],isEmpty);expect(remote['trash'],hasLength(1));expect(remote['notes'][0]['content'],'saved document');
+  expect(remote['graphLayout']['positions']['thought-1'],[1,2]);
+  expect(storage.read(),contains('unsaved document'));
+  edited['trash']=[];await storage.write(jsonEncode(edited));await storage.syncDeleted!();
+  expect((api.requests.last['changes'] as List).single['kind'],'list:trash');expect((api.requests.last['changes'] as List).single['deleted'],true);
+  sync.dispose();receiver.dispose();api.dispose();
+ });
+
+ test('Browsing fetches remote deletions while preserving an unrelated local draft',()async{
+  final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'a');final api=DeltaApi();final sync=WorkspaceSync(storage,api,isCurrent:()=>true);await sync.initialize();
+  final first=jsonDecode(data('saved')) as Map<String,dynamic>;first['elements']=[{'id':'remote-delete','text':'gone','createdAt':'2026-01-01T00:00:00.000','tags':[]}];
+  await storage.write(jsonEncode(first));await sync.flush();first['notes'][0]['content']='pending local';await storage.write(jsonEncode(first));
+  api.rev++;api.items[itemKey('list:elements','remote-delete')]={'kind':'list:elements','id':'remote-delete','deleted':true,'revision':api.rev,'payload':null};
+  await storage.refreshNow!();final merged=jsonDecode(storage.read()!) as Map;
+  expect(merged['elements'],isEmpty);expect(merged['notes'][0]['content'],'pending local');sync.dispose();api.dispose();
+ });
+ test('Folder deletion syncs only folder fields without uploading an unsaved document',()async{
+  final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'a');final api=DeltaApi();final sync=WorkspaceSync(storage,api,isCurrent:()=>true);await sync.initialize();
+  final first=jsonDecode(data('saved')) as Map<String,dynamic>;first['folders']=['folder'];first['notes'][0]['folder']='folder';
+  await storage.write(jsonEncode(first));await sync.flush();api.requests.clear();first['folders']=[];first['notes'][0]['folder']=null;first['notes'][0]['content']='pending local';await storage.write(jsonEncode(first));await storage.syncFolders!();
+  final changes=api.requests.single['changes'] as List;expect(changes.firstWhere((c)=>c['kind']=='list:folders')['deleted'],true);
+  final note=changes.firstWhere((c)=>c['kind']=='list:notes')['value'];expect(note['folder'],isNull);expect(note['content'],'saved');expect(storage.read(),contains('pending local'));sync.dispose();api.dispose();
+ });
+
+ test('Browsing another section never replaces an active document editor snapshot',()async{
+  final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'a');final api=DeltaApi();final sync=WorkspaceSync(storage,api,isCurrent:()=>true);await sync.initialize();
+  final initial=jsonDecode(data('original')) as Map<String,dynamic>;
+  initial['notes'][0]['id']='n';initial['notes'][0]['project']={'id':'p','name':'Document','document':'original','words':[],'paragraphs':[],'tags':[],'documentLinks':[]};
+  await storage.write(jsonEncode(initial));await sync.flush();sync.documentLeases['p']='lease';
+  final changed=jsonDecode(jsonEncode(initial['notes'][0])) as Map<String,dynamic>;changed['project']['document']='remote change';changed['content']='remote change';api.rev++;
+  api.items[itemKey('list:notes','n')]={'kind':'list:notes','id':'n','payload':jsonEncode(changed),'revision':api.rev,'deleted':false};
+  await sync.refreshFromServer();expect(storage.read(),contains('original'));expect(storage.read(),isNot(contains('remote change')));
+  sync.documentLeases.clear();await sync.refreshFromServer();expect(storage.read(),contains('remote change'));sync.dispose();api.dispose();
+ });
+
 }

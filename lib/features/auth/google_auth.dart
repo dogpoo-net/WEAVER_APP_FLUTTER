@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'email_auth.dart';
 import 'kakao_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -73,6 +74,34 @@ class GoogleAuthController extends ChangeNotifier {
   final KakaoAuthClient kakaoClient;
   final EmailAuthApi emailApi;
   Future<void> Function()? onSessionEnding;
+  Map<String, dynamic>? profile;
+  Uint8List? profilePhoto;
+  bool _googleLinkArmed = false;
+  bool googleLinkBusy = false;
+  int _profileReadGeneration = 0;
+  Future<void> loadProfile() async {
+    final readGeneration = ++_profileReadGeneration;
+    final owner = identity?.id;
+    if (!_emailSignedIn || owner == null) return;
+    final data = await emailApi.profile('read');
+    if (_disposed || identity?.id != owner || readGeneration != _profileReadGeneration) return;
+    profile = data;
+    try { profilePhoto = data['image'] is String ? base64Decode(data['image'] as String) : null; }
+    catch (_) { profilePhoto = null; }
+    identity = GoogleIdentity(id: owner, email: identity!.email, idToken: null, displayName: data['name'] as String?);
+    _changed();
+  }
+  Future<void> prepareGoogleLink() async { _googleLinkArmed = true; await _initializeSdk(); }
+  void endGoogleLink() { _googleLinkArmed = false; cancelAccountLink(); }
+  Future<void> startGoogleLink() async { if (_googleLinkArmed && ready) { try { await client.signIn(); } catch (e) { _failure(e); } } }
+  Future<void> _acceptGoogleLink(GoogleIdentity value) async {
+    if (googleLinkBusy || value.idToken == null) return;
+    final owner = identity?.id;
+    googleLinkBusy = true; error = null; _changed();
+    try { await emailApi.linkGoogle(value.idToken!, isCurrent: () => !_disposed && _googleLinkArmed && identity?.id == owner); await loadProfile(); }
+    catch (e) { error = e is EmailAuthFailure ? e.message : 'Google 계정을 연결하지 못했습니다.'; }
+    finally { googleLinkBusy = false; _changed(); }
+  }
   bool _emailSignedIn = false;
   bool emailRestorePending = false;
   bool signingInWithBrowser = false;
@@ -120,7 +149,8 @@ class GoogleAuthController extends ChangeNotifier {
     if (!client.configured) { _changed(); return; }
     busy = true; _changed();
     _subscription = client.changes.listen((value) {
-      if (value == null || _loggingOut || _disposed || _emailSignedIn || isGuest) return;
+      if (value == null || _loggingOut || _disposed || isGuest) return;
+      if (_emailSignedIn) { if (_googleLinkArmed) unawaited(_acceptGoogleLink(value)); return; }
       final generation = _generation;
       final write = _sessionWrite.catchError((Object _) {}).then((_) async {
         if (generation != _generation || _disposed || isGuest) return;
@@ -180,12 +210,15 @@ class GoogleAuthController extends ChangeNotifier {
     if (!ready && !_disposed) await _initializeSdk();
   }
   void _acceptEmail(Map<String, dynamic> data) {
+    final changedAccount = identity?.id != 'email:${data['id']}';
+    if (changedAccount) { profile = null; profilePhoto = null; }
     _emailSignedIn = true; isGuest = false; emailRestorePending = false;
     identity = GoogleIdentity(id: 'email:${data['id']}', email: data['email'] as String, idToken: null, displayName: data['name'] as String?);
     error = null;
     _emailAccessExpires = DateTime.now().add(Duration(seconds: data['expiresIn'] as int));
     _emailExpiry?.cancel();
     _emailExpiry = Timer(const Duration(minutes: 25), resumeEmailSession);
+    if (changedAccount) unawaited(loadProfile().catchError((Object _) {}));
     _changed();
   }
   Future<void> resumeEmailSession() async {
@@ -196,7 +229,7 @@ class GoogleAuthController extends ChangeNotifier {
       if (_disposed || generation != _generation) return;
       if (data == null) {
         try { await onSessionEnding?.call(); } catch (_) { /* Retain account-scoped recovery data, but end the expired session. */ }
-        _emailSignedIn = false; identity = null; emailRestorePending = false;
+        _emailSignedIn = false; identity = null; profile = null; profilePhoto = null; emailRestorePending = false;
         _emailExpiry?.cancel(); _changed();
         if (!ready) await _initializeSdk();
       } else { _acceptEmail(data); }
@@ -296,7 +329,7 @@ class GoogleAuthController extends ChangeNotifier {
         throw StateError('Account removal failed');
       }
       _emailSignedIn = false; _emailAccessExpires = null; _emailExpiry?.cancel();
-      identity = null; isGuest = true; await preferences?.setBool(guestModeKey, true); error = null; _changed();
+      identity = null; profile = null; profilePhoto = null; isGuest = true; await preferences?.setBool(guestModeKey, true); error = null; _changed();
       // Local logout must work even if Google's network/provider is unavailable.
       if (ready) {
         try { await client.signOut().timeout(const Duration(seconds: 5)); } catch (_) {}

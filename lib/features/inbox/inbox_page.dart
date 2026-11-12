@@ -1,8 +1,10 @@
 import 'label_links.dart';
 import '../auth/google_auth.dart';
 import '../sync/workspace_backup.dart';
+import '../sync/owned_workspace.dart' show splitWorkspace, itemKey, sameItem;
 import 'trash_page.dart';
 import 'thought_settings.dart';
+import '../auth/profile_page.dart';
 import '../capture/capture_models.dart';
 import '../capture/location_capture.dart';
 import '../capture/voice_dialog.dart';
@@ -63,7 +65,7 @@ class InboxPage extends StatefulWidget {
   State<InboxPage> createState() => _InboxPageState();
 }
 
-class _InboxPageState extends State<InboxPage> {
+class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
   final _draft = LabelTextController();
   final _draftTags = <String>{};
   ThoughtLocation? _draftLocation;
@@ -184,7 +186,9 @@ class _InboxPageState extends State<InboxPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     openWorkspaceDocument = _openDocumentById;
+    refreshWorkspaceForRead = _refreshForBrowse;
     desktopMenu.visible = true;
     _draft.addListener(_imeUpdated);
     widget.storage?.hasUnsavedInput=()=>_draft.text.trim().isNotEmpty||_hasCapture;
@@ -257,7 +261,10 @@ class _InboxPageState extends State<InboxPage> {
     }
   }
 
+  int _seenDeletion = elements.deletionRevision;
   void _elementDeleted() {
+    final deleted = _seenDeletion != elements.deletionRevision;
+    _seenDeletion = elements.deletionRevision;
     setState(() {
       _notes.removeWhere(
         (n) =>
@@ -277,7 +284,11 @@ class _InboxPageState extends State<InboxPage> {
 
       }
     });
-    _persist();
+    if (deleted) {
+      _persist().then((_) => widget.storage?.syncDeleted?.call()).catchError((Object e) {
+        if (mounted) _captureError('삭제를 기기에 저장했습니다. 서버 동기화를 다시 시도해주세요. $e');
+      });
+    } else { _persist(); }
   }
 
   Future<void> _createFolder({bool tag = false, String? kind}) async {
@@ -347,6 +358,7 @@ class _InboxPageState extends State<InboxPage> {
       final layoutSave = _persistLayouts();
       await workspaceSave;
       await layoutSave;
+      if (mounted && _storageError != null) setState(() => _storageError = null);
     } catch (_) {
       if (mounted) {
         setState(
@@ -380,11 +392,13 @@ class _InboxPageState extends State<InboxPage> {
       ...record.photos.map((p) => p.id), ...record.recordings.map((c) => c.id)};
     if (!await storage.preferences.setStringList(_mediaCleanupKey, files.toList())) throw StateError('Cleanup save failed');
     elements.trash.remove(id);
+    if (![...elements.records.values, ...elements.trash.values].any((r) => r.text == record.text)) forgetWordColor(record.text);
     final boxes = [for (final box in memoBoxes) if (box.elementIds.remove(id)) box];
     try { await storage.write(WorkspaceSnapshot.encode(_notes)); }
     catch (_) { elements.trash[id] = record; for (final box in boxes) { box.elementIds.add(id); } rethrow; }
     elements.refreshVisibility();
     await _cleanupDeletedMedia();
+    await storage.syncDeleted?.call();
   }
   Future<bool> _confirmTransfer(String title, String message) async => await showDialog<bool>(
     context: context, builder: (context) => AlertDialog(title: Text(title), content: Text(message),
@@ -468,7 +482,9 @@ class _InboxPageState extends State<InboxPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     if(openWorkspaceDocument == _openDocumentById)openWorkspaceDocument=null;
+    if(refreshWorkspaceForRead == _refreshForBrowse)refreshWorkspaceForRead=null;
     WidgetsBinding.instance.addPostFrameCallback((_) => desktopMenu.detach(this));
     elements.removeListener(_elementDeleted);
     elements.onRenamed = null;
@@ -781,8 +797,77 @@ class _InboxPageState extends State<InboxPage> {
   List<String> get _allTags => {...hashtagColors.keys, ...elements.tags, ..._notes.expand((n) => n.project?.tags ?? <String>{}),
     ..._notes.where((n) => n.project == null && n.paragraphs != null).expand((n) => n.tags)}.toList()..sort();
 
+  Future<void>? _browseRequest;
+  @override void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted && ModalRoute.of(context)?.isCurrent == true) {
+      _refreshForBrowse().catchError((Object e) { if (mounted) _captureError('서버 변경을 확인하지 못했습니다. $e'); });
+    }
+  }
+  Future<void> _refreshForBrowse() => _browseRequest ??= _performBrowseRefresh().whenComplete(() => _browseRequest = null);
+  Future<void> _performBrowseRefresh() async {
+    final storage = widget.storage;
+    if (storage?.refreshNow == null || _restoreBlocked) return;
+    await _persist();
+    if (_storageError != null) throw StateError(_storageError!);
+    final previous = {for (final n in _notes) n.id: n};
+    final before = splitWorkspace(storage!.read());
+    await storage.refreshNow!();
+    if (!mounted) return;
+    final snapshot = WorkspaceSnapshot.decode(storage.read()!);
+    final after = splitWorkspace(storage.read());
+    final notes = [for (final n in snapshot.notes) if (previous.containsKey(n.id) && sameItem(before[itemKey('list:notes', n.id)], after[itemKey('list:notes', n.id)])) previous[n.id]! else n];
+    setState(() { snapshot.apply(); _notes..clear()..addAll(notes); elements.sources.clear(); for (final n in notes) { if (n.project != null) elements.indexProject(n.project!); } });
+    elements.refreshVisibility(); desktopMenu.refresh();
+  }
+  Future<void> _deleteBoxes(Set<String> names) async {
+    final boxes = memoBoxes.where((b) => !b.isUnclassified && names.contains(b.name)).toList();
+    final ids = boxes.expand((b) => b.elementIds).toSet();
+    final records = [...elements.records.values, ...elements.trash.values].where((r) => ids.contains(r.id)).toList();
+    final texts = records.map((r) => r.text).toSet();
+    final storage = widget.storage;
+    if (storage != null) {
+      await storage.writable();
+      final pending = {...(storage.preferences.getStringList(_mediaCleanupKey) ?? []), for (final r in records) ...[...r.photos.map((p) => p.id), ...r.recordings.map((v) => v.id)]};
+      if (!await storage.preferences.setStringList(_mediaCleanupKey, pending.toList())) throw StateError('첨부 삭제 예약에 실패했습니다.');
+    }
+    final before = WorkspaceSnapshot.encode(_notes);
+    try {
+      elements.records.removeWhere((_, r) => ids.contains(r.id)); elements.trash.removeWhere((id, _) => ids.contains(id));
+      for (final text in texts) { if (![...elements.records.values, ...elements.trash.values].any((r) => r.text == text)) forgetWordColor(text); }
+      _notes.removeWhere((n) => n.project == null && texts.contains(n.content));
+      for (final n in _notes) { n.project?.words.removeWhere(texts.contains); }
+      memoBoxes.removeWhere((b) => boxes.contains(b));
+      for (final b in memoBoxes) { if (!b.isUnclassified) b.elementIds.removeAll(ids); }
+      await _persist(); if (_storageError != null) throw StateError(_storageError!);
+    } catch (_) { final snapshot = WorkspaceSnapshot.decode(before); snapshot.apply(); _notes..clear()..addAll(snapshot.notes); rethrow; }
+    elements.refreshVisibility();
+    await storage?.syncDeleted?.call(); await _cleanupDeletedMedia();
+    if (mounted) setState(() {});
+  }
+  Future<void> _deleteFolder(String kind, String folder) async {
+    final before = WorkspaceSnapshot.encode(_notes);
+    await widget.storage?.writable();
+    try {
+    if (kind == 'box') {
+      final removed = memoBoxFolders.where((f) => memoFolderContains(folder, f)).toSet();
+      for (final b in memoBoxes) { if (removed.contains(b.folder)) b.folder = null; }
+      memoBoxFolders.removeWhere(removed.contains); memoBoxFolderParents.removeWhere((key, value) => removed.contains(key) || removed.contains(value));
+    } else if (kind == 'project') {
+      projectFolders.remove(folder); for (final n in _notes) { if (n.project?.folder == folder) n.project!.folder = null; }
+    } else if (kind == 'paragraph') {
+      paragraphFolders.remove(folder); for (final n in _paragraphNotes) { if (n.folder == folder) n.folder = null; }
+    } else if (kind == 'element') {
+      elementFolders.remove(folder); for (final r in elements.records.values) { if (r.folder == folder) r.folder = null; }
+    } else if (kind == 'tag') {
+      hashtagFolders.remove(folder); hashtagFolderAssignments.removeWhere((_, value) => value == folder);
+    }
+    await _persist(); if (_storageError != null) throw StateError(_storageError!);
+    } catch (_) { final snapshot = WorkspaceSnapshot.decode(before); snapshot.apply(); _notes..clear()..addAll(snapshot.notes); rethrow; }
+    await widget.storage?.syncFolders?.call();
+    elements.refreshVisibility(); if (mounted) setState(() {});
+  }
   Future<void> _allThoughts([MemoBox? box]) async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onLayoutChanged: _persistLayouts, onChanged: _persist, onSave:_saveAndSync, initialBox: box, storage:widget.storage, onDocument:_showProject)));
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onLayoutChanged: _persistLayouts, onChanged: _persist, onSave:_saveAndSync, initialBox: box, storage:widget.storage, onDocument:_showProject, onRefresh:_refreshForBrowse, onDeleteBoxes:_deleteBoxes)));
     if (mounted) setState(() {});
   }
 
@@ -809,6 +894,11 @@ class _InboxPageState extends State<InboxPage> {
   }
 
   Future<void> _showProject(Note note) async {
+    try { await _refreshForBrowse(); } catch (e) { if (mounted) _captureError('서버 변경을 확인하지 못했습니다. $e'); }
+    if (!mounted) return;
+    final current = _notes.where((n) => n.id == note.id).firstOrNull;
+    if (current == null) { _captureError('다른 기기에서 삭제된 문서입니다.'); return; }
+    note = current;
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -894,6 +984,7 @@ class _InboxPageState extends State<InboxPage> {
         onTagMoved: _moveTag,
         onTagColorChanged: _persist,
         onBoxChanged: _persist,
+        onDeleteFolder: _deleteFolder,
         folders: projectFolders,
         projectFolderNames: projects.map((n) => n.project!.folder).toList(),
       ),
@@ -913,6 +1004,7 @@ class _InboxPageState extends State<InboxPage> {
     List<String> tags,
   ) async {
     if (!mounted || choice == null || choice == -1) return;
+    if (choice == WorkspaceMenu.home) { await navigateHome(context); if (mounted && !Navigator.of(context).canPop()) { try { await _refreshForBrowse(); } catch (e) { if (mounted) _captureError('서버 변경을 확인하지 못했습니다. $e'); } } return; }
     if (choice == WorkspaceMenu.settings) { await showThoughtSettings(context, widget.storage?.preferences, onUpload: _uploadBackup, onDownload: _downloadBackup, onReset: _reset, onInvite:widget.storage?.openSharing, onWorkspaces:widget.storage?.openWorkspaces, workspaceName:widget.storage?.workspaceName, onSignIn: () async {
       if (_draft.text.trim().isNotEmpty || _hasCapture) throw const BackupFailure('작성 중인 메모를 저장한 뒤 로그인해주세요.');
       if (_captureSaving || _locationBusy || _photoBusy) throw const BackupFailure('메모와 첨부 처리 완료 후 다시 시도해주세요.');
@@ -1235,6 +1327,7 @@ class _InboxPageState extends State<InboxPage> {
                 onTagMoved: _moveTag,
         onTagColorChanged: _persist,
         onBoxChanged: _persist,
+        onDeleteFolder: _deleteFolder,
                 folders: projectFolders,
                 tags: _allTags,
                 onSelected: (choice) => _selectMenu(
@@ -1275,6 +1368,8 @@ class _InboxPageState extends State<InboxPage> {
         ),
         actions: [
           const KeyboardDismissAction(),
+          if (GoogleAuthScope.maybeOf(context)?.identity != null)
+            IconButton(tooltip: '프로필', onPressed: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => ProfilePage(auth: GoogleAuthScope.maybeOf(context)!))), icon: ProfileAvatar(auth: GoogleAuthScope.maybeOf(context))),
           const SizedBox(width: 12),
         ],
         title: GestureDetector(onTap: MediaQuery.sizeOf(context).width >= 1000 ? () => navigateHome(context) : null, child: Text(

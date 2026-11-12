@@ -18,7 +18,7 @@ class _TrashPageState extends State<TrashPage> {
     final ids = elements.trash.keys.toList();
     final yes = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
       title: const Text('휴지통을 비울까요?'),
-      content: Text('검색 결과와 관계없이 휴지통의 생각 ${ids.length}개와 첨부파일을 영구 삭제합니다. 서버 백업은 유지됩니다.'),
+      content: Text('검색 결과와 관계없이 휴지통의 생각 ${ids.length}개와 첨부파일을 영구 삭제합니다. 로그인 상태에서는 서버에도 반영됩니다.'),
       actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
         TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('모두 삭제'))]));
     if (yes != true || !mounted) return;
@@ -43,7 +43,7 @@ class _TrashPageState extends State<TrashPage> {
           TextButton(onPressed: busy ? null : () async {
             final yes = await showDialog<bool>(context: dialogContext, builder: (context) => AlertDialog(
               title: const Text('완전히 삭제할까요?'),
-              content: const Text('이 기기의 생각과 첨부파일을 삭제합니다. 되돌릴 수 없습니다. 서버에 저장한 백업은 별도로 유지됩니다.'),
+              content: const Text('생각과 첨부파일을 영구 삭제합니다. 로그인 상태에서는 서버에도 반영되며 되돌릴 수 없습니다.'),
               actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
                 TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('영구 삭제'))]));
             if (yes != true || !dialogContext.mounted) return;

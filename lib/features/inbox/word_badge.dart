@@ -11,6 +11,8 @@ void ensureWordColor(String word) {
   _wordHues.putIfAbsent(word, () => _random.nextDouble() * 360);
 }
 
+void forgetWordColor(String word) => _wordHues.remove(word);
+
 void renameWordColor(String oldText, String newText) {
   ensureWordColor(oldText);
   _wordHues[newText] = _wordHues.remove(oldText)!;

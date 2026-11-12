@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:weaver/features/auth/google_auth.dart';
-import 'package:weaver/features/inbox/thought_settings.dart';
+import 'package:weaver/features/auth/profile_page.dart';
 import 'login_presentation_test.dart' show NoGoogle;
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -18,7 +18,7 @@ class FakeWindow implements OAuthWindowHandle {
 }
 http.Response response(Map<String, Object?> value) => http.Response(jsonEncode(value), 200);
 void main() {
-  testWidgets('Settings unlocks after closing an account-link popup', (tester) async {
+  testWidgets('Profile unlocks after closing an account-link popup', (tester) async {
     final window = FakeWindow();
     final pending = Completer<http.Response>();
     final api = EmailAuthApi(store: MemorySessionStore(isWeb: true), oauthWindowFactory: () => window,
@@ -26,16 +26,15 @@ void main() {
         response({'id': 'account', 'email': 'account@example.com', 'expiresIn': 1800})));
     final auth = GoogleAuthController(NoGoogle(), emailApi: api);
     await auth.signInWithEmail('account@example.com', 'password');
-    await tester.pumpWidget(GoogleAuthScope(controller: auth, child: MaterialApp(home: Builder(
-      builder: (context) => Scaffold(body: TextButton(onPressed: () => showThoughtSettings(context, null), child: const Text('settings')))))));
-    await tester.tap(find.text('settings')); await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('GitHub 계정 연결'));
-    await tester.tap(find.text('GitHub 계정 연결')); await tester.pump();
+    await tester.pumpWidget(GoogleAuthScope(controller: auth, child: MaterialApp(home: ProfilePage(auth: auth))));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('GitHub'));
+    await tester.tap(find.text('GitHub')); await tester.pump();
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
     window.closed = true; await tester.pump(const Duration(milliseconds: 250)); await tester.pump();
     expect(find.byType(LinearProgressIndicator), findsNothing);
-    final close = tester.widget<IconButton>(find.byKey(const ValueKey('close-settings')));
-    expect(close.onPressed, isNotNull);
+    final name = tester.widget<IconButton>(find.byWidgetPredicate((w) => w is IconButton && w.tooltip == '이름 변경'));
+    expect(name.onPressed, isNotNull);
     pending.complete(response({'flow': 'late', 'authorizeUrl': 'https://github.com/login/oauth/authorize'}));
     await tester.pump(); await tester.pumpWidget(const SizedBox()); auth.dispose();
   });

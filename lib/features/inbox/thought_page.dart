@@ -1,4 +1,5 @@
 import 'save_shortcuts.dart';
+import 'memo_box_actions.dart';
 import 'thought_label.dart';
 import 'package:flutter/gestures.dart';
 import 'canvas_geometry.dart';
@@ -24,7 +25,8 @@ import 'graph_arrangement.dart';
 
 /// A live workspace over the same thoughts and tags.
 class ThoughtPage extends StatefulWidget {
-  const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.onSave, this.box, this.blocks = false, this.viewSelector, this.filters});
+  const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.onSave, this.box, this.blocks = false, this.viewSelector, this.filters, this.onDeleteBoxes});
+  final Future<void> Function(Set<String>)? onDeleteBoxes;
   final VoidCallback onChanged;
   final VoidCallback? onLayoutChanged;
   final Future<void> Function()? onSave;
@@ -674,7 +676,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filters.singleBox?.name ?? '전체 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
-      PopupMenuButton<bool>(tooltip: '생각 만들기', icon: const Icon(Icons.add),
+      if (widget.blocks) MemoBoxActions(filters: _filters, onCreate: _createBox, onDelete: widget.onDeleteBoxes)
+      else PopupMenuButton<bool>(tooltip: '생각 만들기', icon: const Icon(Icons.add),
         onSelected: (box) { if (box) { _createBox(); } else { _create(); } },
         itemBuilder: (_) => const [PopupMenuItem(value: false, child: Text('생각 만들기')), PopupMenuItem(value: true, child: Text('상자 만들기'))]),
       PopupMenuButton<String>(tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: (value) {if(value=='all'){setState(() => _centered=false);}else{_resetArrangement(value=='stack');}},

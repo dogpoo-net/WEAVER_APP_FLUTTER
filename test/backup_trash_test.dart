@@ -9,6 +9,7 @@ import 'package:weaver/features/capture/capture_models.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/trash_page.dart';
+import 'package:weaver/features/inbox/inbox_page.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
 import 'package:weaver/features/inbox/word_badge.dart';
 import 'package:weaver/features/sync/workspace_backup.dart';
@@ -29,6 +30,20 @@ class MemoryMedia implements BackupMedia {
 }
 void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); restoreWordColors({}); SharedPreferences.setMockInitialValues({}); });
+  testWidgets('Thought deletion triggers immediate deletion-only sync from the main screen', (tester) async {
+    elements.add('즉시 삭제');
+    final storage = WorkspaceStorage(await SharedPreferences.getInstance());
+    await storage.write(WorkspaceSnapshot.encode([]));
+    var deletes = 0, fullSaves = 0;
+    storage.syncDeleted = () async { deletes++; };
+    storage.syncNow = () async { fullSaves++; };
+    await tester.pumpWidget(MaterialApp(home: InboxPage(storage: storage, themeMode: ThemeMode.light, onThemeChanged: (_) {})));
+    await tester.pumpAndSettle();
+    elements.remove('즉시 삭제'); await tester.pumpAndSettle();
+    expect(deletes, 1); expect(fullSaves, 0);
+    expect(WorkspaceSnapshot.decode(storage.read()!).trashRecords.single.text, '즉시 삭제');
+    await tester.pumpWidget(const SizedBox());
+  });
   test('trash preserves identity, tags, dates, photos and audio across reload', () {
     final a = elements.add('사진 생각 #자료')
       ..photos.add(const PhotoAttachment('photo', '사진.jpg'))

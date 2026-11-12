@@ -42,7 +42,8 @@ void main() {
     await tester.pumpWidget(const MyApp(requireLogin: false, ));
     await tester.tap(find.byTooltip('메뉴 열기'));
     await tester.pumpAndSettle();
-    expect(find.text('메인'), findsNothing);
+    expect(find.descendant(of: find.byType(WorkspaceMenu), matching: find.text('기록함')), findsOneWidget);
+    expect(tester.getTopLeft(find.descendant(of: find.byType(WorkspaceMenu), matching: find.text('기록함'))).dy, lessThan(tester.getTopLeft(find.text('전체 보기').last).dy));
     expect(tester.getSize(find.byType(Dialog)).height, greaterThan(480));
     expect(find.descendant(of: find.byType(WorkspaceMenu), matching: find.text('문단 쓰기')), findsNothing);
     await tester.tapAt(const Offset(10, 10));
@@ -51,10 +52,10 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('thoughts-all')));
     await tester.pumpAndSettle();
     expect(find.text('생각 만들기'), findsNothing);
-    expect(find.byTooltip('메모상자 만들기'), findsOneWidget);
+    expect(find.byTooltip('메모상자 관리'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
-    expect(find.byTooltip('메모상자 만들기'), findsNothing);
+    expect(find.byTooltip('메모상자 관리'), findsNothing);
     expect(find.text('빠른 메모'), findsOneWidget);
   });
   testWidgets('only project list scrolls while navigation remains fixed', (

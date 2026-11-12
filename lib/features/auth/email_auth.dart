@@ -83,6 +83,15 @@ class EmailAuthApi {
     if (!store.isWeb && accessToken == null) { if (await refresh() == null) throw const EmailAuthFailure('다시 로그인해주세요.', status: 401); }
     return post('session/$_platform/workspace/$action', body, sessionToken: accessToken);
   }
+  Future<Map<String, dynamic>> profile(String action, [Map<String, Object?> body = const {}]) async {
+    if (!store.isWeb && accessToken == null && await refresh() == null) throw const EmailAuthFailure('다시 로그인해주세요.', status: 401);
+    return post('session/$_platform/profile/$action', body, sessionToken: accessToken);
+  }
+  Future<void> linkGoogle(String token, {bool Function()? isCurrent}) async {
+    if (await refresh() == null) throw const EmailAuthFailure('다시 로그인해주세요.', status: 401);
+    if (isCurrent != null && !isCurrent()) return;
+    await post('session/$_platform/google/link', {'idToken': token}, sessionToken: accessToken);
+  }
   Future<Map<String, dynamic>> loginKakao(String token) => _login('kakao', {'kakaoToken': token});
   Future<void> linkKakao(String token) async {
     final renewed = await refresh();

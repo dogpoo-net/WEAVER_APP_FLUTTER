@@ -43,3 +43,5 @@ class WorkspaceTitle extends StatelessWidget {
 
 // Route document links through the active workspace's save/history handlers.
 Future<void> Function(String)? openWorkspaceDocument;
+
+Future<void> Function()? refreshWorkspaceForRead;
