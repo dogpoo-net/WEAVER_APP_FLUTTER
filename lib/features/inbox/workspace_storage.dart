@@ -333,6 +333,8 @@ class WorkspaceStorage {
   WorkspaceStorage(this.preferences, {this.owner});
   final String? owner;
   Future<Map<String,dynamic>> Function(String,String,bool)? documentLease;
+  bool lastSaveReplaced=false;
+  VoidCallback? applyServerSnapshot;
   final liveChanges = ValueNotifier<int>(0);
   final leaseChanges = ValueNotifier<int>(0);
   final leaseStates = <String,Map<String,dynamic>>{};

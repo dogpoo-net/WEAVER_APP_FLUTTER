@@ -210,6 +210,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     openWorkspaceDocument = _openDocumentById;
     refreshWorkspaceForRead = _refreshForBrowse;
+    widget.storage?.applyServerSnapshot=_applyRemoteSnapshot;
     desktopMenu.visible = true;
     _draft.addListener(_imeUpdated);
     widget.storage?.hasUnsavedInput=()=>_draft.text.trim().isNotEmpty||_hasCapture;
@@ -507,6 +508,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    widget.storage?.applyServerSnapshot=null;
     _liveTimer?.cancel();_contentTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     if(openWorkspaceDocument == _openDocumentById)openWorkspaceDocument=null;

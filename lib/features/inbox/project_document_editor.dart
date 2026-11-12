@@ -31,10 +31,11 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   late final LabelTextController _body;
   bool _preview = false;
   EditLock? _lock;
-  bool _followServer=true;
   void _remoteDocumentChanged(){
-    if(!mounted || _leaseGranted || !_followServer || _dirty || widget.project==null)return;
-    _body.text=widget.project!.content;_body.bindings..clear()..addAll(widget.project!.documentLinks);setState(()=>_dirty=false);
+    if(!mounted || widget.project==null)return;
+    if(_body.text!=widget.project!.content)_body.text=widget.project!.content;
+    _body.bindings..clear()..addAll(widget.project!.documentLinks);
+    _tags..clear()..addAll(widget.project!.tags);_filters.tags..clear()..addAll(_tags);setState(()=>_dirty=false);
   }
   bool get _leaseGranted=>_lock?.granted??true;
   String? get _leaseMessage=>_lock?.message;
@@ -44,7 +45,6 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     if(widget.onReload==null || !await confirmReload(context))return;
     try{
       await widget.onReload!();await _renewLease();if(!mounted)return;
-      _followServer=!_leaseGranted;
       _body.text=widget.project!.content;_body.bindings..clear()..addAll(widget.project!.documentLinks);
       _tags..clear()..addAll(widget.project!.tags);_filters.tags..clear()..addAll(_tags);setState(()=>_dirty=false);
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('갱신하지 못했습니다. $e')));}
@@ -78,7 +78,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     _keyboardVisible = visible;
   }
   void _edited() { if (mounted) setState(() => _dirty = true); }
-  void _refresh() { if(_leaseGranted)_followServer=false;if (mounted) setState(() {}); }
+  void _refresh() { if (mounted) setState(() {}); }
   @override
   void dispose() { widget.storage?.liveChanges.removeListener(_remoteDocumentChanged);_lock?.removeListener(_refresh);_lock?.dispose();elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
   void _insertLabel(String word) {
@@ -111,7 +111,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     project.words.clear(); project.tags..clear()..addAll({..._tags, ..._filters.tags});
     if (widget.project == null) { Navigator.pop(context, project); return; }
     elements.indexProject(project); await widget.onChanged?.call(); await widget.onSave?.call();
-    if (mounted) { setState(() => _dirty = false); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('저장되었습니다.'))); }
+    if (mounted) { setState(() => _dirty = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.storage?.lastSaveReplaced==true?'서버 최신 자료로 갱신했습니다.':'저장되었습니다.'))); }
     } catch(e) { if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('저장 또는 동기화에 실패했습니다. 로컬 자료는 유지됩니다. $e'))); }
     finally {_saving=false;}
   }

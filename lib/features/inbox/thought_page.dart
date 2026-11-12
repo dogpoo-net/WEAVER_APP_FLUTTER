@@ -55,19 +55,19 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   late final GraphLayout _layout;
   GraphLayout get _targetLayout{final base=widget.box?.layout??pageGraphLayout;return widget.blocks?base.blockLayout:base;}
   EditLock? _lock;
-  bool _followServer=true;
   void _remoteCanvasChanged(){
-    if(!mounted || _canEdit || !_followServer)return;
+    if(!mounted)return;
+    _saveTimer?.cancel();
     _layout.copyFrom(_targetLayout);
     setState((){_positions..clear()..addAll(_layout.positions);_tagPositions..clear()..addAll(_layout.tags);_emptyBoxBounds.clear();_frozenFolders.clear();_sync();});
   }
   String get _resource=>widget.blocks?'canvas:boxes':'canvas:diagram';
   bool get _canEdit=>_lock?.granted??true;
-  void _lockChanged(){if(_canEdit)_followServer=false;if(mounted)setState((){});}
+  void _lockChanged(){if(mounted)setState((){});}
   Future<void> _reloadCanvas()async{
     if(widget.onReload==null || !await confirmReload(context))return;
     try{
-      _saveTimer?.cancel();await widget.onReload!();await _lock?.renew();if(!mounted)return;_followServer=!_canEdit;_layout.copyFrom(_targetLayout);
+      _saveTimer?.cancel();await widget.onReload!();await _lock?.renew();if(!mounted)return;_layout.copyFrom(_targetLayout);
       setState((){_positions..clear()..addAll(_layout.positions);_tagPositions..clear()..addAll(_layout.tags);_emptyBoxBounds.clear();_frozenFolders.clear();_centered=false;_sync();});
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('갱신하지 못했습니다. $e')));}
   }
@@ -659,7 +659,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   Future<void> _saveCanvas() async {
     if(_savingCanvas || !_canEdit)return;_savingCanvas=true;
     try { if(_lock!=null && !await _lock!.renew())return;_saveLayout(flush:true);widget.onLayoutChanged?.call();widget.onChanged();if(widget.storage?.syncResource!=null){await widget.storage!.flush();await widget.storage!.syncResource!(_resource);}else{await widget.onSave?.call();}
-      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('저장되었습니다.')));
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(widget.storage?.lastSaveReplaced==true?'서버 최신 자료로 갱신했습니다.':'저장되었습니다.')));
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('저장 또는 동기화에 실패했습니다. 로컬 자료는 유지됩니다. $e')));}
     finally {_savingCanvas=false;}
   }

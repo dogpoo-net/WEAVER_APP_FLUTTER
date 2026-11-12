@@ -17,23 +17,30 @@ buffers. JSON key order and equivalent numeric encodings compare equal.
 
 Existing WEAVER_DOCUMENT_LOCK rows also represent `canvas:diagram` and
 `canvas:boxes` (all filtered views share the corresponding workspace lock).
-Lease tokens identify the editing screen, including separate devices of one
-account. Leases last 120 seconds and renew every 30 seconds in the foreground.
-Status checks detect takeover within the polling interval. Backend save checks
-both the actor and token. Releases are conditional on the token, and renewal
-cannot reclaim a missing lease. No schema migration is needed.
+Migration 011 adds `shared_editing`. Initially an editing screen owns an
+exclusive 120-second lease, renewed every 30 seconds while active. Confirming
+unlock permanently opens that resource for every workspace editor, including
+the original editor and subsequently opened screens. Closing a screen does not
+relock a shared resource. Viewer permissions remain read-only.
 
-The confirmation action explicitly takes over the lease, rebases only the
-selected resource's server revision, and preserves that screen's local snapshot.
-Its next explicit save can therefore replace the saved resource. An older
-editor cannot save under the transferred lease. A refresh confirmation replaces
-only the chosen resource, retains unrelated drafts, and checks the lease again.
-Read-only viewers follow server data. Editors that lose a lease retain their
-pending snapshot until explicit refresh or takeover; their drafts are never
-silently overwritten. Closing an editor clears local observation even if the
-network release fails; the server lease then expires naturally.
+Document and canvas saves use last-server-write-wins; stale base revisions do
+not reject authorized editor saves. Explicit scoped saves send the full resource
+snapshot, including unchanged values. The server tombstones any existing scope
+entries absent from that snapshot, so an empty or smaller canvas genuinely
+replaces an older larger layout. Other scopes remain unchanged. Transactions
+serialize competing saves. A save queued behind a read captures the explicit
+snapshot so that the user's already-requested save is not silently discarded.
+
+Every server read replaces local workspace data with the server version,
+including unsaved changes. Editors and canvases also refresh their displayed
+buffers. Other item revision conflicts trigger a fresh server read and update
+the UI rather than abandoning synchronization. Genuine transport, permissions,
+and server errors are still surfaced. Guest source ownership checks remain.
+
+The unlock confirmation has three explicit lines; U+2060 inside each whitespace-
+delimited word prevents Korean syllable wrapping while retaining word boundaries.
+An unmodified semantics label exposes the original sentences to assistive tools.
 
 2–3 seconds is a foreground target after a successful server save, not a latency
-SLA. Network delays, attachment downloads, conflicts, offline clients and open
-input dialogs may delay visible updates. iOS background suspension cannot
-provide this latency. Native apps need a new build to get this implementation.
+SLA. Network delays, attachment downloads, offline clients and open input dialogs
+may delay visible updates. Native apps need a new build for these changes.
