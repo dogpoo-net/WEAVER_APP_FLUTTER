@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:collection/collection.dart';
 import 'dart:convert';
 import 'dart:math';
@@ -193,7 +192,6 @@ class WorkspaceSync extends ChangeNotifier {
   int _pendingSaves=0;
   String? error;
   bool busy=false,ready=false,_disposed=false;
-  Timer? _timer;
   Future<void>? _running;
   String? _lastSynced;
   void changed(){if(!_disposed)notifyListeners();}
@@ -288,7 +286,7 @@ class WorkspaceSync extends ChangeNotifier {
   }
   Future<void> _flush({bool deletionsOnly = false, bool foldersOnly = false, bool contentOnly=false, String? resource, String? requestedSnapshot}) async {
     if(_disposed || !isCurrent())return;
-    _timer?.cancel();_timer=null;storage.lastSaveReplaced=false;busy=true;changed();
+    storage.lastSaveReplaced=false;busy=true;changed();
     try {
       await storage.flush();
       if(!ready){await initialize();if(!ready)return;}
@@ -390,5 +388,5 @@ class WorkspaceSync extends ChangeNotifier {
     await storage.flush();if(storage.read()==_lastSynced){final raw=storage.read();await storage.clear();await storage.preferences.remove(storage.syncKey);
       if(raw!=null){final snapshot=WorkspaceSnapshot.decode(raw);for(final r in [...snapshot.records,...snapshot.trashRecords]){for(final id in [...r.photos.map((p)=>p.id),...r.recordings.map((c)=>c.id)]){try{await MediaStorage.delete(id,owner:storage.owner);}catch(_){}await storage.preferences.remove(storage.scoped('media-sent.$id'));}}}}
   }
-  @override void dispose(){_disposed=true;_timer?.cancel();storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;super.dispose();}
+  @override void dispose(){_disposed=true;storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;super.dispose();}
 }

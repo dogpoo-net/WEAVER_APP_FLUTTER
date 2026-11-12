@@ -79,7 +79,7 @@ jobs:
       - name: Build project Pages site
         env:
           GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
-        run: flutter build web --release --no-pub --base-href /WEAVER_APP_FLUTTER/ --dart-define="GOOGLE_WEB_CLIENT_ID=$GOOGLE_WEB_CLIENT_ID"
+        run: bash tool/build_web.sh --base-href /WEAVER_APP_FLUTTER/ --dart-define="GOOGLE_WEB_CLIENT_ID=$GOOGLE_WEB_CLIENT_ID"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
