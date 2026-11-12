@@ -265,13 +265,14 @@ class _ProfilePageState extends State<ProfilePage> {
                 const SizedBox(height: 12),
                 if (providers.contains('google'))
                   const ListTile(
-                    leading: Icon(Icons.check_circle_outline),
+                    leading: Image(image: AssetImage('assets/branding/social/google.png'), width: 24, height: 24),
                     title: Text('Google'),
                     trailing: Text('연결됨'),
                   )
                 else if (auth.client.configured)
                   Center(
                     child: googleSignInButton(
+                      label: 'Google 계정 연결',
                       onPressed: disabled || !auth.ready
                           ? null
                           : auth.startGoogleLink,

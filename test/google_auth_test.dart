@@ -55,8 +55,9 @@ void main() {
     await auth.signOut();
     await tester.pumpAndSettle();
     expect(find.text('Private route'), findsNothing);
-    expect(find.byType(LoginPage), findsNothing);
-    expect(find.byType(InboxPage), findsOneWidget);
+    expect(find.byType(LoginPage), findsOneWidget);
+    expect(find.byType(InboxPage), findsNothing);
+    expect(auth.isGuest, isFalse);
   });
   testWidgets('failed sign in does not unlock workspace and can retry', (tester) async {
     final client = FakeGoogleClient()..fail = true;

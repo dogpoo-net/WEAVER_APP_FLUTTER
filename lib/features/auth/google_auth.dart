@@ -361,7 +361,7 @@ class GoogleAuthController extends ChangeNotifier {
         throw StateError('Account removal failed');
       }
       _emailSignedIn = false; _emailAccessExpires = null; _emailExpiry?.cancel();
-      identity = null; profile = null; profilePhoto = null; isGuest = true; await preferences?.setBool(guestModeKey, true); error = null; _changed();
+      identity = null; profile = null; profilePhoto = null; isGuest = false; await preferences?.remove(guestModeKey); error = null; _changed();
       // Local logout must work even if Google's network/provider is unavailable.
       if (ready) {
         try { await client.signOut().timeout(const Duration(seconds: 5)); } catch (_) {}

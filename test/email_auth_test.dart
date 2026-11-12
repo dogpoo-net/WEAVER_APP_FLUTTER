@@ -19,6 +19,37 @@ class FakeGoogle implements GoogleAuthClient {
   @override Future<void> dispose() async {}
 }
 void main() {
+  for (final action in ['workspace', 'profile']) {
+    test('$action retries unauthorized once using a renewed access token', () async {
+      var requests = 0, refreshes = 0;
+      final api = EmailAuthApi(store: MemorySessionStore(), client: MockClient((r) async {
+        if (r.url.path.endsWith('/login') || r.url.path.endsWith('/refresh')) {
+          final renewed = r.url.path.endsWith('/refresh');
+          if (renewed) refreshes++;
+          return http.Response(jsonEncode({'id':'123','email':'test@example.invalid','refreshToken':'refresh','accessToken':renewed?'new':'old','expiresIn':1800}),200);
+        }
+        requests++;
+        if(requests == 1) return http.Response('{}',401);
+        expect(r.headers['Authorization'],'Bearer new');
+        return http.Response('{"ok":true}',200);
+      }));
+      await api.login('test@example.invalid','password');
+      final result = action == 'workspace' ? await api.workspace('read',{}) : await api.profile('read');
+      expect(result['ok'],true);expect(requests,2);expect(refreshes,1);api.dispose();
+    });
+  }
+
+  test('expired refresh session does not loop or replay a sync write', () async {
+    var writes=0, refreshes=0;
+    final api=EmailAuthApi(store:MemorySessionStore(), client:MockClient((r) async {
+      if(r.url.path.endsWith('/login')) return http.Response(jsonEncode({'id':'123','email':'test@example.invalid','refreshToken':'refresh','accessToken':'old','expiresIn':1800}),200);
+      if(r.url.path.endsWith('/refresh')) {refreshes++;return http.Response('{}',401);}
+      writes++;return http.Response('{}',401);
+    }));
+    await api.login('test@example.invalid','password');
+    await expectLater(api.workspace('save',{}),throwsA(isA<EmailAuthFailure>().having((e)=>e.status,'status',401)));
+    expect(writes,1);expect(refreshes,1);expect(api.accessToken,isNull);api.dispose();
+  });
   test('HTML server errors retain HTTP status instead of reporting a connection failure', () async {
     final api=EmailAuthApi(store:MemorySessionStore(),client:MockClient((_)async=>http.Response('<html>Internal server error</html>',500)));
     await expectLater(api.post('session/native/workspace/save',{}),throwsA(isA<EmailAuthFailure>().having((e)=>e.status,'status',500).having((e)=>e.message,'message',contains('서버에서 요청을 처리하지 못했습니다'))));api.dispose();

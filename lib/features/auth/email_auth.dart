@@ -96,14 +96,22 @@ class EmailAuthApi {
   }
   Future<Map<String, dynamic>> login(String email, String password) => _login('login', {'email': email, 'password': password});
   Future<Map<String, dynamic>> loginGoogle(String? token, {String? accessToken}) => _login('google', {'idToken': ?token, 'googleAccessToken': ?accessToken});
-  Future<Map<String, dynamic>> workspace(String action, Map<String, Object?> body) async {
-    if (!store.isWeb && accessToken == null) { if (await refresh() == null) throw const EmailAuthFailure('다시 로그인해주세요.', status: 401); }
-    return post('session/$_platform/workspace/$action', body, sessionToken: accessToken);
+  Future<Map<String, dynamic>> _authenticatedPost(String action, Map<String, Object?> body) async {
+    if (!store.isWeb && accessToken == null && await refresh() == null) {
+      throw const EmailAuthFailure('다시 로그인해주세요.', status: 401);
+    }
+    try {
+      return await post(action, body, sessionToken: accessToken);
+    } on EmailAuthFailure catch (error) {
+      if (!error.unauthorized) rethrow;
+      if (await refresh() == null) throw const EmailAuthFailure('세션이 만료되었습니다. 다시 로그인해주세요.', status: 401);
+      return post(action, body, sessionToken: accessToken);
+    }
   }
-  Future<Map<String, dynamic>> profile(String action, [Map<String, Object?> body = const {}]) async {
-    if (!store.isWeb && accessToken == null && await refresh() == null) throw const EmailAuthFailure('다시 로그인해주세요.', status: 401);
-    return post('session/$_platform/profile/$action', body, sessionToken: accessToken);
-  }
+  Future<Map<String, dynamic>> workspace(String action, Map<String, Object?> body) =>
+      _authenticatedPost('session/$_platform/workspace/$action', body);
+  Future<Map<String, dynamic>> profile(String action, [Map<String, Object?> body = const {}]) =>
+      _authenticatedPost('session/$_platform/profile/$action', body);
   Future<void> linkGoogle(String? token, {String? accessToken, bool Function()? isCurrent}) async {
     if (await refresh() == null) throw const EmailAuthFailure('다시 로그인해주세요.', status: 401);
     if (isCurrent != null && !isCurrent()) return;
