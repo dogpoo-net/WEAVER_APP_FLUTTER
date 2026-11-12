@@ -46,12 +46,14 @@ class EmailAuthApi {
         if (store.isWeb && _tab != null) 'X-Weaver-Tab': _tab!['id']!,
         if (store.isWeb && _tab != null) 'X-Weaver-Proof': _tab!['proof']!,
       }, body: jsonEncode(body)).timeout(const Duration(seconds: 35));
-      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      dynamic data;
+      try { data = jsonDecode(utf8.decode(response.bodyBytes)); } on FormatException { /* Proxies and server errors can return HTML instead of JSON. */ }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw EmailAuthFailure(data is Map && data['message'] is String
-            ? data['message'] as String : '요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.', status: response.statusCode);
+            ? data['message'] as String : response.statusCode >= 500 ? '서버에서 요청을 처리하지 못했습니다. (${response.statusCode}) 저장한 로컬 자료는 유지됩니다. 잠시 후 다시 시도해주세요.' : '요청을 처리하지 못했습니다. (${response.statusCode})', status: response.statusCode);
       }
-      return Map<String, dynamic>.from(data as Map);
+      if(data is! Map)throw const EmailAuthFailure('서버 응답 형식이 올바르지 않습니다. 저장한 로컬 자료는 유지됩니다.');
+      return Map<String, dynamic>.from(data);
     } on EmailAuthFailure { rethrow; }
     catch (_) { throw const EmailAuthFailure('서버에 연결하지 못했습니다. 연결을 확인하고 다시 시도해주세요.'); }
   }

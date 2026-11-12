@@ -19,6 +19,14 @@ class FakeGoogle implements GoogleAuthClient {
   @override Future<void> dispose() async {}
 }
 void main() {
+  test('HTML server errors retain HTTP status instead of reporting a connection failure', () async {
+    final api=EmailAuthApi(store:MemorySessionStore(),client:MockClient((_)async=>http.Response('<html>Internal server error</html>',500)));
+    await expectLater(api.post('session/native/workspace/save',{}),throwsA(isA<EmailAuthFailure>().having((e)=>e.status,'status',500).having((e)=>e.message,'message',contains('서버에서 요청을 처리하지 못했습니다'))));api.dispose();
+  });
+  test('Invalid successful responses are distinguished from network failures', () async {
+    final api=EmailAuthApi(store:MemorySessionStore(),client:MockClient((_)async=>http.Response('<html>unexpected</html>',200)));
+    await expectLater(api.post('session/native/workspace/read',{}),throwsA(isA<EmailAuthFailure>().having((e)=>e.message,'message',contains('서버 응답 형식'))));api.dispose();
+  });
   test('Email session is not restored through insecure Google test marker', () async {
     SharedPreferences.setMockInitialValues({GoogleAuthController.rememberedAccountKey: jsonEncode({'id':'old','email':'old@example.com'})});
     final prefs = await SharedPreferences.getInstance();
