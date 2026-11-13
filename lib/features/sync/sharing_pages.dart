@@ -1,3 +1,4 @@
+import 'document_revision_diff.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -279,7 +280,8 @@ class _DocumentHistoryPageState extends State<DocumentHistoryPage> {
           ),
         for (final version in versions)
           ExpansionTile(
-            title: Text('버전 ${version['version']} · ${version['actorName']}'),
+            title: Row(children: [Expanded(child: Text('버전 ${version['version']} · ${version['actorName']}')),
+              if (version['action'] == 'unlocked_edit') const Tooltip(message: '이 버전은 잠금 해제 후 저장했습니다.', child: Icon(Icons.lock_open, size: 18))]),
             subtitle: Text(
               '${timestamp(version['createdAt'])}\n+${version['added']}자 / −${version['removed']}자 · 순변화 ${(version['added'] as num) - (version['removed'] as num)}자',
             ),
@@ -308,17 +310,15 @@ class _DocumentHistoryPageState extends State<DocumentHistoryPage> {
                       ],
                     ),
                   ),
-              TextButton(
+              SizedBox(width: double.infinity, child: TextButton(
                 onPressed: () => showDialog<void>(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: Text('버전 ${version['version']} 본문'),
-                    content: SizedBox(
-                      width: 640,
-                      child: SingleChildScrollView(
-                        child: SelectableText(version['afterText'] as String),
-                      ),
-                    ),
+                    insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                    title: Text('버전 ${version['version']} 전체 변경 비교'),
+                    content: SizedBox(width: MediaQuery.sizeOf(context).width,
+                      height: MediaQuery.sizeOf(context).height * .72,
+                      child: DocumentRevisionDiff(chunks: jsonDecode(version['changes'] as String) as List)),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
@@ -328,7 +328,7 @@ class _DocumentHistoryPageState extends State<DocumentHistoryPage> {
                   ),
                 ),
                 child: const Text('이 버전 전체 보기'),
-              ),
+              )),
             ],
           ),
         if (more)

@@ -1,3 +1,4 @@
+import 'document_table.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'element_binding.dart';
@@ -20,12 +21,14 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
   bool _inCode = false;
   String? _hovered;
   final _recognizers = <String, TapGestureRecognizer>{};
-  List<InlineSpan> _inline(String text, int base, TextStyle style) {
+  List<InlineSpan> _inline(String text, int base, TextStyle style, {bool tableCell = false}) {
     final result = <InlineSpan>[];
     var i = 0;
     final plain = StringBuffer();
     void flush() { if (plain.isNotEmpty) { result.add(TextSpan(text: plain.toString(), style: style)); plain.clear(); } }
     while (i < text.length) {
+      if (tableCell && text.startsWith('<br>', i)) { plain.write('\n'); i += 4; continue; }
+      if (tableCell && text[i] == '\\' && i + 1 < text.length && ['|', '\\'].contains(text[i + 1])) { plain.write(text[i + 1]); i += 2; continue; }
       if (widget.formatting && (_inCode || text.startsWith('<code>', i))) {
         flush();
         if (!_inCode) i += 6;
@@ -59,7 +62,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
             _ => style.copyWith(decoration: TextDecoration.combine([if (style.decoration != null) style.decoration!, TextDecoration.lineThrough])),
           };
           flush();
-          result.addAll(_inline(text.substring(i + 2, end), base + i + 2, next));
+          result.addAll(_inline(text.substring(i + 2, end), base + i + 2, next, tableCell: tableCell));
           i = end + 2; matched = true; break;
         }
       }
@@ -79,7 +82,29 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
     final baseStyle = widget.style ?? Theme.of(context).textTheme.bodyLarge!;
     final lines = <Widget>[];
     var offset = 0;
-    for (final line in widget.text.split('\n')) {
+    final sourceLines = widget.text.split('\n');
+    for (var lineIndex = 0; lineIndex < sourceLines.length; lineIndex++) {
+      final line = sourceLines[lineIndex];
+      final header = tableCells(line);
+      if (widget.formatting && !_inCode && header != null && lineIndex + 1 < sourceLines.length && tableSeparator(sourceLines[lineIndex + 1], header.length)) {
+        final tableRows = <({List<TableCellSource> cells, int offset})>[(cells: header, offset: offset)];
+        offset += line.length + 1 + sourceLines[++lineIndex].length + 1;
+        while (lineIndex + 1 < sourceLines.length) {
+          final cells = tableCells(sourceLines[lineIndex + 1]);
+          if (cells == null || cells.length != header.length) break;
+          tableRows.add((cells: cells, offset: offset)); offset += sourceLines[++lineIndex].length + 1;
+        }
+        lines.add(Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: LayoutBuilder(builder: (context, constraints) {
+          final cellWidth = (constraints.maxWidth / header.length).clamp(120.0, 300.0);
+          return SingleChildScrollView(scrollDirection: Axis.horizontal, child: Table(defaultColumnWidth: FixedColumnWidth(cellWidth),
+            border: TableBorder.all(color: Theme.of(context).colorScheme.outlineVariant), children: [
+              for (var row = 0; row < tableRows.length; row++) TableRow(decoration: row == 0 ? BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest) : null,
+                children: [for (final cell in tableRows[row].cells) Padding(padding: const EdgeInsets.all(8), child: Text.rich(TextSpan(children: _inline(cell.text, tableRows[row].offset + cell.start,
+                  row == 0 ? baseStyle.copyWith(fontWeight: FontWeight.bold) : baseStyle, tableCell: true))))]),
+            ]));
+        })));
+        continue;
+      }
       var text = line, start = offset, style = baseStyle;
       var align = TextAlign.left;
       if (widget.formatting && !_inCode) {

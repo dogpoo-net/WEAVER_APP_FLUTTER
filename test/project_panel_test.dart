@@ -47,7 +47,7 @@ void main() {
     final reference = tester.getRect(find.byKey(const ValueKey('project-reference-panel')));
     expect(footer.width, 1200); expect(footer.left, 0);
     expect(footer.top, greaterThanOrEqualTo(reference.bottom));
-    expect(tester.getTopLeft(find.byKey(const ValueKey('project-document'))).dy, closeTo(58, 1));
+    expect(tester.getTopLeft(find.byKey(const ValueKey('project-document'))).dy, closeTo(tester.getRect(find.byKey(const ValueKey('document-editor-toolbar'))).bottom + 2, 1));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

@@ -1,3 +1,5 @@
+import 'document_table.dart';
+import 'document_line_numbers.dart';
 import 'edit_lock.dart';
 import 'workspace_storage.dart';
 import 'save_shortcuts.dart';
@@ -94,6 +96,17 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       selection: TextSelection.collapsed(offset: end - token.length + tag.length + 2));
     _tags.add(tag); _bodyFocus.requestFocus();
   }
+  Future<void> _insertTable() async {
+    final before = _body.value;
+    final table = await showDocumentTableDialog(context);
+    if (!mounted || table == null || before.text != _body.text) return;
+    final selection = before.selection;
+    final start = selection.isValid ? selection.start : before.text.length;
+    final end = selection.isValid ? selection.end : start;
+    final text = '${start > 0 && before.text[start - 1] != '\n' ? '\n' : ''}$table\n';
+    _body.value = TextEditingValue(text: before.text.replaceRange(start, end, text), selection: TextSelection.collapsed(offset: start + text.length));
+    _bodyFocus.requestFocus();
+  }
   bool _saving=false;
   Future<void> _save() async {
     if(_saving)return;
@@ -151,18 +164,19 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         ? SingleChildScrollView(child:SelectableText(_body.text))
         : _preview
         ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
-        : CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true,
+        : DocumentLineNumbers(controller: _body, scroll: _documentScroll, child: CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true,
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
           showWhenEmpty: false, enterSelectsVisible: true, showShortcutHint: true,
           child: TextField(key: const ValueKey('project-document'), controller: _body, focusNode: _bodyFocus, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
           onTapOutside: _wide ? null : (_) {},
           onTap: () => _body.openAtCaret(context), textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
-          decoration: InputDecoration(fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder())));
+          decoration: InputDecoration(fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder()))));
       final panel = Material(key: const ValueKey('project-reference-panel'),
         color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(12),
         child: Padding(padding: const EdgeInsets.all(4), child: _referencesPanel()));
       return Column(children: [
+        if (!_preview) Align(key: const ValueKey('document-editor-toolbar'), alignment: Alignment.centerLeft, child: TextButton.icon(style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12), tapTargetSize: MaterialTapTargetSize.shrinkWrap), onPressed: _leaseGranted ? _insertTable : null, icon: const Icon(Icons.table_chart_outlined, size: 18), label: const Text('표 삽입'))),
         Expanded(child: Padding(padding: EdgeInsets.fromLTRB(_wide ? 12 : 6, 2, _wide ? 12 : 6, 0), child: _wide
           ? Row(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Expanded(child:document),if(_thoughtPanelOpen)...[const SizedBox(width:12),SizedBox(width:(constraints.maxWidth*.45).clamp(300.0,560.0),child:panel)],SizedBox(width:32,child:Align(alignment:Alignment.centerRight,child:IconButton(key:const ValueKey('project-thought-panel-toggle'),tooltip:_thoughtPanelOpen?'생각 패널 숨기기':'생각 패널 보이기',padding:EdgeInsets.zero,onPressed:()=>setState(()=>_thoughtPanelOpen=!_thoughtPanelOpen),icon:Icon(_thoughtPanelOpen?Icons.chevron_right:Icons.chevron_left))))])
           : !_thoughtPanelOpen?document:Column(children:[Expanded(child:document),const SizedBox(height:4),Expanded(child:panel)]))),
@@ -194,6 +208,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       '왼쪽 정렬: |텍스트 |\n오른쪽 정렬: | 텍스트|\n가운데 정렬: | 텍스트 |\n\n'
       '링크: [[표시명|라벨 또는 문서 제목]]\n웹 링크: [[표시명|https://example.com]]\n'
       '[[표시명|까지 입력하면 어시스트가 열립니다. Ctrl + Space로 선택할 수 있습니다. 문서는 문서: 접두어와 굵은 제목으로 표시됩니다.\n\n'
+      '표: 상단 표 삽입 버튼에서 행·열과 내용을 입력하세요. 삽입 후 본문에서 수정하며 미리보기에서 표로 표시됩니다.\n| 제목 | 제목 |\n| --- | --- |\n| 내용 | 내용 |\n\n'
       '코드: <code>code</code>\n여러 줄도 가능하며 코드 안의 문법은 해석하지 않습니다.\n\n'
       '상단 미리보기 버튼으로 서식과 링크를 확인하세요.')),
     actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],

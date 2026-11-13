@@ -47,10 +47,13 @@ class SharingApi extends EmailAuthApi {
           {
             'version': 2,
             'actorName': 'Editor',
+            'action': 'unlocked_edit',
             'createdAt': '2026-11-11T12:00:00Z',
             'added': 2,
             'removed': 1,
             'changes': jsonEncode([
+              {'operation': 'equal', 'text': '본문\n'},
+              {'operation': 'delete', 'text': '전', 'beforeLine': 2},
               {'operation': 'insert', 'text': '추가', 'afterLine': 2},
             ]),
             'afterText': '본문 추가',
@@ -147,6 +150,12 @@ void main() {
     await tester.tap(find.text('버전 2 · Editor'));
     await tester.pumpAndSettle();
     expect(find.text('추가 · 2행부터'), findsOneWidget);
+    expect(find.byTooltip('이 버전은 잠금 해제 후 저장했습니다.'), findsOneWidget);
+    await tester.tap(find.text('이 버전 전체 보기')); await tester.pumpAndSettle();
+    expect(find.text('버전 2 전체 변경 비교'), findsOneWidget);
+    expect(find.descendant(of: find.byType(AlertDialog), matching: find.text('전', findRichText: true)), findsOneWidget);
+    expect(find.descendant(of: find.byType(AlertDialog), matching: find.text('추가', findRichText: true)), findsOneWidget);
+    await tester.tap(find.text('닫기')); await tester.pumpAndSettle();
     expect(api.last!['workspaceId'], 'shared');
     sync.dispose();
     api.dispose();
