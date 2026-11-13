@@ -19,17 +19,17 @@ class _DocumentLineNumbersState extends State<DocumentLineNumbers> {
     return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       SizedBox(width: 42, child: ClipRect(child: CustomPaint(key: gutter,
         painter: _LineNumbers(field, gutter, widget.controller, widget.scroll, layoutReady,
-          Theme.of(context).colorScheme.onSurfaceVariant, MediaQuery.textScalerOf(context))))),
+          Theme.of(context).textTheme.bodySmall!.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant), MediaQuery.textScalerOf(context))))),
       Expanded(child: KeyedSubtree(key: field, child: widget.child)),
     ]);
   }
 }
 class _LineNumbers extends CustomPainter {
-  _LineNumbers(this.field, this.gutter, this.controller, ScrollController scroll, Listenable layoutReady, this.color, this.scaler)
+  _LineNumbers(this.field, this.gutter, this.controller, ScrollController scroll, Listenable layoutReady, this.style, this.scaler)
     : super(repaint: Listenable.merge([controller, scroll, layoutReady]));
   final GlobalKey field, gutter;
   final TextEditingController controller;
-  final Color color;
+  final TextStyle style;
   final TextScaler scaler;
   String? _cachedText;
   List<int> _starts = [0];
@@ -57,7 +57,7 @@ class _LineNumbers extends CustomPainter {
     while (low < high) { final middle = (low + high) ~/ 2; if (top(middle) < -render.preferredLineHeight) { low = middle + 1; } else { high = middle; } }
     for (var i = low; i < starts.length; i++) {
       final y = top(i); if (y > size.height) break;
-      final painter = TextPainter(text: TextSpan(text: '${i + 1}', style: TextStyle(fontSize: 12, color: color)),
+      final painter = TextPainter(text: TextSpan(text: '${i + 1}', style: style),
         textDirection: TextDirection.ltr, textScaler: scaler)..layout();
       painter.paint(canvas, Offset(size.width - painter.width - 8, y + (render.preferredLineHeight - painter.height) / 2));
       painter.dispose();

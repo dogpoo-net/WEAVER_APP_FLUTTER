@@ -335,7 +335,7 @@ class WorkspaceSync extends ChangeNotifier {
       if(changes.isNotEmpty || resource!=null){
         if (!deletionsOnly && !foldersOnly) { await uploadMedia(raw); }
         else { await uploadMedia(joinWorkspace({for (final c in changes) if (c['kind'] == 'list:trash' && c['deleted'] != true) itemKey(c['kind'],c['id']): c})); }
-        final result=await request('save',{'since':cursor,'changes':changes,'documentLeases':documentLeases,'resourceId':resource});
+        final result=await request('save',{'since':cursor,'changes':changes,'documentLeases':documentLeases,'resourceId':resource,'releaseAfterSave':resource!=null&&!resource.startsWith('canvas:')});
         // Only acknowledge the submitted local snapshot. Remote-only edits are
         // fetched on the next workspace open, not applied over an active editor.
         final returned={for(final row in result['changes'] as List)itemKey(row['kind'],row['id']):row};

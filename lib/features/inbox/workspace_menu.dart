@@ -1,23 +1,26 @@
+import 'label_links.dart';
 import 'memo_boxes.dart';
 import 'dart:async';
 import 'tag_colors.dart';
 import 'package:flutter/material.dart';
 
 enum _Kind { project, paragraph, element, box, tag }
-class _MenuDrag {
-  const _MenuDrag(this.kind, this.index);
+class _MenuDrag implements InlineLinkDragSource {
+  const _MenuDrag(this.kind, this.index, this.linkKey);
+  @override final String? linkKey;
   final _Kind kind;
   final int index;
 }
 
 class WorkspaceMenu extends StatefulWidget {
-  const WorkspaceMenu({super.key, required this.projects, this.tags = const [],
+  const WorkspaceMenu({super.key, required this.projects, this.projectIds = const [], this.tags = const [],
     this.paragraphs = const [], this.elements = const [], this.embedded = false,
     this.onSelected, this.onHide, this.onPin, this.onFloat, this.folders = const [],
     this.projectFolderNames = const [], this.tagFolders = const [], this.tagFolderNames = const {},
     this.paragraphFolders = const [], this.elementFolders = const [],
     this.paragraphFolderNames = const [], this.elementFolderNames = const [],
     this.onBoxChanged, this.onDeleteFolder, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
+  final List<String> projectIds;
   final Future<void> Function(String kind, String folder)? onDeleteFolder;
   final bool embedded;
   final VoidCallback? onBoxChanged;
@@ -139,7 +142,8 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     }
     final child = kind == _Kind.box ? MemoBoxTarget(box: memoBoxes[index],
       onChanged: () { setState(() {}); widget.onBoxChanged?.call(); }, child: tile) : tile;
-    final data = _MenuDrag(kind, index);
+    final projects = kind == _Kind.project ? indexedProjects.where((project) => project.title == name).toList() : const [];
+    final data = _MenuDrag(kind, index, kind == _Kind.element ? name : kind == _Kind.project && index < widget.projectIds.length ? 'project:${widget.projectIds[index]}' : projects.length == 1 ? 'project:${projects.single.id}' : null);
     final feedback = Material(elevation: 6, borderRadius: BorderRadius.circular(16),
       child: Padding(padding: const EdgeInsets.all(12), child: Text(label)));
     void update(DragUpdateDetails d) { _pointer = d.globalPosition; }

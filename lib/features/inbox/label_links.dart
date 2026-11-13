@@ -7,6 +7,12 @@ import 'word_badge.dart';
 import 'project_page.dart';
 import 'document_syntax.dart';
 
+abstract interface class InlineLinkDragSource { String? get linkKey; }
+class InlineLinkDrag implements InlineLinkDragSource {
+  const InlineLinkDrag(this.linkKey);
+  @override final String linkKey;
+}
+
 bool isInlineLink(String id) => id.startsWith('label:') || id.startsWith('url:') || id.startsWith('project:');
 ElementRecord? labelTarget(String id) => id.startsWith('label:')
   ? elements.records.values.where((r) => r.id == id.substring(6)).firstOrNull : null;
@@ -75,9 +81,9 @@ bool hasOpenLinkMarkup(TextEditingValue value) {
   return RegExp(r'\[\[[^\]\n]*$').hasMatch(value.text.substring(0, end));
 }
 
-Future<void> insertAssistedLink(BuildContext context, LabelTextController controller, String key) async {
+Future<void> insertAssistedLink(BuildContext context, LabelTextController controller, String key, {bool alwaysPrompt = false, bool replaceQuery = true}) async {
   final before = controller.value;
-  if (hasOpenLinkMarkup(before)) { controller.insertTarget(key); return; }
+  if (!alwaysPrompt && hasOpenLinkMarkup(before)) { controller.insertTarget(key); return; }
   final fallback = projectTarget(key)?.title ?? elements.records[key]?.text ?? key;
   String title = '';
   final result = await showDialog<String>(context: context, builder: (context) => AlertDialog(
@@ -89,7 +95,7 @@ Future<void> insertAssistedLink(BuildContext context, LabelTextController contro
       TextButton(onPressed: () => Navigator.pop(context, title), child: const Text('확인'))]));
   if (!context.mounted || result == null || controller.text != before.text) return;
   controller.selection = before.selection;
-  controller.insertTarget(key, display: result.trim().isEmpty ? fallback : result.trim());
+  controller.insertTarget(key, display: result.trim().isEmpty ? fallback : result.trim(), complete: replaceQuery);
 }
 
 class LabelTextController extends BoundTextController {
@@ -120,13 +126,13 @@ class LabelTextController extends BoundTextController {
     } finally { _parsing = false; }
   }
   void insertLabel(ElementRecord record) => _insert('label:${record.id}', record.title);
-  void insertTarget(String key, {String? display}) {
+  void insertTarget(String key, {String? display, bool complete = true}) {
     final project = projectTarget(key);
-    if (project != null) { _insert('project:${project.id}', project.title, display: display); return; }
+    if (project != null) { _insert('project:${project.id}', project.title, display: display, complete: complete); return; }
     final record = elements.records[key];
-    if (record != null) _insert('label:${record.id}', record.title, display: display);
+    if (record != null) _insert('label:${record.id}', record.title, display: display, complete: complete);
   }
-  void _insert(String id, String title, {String? display}) {
+  void _insert(String id, String title, {String? display, bool complete = true}) {
     if (selection.isValid && !selection.isCollapsed) {
       final selected = selection;
       if (bindings.any((b) => selected.start < b.end && selected.end > b.start &&
@@ -135,12 +141,12 @@ class LabelTextController extends BoundTextController {
       bind(selected.start, selected.end, id, display ?? text.substring(selected.start, selected.end));
       return;
     }
-    final pending = pendingLabelLink(value);
+    final pending = complete ? pendingLabelLink(value) : null;
     final end = selection.isValid ? selection.end : text.length;
-    final prefix = completionPrefix(value, labelAssistTargets().map(assistTargetTitle).toList());
-    final open = RegExp(r'\[\[[^\]\n]*$').firstMatch(text.substring(0, end));
+    final prefix = complete ? completionPrefix(value, labelAssistTargets().map(assistTargetTitle).toList()) : '';
+    final open = complete ? RegExp(r'\[\[[^\]\n]*$').firstMatch(text.substring(0, end)) : null;
     final start = pending?.start ?? open?.start ?? (end - prefix.length).clamp(0, end);
-    bind(start, end, id, pending?.display ?? display ?? title);
+    bind(start, end, id, display ?? pending?.display ?? title);
   }
   void openAtCaret(BuildContext context) {
     if (!selection.isValid || !selection.isCollapsed) return;

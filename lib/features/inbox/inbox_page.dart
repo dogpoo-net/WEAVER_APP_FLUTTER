@@ -1027,6 +1027,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       context: context,
       builder: (_) => WorkspaceMenu(
         projects: projects.map((n) => n.title).toList(),
+        projectIds: projects.map((n) => n.project!.id).toList(),
         onPin: MediaQuery.sizeOf(context).width >= 1000
             ? () {
                 Navigator.pop(context);
@@ -1370,6 +1371,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
                     .where((n) => n.project != null)
                     .map((n) => n.title)
                     .toList(),
+                projectIds: _notes.where((n) => n.project != null).map((n) => n.project!.id).toList(),
                 projectFolderNames: _notes
                     .where((n) => n.project != null)
                     .map((n) => n.project!.folder)

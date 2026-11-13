@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:weaver/features/inbox/project_document_editor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,7 +40,7 @@ void main() {
     final thoughts = find.byKey(const ValueKey('project-thought-scroll'));
     final thoughtController = tester.widget<SingleChildScrollView>(thoughts).controller!;
     final body = tester.widget<TextField>(find.byKey(const ValueKey('project-document'))).scrollController!;
-    await tester.drag(thoughts, const Offset(0, -180)); await tester.pumpAndSettle();
+    await tester.sendEventToBinding(PointerScrollEvent(position: tester.getCenter(thoughts), scrollDelta: const Offset(0,180))); await tester.pumpAndSettle();
     expect(thoughtController.offset, greaterThan(0)); expect(body.offset, 0);
     expect(find.byKey(const ValueKey('project-tag-scroll')), findsNothing);
     expect(find.byKey(const ValueKey('thought-filter-all')), findsOneWidget);
@@ -51,50 +52,30 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
-  testWidgets('mobile keeps equal document and reference panes while keyboard folds only box filters', (tester) async {
+  testWidgets('mobile uses a 7:3 editor and opens box filters in a modal', (tester) async {
     tester.view.physicalSize = const Size(390, 844); tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio); addTearDown(tester.view.resetViewInsets);
     final draft = project();
-    await tester.pumpWidget(MaterialApp(builder: (context, child) => Actions(actions: <Type, Action<Intent>>{
-      EditableTextTapOutsideIntent: CallbackAction<EditableTextTapOutsideIntent>(onInvoke: (intent) { intent.focusNode.unfocus(); return null; }),
-    }, child: child!), home: ProjectDocumentEditor(project: draft))); await tester.pumpAndSettle();
+    await tester.pumpWidget(MaterialApp(home: ProjectDocumentEditor(project: draft))); await tester.pumpAndSettle();
     final toggle = find.byKey(const ValueKey('project-panel-toggle'));
     final panel = find.byKey(const ValueKey('project-reference-panel'));
     final boxes = find.byKey(const ValueKey('project-box-panel'));
     final document = find.byKey(const ValueKey('project-document'));
-    expect(panel, findsOneWidget); expect(boxes, findsNothing);
     final thoughtToggle = find.byKey(const ValueKey('project-thought-panel-toggle'));
-    expect(tester.getTopLeft(thoughtToggle).dy, lessThan(tester.getTopLeft(toggle).dy));
-    final initialHeight = tester.getSize(document).height;
-    await tester.tap(thoughtToggle); await tester.pumpAndSettle();
-    expect(panel, findsNothing); expect(boxes, findsNothing);
-    expect(tester.getSize(document).height, greaterThan(initialHeight));
-    await tester.tap(toggle); await tester.pumpAndSettle();
-    expect(boxes, findsOneWidget); expect(panel, findsNothing);
-    await tester.tap(toggle); await tester.tap(thoughtToggle); await tester.pumpAndSettle();
-    expect(panel, findsOneWidget);
-
-    await tester.tap(toggle); await tester.pumpAndSettle(); expect(boxes, findsOneWidget);
-    await tester.tap(document); await tester.pump();
-    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
-    await tester.pumpAndSettle();
+    expect(panel, findsOneWidget); expect(boxes, findsNothing);
+    expect(tester.getSize(document).height / tester.getSize(panel).height, closeTo(7/3, .02));
+    expect(find.byKey(const ValueKey('project-document-reference-search')), findsNothing);
+    await tester.tap(thoughtToggle); await tester.pumpAndSettle(); expect(panel, findsNothing);
+    await tester.tap(thoughtToggle); await tester.pumpAndSettle(); expect(panel, findsOneWidget);
+    final height = tester.getSize(document).height;
+    await tester.tap(toggle); await tester.pumpAndSettle(); expect(boxes, findsOneWidget); expect(find.byType(BottomSheet), findsOneWidget);
+    expect(tester.getSize(document).height, height);
+    await tester.tap(find.descendant(of: find.byType(BottomSheet), matching: find.byTooltip('닫기'))); await tester.pumpAndSettle(); expect(boxes, findsNothing);
+    await tester.tap(document); tester.view.viewInsets = const FakeViewPadding(bottom: 300); await tester.pumpAndSettle();
     expect(tester.getBottomRight(toggle).dy, lessThanOrEqualTo(544));
-    expect(tester.getSize(toggle).height, lessThanOrEqualTo(30));
-    expect(find.byKey(const ValueKey('project-name')), findsNothing);
-    expect(tester.getSize(find.byKey(const ValueKey('project-reference-search'))).height, lessThanOrEqualTo(38));
-    expect(tester.getSize(find.byKey(const ValueKey('project-document'))).height, greaterThan(80));
-    expect(boxes, findsNothing); expect(panel, findsOneWidget);
-    expect(tester.getSize(document).height, closeTo(tester.getSize(panel).height, 1));
-    final focus = tester.widget<TextField>(document).focusNode!;
-    expect(focus.hasFocus, isTrue);
-    await tester.tapAt(tester.getBottomLeft(panel) + const Offset(2, -2)); await tester.pump();
-    expect(focus.hasFocus, isTrue);
-    await tester.tap(toggle); await tester.pumpAndSettle(); expect(boxes, findsOneWidget);
-    await tester.tap(toggle); await tester.pumpAndSettle(); expect(boxes, findsNothing); expect(panel, findsOneWidget);
-    await tester.tap(find.byTooltip('키보드 내리기')); await tester.pump();
-    expect(focus.hasFocus, isFalse);
-    expect(tester.widget<TextField>(find.byKey(const ValueKey('project-document'))).controller!.text, draft.document);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
+    expect(tester.getSize(document).height / tester.getSize(panel).height, closeTo(7/3,.02));
+    expect(tester.widget<TextField>(document).focusNode!.hasFocus,isTrue);
+    expect(tester.widget<TextField>(document).controller!.text,draft.document);
+    expect(tester.takeException(),isNull);await tester.pumpWidget(const SizedBox());
   });
 }
