@@ -697,15 +697,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     sceneHeight = folders.values.map((r) => r.bottom + 100).fold(sceneHeight, math.max);
     final color = Theme.of(context).colorScheme;
     return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filters.singleBox?.name ?? '전체 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
-      padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40),
+      padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40), maximumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
       if(_lock!=null)IconButton(tooltip:_lock!.message??'편집 가능',onPressed:()=>_canEdit?_lock!.renew():_lock!.takeOver(context),icon:Icon(_canEdit?Icons.lock_open:Icons.lock_outline)),
       if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reloadCanvas,icon:const Icon(Icons.refresh)),
       if (_canEdit && widget.blocks) MemoBoxActions(filters: _filters, onCreate: _createBox, onDelete: widget.onDeleteBoxes)
-      else if(_canEdit) PopupMenuButton<bool>(tooltip: '생각 만들기', icon: const Icon(Icons.add),
+      else if(_canEdit) PopupMenuButton<bool>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), padding: const EdgeInsets.symmetric(horizontal: 4), tooltip: '생각 만들기', icon: const Icon(Icons.add),
         onSelected: (box) { if (box) { _createBox(); } else { _create(); } },
         itemBuilder: (_) => const [PopupMenuItem(value: false, child: Text('생각 만들기')), PopupMenuItem(value: true, child: Text('상자 만들기'))]),
-      PopupMenuButton<String>(tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: (value) {if(value=='all'){setState(() => _centered=false);}else if(_canEdit){_resetArrangement(value=='stack');}},
+      PopupMenuButton<String>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: (value) {if(value=='all'){setState(() => _centered=false);}else if(_canEdit){_resetArrangement(value=='stack');}},
         itemBuilder: (_) => const [PopupMenuItem(value:'all',child:Text('전체 보기')),PopupMenuItem(value: 'spread', child: Text('펼쳐보기')), PopupMenuItem(value: 'stack', child: Text('겹쳐보기'))]),
       IconButton(tooltip: '저장 (Ctrl+S)', onPressed: _canEdit?_saveCanvas:null, icon: const Icon(Icons.save_outlined)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
@@ -970,9 +970,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           ))),
         ]))),
       ); })),
-        if (_selected.isNotEmpty) Positioned(top: 8, left: 4, child: Material(
+        if (_selected.isNotEmpty) Positioned(top: 8, right: 4, child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
-          child: SizedBox(width: 104, child: Column(mainAxisSize: MainAxisSize.min, children: [
+          child: IntrinsicWidth(child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(mainAxisSize: MainAxisSize.min, children: [
               IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '레이어 위로', icon: const Icon(Icons.arrow_upward, size: 18), onPressed: () {
                 setState(() { moveThoughtLayers(_layout.layers, _selected, up: false); reorderStackPositions(_positions, _selected, up: true); }); _saveLayout(flush: true);
@@ -982,23 +982,23 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               }),
             ]),
             if (_selected.length > 1) TextButton.icon(
-              style: TextButton.styleFrom(minimumSize: const Size(0, 34), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.standard, textStyle: const TextStyle(fontSize: 11)),
+              style: TextButton.styleFrom(minimumSize: const Size(0, 34), padding: const EdgeInsets.symmetric(vertical: 7), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.standard, textStyle: const TextStyle(fontSize: 11)),
               icon: const Icon(Icons.swap_vert, size: 15), label: const Text('순서 반전'), onPressed: () {
                 setState(() { reverseThoughtLayers(_layout.layers, _selected); reorderStackPositions(_positions, _selected); }); _saveLayout(flush: true);
               }),
           ])),
         )),
-        Positioned(top: 8, right: 4, child: Material(
+        Positioned(top: 8, left: 4, child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             SizedBox(width: 32, height: 36, child: Checkbox(
               visualDensity: VisualDensity.compact, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               value: _selectionMode, onChanged: (value) => _toggleSelection(value ?? false))),
             InkWell(onTap: () => _toggleSelection(!_selectionMode), child: Padding(
-              padding: const EdgeInsets.only(right: 5, top: 8, bottom: 8),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 const Text('선택', style: TextStyle(fontSize: 13)), const SizedBox(width: 4),
-                SizedBox(width: 26, child: Text(_selected.isEmpty ? '' : '${_selected.length}', key: const ValueKey('selection-count'),
+                SizedBox(width: 24, child: Text(_selected.isEmpty ? '' : '${_selected.length}', key: const ValueKey('selection-count'),
                   textAlign: TextAlign.left, style: const TextStyle(fontSize: 13))),
               ]))),
           ]),

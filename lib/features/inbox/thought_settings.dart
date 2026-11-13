@@ -2,7 +2,6 @@ import '../../app_theme.dart';
 import '../sync/workspace_backup.dart';
 import '../auth/google_auth.dart';
 import '../auth/profile_page.dart';
-import '../auth/withdrawal_page.dart';
 import '../auth/email_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -102,7 +101,6 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
         const Divider(),
         ListTile(contentPadding: EdgeInsets.zero, title: Text('오픈소스 사용 정보', style: Theme.of(context).textTheme.bodySmall), trailing: const Icon(Icons.chevron_right),
           onTap: busy ? null : () => showLicensePage(context: context, applicationName: 'WEAVER')),
-        if(signedIn&&!guest)ListTile(key:const ValueKey('settings-withdrawal'),contentPadding:EdgeInsets.zero,title:const Text('회원탈퇴',style:TextStyle(color:Color(0xFFD64550))),onTap:busy?null:(){final navigator=Navigator.of(dialogContext);navigator.pop();navigator.push(MaterialPageRoute<void>(builder:(_)=>WithdrawalPage(auth:auth!)));}),
       ])));
     final theme=ThemeControls.of(context);
     final header=Row(children:[Expanded(child:Text('환경설정',style:Theme.of(context).textTheme.titleMedium)),IconButton(tooltip:'테마 선택',onPressed:busy||theme==null?null:()=>theme.open(context),icon:Icon(Theme.of(context).brightness==Brightness.dark?Icons.dark_mode_outlined:Icons.light_mode_outlined)),IconButton(key:const ValueKey('close-settings'),tooltip:'닫기',onPressed:busy?null:()=>Navigator.pop(dialogContext),icon:const Icon(Icons.close))]);

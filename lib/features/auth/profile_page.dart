@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'google_auth.dart';
+import 'withdrawal_page.dart';
 import 'email_auth.dart';
 import 'google_button.dart';
 
@@ -306,6 +307,10 @@ class _ProfilePageState extends State<ProfilePage> {
                         ? null
                         : () => link(entry.key),
                   ),
+                const Divider(),
+                ListTile(key: const ValueKey('profile-withdrawal'), contentPadding: EdgeInsets.zero,
+                  title: const Text('회원탈퇴', style: TextStyle(color: Color(0xFFD64550))),
+                  onTap: disabled ? null : () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => WithdrawalPage(auth: auth)))),
               ],
             ),
           ),

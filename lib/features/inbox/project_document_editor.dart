@@ -211,9 +211,9 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('계속 작성')),
       TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('나가기'))]));
     if (discard == true && mounted) { setState(() => _dirty = false); WidgetsBinding.instance.addPostFrameCallback((_) { if (context.mounted) Navigator.pop(context); }); }
-  }, child: Scaffold(appBar: AppBar(title: WorkspaceTitle(widget.project?.name ?? '문서 만들기'), actions: [const KeyboardDismissAction(), const DesktopMenuAction(), if(_needsLease)IconButton(tooltip:_leaseMessage??(_lock?.shared==true?'강제 해제됨 · 모두 편집 가능':_lock?.held==true?'내가 편집 중 · 강제 잠금 해제':'잠금 없음 · 강제 잠금 해제'),onPressed:()=>_lock?.takeOver(context),icon:Icon(_leaseGranted?Icons.lock_open:Icons.lock_outline)), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _preview = !_preview)), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _leaseGranted && !_saving ? _save : null),
+  }, child: Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(_needsLease)IconButton(tooltip:_leaseMessage??(_lock?.shared==true?'강제 해제됨 · 모두 편집 가능':_lock?.held==true?'내가 편집 중 · 강제 잠금 해제':'잠금 없음 · 강제 잠금 해제'),onPressed:()=>_lock?.takeOver(context),icon:Icon(_leaseGranted?Icons.lock_open:Icons.lock_outline)), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _preview = !_preview)), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _leaseGranted && !_saving ? _save : null),
     IconButton(tooltip: '작성 문법 안내', icon: const Icon(Icons.info_outline), onPressed: _showHelp),
-   ]), bottomNavigationBar: _leaseGranted?null:SafeArea(child:Padding(padding:const EdgeInsets.all(12),child:Text(_leaseMessage??'편집 권한을 확인하고 있습니다.'))), body: DesktopMenuBody(child: SafeArea(top: false, child: LayoutBuilder(builder: (context, constraints) {
+   ]))]), bottomNavigationBar: _leaseGranted?null:SafeArea(child:Padding(padding:const EdgeInsets.all(12),child:Text(_leaseMessage??'편집 권한을 확인하고 있습니다.'))), body: DesktopMenuBody(child: SafeArea(top: false, child: LayoutBuilder(builder: (context, constraints) {
       final documentBody = !_leaseGranted
         ? SingleChildScrollView(child:SelectableText(_body.text))
         : _preview
@@ -226,14 +226,17 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
           onTapOutside: _wide ? null : (_) {},
           onTap: () => _body.openAtCaret(context), textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
           decoration: InputDecoration(fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder()))));
-      final document = !_leaseGranted || _preview ? documentBody : DragTarget<Object>(key: const ValueKey('document-link-drop'),
+      final documentInput = !_leaseGranted || _preview ? documentBody : DragTarget<Object>(key: const ValueKey('document-link-drop'),
         onWillAcceptWithDetails: (details) => !_saving && _dragKey(details.data) != null,
         onAcceptWithDetails: _dropLink, builder: (context, candidates, rejected) => KeyedSubtree(key: _dropEditorKey, child: documentBody));
       final panel = Material(key: const ValueKey('project-reference-panel'),
         color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(12),
         child: Padding(padding: const EdgeInsets.all(4), child: _referencesPanel()));
+      final document = Column(children: [
+        if (!_preview) Align(key: const ValueKey('document-editor-toolbar'), alignment: Alignment.centerRight, child: TextButton.icon(style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12), tapTargetSize: MaterialTapTargetSize.shrinkWrap), onPressed: _leaseGranted && !_saving ? _insertTable : null, icon: const Icon(Icons.table_chart_outlined, size: 18), label: const Text('표 삽입'))),
+        Expanded(child: documentInput),
+      ]);
       return Column(children: [
-        if (!_preview) Align(key: const ValueKey('document-editor-toolbar'), alignment: Alignment.centerLeft, child: TextButton.icon(style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12), tapTargetSize: MaterialTapTargetSize.shrinkWrap), onPressed: _leaseGranted && !_saving ? _insertTable : null, icon: const Icon(Icons.table_chart_outlined, size: 18), label: const Text('표 삽입'))),
         Expanded(child: Padding(padding: EdgeInsets.fromLTRB(_wide ? 12 : 6, 2, _wide ? 12 : 6, 0), child: _wide
           ? Row(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Expanded(child:document),if(_thoughtPanelOpen)...[const SizedBox(width:12),SizedBox(width:(constraints.maxWidth*.45).clamp(300.0,560.0),child:panel)],SizedBox(width:32,child:Align(alignment:Alignment.centerRight,child:IconButton(key:const ValueKey('project-thought-panel-toggle'),tooltip:_thoughtPanelOpen?'생각 패널 숨기기':'생각 패널 보이기',padding:EdgeInsets.zero,onPressed:()=>setState(()=>_thoughtPanelOpen=!_thoughtPanelOpen),icon:Icon(_thoughtPanelOpen?Icons.chevron_right:Icons.chevron_left))))])
           : !_thoughtPanelOpen?document:Column(children:[Expanded(flex:7,child:document),const SizedBox(height:4),Expanded(flex:3,child:panel)]))),

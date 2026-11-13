@@ -71,6 +71,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(auth.identity!.id, 'email:a');
       expect(find.text('Changed'), findsOneWidget);
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('profile-withdrawal')), 250);
+      final withdrawal=tester.widget<ListTile>(find.byKey(const ValueKey('profile-withdrawal')));
+      expect(withdrawal.leading,isNull);
+      expect((withdrawal.title as Text).style?.color,const Color(0xFFD64550));
       await tester.pumpWidget(
         GoogleAuthScope(
           controller: auth,
@@ -110,10 +114,7 @@ void main() {
       }
       final resetTile=tester.widget<ListTile>(find.ancestor(of:find.text('데이터 초기화'),matching:find.byType(ListTile)));
       expect((resetTile.leading as Icon).icon,Icons.refresh);
-      final withdrawal=tester.widget<ListTile>(find.byKey(const ValueKey('settings-withdrawal')));
-      expect(withdrawal.leading,isNull);
-      expect((withdrawal.title as Text).style?.color,const Color(0xFFD64550));
-      expect(tester.getTopLeft(find.text('회원탈퇴')).dy,greaterThan(tester.getTopLeft(find.text('오픈소스 사용 정보')).dy));
+      expect(find.text('회원탈퇴'), findsNothing);
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 1));
       auth.dispose();

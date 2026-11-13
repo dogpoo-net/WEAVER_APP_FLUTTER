@@ -32,7 +32,7 @@ class MemoBoxActions extends StatelessWidget {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('삭제 동기화를 완료하지 못했습니다. 다시 시도해주세요. $e')));
     }
   }
-  @override Widget build(BuildContext context) => PopupMenuButton<String>(tooltip: '메모상자 관리', icon: const Icon(Icons.add), onSelected: (action) { if (action == 'create') { onCreate(); } else { remove(context); } }, itemBuilder: (_) => [
+  @override Widget build(BuildContext context) => PopupMenuButton<String>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '메모상자 관리', icon: const Icon(Icons.add), onSelected: (action) { if (action == 'create') { onCreate(); } else { remove(context); } }, itemBuilder: (_) => [
     const PopupMenuItem(value: 'create', child: Text('메모상자 만들기')),
     PopupMenuItem(value: 'delete', enabled: onDelete != null, child: const Text('메모상자 삭제')),
   ]);

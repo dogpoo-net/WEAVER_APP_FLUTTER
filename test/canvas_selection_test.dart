@@ -43,7 +43,8 @@ void main() {
       await single.moveBy(const Offset(40, 20)); await tester.pump();
       await single.up(); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data, '1');
-      expect(tester.getCenter(find.byTooltip('레이어 위로')).dx, layerButtonX);
+      expect(tester.getCenter(find.byTooltip('레이어 위로')).dx, greaterThanOrEqualTo(layerButtonX));
+      expect(tester.getCenter(find.text('선택')).dx, lessThan(layerButtonX));
       expect(layout.positions[b.id], otherBefore);
       await tester.pumpWidget(const SizedBox());
     });

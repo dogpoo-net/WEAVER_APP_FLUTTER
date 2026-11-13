@@ -48,7 +48,7 @@ void main() {
     final reference = tester.getRect(find.byKey(const ValueKey('project-reference-panel')));
     expect(footer.width, 1200); expect(footer.left, 0);
     expect(footer.top, greaterThanOrEqualTo(reference.bottom));
-    expect(tester.getTopLeft(find.byKey(const ValueKey('project-document'))).dy, closeTo(tester.getRect(find.byKey(const ValueKey('document-editor-toolbar'))).bottom + 2, 1));
+    expect(tester.getTopLeft(find.byKey(const ValueKey('project-document'))).dy, closeTo(tester.getRect(find.byKey(const ValueKey('document-editor-toolbar'))).bottom, 1));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
@@ -63,7 +63,7 @@ void main() {
     final document = find.byKey(const ValueKey('project-document'));
     final thoughtToggle = find.byKey(const ValueKey('project-thought-panel-toggle'));
     expect(panel, findsOneWidget); expect(boxes, findsNothing);
-    expect(tester.getSize(document).height / tester.getSize(panel).height, closeTo(7/3, .02));
+    expect((tester.getSize(document).height + tester.getSize(find.byKey(const ValueKey('document-editor-toolbar'))).height) / tester.getSize(panel).height, closeTo(7/3, .02));
     expect(find.byKey(const ValueKey('project-document-reference-search')), findsNothing);
     await tester.tap(thoughtToggle); await tester.pumpAndSettle(); expect(panel, findsNothing);
     await tester.tap(thoughtToggle); await tester.pumpAndSettle(); expect(panel, findsOneWidget);
@@ -73,7 +73,7 @@ void main() {
     await tester.tap(find.descendant(of: find.byType(BottomSheet), matching: find.byTooltip('닫기'))); await tester.pumpAndSettle(); expect(boxes, findsNothing);
     await tester.tap(document); tester.view.viewInsets = const FakeViewPadding(bottom: 300); await tester.pumpAndSettle();
     expect(tester.getBottomRight(toggle).dy, lessThanOrEqualTo(544));
-    expect(tester.getSize(document).height / tester.getSize(panel).height, closeTo(7/3,.02));
+    expect((tester.getSize(document).height + tester.getSize(find.byKey(const ValueKey('document-editor-toolbar'))).height) / tester.getSize(panel).height, closeTo(7/3,.02));
     expect(tester.widget<TextField>(document).focusNode!.hasFocus,isTrue);
     expect(tester.widget<TextField>(document).controller!.text,draft.document);
     expect(tester.takeException(),isNull);await tester.pumpWidget(const SizedBox());
