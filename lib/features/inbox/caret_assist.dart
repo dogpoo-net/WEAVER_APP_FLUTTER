@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
@@ -39,7 +40,7 @@ class CaretAssist extends StatefulWidget {
   final List<String> words;
   final List<String> tags;
   final ValueChanged<String>? onTag;
-  final ValueChanged<String> onWord;
+  final FutureOr<void> Function(String) onWord;
   final Widget child;
   final GlobalKey? mobileViewportKey;
   final bool showWhenEmpty;
@@ -81,7 +82,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       MediaQuery.sizeOf(context).width >= 760 &&
       MediaQuery.viewInsetsOf(context).bottom == 0;
   String _title(String word) => widget.useThoughtLabels ? assistTargetTitle(word) : word;
-  void _choose(String word) {
+  void _choose(String word) async {
     _controlling = false;
     _manualSelection = null; _manualValue = null;
     final selected = _selectionValue;
@@ -89,11 +90,18 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       if (selected.text != widget.controller.text) { _hide(); return; }
       widget.controller.selection = selected.selection;
     }
-    if (_tagMode) { widget.onTag?.call(word.substring(1)); } else { widget.onWord(word); }
+    final FutureOr<void> result;
+    if (_tagMode) { widget.onTag?.call(word.substring(1)); result = null; } else { result = widget.onWord(word); }
     _selectionValue = null;
     _filterFocus.unfocus();
     _dismissed = widget.controller.text;
     _hide();
+    if (result is Future) {
+      await result;
+      if (!mounted) return;
+      _dismissed = widget.controller.text;
+      _hide();
+    }
   }
 
   void _revealSelection() {
@@ -570,7 +578,8 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
                               word: word,
                               displayText: _tagMode ? word : _title(word),
                               tag: _tagMode,
-                              memo: !_tagMode && widget.useThoughtLabels && projectTarget(word) == null,
+                              memo: !_tagMode && widget.useThoughtLabels && projectTarget(word) == null && !isLabelAssistTarget(word),
+                              labelTarget: !_tagMode && widget.useThoughtLabels && isLabelAssistTarget(word),
                               project: !_tagMode && widget.useThoughtLabels && projectTarget(word) != null,
                               query: _query,
                               selected:

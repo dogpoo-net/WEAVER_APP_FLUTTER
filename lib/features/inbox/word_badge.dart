@@ -127,7 +127,7 @@ class WordBadge extends StatelessWidget {
     this.selected = false,
     this.tag = false,
     this.compact = false,
-    this.dense = false, this.project = false, this.memo = false,
+    this.dense = false, this.project = false, this.memo = false, this.labelTarget = false,
     this.query = '',
     this.fullText = false, this.singleLine = false, this.square = false,
     this.onLongPress,
@@ -140,7 +140,7 @@ class WordBadge extends StatelessWidget {
   final bool selected;
   final bool tag;
   final bool compact;
-  final bool dense, project, memo;
+  final bool dense, project, memo, labelTarget;
   final bool fullText, singleLine, square;
   final VoidCallback? onLongPress;
   final VoidCallback? onDoubleTap;
@@ -154,14 +154,14 @@ class WordBadge extends StatelessWidget {
     final indicators = record != null && AttachmentIndicators.hasAttachments(record);
     final title = singleLine ? (displayText ?? word).replaceAll(RegExp(r'[\r\n]+'), ' ') : displayText ?? word;
     var prefixWidth = 0.0;
-    if (project || memo) {
-      final prefix = TextPainter(text: TextSpan(text: project ? '문서:' : '메모:', style: Theme.of(context).textTheme.labelLarge!.copyWith(fontSize: 12, fontWeight: FontWeight.w300)),
+    if (project || memo || labelTarget) {
+      final prefix = TextPainter(text: TextSpan(text: project ? '문서:' : labelTarget ? '라벨:' : '메모:', style: Theme.of(context).textTheme.labelLarge!.copyWith(fontSize: 12, fontWeight: FontWeight.w300)),
         textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
       prefixWidth = prefix.width;
       prefix.dispose();
     }
-    final label = project || memo ? TextSpan(children: [
-      TextSpan(text: project ? '문서:' : '메모:', style: const TextStyle(fontWeight: FontWeight.w300)),
+    final label = project || memo || labelTarget ? TextSpan(children: [
+      TextSpan(text: project ? '문서:' : labelTarget ? '라벨:' : '메모:', style: const TextStyle(fontWeight: FontWeight.w300)),
       TextSpan(style: const TextStyle(fontWeight: FontWeight.w700), children: [
         _badgeExcerpt(context, title, query, (maxWidth - 24 - prefixWidth).clamp(0.0, double.infinity)),
       ]),
@@ -188,7 +188,7 @@ class WordBadge extends StatelessWidget {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         if (indicators) ...[AttachmentIndicators(record: record), const SizedBox(width: 4)],
         Flexible(child: Text.rich(label,
-        maxLines: square ? ((constraints.maxHeight - 20) / 20).floor().clamp(1, 100) : fullText && !singleLine ? null : 1, softWrap: fullText && !singleLine, overflow: square ? TextOverflow.ellipsis : fullText && !singleLine ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '문서:$title' : memo ? '메모:$title' : title)),
+        maxLines: square ? ((constraints.maxHeight - 20) / 20).floor().clamp(1, 100) : fullText && !singleLine ? null : 1, softWrap: fullText && !singleLine, overflow: square ? TextOverflow.ellipsis : fullText && !singleLine ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '문서:$title' : labelTarget ? '라벨:$title' : memo ? '메모:$title' : title)),
       ]),
     ));
     return onDoubleTap == null ? badge : GestureDetector(onDoubleTap: onDoubleTap, child: badge);

@@ -15,12 +15,15 @@ WritingProject? projectTarget(String id) => id.startsWith('project:')
   ? indexedProjects.where((p) => p.id == id.substring(8)).firstOrNull : null;
 String assistTargetTitle(String key) => projectTarget(key)?.title ?? elements.records[key]?.title ?? key;
 List<String> labelAssistTargets({WritingProject? excludeProject}) => [
-  ...elements.visibleWords,
   for (final project in indexedProjects) if (project != excludeProject) 'project:${project.id}',
+  ...elements.visibleWords.where(isLabelAssistTarget),
+  ...elements.visibleWords.where((key) => !isLabelAssistTarget(key)),
 ];
+bool isLabelAssistTarget(String key) => elements.records[key]?.indexLabel.trim().isNotEmpty ?? false;
 bool assistTargetMatches(String key, String query) {
   final needle = query.trim().toLowerCase();
   return matchesWord(assistTargetTitle(key), query) ||
+      matchesWord(elements.records[key]?.indexLabel ?? '', query) ||
       (projectTarget(key)?.content ?? elements.records[key]?.text ?? '').toLowerCase().contains(needle);
 }
 String? resolveLabelTarget(String target) {
@@ -66,6 +69,29 @@ TextStyle inlineLinkStyle(BuildContext context, String id, {bool hovered = false
   final match = RegExp(r'\[\[([^\[\]\n|]+)\|([^\[\]\n]*)$').firstMatch(before);
   return match == null ? null : (start: match.start, display: match.group(1)!, query: match.group(2)!);
 }
+/// An unfinished double-bracket link already supplies its own title syntax.
+bool hasOpenLinkMarkup(TextEditingValue value) {
+  final end = value.selection.isValid ? value.selection.start : value.text.length;
+  return RegExp(r'\[\[[^\]\n]*$').hasMatch(value.text.substring(0, end));
+}
+
+Future<void> insertAssistedLink(BuildContext context, LabelTextController controller, String key) async {
+  final before = controller.value;
+  if (hasOpenLinkMarkup(before)) { controller.insertTarget(key); return; }
+  final fallback = projectTarget(key)?.title ?? elements.records[key]?.text ?? key;
+  String title = '';
+  final result = await showDialog<String>(context: context, builder: (context) => AlertDialog(
+    title: const Text('링크 타이틀'),
+    content: TextField(key: const ValueKey('link-title-input'), autofocus: true,
+      decoration: InputDecoration(hintText: fallback, helperText: '비워두면 메모 본문 또는 문서 제목을 표시합니다.'),
+      onChanged: (value) => title = value, onSubmitted: (value) => Navigator.pop(context, value)),
+    actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+      TextButton(onPressed: () => Navigator.pop(context, title), child: const Text('확인'))]));
+  if (!context.mounted || result == null || controller.text != before.text) return;
+  controller.selection = before.selection;
+  controller.insertTarget(key, display: result.trim().isEmpty ? fallback : result.trim());
+}
+
 class LabelTextController extends BoundTextController {
   LabelTextController([String text = '', Iterable<ElementBinding> links = const []])
     : super(text, links.where((b) => isInlineLink(b.id)));
@@ -94,26 +120,27 @@ class LabelTextController extends BoundTextController {
     } finally { _parsing = false; }
   }
   void insertLabel(ElementRecord record) => _insert('label:${record.id}', record.title);
-  void insertTarget(String key) {
+  void insertTarget(String key, {String? display}) {
     final project = projectTarget(key);
-    if (project != null) { _insert('project:${project.id}', project.title); return; }
+    if (project != null) { _insert('project:${project.id}', project.title, display: display); return; }
     final record = elements.records[key];
-    if (record != null) insertLabel(record);
+    if (record != null) _insert('label:${record.id}', record.title, display: display);
   }
-  void _insert(String id, String title) {
+  void _insert(String id, String title, {String? display}) {
     if (selection.isValid && !selection.isCollapsed) {
       final selected = selection;
       if (bindings.any((b) => selected.start < b.end && selected.end > b.start &&
           !(selected.start <= b.start && selected.end >= b.end))) { return; }
       bindings.removeWhere((b) => selected.start <= b.start && selected.end >= b.end);
-      bind(selected.start, selected.end, id, text.substring(selected.start, selected.end));
+      bind(selected.start, selected.end, id, display ?? text.substring(selected.start, selected.end));
       return;
     }
     final pending = pendingLabelLink(value);
     final end = selection.isValid ? selection.end : text.length;
     final prefix = completionPrefix(value, labelAssistTargets().map(assistTargetTitle).toList());
-    final start = pending?.start ?? (end - prefix.length).clamp(0, end);
-    bind(start, end, id, pending?.display ?? title);
+    final open = RegExp(r'\[\[[^\]\n]*$').firstMatch(text.substring(0, end));
+    final start = pending?.start ?? open?.start ?? (end - prefix.length).clamp(0, end);
+    bind(start, end, id, pending?.display ?? display ?? title);
   }
   void openAtCaret(BuildContext context) {
     if (!selection.isValid || !selection.isCollapsed) return;

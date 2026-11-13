@@ -97,9 +97,10 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     final name = _items(kind)[index];
     final label = kind == _Kind.tag ? '#$name' : name.replaceAll(RegExp(r'[\r\n]+'), ' ');
     final tile = ListTile(key: ValueKey('menu-${kind.name}-$index'),
-      dense: kind == _Kind.tag,
-      minVerticalPadding: kind == _Kind.tag ? 2 : null,
-      visualDensity: kind == _Kind.tag ? const VisualDensity(vertical: -3) : null,
+      dense: true,
+      minVerticalPadding: 2,
+      minTileHeight: 40,
+      visualDensity: const VisualDensity(vertical: -3),
       title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
         style: nested || kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.box ? const TextStyle(fontSize: 13) : null),
       trailing: kind == _Kind.tag ? IconButton(

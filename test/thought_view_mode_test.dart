@@ -18,6 +18,7 @@ void main(){
  expect(find.byTooltip('닫힌 생각 보기'),findsNothing);
  await tester.tap(find.byTooltip('행으로 보기 · 바둑판으로 전환'));await tester.pumpAndSettle();
  expect(find.byKey(const ValueKey('thought-square-grid')),findsOneWidget);
+ expect(find.text('생각 1개'),findsOneWidget);
  final size=tester.getSize(find.byKey(ValueKey('thought-${record.id}')));expect(size.width,closeTo(size.height,.1));
  await tester.tap(find.byTooltip('확대'));await tester.pumpAndSettle();expect(find.text('1열'),findsOneWidget);
  expect(tester.widget<IconButton>(find.byWidgetPredicate((w)=>w is IconButton && w.tooltip=='확대')).onPressed,isNull);

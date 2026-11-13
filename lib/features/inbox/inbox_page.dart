@@ -728,19 +728,25 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     return KeyEventResult.handled;
   }
 
-  void _acceptQuickAssist(VoidCallback action) {
+  Future<void> _acceptQuickAssist(FutureOr<void> Function() action) async {
     final before = _draft.value;
     final composing = _lastComposingValue;
     _assistComposingEcho = composing != null && composing.text == before.text
         ? composing.composing.textInside(composing.text) : null;
-    action();
+    final result = action();
     _pendingImeSave = false;
     _assistInputBefore = before; _assistCompleted = _draft.value;
     _assistSubmitUntil = DateTime.now().add(const Duration(milliseconds: 500));
+    if (result is Future) {
+      await result;
+      if (!mounted) return;
+      _assistCompleted = _draft.value;
+      _assistSubmitUntil = DateTime.now().add(const Duration(milliseconds: 500));
+    }
   }
 
-  void _insertQuickElement(String word) {
-    setState(() => _draft.insertTarget(word)); _focus.requestFocus();
+  Future<void> _insertQuickElement(String word) async {
+    await insertAssistedLink(context, _draft, word); if (mounted) { setState(() {}); _focus.requestFocus(); }
   }
 
   void _insertQuickTag(String tag) {

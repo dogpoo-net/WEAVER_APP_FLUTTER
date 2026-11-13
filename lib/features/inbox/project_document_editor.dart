@@ -83,8 +83,8 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   void _refresh() { if (mounted) setState(() {}); }
   @override
   void dispose() { widget.storage?.editorResources.remove(widget.project?.id??'new-document');_lock?.removeListener(_refresh);_lock?.dispose();elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
-  void _insertLabel(String word) {
-    _body.insertTarget(word); _bodyFocus.requestFocus();
+  Future<void> _insertLabel(String word) async {
+    await insertAssistedLink(context, _body, word); if (mounted) _bodyFocus.requestFocus();
   }
   void _insertTag(String tag) {
     final token = tagPrefix(_body.value);

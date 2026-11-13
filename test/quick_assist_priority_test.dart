@@ -6,7 +6,31 @@ import 'package:weaver/main.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
 
+Future<void> confirmLinkTitle(WidgetTester tester) async {
+  final input = find.byKey(const ValueKey('link-title-input'));
+  if (input.evaluate().isEmpty) return;
+  await tester.tap(find.text('확인')); await tester.pumpAndSettle();
+}
 void main() {
+  testWidgets('modal Enter confirms title and next desktop Enter saves the memo', (tester) async {
+    elements.clear(); elements.add('원본 메모');
+    SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
+    final storage=WorkspaceStorage(await SharedPreferences.getInstance());
+    await tester.pumpWidget(MyApp(requireLogin:false,storage:storage));
+    final field=find.byKey(const ValueKey('quick-memo'));
+    await tester.enterText(field,'원본');await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);await tester.pumpAndSettle();
+    final title=find.byKey(const ValueKey('link-title-input'));expect(title,findsOneWidget);
+    await tester.enterText(title,'내 링크');
+    await tester.testTextInput.receiveAction(TextInputAction.done);await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog),findsNothing);
+    expect(tester.widget<TextField>(field).controller!.text,'내 링크');
+    expect(WorkspaceSnapshot.decode(storage.read()!).notes,isEmpty);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);await tester.pumpAndSettle();
+    expect(WorkspaceSnapshot.decode(storage.read()!).notes,hasLength(1));
+    expect(tester.widget<TextField>(field).controller!.text,isEmpty);
+  },variant:TargetPlatformVariant({TargetPlatform.linux,TargetPlatform.windows,TargetPlatform.macOS}));
+
   for (final tag in [false, true]) {
     testWidgets('visible quick assist owns Enter and native submit echoes (tag=$tag)', (tester) async {
       elements.clear(); (elements.add('독서 #태그')..indexLabel = '독서');
@@ -22,16 +46,19 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
+      await confirmLinkTitle(tester);
       final completed = tag ? '메모 #태그 ' : '메모 독서';
       expect(tester.widget<TextField>(field).controller!.text, completed);
       expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
       await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
+      await confirmLinkTitle(tester);
       tester.testTextInput.updateEditingValue(TextEditingValue(text: '$input\n', selection: TextSelection.collapsed(offset: input.length + 1)));
       await tester.pumpAndSettle();
       expect(tester.widget<TextField>(field).controller!.text, completed);
       expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
       await tester.pump(const Duration(milliseconds: 600));
       await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
+      await confirmLinkTitle(tester);
       expect(WorkspaceSnapshot.decode(storage.read()!).notes.length, 1);
       expect(tester.widget<TextField>(field).controller!.text, isEmpty);
       expect(tester.takeException(), isNull);
@@ -50,7 +77,9 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
+      await confirmLinkTitle(tester);
       await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
+      await confirmLinkTitle(tester);
       expect(tester.widget<TextField>(field).controller!.text, text.endsWith('첫') ? '본문 첫생각' : '본문 다른생각');
       expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
     }
@@ -64,6 +93,7 @@ void main() {
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '본문 #새태그'); await tester.pumpAndSettle();
     await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
+      await confirmLinkTitle(tester);
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     expect(find.byTooltip('#새태그 태그 삭제'), findsNothing);
     expect(elements.records['본문']!.tags, {'새태그'});
@@ -77,6 +107,7 @@ void main() {
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '독'); await tester.pumpAndSettle();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
+      await confirmLinkTitle(tester);
     expect(tester.widget<TextField>(field).controller!.text, '독서');
     await tester.sendKeyEvent(LogicalKeyboardKey.backspace); await tester.pumpAndSettle();
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
@@ -90,6 +121,7 @@ void main() {
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '독'); await tester.pumpAndSettle();
     await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
+      await confirmLinkTitle(tester);
     expect(tester.widget<TextField>(field).controller!.text, '독서');
     expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
   }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));

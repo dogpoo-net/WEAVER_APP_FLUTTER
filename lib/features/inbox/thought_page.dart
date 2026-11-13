@@ -970,7 +970,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           ))),
         ]))),
       ); })),
-        if (_selected.isNotEmpty) Positioned(top: 8, left: 12, child: Material(
+        if (_selected.isNotEmpty) Positioned(top: 8, left: 4, child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: SizedBox(width: 104, child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(mainAxisSize: MainAxisSize.min, children: [
@@ -988,7 +988,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               }),
           ])),
         )),
-        Positioned(top: 8, right: 0, child: Material(
+        Positioned(top: 8, right: 4, child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             SizedBox(width: 32, height: 36, child: Checkbox(

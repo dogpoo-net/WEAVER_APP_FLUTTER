@@ -72,18 +72,13 @@ class _TagPageState extends State<TagPage> {
                       .toList(),
                 ),
                 const Divider(height: 32),
-                for (final isProject in [false, true]) ...[
-                  Text('${isProject ? '문서' : '생각'} ${related.where((n) => (n.project != null) == isProject).length}',
-                    key: ValueKey(isProject ? 'tag-projects' : 'tag-paragraphs'),
-                    style: Theme.of(context).textTheme.titleMedium),
-                  if (!related.any((n) => (n.project != null) == isProject))
-                    Padding(padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Text(isProject ? '관련 문서가 없어요.' : '관련 생각이 없어요.')),
-                  for (final note in related.where((n) => (n.project != null) == isProject))
-                    ListTile(title: Text(note.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-                      onTap: () async { await widget.onOpen(note); if (mounted) setState(() {}); }),
-                  if (!isProject) const Divider(height: 32),
-                ],
+                Text('문서 ${related.where((n) => n.project != null).length}',
+                  key: const ValueKey('tag-projects'), style: Theme.of(context).textTheme.titleMedium),
+                if (!related.any((n) => n.project != null))
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Text('관련 문서가 없어요.')),
+                for (final note in related.where((n) => n.project != null))
+                  ListTile(title: Text(note.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    onTap: () async { await widget.onOpen(note); if (mounted) setState(() {}); }),
               ],
             ),
           ),

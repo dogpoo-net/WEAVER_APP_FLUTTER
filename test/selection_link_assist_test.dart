@@ -19,6 +19,7 @@ void main() {
   focus.requestFocus();c.selection=const TextSelection(baseOffset:0,extentOffset:6);await tester.pumpAndSettle();
   final filter=find.byKey(const ValueKey('selection-link-filter'));expect(filter,findsOneWidget);
   expect(find.byKey(ValueKey('suggestion-${memo.text}')),findsOneWidget);
+  expect(tester.widget<WordBadge>(find.byKey(ValueKey('suggestion-${memo.text}'))).labelTarget,isTrue);
   expect(find.byKey(ValueKey('suggestion-project:${doc.id}')),findsOneWidget);
   await tester.enterText(filter,'없는 검색');await tester.pumpAndSettle();expect(filter,findsOneWidget);expect(find.text('검색 결과가 없습니다.'),findsOneWidget);
   await tester.enterText(filter,'바나나');await tester.pumpAndSettle();
@@ -30,6 +31,16 @@ void main() {
   await tester.tap(find.byKey(ValueKey('suggestion-project:${doc.id}')));await tester.pumpAndSettle();
   expect(c.text,'선택한 글자');expect(c.bindings.single.id,'project:${doc.id}');
   await tester.pumpWidget(const SizedBox());c.dispose();focus.dispose();
+ });
+ test('assist targets are documents then labeled memos then plain memos', () {
+  final plain=elements.add('일반 본문');
+  final labeled=elements.add('라벨 본문')..indexLabel='검색할 이름';
+  final doc=WritingProject([],[],name:'문서');elements.indexProject(doc);
+  expect(labelAssistTargets(),['project:${doc.id}',labeled.text,plain.text]);
+  expect(assistTargetMatches(labeled.text,'검색할'),isTrue);
+  expect(assistTargetMatches(labeled.text,'라벨 본문'),isTrue);
+  expect(isLabelAssistTarget(labeled.text),isTrue);
+  expect(isLabelAssistTarget(plain.text),isFalse);
  });
  testWidgets('link styles are normal weight with distinct decorations', (tester) async {
   final memo=elements.add('메모');

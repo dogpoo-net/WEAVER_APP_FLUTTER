@@ -42,7 +42,11 @@ void main() {
       await tester.pumpAndSettle();
     }
     expect(tester.getRect(heading).top, closeTo(tester.getRect(scroll).top, 1));
-    final item = find.byKey(const ValueKey('menu-tag-5'));
+    final visibleKey = tester.widgetList<ListTile>(find.byType(ListTile)).map((tile) => tile.key)
+      .whereType<ValueKey<String>>().firstWhere((key) => key.value.startsWith('menu-tag-') &&
+        tester.getRect(find.byKey(key)).top > tester.getRect(scroll).top + 80 &&
+        tester.getRect(find.byKey(key)).bottom < tester.getRect(scroll).bottom);
+    final item = find.byKey(visibleKey);
     final before = tester.getTopLeft(item).dy;
     controller.jumpTo(controller.offset + 50);
     await tester.pumpAndSettle();
