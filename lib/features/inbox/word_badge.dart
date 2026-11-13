@@ -183,7 +183,7 @@ class WordBadge extends StatelessWidget {
                 )
               : BorderSide.none,
         ),
-        textStyle: TextStyle(fontSize: dense ? 11 : 12, fontWeight: FontWeight.w500),
+        textStyle: Theme.of(context).textTheme.labelLarge!.copyWith(fontSize: dense ? 11 : 12, fontWeight: FontWeight.w500),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         if (indicators) ...[AttachmentIndicators(record: record), const SizedBox(width: 4)],
