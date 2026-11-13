@@ -13,6 +13,7 @@ import 'support/memory_session_store.dart';
 
 class SharingApi extends EmailAuthApi {
   SharingApi() : super(store: MemorySessionStore(isWeb: true));
+  int version = 2;
   final calls = <String>[];
   Map<String, Object?>? last;
   @override
@@ -45,7 +46,7 @@ class SharingApi extends EmailAuthApi {
       'history' => {
         'versions': [
           {
-            'version': 2,
+            'version': version,
             'actorName': 'Editor',
             'action': 'unlocked_edit',
             'createdAt': '2026-11-11T12:00:00Z',
@@ -157,6 +158,9 @@ void main() {
     expect(find.descendant(of: find.byType(AlertDialog), matching: find.text('추가', findRichText: true)), findsOneWidget);
     await tester.tap(find.text('닫기')); await tester.pumpAndSettle();
     expect(api.last!['workspaceId'], 'shared');
+    api.version=3;await tester.pump(const Duration(seconds:3));await tester.pumpAndSettle();
+    expect(find.text('버전 3 · Editor'),findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
     sync.dispose();
     api.dispose();
   });

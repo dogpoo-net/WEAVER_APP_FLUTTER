@@ -345,6 +345,7 @@ class WorkspaceStorage {
   Future<void> Function(String)? syncResource;
   Future<void> Function(String)? reloadResource;
   Future<Map<String,dynamic>> Function(String,String)? takeLease;
+  Future<Map<String,dynamic>> Function(String,String)? inspectLease, acquireLease;
   void Function()? onChanged;
   Future<void> Function()? syncNow;
   Future<void> Function()? syncDeleted;

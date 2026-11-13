@@ -1,3 +1,5 @@
+import 'caret_assist.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'workspace_routes.dart';
 import 'label_links.dart';
@@ -228,6 +230,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   bool _labelOnLeft = false;
   int _indexLabelColor = 0xFFFFF59D;
   final _contentScroll = ScrollController();
+  final _editorFocus = FocusNode();
   late final Set<String> _tags;
   bool _movingTags = false;
   late String _word;
@@ -267,7 +270,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   }
   void _extractTags() {
     if (_movingTags) return;
-    final completed = takeCompletedParagraphTags(_editor.value, protected: _editor.bindings.map((b) => TextRange(start: b.start, end: b.end)));
+    final completed = takeCompletedParagraphTags(_editor.value, consumeLineBreak: true, protected: _editor.bindings.map((b) => TextRange(start: b.start, end: b.end)));
     if (completed.tags.isEmpty) return;
     _movingTags = true;
     try {
@@ -283,6 +286,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
 
   @override
   void dispose() {
+    _editorFocus.dispose();
     _editor.dispose();
     _labelEditor.dispose();
     _contentScroll.dispose();
@@ -344,8 +348,28 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                   onPressed: () => setState(() => _labelOnLeft = left), icon: Icon(left ? Icons.west : Icons.east)),
               ])),
               const SizedBox(height: 8),
-              TextField(
-                key: const ValueKey('element-editor'),
+              CaretAssist(controller: _editor, focus: _editorFocus, useThoughtLabels: true, selectionAssist: true,
+                words: labelAssistTargets().where((word) => word != _word).toList(), tags: {...elements.tags, ..._tags}.toList(),
+                showWhenEmpty: false, enterSelectsVisible: true,
+                onWord: (word) async { await insertAssistedLink(context, _editor, word); if (mounted) _editorFocus.requestFocus(); },
+                onTag: (tag) {
+                  final token = tagPrefix(_editor.value); if (token.isEmpty) return;
+                  final end = _editor.selection.end;
+                  final text = _editor.text.replaceRange(end - token.length, end, '#$tag ');
+                  _editor.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: end - token.length + tag.length + 2));
+                  _editorFocus.requestFocus();
+                }, child: TextField(
+                key: const ValueKey('element-editor'), focusNode: _editorFocus,
+                inputFormatters: [TextInputFormatter.withFunction((before, next) {
+                  if (!before.selection.isValid || tagPrefix(before).isEmpty || (next.composing.isValid && !next.composing.isCollapsed)) return next;
+                  final start = before.selection.start, end = before.selection.end;
+                  for (final newline in ['\n', '\r\n']) {
+                    if (next.text == before.text.replaceRange(start, end, newline)) {
+                      return next.copyWith(text: before.text.replaceRange(start, end, ' '), selection: TextSelection.collapsed(offset: start + 1));
+                    }
+                  }
+                  return next;
+                })],
                 controller: _editor,
                 onTap: () => _editor.openAtCaret(context),
                 minLines: 3,
@@ -359,7 +383,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                 onChanged: (_) {
                   if (_error != null) setState(() => _error = null);
                 },
-              ),
+              )),
               const SizedBox(height: 8),
               MergeSemantics(child: ListTile(
                 dense: true, visualDensity: const VisualDensity(vertical: -3), contentPadding: EdgeInsets.zero,

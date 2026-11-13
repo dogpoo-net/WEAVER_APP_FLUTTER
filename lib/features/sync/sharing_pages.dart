@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'document_revision_diff.dart';
 import 'dart:convert';
 
@@ -228,12 +229,35 @@ class DocumentHistoryPage extends StatefulWidget {
 
 class _DocumentHistoryPageState extends State<DocumentHistoryPage> {
   final versions = <dynamic>[];
+  Timer? _refreshTimer;
+  bool _refreshing = false;
+  @override void dispose() { _refreshTimer?.cancel(); super.dispose(); }
+  Future<void> refreshLatest() async {
+    final lifecycle=WidgetsBinding.instance.lifecycleState;
+    if(!mounted || busy || _refreshing || ModalRoute.of(context)?.isCurrent!=true || (lifecycle!=null && lifecycle!=AppLifecycleState.resumed))return;
+    _refreshing=true;
+    try {
+      final result=await widget.sync.request('history',{'documentId':widget.documentId});
+      if(!mounted)return;
+      final rows=result['versions'] as List;
+      if(rows.isNotEmpty && versions.isNotEmpty && rows.first['version']==versions.first['version'])return;
+      setState(() {
+        final overlap=rows.isNotEmpty && versions.any((v)=>v['version']==rows.last['version']);
+        final older=overlap?versions.where((v)=>(v['version'] as num)<(rows.last['version'] as num)).toList():<dynamic>[];
+        versions..clear()..addAll(rows)..addAll(older);
+        if(!overlap)more=rows.length==50;
+        error=null;
+      });
+    } catch (_) { /* Keep the existing history while a transient request fails. */ }
+    finally {_refreshing=false;}
+  }
   bool busy = false, more = true;
   String? error;
   @override
   void initState() {
     super.initState();
     load();
+    _refreshTimer=Timer.periodic(const Duration(seconds:3),(_)=>refreshLatest());
   }
 
   Future<void> load() async {
@@ -279,7 +303,7 @@ class _DocumentHistoryPageState extends State<DocumentHistoryPage> {
             child: Text('저장된 변경 이력이 없습니다.'),
           ),
         for (final version in versions)
-          ExpansionTile(
+          ExpansionTile(key: ValueKey('document-history-${version['version']}'),
             title: Row(children: [Expanded(child: Text('버전 ${version['version']} · ${version['actorName']}')),
               if (version['action'] == 'unlocked_edit') const Tooltip(message: '이 버전은 잠금 해제 후 저장했습니다.', child: Icon(Icons.lock_open, size: 18))]),
             subtitle: Text(

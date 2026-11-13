@@ -27,7 +27,7 @@ void main(){
   await tester.enterText(find.byKey(const ValueKey('table-cell-1-0')),'내용');
   await tester.tap(find.text('삽입'));await tester.pumpAndSettle();
   expect(controller.text,contains('| 항목 |'));expect(controller.text,contains('| --- |'));
-  await tester.tap(find.text('저장'));await tester.pumpAndSettle();expect(project.content,controller.text);
+  await tester.tap(find.byTooltip('저장'));await tester.pumpAndSettle();expect(project.content,controller.text);
   await tester.tap(find.byTooltip('미리보기'));await tester.pumpAndSettle();expect(find.byType(Table),findsOneWidget);
   expect(tester.takeException(),isNull);
  });

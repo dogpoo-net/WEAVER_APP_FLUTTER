@@ -15,7 +15,7 @@ void main() {
     await tester.tap(find.text('시작')); await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('project-document')), '첫 줄\n두 번째 줄');
     expect(find.text('다음 문단'), findsNothing);
-    await tester.tap(find.text('저장')); await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('저장')); await tester.pumpAndSettle();
     expect(result!.document, '첫 줄\n두 번째 줄');
     expect(result!.paragraphs, isEmpty);
     expect(tester.takeException(), isNull);
@@ -26,7 +26,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: ProjectDocumentEditor(project: project)));
     expect(tester.widget<TextField>(find.byKey(const ValueKey('project-document'))).controller!.text, '======원본======');
     await tester.enterText(find.byKey(const ValueKey('project-document')), '새 통합 본문');
-    await tester.tap(find.text('저장')); await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('저장')); await tester.pumpAndSettle();
     final restored = WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([Note(project.content)..project = project])).notes.single.project!;
     expect(restored.document, '새 통합 본문');
     expect(restored.paragraphs.single.text, '원본');

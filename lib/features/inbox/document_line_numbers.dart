@@ -11,19 +11,22 @@ class DocumentLineNumbers extends StatefulWidget {
 }
 class _DocumentLineNumbersState extends State<DocumentLineNumbers> {
   final field = GlobalKey(), gutter = GlobalKey();
+  final layoutReady = ValueNotifier(0);
+  @override void dispose() { layoutReady.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) layoutReady.value++; });
     return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       SizedBox(width: 42, child: ClipRect(child: CustomPaint(key: gutter,
-        painter: _LineNumbers(field, gutter, widget.controller, widget.scroll,
+        painter: _LineNumbers(field, gutter, widget.controller, widget.scroll, layoutReady,
           Theme.of(context).colorScheme.onSurfaceVariant, MediaQuery.textScalerOf(context))))),
       Expanded(child: KeyedSubtree(key: field, child: widget.child)),
     ]);
   }
 }
 class _LineNumbers extends CustomPainter {
-  _LineNumbers(this.field, this.gutter, this.controller, ScrollController scroll, this.color, this.scaler)
-    : super(repaint: Listenable.merge([controller, scroll]));
+  _LineNumbers(this.field, this.gutter, this.controller, ScrollController scroll, Listenable layoutReady, this.color, this.scaler)
+    : super(repaint: Listenable.merge([controller, scroll, layoutReady]));
   final GlobalKey field, gutter;
   final TextEditingController controller;
   final Color color;

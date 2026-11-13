@@ -66,7 +66,7 @@ class OwnedWorkspaces {
   static const guestOwnerKey='weaver.guest.owner.v1';
   String newGuest()=> 'guest-${List.generate(24,(_)=>Random.secure().nextInt(256).toRadixString(16).padLeft(2,'0')).join()}';
   WorkspaceStorage scope(String owner)=>WorkspaceStorage(root.preferences,owner:owner);
-  Future<void> initialize() async {
+  Future<void> initialize({int ignoredPendingSaves=0}) async {
     final p=root.preferences;await p.reload();
     if(p.getBool('weaver.owner-migrated.v1')==true)return;
     final raw=root.read();
@@ -147,10 +147,18 @@ class WorkspaceSync extends ChangeNotifier {
     if(observedLeases[id]==token)_acceptLease(id,token,result);
     return result;
   }
+  Future<Map<String,dynamic>> inspectLease(String id,String token) => _documentLeaseMode(id,token,true);
+  Future<Map<String,dynamic>> acquireLease(String id,String token) => _documentLeaseMode(id,token,false);
+  Future<Map<String,dynamic>> _documentLeaseMode(String id,String token,bool observe) async {
+    _leaseEpoch++;observedLeases[id]=token;
+    final result=await request('document-lease',{'documentId':id,'leaseToken':token,if(observe)'observeOnly':true});
+    _leaseEpoch++;if(observedLeases[id]==token)_acceptLease(id,token,result);
+    return result;
+  }
   void _acceptLease(String id,String token,Map<String,dynamic> result){
     storage.leaseStates[id]=result;
     if(result['acquired']==true){documentLeases[id]=token;lostLeases.remove(id);}
-    else {documentLeases.remove(id);lostLeases.add(id);}
+    else {documentLeases.remove(id);if(result['available']==true){lostLeases.remove(id);}else{lostLeases.add(id);}}
     storage.leaseChanges.value++;
   }
   Future<Map<String,dynamic>> takeLease(String id,String token) async {
@@ -233,7 +241,7 @@ class WorkspaceSync extends ChangeNotifier {
       }
     }
   }
-  Future<void> initialize() async {
+  Future<void> initialize({int ignoredPendingSaves=0}) async {
     loadBase();
     final beforeRead=splitWorkspace(storage.read());
     try {
@@ -250,7 +258,7 @@ class WorkspaceSync extends ChangeNotifier {
       // A server response must not undo edits made while it was in flight,
       // or an explicit save already waiting behind this read.
       for(final key in {...beforeRead.keys,...local.keys,...previousBase.keys}){
-        if(!sameItem(local[key],beforeRead[key]) || (_pendingSaves>0 && !sameItem(local[key],previousBase[key]))){
+        if(!sameItem(local[key],beforeRead[key]) || (_pendingSaves>ignoredPendingSaves && !sameItem(local[key],previousBase[key]))){
           if(local[key]==null){displayed.remove(key);}else{displayed[key]=local[key]!;}
         }
       }
@@ -260,7 +268,7 @@ class WorkspaceSync extends ChangeNotifier {
       await saveBase();_observedRevision=result['revision'] as int;ready=true;error=null;
     }catch(e){error=e.toString();}
     storage.itemMetadata=(kind,id)=>base[itemKey(kind,id)];
-    storage.onChanged=schedule;storage.syncNow=flush;storage.syncDeleted=flushDeletions;storage.syncFolders=flushFolders;storage.refreshNow=refreshFromServer;storage.checkRemote=checkRemote;storage.syncContent=readOnly?null:()=>_enqueueFlush(false,contentOnly:true);storage.syncResource=(id)=>_enqueueFlush(false,resource:id);storage.reloadResource=reloadResource;storage.takeLease=takeLease;
+    storage.onChanged=schedule;storage.syncNow=flush;storage.syncDeleted=flushDeletions;storage.syncFolders=flushFolders;storage.refreshNow=refreshFromServer;storage.checkRemote=checkRemote;storage.syncContent=readOnly?null:()=>_enqueueFlush(false,contentOnly:true);storage.syncResource=(id)=>_enqueueFlush(false,resource:id);storage.reloadResource=reloadResource;storage.takeLease=takeLease;storage.inspectLease=inspectLease;storage.acquireLease=acquireLease;
     changed();if(ready && storage.read()!=_lastSynced)schedule();
   }
   Future<void> refreshFromServer() async {
@@ -344,7 +352,7 @@ class WorkspaceSync extends ChangeNotifier {
       await saveBase();error=null;
     }catch(e){
       if(e is EmailAuthFailure && e.status==409){
-        await initialize();
+        await initialize(ignoredPendingSaves:1);
         if(error==null){storage.lastSaveReplaced=true;storage.applyServerSnapshot?.call();}
       }else{error=e.toString();}
     }
@@ -388,5 +396,5 @@ class WorkspaceSync extends ChangeNotifier {
     await storage.flush();if(storage.read()==_lastSynced){final raw=storage.read();await storage.clear();await storage.preferences.remove(storage.syncKey);
       if(raw!=null){final snapshot=WorkspaceSnapshot.decode(raw);for(final r in [...snapshot.records,...snapshot.trashRecords]){for(final id in [...r.photos.map((p)=>p.id),...r.recordings.map((c)=>c.id)]){try{await MediaStorage.delete(id,owner:storage.owner);}catch(_){}await storage.preferences.remove(storage.scoped('media-sent.$id'));}}}}
   }
-  @override void dispose(){_disposed=true;storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;super.dispose();}
+  @override void dispose(){_disposed=true;storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;storage.inspectLease=null;storage.acquireLease=null;super.dispose();}
 }

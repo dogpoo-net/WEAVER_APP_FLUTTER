@@ -8,7 +8,7 @@ class CompletedParagraphTags {
 }
 
 /// Extract only space-terminated hashtag tokens, preserving prose and caret.
-CompletedParagraphTags takeCompletedParagraphTags(TextEditingValue value, {Iterable<TextRange> protected = const []}) {
+CompletedParagraphTags takeCompletedParagraphTags(TextEditingValue value, {Iterable<TextRange> protected = const [], bool consumeLineBreak = false}) {
   if (value.composing.isValid && !value.composing.isCollapsed) {
     return CompletedParagraphTags(value, const {});
   }
@@ -19,7 +19,9 @@ CompletedParagraphTags takeCompletedParagraphTags(TextEditingValue value, {Itera
     if (protected.any((range) => range.start < match.end && range.end > match.start)) continue;
     tags.add(match.group(2)!.toLowerCase());
     var end = match.end;
-    if (end < value.text.length && (value.text[end] == ' ' || value.text[end] == '\t')) end++;
+    if (end < value.text.length && (value.text[end] == ' ' || value.text[end] == '\t')) { end++; }
+    else if (consumeLineBreak && value.text.startsWith('\r\n', end)) { end += 2; }
+    else if (consumeLineBreak && end < value.text.length && value.text[end] == '\n') { end++; }
     ranges.add(TextRange(start: match.start + match.group(1)!.length, end: end));
   }
   if (ranges.isEmpty) return CompletedParagraphTags(value, tags);

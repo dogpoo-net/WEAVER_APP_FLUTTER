@@ -31,7 +31,7 @@ class ProjectDocumentEditor extends StatefulWidget {
 }
 class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   late final LabelTextController _body;
-  bool _preview = false;
+  bool _preview = false, _loading = false;
   EditLock? _lock;
   bool get _leaseGranted=>_lock?.granted??true;
   String? get _leaseMessage=>_lock?.message;
@@ -41,8 +41,9 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     if(widget.onReload==null || !await confirmReload(context))return;
     try{
       await widget.onReload!();await _renewLease();if(!mounted)return;
+      _loading=true;
       _body.text=widget.project!.content;_body.bindings..clear()..addAll(widget.project!.documentLinks);
-      _tags..clear()..addAll(widget.project!.tags);_filters.tags..clear()..addAll(_tags);setState(()=>_dirty=false);
+      _tags..clear()..addAll(widget.project!.tags);_filters.tags..clear()..addAll(_tags);setState(()=>_dirty=false);_loading=false;
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('갱신하지 못했습니다. $e')));}
   }
   final _search = TextEditingController();
@@ -56,7 +57,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   void initState() {
     super.initState();
     widget.storage?.editorResources.add(widget.project?.id??'new-document');
-    if(_needsLease){_lock=EditLock(widget.project!.id,widget.storage,fallback:widget.onLease)..addListener(_refresh);}
+    if(_needsLease){_lock=EditLock(widget.project!.id,widget.storage,fallback:widget.onLease,lazy:true)..addListener(_refresh);}
     _body = LabelTextController( widget.project?.document ?? widget.project?.paragraphs.map((p) =>
       p.role == ParagraphRole.title ? '======${p.text}======' : p.role == ParagraphRole.subtitle ? '=====${p.text}=====' : p.text).join('\n\n') ?? '', widget.project?.documentLinks ?? const []);
     for (final project in widget.projects) { elements.indexProject(project); }
@@ -80,6 +81,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     final edit = _editSignature;
     if (_lastEdit == edit) return;
     _lastEdit = edit;
+    if (!_loading) _lock?.startEditing();
     if (mounted) setState(() => _dirty = true);
   }
   void _refresh() { if (mounted) setState(() {}); }
@@ -110,9 +112,9 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   bool _saving=false;
   Future<void> _save() async {
     if(_saving)return;
-    _saving=true;
+    setState(()=>_saving=true);
     try {
-    if(_needsLease && !await _renewLease())return;
+    if(_needsLease && !(await _lock!.startEditing()))return;
     if(!mounted)return;
     _body.completeLinks();
     _tags.addAll(cleanLinkedInput(_body).tags);
@@ -126,9 +128,10 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     project.words.clear(); project.tags..clear()..addAll({..._tags, ..._filters.tags});
     if (widget.project == null) { Navigator.pop(context, project); return; }
     elements.indexProject(project); await widget.onChanged?.call(); await widget.onSave?.call();
+    await _lock?.saved();
     if (mounted) { setState(() => _dirty = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.storage?.lastSaveReplaced==true?'서버 최신 자료로 갱신했습니다.':'저장되었습니다.'))); }
     } catch(e) { if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('저장 또는 동기화에 실패했습니다. 로컬 자료는 유지됩니다. $e'))); }
-    finally {_saving=false;}
+    finally {if(mounted){setState(()=>_saving=false);}else{_saving=false;}}
   }
   Widget _referencesPanel() {
     final query = _search.text.trim().replaceFirst('#', '').toLowerCase();
@@ -156,8 +159,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('계속 작성')),
       TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('나가기'))]));
     if (discard == true && mounted) { setState(() => _dirty = false); WidgetsBinding.instance.addPostFrameCallback((_) { if (context.mounted) Navigator.pop(context); }); }
-  }, child: Scaffold(appBar: AppBar(title: WorkspaceTitle(widget.project?.name ?? '문서 만들기'), actions: [const KeyboardDismissAction(), const DesktopMenuAction(), if(_needsLease)IconButton(tooltip:_leaseMessage??'이 문서를 편집 중입니다',onPressed:()=>_leaseGranted?_renewLease():_lock?.takeOver(context),icon:Icon(_leaseGranted?Icons.lock_open:Icons.lock_outline)), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _preview = !_preview)), TextButton(style: TextButton.styleFrom(minimumSize: Size(_wide ? 40 : 32, 40), padding: EdgeInsets.symmetric(horizontal: _wide ? 6 : 2), tapTargetSize: _wide ? MaterialTapTargetSize.padded : MaterialTapTargetSize.shrinkWrap), onPressed: _leaseGranted?_save:null, child: const Text('저장')),
-    if(widget.project!=null && widget.onHistory!=null)IconButton(tooltip:'문서 변경 이력',icon:const Icon(Icons.history),onPressed:()=>widget.onHistory!(widget.project!.id)),
+  }, child: Scaffold(appBar: AppBar(title: WorkspaceTitle(widget.project?.name ?? '문서 만들기'), actions: [const KeyboardDismissAction(), const DesktopMenuAction(), if(_needsLease)IconButton(tooltip:_leaseMessage??(_lock?.shared==true?'강제 해제됨 · 모두 편집 가능':_lock?.held==true?'내가 편집 중 · 강제 잠금 해제':'잠금 없음 · 강제 잠금 해제'),onPressed:()=>_lock?.takeOver(context),icon:Icon(_leaseGranted?Icons.lock_open:Icons.lock_outline)), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _preview = !_preview)), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _leaseGranted && !_saving ? _save : null),
     IconButton(tooltip: '작성 문법 안내', icon: const Icon(Icons.info_outline), onPressed: _showHelp),
    ]), bottomNavigationBar: _leaseGranted?null:SafeArea(child:Padding(padding:const EdgeInsets.all(12),child:Text(_leaseMessage??'편집 권한을 확인하고 있습니다.'))), body: DesktopMenuBody(child: SafeArea(top: false, child: LayoutBuilder(builder: (context, constraints) {
       final document = !_leaseGranted
@@ -168,7 +170,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
           showWhenEmpty: false, enterSelectsVisible: true, showShortcutHint: true,
-          child: TextField(key: const ValueKey('project-document'), controller: _body, focusNode: _bodyFocus, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
+          child: TextField(key: const ValueKey('project-document'), readOnly: _saving, controller: _body, focusNode: _bodyFocus, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
           onTapOutside: _wide ? null : (_) {},
           onTap: () => _body.openAtCaret(context), textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
           decoration: InputDecoration(fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder()))));
@@ -176,7 +178,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(12),
         child: Padding(padding: const EdgeInsets.all(4), child: _referencesPanel()));
       return Column(children: [
-        if (!_preview) Align(key: const ValueKey('document-editor-toolbar'), alignment: Alignment.centerLeft, child: TextButton.icon(style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12), tapTargetSize: MaterialTapTargetSize.shrinkWrap), onPressed: _leaseGranted ? _insertTable : null, icon: const Icon(Icons.table_chart_outlined, size: 18), label: const Text('표 삽입'))),
+        if (!_preview) Align(key: const ValueKey('document-editor-toolbar'), alignment: Alignment.centerLeft, child: TextButton.icon(style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12), tapTargetSize: MaterialTapTargetSize.shrinkWrap), onPressed: _leaseGranted && !_saving ? _insertTable : null, icon: const Icon(Icons.table_chart_outlined, size: 18), label: const Text('표 삽입'))),
         Expanded(child: Padding(padding: EdgeInsets.fromLTRB(_wide ? 12 : 6, 2, _wide ? 12 : 6, 0), child: _wide
           ? Row(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Expanded(child:document),if(_thoughtPanelOpen)...[const SizedBox(width:12),SizedBox(width:(constraints.maxWidth*.45).clamp(300.0,560.0),child:panel)],SizedBox(width:32,child:Align(alignment:Alignment.centerRight,child:IconButton(key:const ValueKey('project-thought-panel-toggle'),tooltip:_thoughtPanelOpen?'생각 패널 숨기기':'생각 패널 보이기',padding:EdgeInsets.zero,onPressed:()=>setState(()=>_thoughtPanelOpen=!_thoughtPanelOpen),icon:Icon(_thoughtPanelOpen?Icons.chevron_right:Icons.chevron_left))))])
           : !_thoughtPanelOpen?document:Column(children:[Expanded(child:document),const SizedBox(height:4),Expanded(child:panel)]))),

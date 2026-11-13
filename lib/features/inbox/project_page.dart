@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'workspace_storage.dart';
 import 'document_markup.dart';
 import 'workspace_routes.dart';
@@ -39,8 +40,28 @@ class ProjectPage extends StatefulWidget {
   @override State<ProjectPage> createState()=>_ProjectPageState();
 }
 class _ProjectPageState extends State<ProjectPage>{
- void _changed(){if(mounted)setState((){});}
- @override void initState(){super.initState();widget.storage?.liveChanges.addListener(_changed);}
- @override void dispose(){widget.storage?.liveChanges.removeListener(_changed);super.dispose();}
- @override Widget build(BuildContext context)=>DesktopMenuFrame(child:Scaffold(appBar:AppBar(title:WorkspaceTitle(widget.project.title),actions:[if(widget.onHistory!=null)IconButton(tooltip:'문서 변경 이력',onPressed:()=>widget.onHistory!(widget.project.id),icon:const Icon(Icons.history)),IconButton(tooltip:'문서 수정',icon:const Icon(Icons.edit_outlined),onPressed:()async{await Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>DesktopMenuFrame(child:ProjectDocumentEditor(project:widget.project,projects:widget.projects,onChanged:widget.onChanged,onSave:widget.onSave,onHistory:widget.onHistory,onLease:widget.onLease,storage:widget.storage,onReload:widget.onReload))));if(mounted)setState((){});})]),body:DesktopMenuBody(child:SelectionArea(child:SingleChildScrollView(padding:const EdgeInsets.all(20),child:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:900),child:DocumentMarkup(text:widget.project.content,links:widget.project.documentLinks))))))));
+ Timer? _readTimer;
+ bool _refreshing = false, _editing = false, _deleted = false;
+ void _changed(){
+   if(!mounted || _editing)return;
+   final raw=widget.storage?.read();
+   if(raw!=null){
+     final next=WorkspaceSnapshot.decode(raw).notes.where((n)=>n.project?.id==widget.project.id).firstOrNull?.project;
+     _deleted=next==null;
+     if(next!=null){final p=widget.project;p.document=next.document;p.documentLinks=next.documentLinks;p.name=next.name;p.paragraphs=next.paragraphs;p.tags..clear()..addAll(next.tags);}
+   }
+   setState((){});
+ }
+ Future<void> _refreshRead() async {
+   final state=WidgetsBinding.instance.lifecycleState;
+   if(!mounted || _editing || _refreshing || ModalRoute.of(context)?.isCurrent!=true || (state!=null && state!=AppLifecycleState.resumed))return;
+   final refresh=refreshWorkspaceForRead ?? widget.onReload ?? widget.storage?.refreshNow;
+   if(refresh==null)return;
+   _refreshing=true;
+   try { await refresh(); if(mounted && !_editing)_changed(); } catch (_) { /* Keep the last readable version and retry on the next tick. */ }
+   finally {_refreshing=false;}
+ }
+ @override void initState(){super.initState();widget.storage?.liveChanges.addListener(_changed);_readTimer=Timer.periodic(const Duration(seconds:3),(_)=>_refreshRead());}
+ @override void dispose(){_readTimer?.cancel();widget.storage?.liveChanges.removeListener(_changed);super.dispose();}
+ @override Widget build(BuildContext context)=>DesktopMenuFrame(child:Scaffold(appBar:AppBar(title:WorkspaceTitle(widget.project.title),actions:[if(widget.onHistory!=null)IconButton(tooltip:'문서 변경 이력',onPressed:()=>widget.onHistory!(widget.project.id),icon:const Icon(Icons.history)),if(!_deleted)IconButton(tooltip:'문서 수정',icon:const Icon(Icons.edit_outlined),onPressed:()async{_editing=true;await Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>DesktopMenuFrame(child:ProjectDocumentEditor(project:widget.project,projects:widget.projects,onChanged:widget.onChanged,onSave:widget.onSave,onHistory:widget.onHistory,onLease:widget.onLease,storage:widget.storage,onReload:widget.onReload))));if(mounted){_editing=false;setState((){});_refreshRead();}})]),body:DesktopMenuBody(child:SelectionArea(child:SingleChildScrollView(padding:const EdgeInsets.all(20),child:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:900),child:_deleted?const Text('다른 기기에서 삭제된 문서입니다.'):DocumentMarkup(text:widget.project.content,links:widget.project.documentLinks))))))));
 }

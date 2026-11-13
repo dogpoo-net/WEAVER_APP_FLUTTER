@@ -4,6 +4,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:weaver/features/inbox/edit_lock.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
 void main(){
+ testWidgets('lazy document observes first, acquires on edit, releases on save and reacquires',(tester)async{
+  SharedPreferences.setMockInitialValues({});final storage=WorkspaceStorage(await SharedPreferences.getInstance());
+  var acquisitions=0,releases=0;var owned=false;
+  storage.inspectLease=(id,token)async=>{'acquired':owned,'available':!owned};
+  storage.acquireLease=(id,token)async{acquisitions++;owned=true;return {'acquired':true};};
+  storage.documentLease=(id,token,release)async{if(release){releases++;owned=false;}return {'acquired':owned,'available':!owned};};
+  final lock=EditLock('document',storage,lazy:true);await tester.pump();
+  expect(acquisitions,0);expect(lock.granted,isTrue);expect(lock.held,isFalse);
+  await lock.startEditing();expect(acquisitions,1);expect(lock.held,isTrue);
+  await lock.saved();expect(releases,1);expect(lock.held,isFalse);expect(lock.granted,isTrue);
+  await lock.startEditing();expect(acquisitions,2);
+  storage.leaseStates['document']={'acquired':false,'holder':'다른 사용자'};storage.leaseChanges.value++;expect(lock.granted,isFalse);
+  storage.leaseStates['document']={'acquired':true,'shared':true};storage.leaseChanges.value++;expect(lock.granted,isTrue);expect(lock.shared,isTrue);
+  lock.dispose();await tester.pump();
+ });
+
  test('Confirmation uses explicit paragraphs and word-only break opportunities',(){expect(takeoverMessage.split('\n').length,3);expect(wordWrapped(takeoverMessage).replaceAll('\u2060',''),takeoverMessage);expect(wordWrapped('현재 편집중입니다.'),'현\u2060재 편\u2060집\u2060중\u2060입\u2060니\u2060다\u2060.');});
  testWidgets('takeover requires confirmation and server status immediately removes editing permission',(tester)async{
   SharedPreferences.setMockInitialValues({});final storage=WorkspaceStorage(await SharedPreferences.getInstance());int takeovers=0;
