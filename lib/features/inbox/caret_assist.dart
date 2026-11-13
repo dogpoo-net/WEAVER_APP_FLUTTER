@@ -396,6 +396,17 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     final token = pending == null ? tagPrefix(value) : '';
     final tagMode = widget.onTag != null && token.isNotEmpty;
     final query = tagMode ? token.substring(1) : pending?.query ?? completionPrefix(value, widget.words.map(_title).toList());
+    final controller = widget.controller;
+    final caret = value.selection.isValid ? value.selection.extentOffset : -1;
+    // Bound link text is already complete, not another completion query.
+    // Include the trailing boundary so Space/Enter remain ordinary input.
+    if (controller is LabelTextController && value.selection.isCollapsed &&
+        controller.bindings.any((link) => link.start < caret &&
+          (caret <= link.end || (caret - query.length < link.end && query.isNotEmpty)))) {
+      _matches = []; _query = ''; _controlling = false; _controlValue = null;
+      _manualSelection = null; _manualValue = null;
+      return;
+    }
     if (_query != query || _tagMode != tagMode) _selected = 0;
     _tagMode = tagMode; _query = query;
     _matches = tagMode ? wordSuggestions(widget.tags.where((tag) => !hiddenSearchTags.contains(tag)).toList(), query).map((tag) => '#$tag').toList() : (widget.useThoughtLabels ? widget.words.where((word) => assistTargetMatches(word, query)).toList() : wordSuggestions(widget.words, query));

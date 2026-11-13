@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/caret_assist.dart';
 import 'package:weaver/features/inbox/label_links.dart';
@@ -30,6 +31,28 @@ void main() {
   await tester.enterText(filter,'사과');await tester.pumpAndSettle();
   await tester.tap(find.byKey(ValueKey('suggestion-project:${doc.id}')));await tester.pumpAndSettle();
   expect(c.text,'선택한 글자');expect(c.bindings.single.id,'project:${doc.id}');
+  await tester.pumpWidget(const SizedBox());c.dispose();focus.dispose();
+ });
+ testWidgets('completed link boundary never reopens assistance on Space or Enter', (tester) async {
+  tester.view.physicalSize=const Size(1200,800);tester.view.devicePixelRatio=1;
+  addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
+  final memo=elements.add('메모 제목');
+  final c=LabelTextController(),focus=FocusNode();var chosen=0;
+  await tester.pumpWidget(MaterialApp(home:Scaffold(body:CaretAssist(controller:c,focus:focus,
+    words:labelAssistTargets(),onWord:(_)=>chosen++,useThoughtLabels:true,selectionAssist:true,
+    enterSelectsVisible:true,showWhenEmpty:false,child:TextField(controller:c,focusNode:focus,maxLines:null)))));
+  focus.requestFocus();c.bind(0,0,'label:${memo.id}',memo.text);await tester.pumpAndSettle();
+  for(final revisit in [false,true]) {
+    if(revisit){c.selection=const TextSelection.collapsed(offset:0);await tester.pumpAndSettle();}
+    c.selection=TextSelection.collapsed(offset:memo.text.length);await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('suggestion-${memo.text}')),findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);await tester.pumpAndSettle();
+    c.selection=TextSelection.collapsed(offset:memo.text.length);await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);await tester.pumpAndSettle();
+    expect(chosen,0);expect(c.bindings.single.end,memo.text.length);
+  }
+  c.value=TextEditingValue(text:'${memo.text} 메모',selection:TextSelection.collapsed(offset:memo.text.length+3));
+  await tester.pumpAndSettle();expect(find.byKey(ValueKey('suggestion-${memo.text}')),findsOneWidget);
   await tester.pumpWidget(const SizedBox());c.dispose();focus.dispose();
  });
  test('assist targets are documents then labeled memos then plain memos', () {
