@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'overview_collections.dart';
 import 'memo_box_actions.dart';
 import 'thought_settings.dart';
@@ -11,6 +12,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'element_store.dart';
 import 'word_badge.dart';
+import 'packed_badges.dart';
 import 'workspace_routes.dart';
 import 'workspace_storage.dart';
 
@@ -62,7 +64,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     elements.removeListener(_refresh);
     super.dispose();
   }
-  Widget _badge(String word, bool desktop) => WordBadge(word: word, compact: true, fullText: true, singleLine: !_square, square: _square, query: _query,
+  Widget _badge(String word, bool desktop) => WordBadge(word: word, compact: true, fullText: true, square: _square, query: _query,
     onTap: () => showElementMetadata(context, word, onSaved: _refresh));
   Widget _tile(ElementRecord record, bool desktop, {double width = 280}) {
     final tile = SizedBox(key: ValueKey('thought-${record.id}'), width: width, height: _square ? width : null, child: _badge(record.text, desktop));
@@ -94,25 +96,18 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
       }
       final maxWidth = desktop ? math.min(480.0, available)
         : (available * 2 / _columns).clamp(math.min(48.0, available), available);
-      final rows = <List<({ElementRecord record, double width})>>[];
-      var row = <({ElementRecord record, double width})>[];
-      var used = 0.0;
+      final items = <({ElementRecord record, double width})>[];
       for (final record in records) {
         final textWidth = _textWidths.putIfAbsent(record.text, () {
-          final painter = TextPainter(text: TextSpan(text: record.text.replaceAll(RegExp(r'[\r\n]+'), ' '),
+          final painter = TextPainter(text: TextSpan(text: record.text,
             style: DefaultTextStyle.of(context).style.merge(const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
             textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
           final width = painter.width; painter.dispose(); return width;
         });
         final iconCount = (record.photos.isNotEmpty ? 1 : 0) + (record.recordings.isNotEmpty ? 1 : 0) + (record.location != null ? 1 : 0);
         final width = (textWidth + 24 + iconCount * 13 + (iconCount > 0 ? 4 : 0)).clamp(math.min(32.0, maxWidth), maxWidth).toDouble();
-        if (row.isNotEmpty && used + 6 + width > available) {
-          rows.add(row); row = []; used = 0;
-        }
-        used += (row.isEmpty ? 0 : 6) + width;
-        row.add((record: record, width: width));
+        items.add((record: record, width: width));
       }
-      if (row.isNotEmpty) rows.add(row);
       return GestureDetector(
         onScaleStart: desktop ? null : (_) => _scaleColumns = _columns,
         onScaleUpdate: desktop ? null : (details) {
@@ -120,9 +115,9 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
           final next = (_scaleColumns / details.scale).round().clamp(1, 6);
           if (next != _columns) setState(() => _columns = next);
         },
-        child: ListView.builder(key: const ValueKey('all-thoughts-grid'),
+        child: ListView.builder(key: const ValueKey('all-thoughts-grid'), scrollCacheExtent: const ScrollCacheExtent.pixels(0),
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          itemCount: 1 + (rows.isEmpty ? 1 : rows.length),
+          itemCount: 1 + math.max(1, (items.length / 32).ceil()),
           itemBuilder: (context, index) {
             Widget child;
             if (index == 0) {
@@ -134,17 +129,10 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
                   IconButton(tooltip: '축소', onPressed: _columns < 6 ? () => setState(() => _columns++) : null, icon: const Icon(Icons.zoom_out)),
                 ],
               ]));
-            } else if (rows.isEmpty) {
+            } else if (items.isEmpty) {
               child = Padding(padding: const EdgeInsets.all(40), child: Text(allRecords.isEmpty ? '아직 생각이 없어요.' : _filterBox != null && _query.isEmpty ? '이 상자에 담긴 메모가 없어요.' : '일치하는 생각이 없어요.'));
             } else {
-              final items = rows[index - 1];
-              child = Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(
-                mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start,
-                children: [for (var i = 0; i < items.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 6),
-                  _tile(items[i].record, desktop, width: items[i].width),
-                ]],
-              ));
+              child = Padding(padding: const EdgeInsets.only(bottom: 6), child: PackedBadges(children: [for (final item in items.skip((index - 1) * 32).take(32)) _tile(item.record, desktop, width: item.width)]));
             }
             return Center(child: SizedBox(width: available, child: child));
           }));

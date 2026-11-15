@@ -17,7 +17,7 @@ import 'workspace_routes.dart';
 import 'desktop_menu_frame.dart';
 import 'graph_layout.dart';
 import 'keyboard_viewport.dart';
-import 'limited_rows_wrap.dart';
+import 'packed_badges.dart';
 import 'caret_assist.dart';
 import 'element_binding.dart';
 import 'memo_boxes.dart';
@@ -1259,7 +1259,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       minimumSize: const Size(0, 24), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap);
     final badges = [for (final record in records) WordBadge(
-      word: record.text, query: _query,
+      word: record.text, query: _query, fullText: true,
       onLongPress: () => showElementMetadata(context, record.text),
       onTap: () => showElementMetadata(context, record.text))];
     return Column(
@@ -1308,11 +1308,11 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
               ],
             ),
           ),
-        if (_query.isEmpty) ClipRect(child: LimitedRowsWrap(
+        if (_query.isEmpty) ClipRect(child: PackedBadges(
           key: const ValueKey('recent-memo-badges'), maxRows: _memoRows,
           onOverflowChanged: (overflow) { if (mounted && _memoHasMore != overflow) setState(() => _memoHasMore = overflow); },
           children: badges))
-        else Wrap(spacing: 6, runSpacing: 6, children: badges),
+        else PackedBadges(children: badges),
         Row(mainAxisAlignment: MainAxisAlignment.end, children: [
           if (_query.isEmpty && _memoHasMore) TextButton(key: const ValueKey('thoughts-more'), style: moreStyle,
             onPressed: () => setState(() => _memoRows += 5), child: const Text('+더보기')),
