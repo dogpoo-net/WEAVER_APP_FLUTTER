@@ -28,6 +28,7 @@ void main() {
       await gesture.up(); await tester.pumpAndSettle();
       expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data, '2');
       final layerButtonX = tester.getCenter(find.byTooltip('레이어 위로')).dx;
+      expect(tester.getRect(find.byKey(const ValueKey('canvas-layer-panel'))).right, 1200 - 12);
       final move = await tester.startGesture(overlay.localToGlobal(const Offset(550, 540)));
       await move.moveBy(const Offset(30, 20)); await tester.pump();
       await move.moveBy(const Offset(40, 30)); await tester.pump();

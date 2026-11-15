@@ -20,6 +20,18 @@ void main(){
   lock.dispose();await tester.pump();
  });
 
+ testWidgets('canvas reacquires a free lease after expiry instead of renewing forever',(tester)async{
+  SharedPreferences.setMockInitialValues({});final storage=WorkspaceStorage(await SharedPreferences.getInstance());
+  var acquisitions=0,renewals=0;var occupied=false;
+  storage.acquireLease=(id,token)async{acquisitions++;return occupied?{'acquired':false,'holder':'다른 사용자'}:{'acquired':true};};
+  storage.documentLease=(id,token,release)async{if(release)return {'released':true};renewals++;return {'acquired':false,'available':true};};
+  final lock=EditLock('canvas:diagram',storage);await tester.pump();expect(lock.granted,isTrue);expect(acquisitions,1);
+  await lock.renew();expect(lock.granted,isFalse);expect(renewals,1);
+  await lock.renew();expect(lock.granted,isTrue);expect(acquisitions,2);
+  storage.leaseStates['canvas:diagram']={'acquired':false,'holder':'다른 사용자'};storage.leaseChanges.value++;occupied=true;
+  await lock.renew();expect(lock.granted,isFalse);expect(acquisitions,3);
+  lock.dispose();await tester.pump();
+ });
  test('Confirmation uses explicit paragraphs and word-only break opportunities',(){expect(takeoverMessage.split('\n').length,3);expect(wordWrapped(takeoverMessage).replaceAll('\u2060',''),takeoverMessage);expect(wordWrapped('현재 편집중입니다.'),'현\u2060재 편\u2060집\u2060중\u2060입\u2060니\u2060다\u2060.');});
  testWidgets('takeover requires confirmation and server status immediately removes editing permission',(tester)async{
   SharedPreferences.setMockInitialValues({});final storage=WorkspaceStorage(await SharedPreferences.getInstance());int takeovers=0;

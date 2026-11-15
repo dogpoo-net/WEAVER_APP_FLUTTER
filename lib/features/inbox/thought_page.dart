@@ -714,6 +714,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))]))),
     ]))]), body: DesktopMenuBody(child: Column(children: [
       if (widget.viewSelector != null) widget.viewSelector!,
+      if (!_canEdit) Material(color: color.surfaceContainerLow, child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Row(children: [Expanded(child: Text(_lock?.message ?? '편집 권한을 확인하고 있습니다.', style: Theme.of(context).textTheme.bodySmall)),
+          TextButton(onPressed: _lock?.busy == true ? null : () => _lock?.startEditing(), child: const Text('다시 확인')),
+          if (_lock?.storage?.takeLease != null) TextButton(onPressed: () => _lock?.takeOver(context), child: const Text('잠금 해제')),
+        ]))),
       Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 0), child: Row(children: [
         Expanded(child: TextField(key: const ValueKey('graph-search'), controller: _search,
           style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 13 : 14),
@@ -970,7 +976,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           ))),
         ]))),
       ); })),
-        if (_selected.isNotEmpty) Positioned(top: 8, right: 7, child: Material(
+        if (_selected.isNotEmpty) Positioned(top: 8, right: 12, child: Material(key: const ValueKey('canvas-layer-panel'),
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: IntrinsicWidth(child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(mainAxisSize: MainAxisSize.min, children: [

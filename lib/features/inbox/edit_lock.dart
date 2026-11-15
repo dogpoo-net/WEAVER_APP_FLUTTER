@@ -30,7 +30,7 @@ class EditLock extends ChangeNotifier {
     message=granted?null:'${result['holder']??'다른 화면'} 편집 중 · 읽기 전용';notifyListeners();
   }
   void _status(){final state=storage?.leaseStates[id];if(state!=null)_apply(state);}
-  Future<bool> renew() => _request(lazy && !held ? 'observe' : 'renew');
+  Future<bool> renew() => _request(!held ? (lazy ? 'observe' : 'acquire') : 'renew');
   Future<bool> observe() => _request('observe');
   Future<bool> startEditing() => held && !busy ? Future.value(true) : _request('acquire');
   Future<bool> _request(String mode) {
