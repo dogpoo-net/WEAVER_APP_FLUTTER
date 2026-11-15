@@ -970,7 +970,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           ))),
         ]))),
       ); })),
-        if (_selected.isNotEmpty) Positioned(top: 8, right: 4, child: Material(
+        if (_selected.isNotEmpty) Positioned(top: 8, right: 7, child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: IntrinsicWidth(child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(mainAxisSize: MainAxisSize.min, children: [

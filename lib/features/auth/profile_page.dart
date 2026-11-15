@@ -6,7 +6,6 @@ import 'package:image_picker/image_picker.dart';
 import 'google_auth.dart';
 import 'withdrawal_page.dart';
 import 'email_auth.dart';
-import 'google_button.dart';
 
 class ProfileAvatar extends StatelessWidget {
   const ProfileAvatar({super.key, required this.auth, this.size = 32});
@@ -271,13 +270,12 @@ class _ProfilePageState extends State<ProfilePage> {
                     trailing: Text('연결됨'),
                   )
                 else if (auth.client.configured)
-                  Center(
-                    child: googleSignInButton(
-                      label: 'Google 계정 연결',
-                      onPressed: disabled || !auth.ready
-                          ? null
-                          : auth.startGoogleLink,
-                    ),
+                  ListTile(
+                    leading: const Image(image: AssetImage('assets/branding/social/google.png'), width: 24, height: 24),
+                    title: const Text('Google'),
+                    trailing: const Icon(Icons.link),
+                    enabled: !disabled && auth.ready,
+                    onTap: disabled || !auth.ready ? null : auth.startGoogleLink,
                   ),
                 for (final entry in const {
                   'github': 'GitHub',
