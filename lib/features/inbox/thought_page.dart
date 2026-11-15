@@ -714,7 +714,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))]))),
     ]))]), body: DesktopMenuBody(child: Column(children: [
       if (widget.viewSelector != null) widget.viewSelector!,
-      if (!_canEdit) Material(color: color.surfaceContainerLow, child: Padding(
+      if (!_canEdit) Material(key: const ValueKey('canvas-readonly-notice'), color: color.surfaceContainerLow, child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         child: Row(children: [Expanded(child: Text(_lock?.message ?? '편집 권한을 확인하고 있습니다.', style: Theme.of(context).textTheme.bodySmall)),
           TextButton(onPressed: _lock?.busy == true ? null : () => _lock?.startEditing(), child: const Text('다시 확인')),
@@ -732,7 +732,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onSelected: (value) => setState(() { _hideTags = value; _saveLayout(); })),
         ],
       ])),
-      Expanded(child: AbsorbPointer(absorbing:!_canEdit,child: Stack(children: [Positioned.fill(child: LayoutBuilder(builder: (context, viewport) {
+      Expanded(child: Stack(children: [Positioned.fill(child: LayoutBuilder(builder: (context, viewport) {
         if (!_centered) {
           _centered = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -748,11 +748,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           });
         }
         return InteractiveViewer(key: _viewportKey,
-        panEnabled: !_selectionMode, scaleEnabled: !_selectionMode,
+        panEnabled: !_canEdit || !_selectionMode, scaleEnabled: !_canEdit || !_selectionMode,
         onInteractionEnd: (_) => _saveLayout(flush: true),
         transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: MediaQuery.sizeOf(context).width >= 760 ? 12 : 8,
         boundaryMargin: const EdgeInsets.all(double.infinity),
-        child: RepaintBoundary(child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
+        child: AbsorbPointer(absorbing: !_canEdit, child: RepaintBoundary(child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
           for (final folder in folders.entries) MemoFolderRegion(key: ValueKey('folder-region-${folder.key}'), name: folder.key, bounds: folder.value,
             highlighted: _liftedFolder == folder.key,
             onLiftStart: (pointer) => _liftFolder(folder.key, pointer),
@@ -974,9 +974,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               !_movingSelection && _selectionStart != null && _selectionEnd != null ? Rect.fromPoints(_selectionStart!, _selectionEnd!) : null,
               color.primary, widget.blocks ? 6 : 12)),
           ))),
-        ]))),
+        ])))),
       ); })),
-        if (_selected.isNotEmpty) Positioned(top: 8, right: 12, child: Material(key: const ValueKey('canvas-layer-panel'),
+        if (_canEdit && _selected.isNotEmpty) Positioned(top: 8, right: 12, child: Material(key: const ValueKey('canvas-layer-panel'),
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: IntrinsicWidth(child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(mainAxisSize: MainAxisSize.min, children: [
@@ -988,13 +988,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               }),
             ]),
             if (_selected.length > 1) TextButton.icon(
-              style: TextButton.styleFrom(minimumSize: const Size(0, 34), padding: const EdgeInsets.symmetric(vertical: 7), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.standard, textStyle: const TextStyle(fontSize: 11)),
+              style: TextButton.styleFrom(minimumSize: const Size(0, 24), padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.standard, textStyle: const TextStyle(fontSize: 11)),
               icon: const Icon(Icons.swap_vert, size: 15), label: const Text('순서 반전'), onPressed: () {
                 setState(() { reverseThoughtLayers(_layout.layers, _selected); reorderStackPositions(_positions, _selected); }); _saveLayout(flush: true);
               }),
           ])),
         )),
-        Positioned(top: 8, left: 4, child: Material(
+        if (_canEdit) Positioned(top: 8, left: 4, child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             SizedBox(width: 32, height: 36, child: Checkbox(
@@ -1009,7 +1009,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               ]))),
           ]),
         )),
-      ]))),
+      ])),
       ThoughtFilters(tags: _scopeRecords.expand((r) => r.tags).toSet().toList()..sort(),
         selection: _filters, onChanged: _changed,
         onFilter: _filters.toggle),
