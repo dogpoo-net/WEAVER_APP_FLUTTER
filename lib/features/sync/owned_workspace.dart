@@ -1,3 +1,4 @@
+import 'workspace_events.dart';
 import 'document_merge.dart';
 import 'dart:async';
 import '../inbox/memo_comments.dart';
@@ -356,6 +357,7 @@ class WorkspaceSync extends ChangeNotifier {
     storage.canvasWritable=!readOnly;storage.syncCanvas=flushCanvas;
     storage.itemMetadata=(kind,id)=>base[itemKey(kind,id)];
     storage.comments=request;storage.commentsWritable=!readOnly;
+    storage.watchRemote=(change,connection)=>WorkspaceEvents(open:(client)=>api.workspaceEvents(client,workspaceId),onChange:change,onConnection:connection);
     storage.onChanged=schedule;storage.syncNow=flush;storage.syncDeleted=flushDeletions;storage.syncFolders=flushFolders;storage.refreshNow=refreshFromServer;storage.checkRemote=checkRemote;storage.syncContent=readOnly?null:()=>_enqueueFlush(false,contentOnly:true);storage.syncResource=(id)=>id.startsWith('canvas:')?flushCanvas():saveDocument(id);storage.reloadResource=reloadResource;storage.takeLease=takeLease;storage.inspectLease=inspectLease;storage.acquireLease=acquireLease;
     changed();if(storage.read()!=_lastSynced)schedule();
   }
@@ -527,5 +529,5 @@ class WorkspaceSync extends ChangeNotifier {
     await storage.flush();if(storage.read()==_lastSynced){final raw=storage.read();await storage.clear();await storage.preferences.remove(storage.syncKey);
       if(raw!=null){final snapshot=WorkspaceSnapshot.decode(raw);for(final r in [...snapshot.records,...snapshot.trashRecords]){for(final id in [...r.photos.map((p)=>p.id),...r.recordings.map((c)=>c.id)]){try{await MediaStorage.delete(id,owner:storage.owner);}catch(_){}await storage.preferences.remove(storage.scoped('media-sent.$id'));}}}}
   }
-  @override void dispose(){memoCommentCounts.value={};_disposed=true;_canvasTimer?.cancel();storage.syncCanvas=null;storage.comments=null;storage.commentsWritable=false;storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;storage.inspectLease=null;storage.acquireLease=null;super.dispose();}
+  @override void dispose(){memoCommentCounts.value={};_disposed=true;_canvasTimer?.cancel();storage.syncCanvas=null;storage.comments=null;storage.commentsWritable=false;storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.watchRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;storage.inspectLease=null;storage.acquireLease=null;super.dispose();}
 }

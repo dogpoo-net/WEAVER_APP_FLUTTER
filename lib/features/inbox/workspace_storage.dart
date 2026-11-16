@@ -1,3 +1,4 @@
+import '../sync/workspace_events.dart';
 import '../capture/capture_models.dart';
 import 'graph_layout.dart';
 import 'element_binding.dart';
@@ -364,6 +365,7 @@ class WorkspaceStorage {
   final leaseChanges = ValueNotifier<int>(0);
   final leaseStates = <String,Map<String,dynamic>>{};
   Future<bool> Function()? checkRemote;
+  WorkspaceEvents Function(void Function(),void Function(bool))? watchRemote;
   Future<void> Function()? syncContent;
   Future<void> Function(String)? syncResource;
   Future<void> Function(String)? reloadResource;

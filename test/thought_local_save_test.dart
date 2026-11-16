@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,12 +9,13 @@ import 'package:weaver/features/inbox/word_badge.dart';
 
 void main(){
  testWidgets('detail save immediately updates thought tab while server save remains pending without reread',(tester)async{
+  SharedPreferences.setMockInitialValues({});
   elements.clear();elements.add('수정 전');elements.add('두 번째');
   var reads=0,saves=0;final pending=Completer<void>();
   refreshWorkspaceForRead=()async{reads++;};
   saveWorkspaceContent=(){saves++;return pending.future;};
   addTearDown((){refreshWorkspaceForRead=null;saveWorkspaceContent=null;elements.clear();});
-  await tester.pumpWidget(const MaterialApp(home:ThoughtBoxView(notes:[])));
+  await tester.pumpWidget(const MaterialApp(home:ThoughtBoxView(notes:[])));await tester.pumpAndSettle();
   await tester.tap(find.byType(WordBadge).first);await tester.pumpAndSettle();
   final before=reads;
   await tester.enterText(find.widgetWithText(TextField,'생각 내용'),'수정 후');

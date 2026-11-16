@@ -1,3 +1,4 @@
+import '../sync/workspace_events.dart';
 import '../capture/location_editor.dart';
 import 'overview_collections.dart';
 import 'memo_comments.dart';
@@ -186,7 +187,20 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.linux;
   Note? _editing;
   String? _storageError;
-  Timer? _liveTimer, _contentTimer;
+  Timer? _liveTimer, _contentTimer, _remoteDebounce;
+  WorkspaceEvents? _events;
+  bool _eventsConnected=false, _remotePending=false;
+  void _remoteChanged() {
+    _remotePending=true;
+    _remoteDebounce ??= Timer(const Duration(milliseconds:200),_drainRemote);
+  }
+  Future<void> _drainRemote() async {
+    _remoteDebounce=null;
+    if(!mounted || !_remotePending)return;
+    await _pollRemote();
+    // Local retry only while a modal/editor/save temporarily prevents applying an event.
+    if(mounted && _remotePending && WidgetsBinding.instance.lifecycleState!=AppLifecycleState.paused && WidgetsBinding.instance.lifecycleState!=AppLifecycleState.hidden)_remoteDebounce ??= Timer(const Duration(seconds:1),_drainRemote);
+  }
   bool _checkingRemote=false, _applyingRemote=false;
   Future<void>? _contentSync;
   int _pollFailures=0;DateTime? _retryAfter;
@@ -196,10 +210,14 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     if(_checkingRemote || _contentTimer?.isActive==true || _contentSync!=null || !mounted || storage?.checkRemote==null || WidgetsBinding.instance.lifecycleState==AppLifecycleState.paused || WidgetsBinding.instance.lifecycleState==AppLifecycleState.hidden || WidgetsBinding.instance.lifecycleState==AppLifecycleState.inactive)return;
     _checkingRemote=true;
     try {
-      final changed=await storage!.checkRemote!();
+      // Keep the invalidation pending without querying while an editor/modal is open.
+      if(storage!.editorResources.isNotEmpty || workspaceRouteObserver.current is PopupRoute)return;
+      _remotePending=false;
+      final changed=await storage.checkRemote!();
       _pollFailures=0;_retryAfter=null;
-      if(changed && _contentTimer?.isActive!=true && _contentSync==null && storage.editorResources.isEmpty && mounted && workspaceRouteObserver.current is! PopupRoute)await _refreshForBrowse();
-    } catch(e) { _pollFailures=(_pollFailures+1).clamp(1,4);_retryAfter=DateTime.now().add(Duration(seconds:(2<<_pollFailures).clamp(4,30)));if(mounted && _storageError==null)setState(()=>_storageError='서버 동기화를 확인하지 못했습니다. $e'); }
+      if(changed && _contentTimer?.isActive!=true && _contentSync==null && storage.editorResources.isEmpty && mounted && workspaceRouteObserver.current is! PopupRoute){await _refreshForBrowse();}
+      else if(changed){_remotePending=true;}
+    } catch(e) { _remotePending=true;_pollFailures=(_pollFailures+1).clamp(1,4);_retryAfter=DateTime.now().add(Duration(seconds:(2<<_pollFailures).clamp(4,30)));if(mounted && _storageError==null)setState(()=>_storageError='서버 동기화를 확인하지 못했습니다. $e'); }
     finally{_checkingRemote=false;}
   }
   void _scheduleContentSync(){
@@ -266,7 +284,9 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       _storageError = '브라우저 저장 데이터를 읽지 못했습니다. 기존 데이터는 보존되며 새 저장은 중단됩니다.';
     }
     ensureUnclassifiedBox();
-    if(widget.storage?.checkRemote!=null)_liveTimer=Timer.periodic(const Duration(seconds:3),(_)=>_pollRemote());
+    _events=widget.storage?.watchRemote?.call(_remoteChanged,(connected){_eventsConnected=connected;});
+    _events?.resume();
+    if(widget.storage?.checkRemote!=null)_liveTimer=Timer.periodic(const Duration(seconds:15),(_){if(!_eventsConnected)_pollRemote();});
     if (!_restoreBlocked) _cleanupDeletedMedia().catchError((Object _) {});
   }
 
@@ -525,7 +545,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     widget.storage?.applyServerSnapshot=null;
-    _liveTimer?.cancel();_contentTimer?.cancel();
+    _events?.dispose();_remoteDebounce?.cancel();_liveTimer?.cancel();_contentTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     if(openWorkspaceDocument == _openDocumentById)openWorkspaceDocument=null;
     if(refreshWorkspaceForRead == _refreshForBrowse)refreshWorkspaceForRead=null;
@@ -850,6 +870,11 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
 
   Future<void>? _browseRequest;
   @override void didChangeAppLifecycleState(AppLifecycleState state) {
+    if(state==AppLifecycleState.resumed){
+      _retryAfter=null;_events?.resume();_remoteChanged();
+    }else if(state==AppLifecycleState.paused || state==AppLifecycleState.hidden){
+      _events?.pause();_remoteDebounce?.cancel();_remoteDebounce=null;
+    }
     if (state == AppLifecycleState.resumed && mounted && ModalRoute.of(context)?.isCurrent == true) {
       _refreshForBrowse().catchError((Object e) { if (mounted) _captureError('서버 변경을 확인하지 못했습니다. $e'); });
     }

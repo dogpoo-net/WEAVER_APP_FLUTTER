@@ -47,3 +47,28 @@ An unmodified semantics label exposes the original sentences to assistive tools.
 2–3 seconds is a foreground target after a successful server save, not a latency
 SLA. Network delays, attachment downloads, offline clients and open input dialogs
 may delay visible updates. Native apps need a new build for these changes.
+
+## SSE notifications (2026-11-16)
+
+Workspace changes now use an authenticated streaming POST (`workspace/events`).
+The standard HTTP/SSE protocol also supports the planned Cloudflare Workers
+migration; no Spring-specific SDK or URL credentials are used. Browser fetch
+streams cookies/proof headers; native HTTP streams use the existing bearer token.
+
+One connection per mounted workspace receives `ready`/`change` invalidations and
+`ping` heartbeats. Healthy connections disable the old three-second status polling.
+Events coalesce for 200ms, then use existing status/delta reads. Notes on the home
+screen and thought tab, canvas layouts and comment counts share this mechanism.
+Local pending canvas edits and manual document save/three-way merge remain intact.
+An open editor or modal defers refresh; the pending invalidation is retried locally
+without querying until it is safe to apply.
+
+Backgrounding closes the stream. Resume/reconnect reconciles revisions; a 45s
+silent-stream watchdog, exponential reconnect with jitter, and 15s disconnected-only
+fallback polling cover failures. Canvas upload still waits 750ms after activity.
+There is no claim of guaranteed subsecond delivery on an offline/backgrounded device.
+
+Tests cover chunked SSE parsing, reconnect/idle timeout, cancellation, no idle
+polling, home/thought changes and deferred editor refresh. Server fan-out currently
+uses a single-process test implementation; migrate that service to Durable Objects
+before distributing the API across Workers instances.

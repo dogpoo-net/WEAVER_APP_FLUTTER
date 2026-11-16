@@ -110,6 +110,29 @@ class EmailAuthApi {
   }
   Future<Map<String, dynamic>> workspace(String action, Map<String, Object?> body) =>
       _authenticatedPost('session/$_platform/workspace/$action', body);
+  Future<http.StreamedResponse> workspaceEvents(http.Client client, String? workspaceId) async {
+    if (!store.isWeb && accessToken == null && await refresh() == null) {
+      throw const EmailAuthFailure('다시 로그인해주세요.', status: 401);
+    }
+    Future<http.StreamedResponse> send() {
+      final request = http.Request('POST', _base.resolve('session/$_platform/workspace/events'))
+        ..headers.addAll({
+          'Accept': 'text/event-stream', 'Content-Type': 'application/json',
+          if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+          if (store.isWeb && _tab != null) 'X-Weaver-Tab': _tab!['id']!,
+          if (store.isWeb && _tab != null) 'X-Weaver-Proof': _tab!['proof']!,
+        })
+        ..body = jsonEncode({'workspaceId': workspaceId});
+      return client.send(request);
+    }
+    var response = await send();
+    if (response.statusCode == 401) {
+      await response.stream.drain<void>();
+      if (await refresh() == null) throw const EmailAuthFailure('세션이 만료되었습니다.', status: 401);
+      response = await send();
+    }
+    return response;
+  }
   Future<Map<String, dynamic>> profile(String action, [Map<String, Object?> body = const {}]) =>
       _authenticatedPost('session/$_platform/profile/$action', body);
   Future<void> linkGoogle(String? token, {String? accessToken, bool Function()? isCurrent}) async {
