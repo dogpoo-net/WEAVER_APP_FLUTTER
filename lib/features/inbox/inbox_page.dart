@@ -939,7 +939,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     elements.refreshVisibility(); if (mounted) setState(() {});
   }
   Future<void> _allThoughts([MemoBox? box]) async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onLayoutChanged: _persistLayouts, onChanged: _persist, onSave:_saveAndSync, initialBox: box, storage:widget.storage, onDocument:_showProject, onRefresh:_refreshForBrowse, onReloadResource:_reloadResource, onDeleteBoxes:_deleteBoxes)));
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onLayoutChanged: _persistLayouts, onChanged: _persist, onSave:_saveAndSync, initialBox: box, storage:widget.storage, onDocument:_showProject, onCreateDocument:_createProject, onRefresh:_refreshForBrowse, onReloadResource:_reloadResource, onDeleteBoxes:_deleteBoxes)));
     if (mounted) setState(() {});
   }
 

@@ -189,11 +189,12 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
 enum ThoughtView { documents, boxes, diagram, page, photos, audio, geolog }
 
 class AllThoughtsPage extends StatefulWidget {
-  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.onDocument, this.onRefresh, this.onReloadResource, this.onDeleteBoxes, this.initialBox, this.initialView = ThoughtView.boxes});
+  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.onDocument, this.onCreateDocument, this.onRefresh, this.onReloadResource, this.onDeleteBoxes, this.initialBox, this.initialView = ThoughtView.boxes});
   final List<Note> notes;
   final VoidCallback? onChanged, onLayoutChanged;
   final WorkspaceStorage? storage;
   final Future<void> Function(Note)? onDocument;
+  final Future<void> Function()? onCreateDocument;
   final Future<void> Function()? onRefresh;
   final Future<void> Function(String)? onReloadResource;
   final Future<void> Function(Set<String>)? onDeleteBoxes;
@@ -240,7 +241,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
       Row(children:[for(final view in ThoughtView.values)SizedBox(width:104,height:40,child:Semantics(selected:view==_view,child:TextButton(style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),onPressed:(){setState(()=>_view=view);_tabPosition.animateTo(view.index.toDouble(),duration:const Duration(milliseconds:200),curve:Curves.easeInOutCubic);_reload();},child:Text(switch(view){ThoughtView.documents=>'문서',ThoughtView.boxes=>'생각',ThoughtView.diagram=>'다이어그램',ThoughtView.page=>'메모상자',ThoughtView.photos=>'사진',ThoughtView.audio=>'음성',ThoughtView.geolog=>'지오로그'}))))])
     ])));
     if (_loading) return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('전체 보기')), body: DesktopMenuBody(child: Column(children: [selector, const LinearProgressIndicator(), const Expanded(child: Center(child: Text('서버 변경을 불러오는 중입니다.')))])));
-    if(_view==ThoughtView.documents)return DesktopMenuFrame(child:DocumentCollection(notes:widget.notes,selector:selector,storage:widget.storage,onOpen:widget.onDocument));
+    if(_view==ThoughtView.documents)return DesktopMenuFrame(child:DocumentCollection(notes:widget.notes,selector:selector,storage:widget.storage,onOpen:widget.onDocument,onCreate:widget.onCreateDocument));
     if(_view==ThoughtView.photos || _view==ThoughtView.audio)return DesktopMenuFrame(child:AttachmentCollection(key:ValueKey(_view),audio:_view==ThoughtView.audio,selector:selector,filters:_filters,storage:widget.storage,onChanged:widget.onChanged));
     if (_view == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(filters: _filters, box: activeBox,
       viewSelector: selector, onChanged: () => widget.onChanged?.call())); }

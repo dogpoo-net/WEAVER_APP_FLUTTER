@@ -23,7 +23,8 @@ String overviewAuthor(WorkspaceStorage? storage,String kind,String id){
 }
 String excerpt(String text)=>text.replaceAll(RegExp(r'[=*_`<>]'),'').replaceAll(RegExp(r'\s+'),' ').trim();
 class DocumentCollection extends StatefulWidget {
- const DocumentCollection({super.key,required this.notes,required this.selector,this.storage,this.onOpen});
+ const DocumentCollection({super.key,required this.notes,required this.selector,this.storage,this.onOpen,this.onCreate});
+ final Future<void> Function()? onCreate;
  final List<Note> notes;final Widget selector;final WorkspaceStorage? storage;final Future<void> Function(Note)? onOpen;
  @override State<DocumentCollection> createState()=>_DocumentCollectionState();
 }
@@ -32,7 +33,7 @@ class _DocumentCollectionState extends State<DocumentCollection>{
  DateTime? updated(Note n){final server=DateTime.tryParse(widget.storage?.itemMetadata?.call('list:notes',n.id)?['updatedAt'] as String? ?? '');return server!=null && (n.updatedAt==null || server.isAfter(n.updatedAt!))?server:n.updatedAt;}
  DateTime modified(Note n)=>updated(n)??n.createdAt;
  @override Widget build(BuildContext context){final notes=widget.notes.where((n)=>n.project!=null && '${n.project!.title}\n${n.project!.content}'.toLowerCase().contains(query.toLowerCase())).toList()..sort((a,b)=>modified(b).compareTo(modified(a)));
- return Scaffold(appBar:AppBar(centerTitle:false,titleSpacing:0,leadingWidth:44,title:const WorkspaceTitle('전체 보기'),actions:const [DesktopMenuAction()]),body:DesktopMenuBody(child:Column(children:[widget.selector,
+ return Scaffold(appBar:AppBar(centerTitle:false,titleSpacing:0,leadingWidth:44,title:const WorkspaceTitle('전체 보기'),actions:[if(widget.onCreate!=null && (widget.storage?.canvasWritable??true))IconButton(tooltip:'문서 만들기',icon:const Icon(Icons.add),onPressed:()async{await widget.onCreate!();if(mounted)setState((){});}),const DesktopMenuAction()]),body:DesktopMenuBody(child:Column(children:[widget.selector,
  Padding(padding:const EdgeInsets.all(12),child:TextField(key:const ValueKey('documents-search'),onChanged:(value)=>setState(()=>query=value.trim()),decoration:const InputDecoration(hintText:'문서 제목·내용 찾기',prefixIcon:Icon(Icons.search),isDense:true))),
  Expanded(child:notes.isEmpty?const Center(child:Text('일치하는 문서가 없습니다.')):ListView.separated(padding:const EdgeInsets.symmetric(horizontal:12),itemCount:notes.length,separatorBuilder:(_,index)=>const Divider(height:1),itemBuilder:(context,index){final n=notes[index],p=n.project!;return ListTile(key:ValueKey('document-${p.id}'),contentPadding:const EdgeInsets.symmetric(horizontal:8,vertical:8),title:Text(p.title,maxLines:1,overflow:TextOverflow.ellipsis),subtitle:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const SizedBox(height:5),Text(excerpt(p.content),maxLines:2,overflow:TextOverflow.ellipsis),const SizedBox(height:8),Text('${updated(n)==null?'작성 ${overviewTime(n.createdAt)} · 수정 기록 없음':'수정 ${overviewTime(modified(n))}'} · ${overviewAuthor(widget.storage,'list:notes',n.id)}',style:Theme.of(context).textTheme.labelSmall)]),onTap:()async{if(widget.onOpen!=null){await widget.onOpen!(n);}else{await Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>ProjectPage(project:p)));}if(mounted)setState((){});});})),
  ])));
