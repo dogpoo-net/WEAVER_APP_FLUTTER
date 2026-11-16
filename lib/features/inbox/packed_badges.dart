@@ -27,30 +27,43 @@ class RenderPackedBadges extends RenderBox with ContainerRenderObjectMixin<Rende
     visible.clear();
     final width=constraints.maxWidth;
     var limit=rows==null?double.infinity:(rowHeight+6)*rows!-6;
-    final free=<Rect>[Rect.fromLTWH(0,0,width,double.infinity)];
+    // Reserve spacing inside each occupied rectangle; the outer right gap
+    // lies outside the viewport so a full-width badge still fits.
+    final free=<Rect>[Rect.fromLTWH(0,0,width+6,double.infinity)];
     var bottom=0.0, hidden=false;
     for(var child=firstChild;child!=null;child=(child.parentData! as _Data).nextSibling) {
       child.layout(BoxConstraints(maxWidth:width),parentUsesSize:true);
       if(visible.isEmpty)limit=math.max(limit,child.size.height);
-      // Join adjacent empty columns once their top edges line up again.
-      free.sort((a,b)=>a.top==b.top?a.left.compareTo(b.left):a.top.compareTo(b.top));
-      for(var i=free.length-2;i>=0;i--){
-        final a=free[i],b=free[i+1];
-        if((a.top-b.top).abs()<.01 && a.height==b.height && (a.right+6-b.left).abs()<.01){
-          free[i]=Rect.fromLTWH(a.left,a.top,b.right-a.left,a.height);free.removeAt(i+1);
-        }
-      }
       free.sort((a,b)=>a.top==b.top?a.left.compareTo(b.left):a.top.compareTo(b.top));
       final childSize=child.size;
-      final index=free.indexWhere((r)=>r.width+.01>=childSize.width && r.height+.01>=childSize.height);
-      final slot=index<0?Rect.fromLTWH(0,bottom+6,width,double.infinity):free.removeAt(index);
-      if(index<0)free.clear();
+      final slot=free.firstWhere((r)=>r.width+.01>=childSize.width+6 && r.height+.01>=childSize.height+6);
       if(slot.top+child.size.height>limit+.01){hidden=true;break;}
       final x=slot.left,y=slot.top,w=child.size.width,h=child.size.height;
       (child.parentData! as _Data).offset=Offset(direction==TextDirection.rtl?width-x-w:x,y);
       visible.add(child);bottom=math.max(bottom,y+h);
-      if(slot.width>w+6)free.add(Rect.fromLTWH(x+w+6,y,slot.width-w-6,slot.height));
-      if(slot.height>h+6)free.add(Rect.fromLTWH(x,y+h+6,math.min(slot.width,w),slot.height.isInfinite?double.infinity:slot.height-h-6));
+      final used=Rect.fromLTWH(x,y,w+6,h+6);
+      // Keep every maximal empty rectangle, including spaces spanning several
+      // earlier narrow columns. A later wide badge can use that combined space.
+      final next=<Rect>[];
+      for(final r in free){
+        if(!r.overlaps(used)){next.add(r);continue;}
+        if(used.left>r.left)next.add(Rect.fromLTRB(r.left,r.top,used.left,r.bottom));
+        if(used.right<r.right)next.add(Rect.fromLTRB(used.right,r.top,r.right,r.bottom));
+        if(used.top>r.top)next.add(Rect.fromLTRB(r.left,r.top,r.right,used.top));
+        if(used.bottom<r.bottom)next.add(Rect.fromLTRB(r.left,used.bottom,r.right,r.bottom));
+      }
+      free.clear();
+      for(var i=0;i<next.length;i++){
+        final r=next[i];
+        if(r.width<.01||r.height<.01)continue;
+        var contained=false;
+        for(var j=0;j<next.length;j++){
+          if(i==j)continue;final other=next[j];
+          if(other.left<=r.left&&other.top<=r.top&&other.right>=r.right&&other.bottom>=r.bottom&&
+            (other!=r||j<i)){contained=true;break;}
+        }
+        if(!contained)free.add(r);
+      }
     }
     size=constraints.constrain(Size(width,bottom));markNeedsSemanticsUpdate();
     if(overflow!=hidden){overflow=hidden;WidgetsBinding.instance.addPostFrameCallback((_){if(attached)onOverflowChanged?.call(hidden);});}
