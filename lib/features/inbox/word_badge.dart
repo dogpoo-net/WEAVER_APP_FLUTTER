@@ -168,6 +168,12 @@ class WordBadge extends StatelessWidget {
         _badgeExcerpt(context, title, query, (maxWidth - 24 - prefixWidth).clamp(0.0, double.infinity)),
       ]),
     ]) : fullText ? TextSpan(text: title) : _badgeExcerpt(context, title, query, maxWidth - 24);
+    final badgeTextStyle=Theme.of(context).textTheme.labelLarge!.copyWith(fontSize:dense?11:12,fontWeight:FontWeight.w500);
+    var firstLineHeight=0.0;
+    if(indicators){
+      final metrics=TextPainter(text:TextSpan(text:'가',style:badgeTextStyle),textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context))..layout();
+      firstLineHeight=metrics.height;metrics.dispose();
+    }
     final badge = ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: TextButton(
       onPressed: onTap,
       onLongPress: onLongPress,
@@ -187,10 +193,10 @@ class WordBadge extends StatelessWidget {
                 )
               : BorderSide.none,
         ),
-        textStyle: Theme.of(context).textTheme.labelLarge!.copyWith(fontSize: dense ? 11 : 12, fontWeight: FontWeight.w500),
+        textStyle: badgeTextStyle,
       ),
       child: Row(mainAxisSize: square ? MainAxisSize.max : MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (indicators) ...[AttachmentIndicators(record: record), const SizedBox(width: 4)],
+        if (indicators) ...[SizedBox(height:firstLineHeight,child:Center(child:AttachmentIndicators(record: record))), const SizedBox(width: 4)],
         Flexible(fit: square ? FlexFit.tight : FlexFit.loose, child: Text.rich(label, textAlign: TextAlign.start,
         maxLines: square ? ((constraints.maxHeight - 20) / 20).floor().clamp(1, 100) : fullText && !singleLine ? null : 1, softWrap: fullText && !singleLine, overflow: square ? TextOverflow.ellipsis : fullText && !singleLine ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '문서:$title' : labelTarget ? '라벨:$title' : memo ? '메모:$title' : title)),
         if(commentCount>0) Padding(padding:const EdgeInsets.only(left:4,top:2),child:Tooltip(

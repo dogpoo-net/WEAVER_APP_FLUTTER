@@ -1,9 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weaver/features/capture/capture_models.dart';
 import 'package:weaver/features/inbox/word_badge.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/memo_comments.dart';
 void main(){
+ for(final scale in [1.0,1.5]){
+ testWidgets('attachment icons align with first line at scale $scale',(tester)async{
+  elements.clear();memoCommentCounts.value={};final record=elements.add('첫 줄\n둘째 줄');
+  record.location=ThoughtLocation(37,127,0,DateTime.utc(2026));
+  record.recordings.add(const VoiceAttachment('voice',1000));
+  record.photos.add(const PhotoAttachment('photo','photo.png'));
+  await tester.pumpWidget(MaterialApp(home:MediaQuery(data:MediaQueryData(textScaler:TextScaler.linear(scale)),child:Scaffold(body:WordBadge(word:record.text,fullText:true,onTap:(){})))));
+  final label=tester.getRect(find.text(record.text));
+  final location=tester.getRect(find.byIcon(Icons.location_on_outlined));
+  final voice=tester.getRect(find.byIcon(Icons.mic_none));
+  final photo=tester.getRect(find.byIcon(Icons.image_outlined));
+  expect(location.center.dy,closeTo(label.top+label.height/4,.5));
+  expect(voice.center.dy,closeTo(location.center.dy,.1));expect(photo.center.dy,closeTo(location.center.dy,.1));
+  expect(location.left,lessThan(voice.left));expect(voice.left,lessThan(photo.left));
+  await tester.pumpWidget(const SizedBox());elements.clear();
+ });
+ }
+
  testWidgets('comment counter has equal top and right inset',(tester)async{
   elements.clear();final record=elements.add('메모\n둘째 줄');memoCommentCounts.value={record.id:3};
   await tester.pumpWidget(MaterialApp(home:Scaffold(body:Align(alignment:Alignment.topLeft,child:WordBadge(word:record.text,fullText:true,onTap:(){})))));
