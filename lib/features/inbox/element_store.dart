@@ -424,7 +424,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               )),
               Wrap(spacing:4,children:[
                 IconButton(tooltip:'사진 업로드',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'photo'),icon:const Icon(Icons.add_photo_alternate_outlined,size:20)),
-                IconButton(tooltip:'음성 녹음',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const SizedBox.square(dimension:24,child:Stack(children:[Align(alignment:Alignment.centerLeft,child:Icon(Icons.mic_none,size:21)),Positioned(right:0,top:0,child:Icon(Icons.add,size:11))]))),
+                IconButton(tooltip:'음성 녹음',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const Icon(Icons.mic_none,size:20)),
                 IconButton(tooltip:'위치 기록',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.add_location_alt_outlined,size:20)),
               ]),
               if(_attachmentBusy&&!_captureModalOpen)const LinearProgressIndicator(),
