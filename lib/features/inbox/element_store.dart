@@ -422,10 +422,18 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                   child: Switch.adaptive(value: _closed,
                     onChanged: (hidden) => setState(() => _closed = hidden)))),
               )),
-              Wrap(spacing:4,children:[
+              Row(children:[
                 IconButton(tooltip:'사진 업로드',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'photo'),icon:const Icon(Icons.add_photo_alternate_outlined,size:20)),
+                const SizedBox(width:4),
                 IconButton(tooltip:'음성 녹음',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const Icon(Icons.mic_none,size:20)),
+                const SizedBox(width:4),
                 IconButton(tooltip:'위치 기록',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.add_location_alt_outlined,size:20)),
+                const Spacer(),
+                ValueListenableBuilder<Map<String,int>>(
+                  valueListenable:memoCommentCounts,
+                  builder:(context,counts,child)=>TextButton(
+                    onPressed:()=>showMemoComments(context,element.id),
+                    child:Text('댓글 ${counts[element.id]??0}'))),
               ]),
               if(_attachmentBusy&&!_captureModalOpen)const LinearProgressIndicator(),
               for(final photo in _photoUploads[element.id]??<PhotoDraft>[])Row(children:[
@@ -451,9 +459,6 @@ class _ElementMetadataState extends State<_ElementMetadata> {
         const Padding(padding: EdgeInsets.only(top: 8),
           child: Divider(key: ValueKey('element-actions-divider'), height: 1, thickness: 1)),
         Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
-          TextButton(style:TextButton.styleFrom(minimumSize:Size.zero,padding:const EdgeInsets.symmetric(horizontal:4,vertical:2),tapTargetSize:MaterialTapTargetSize.shrinkWrap),
-            onPressed:()=>showMemoComments(context,element.id),child:const Text('댓글')),
-          const SizedBox(width:8),
           Expanded(child:Row(mainAxisAlignment:MainAxisAlignment.end,children:[
           Flexible(child: Text(workspaceMemoAuthor?.call(element.id) ?? '작성자 정보 없음',
             key: const ValueKey('element-author'), maxLines: 1, overflow: TextOverflow.ellipsis,
