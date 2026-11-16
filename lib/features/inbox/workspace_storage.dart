@@ -333,6 +333,8 @@ class WorkspaceStorage {
   WorkspaceStorage(this.preferences, {this.owner});
   final String? owner;
   String? currentUserId;
+  Future<Map<String,dynamic>> Function(String,Map<String,Object?>)? comments;
+  bool commentsWritable=false;
   final editorResources=<String>[];
   Future<Map<String,dynamic>> Function(String,String,bool)? documentLease;
   bool lastSaveReplaced=false;

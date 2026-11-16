@@ -36,6 +36,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   late final _filters = widget.filters ?? ThoughtFilterSelection(initialBox: widget.initialBox);
   MemoBox? get _filterBox => _filters.singleBox;
   int _columns = 2;
+  int? _squareColumns;
   bool _square = false;
   int _scaleColumns = 2;
   void _changed() { setState(() {}); widget.onChanged?.call(); }
@@ -88,10 +89,11 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     final grid = LayoutBuilder(builder: (context, bounds) {
       final available = math.min(1000.0, math.max(0.0, bounds.maxWidth - 24));
       if(_square){
-        final columns=_columns.clamp(1, math.max(1,(available/80).floor())).toInt();
+        final defaultColumns = MediaQuery.sizeOf(context).shortestSide >= 600 || desktop ? 6 : 2;
+        final columns=(_squareColumns ?? defaultColumns).clamp(1, math.max(1,(available/80).floor())).toInt();
         return Column(children:[Center(child:SizedBox(width:available,child:IconButtonTheme(data:IconButtonThemeData(style:IconButton.styleFrom(minimumSize:const Size(36,36),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap)),child:Row(children:[Expanded(child:Text(_query.isEmpty && _filters.isEmpty ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개',style:Theme.of(context).textTheme.bodyMedium)),
-          IconButton(tooltip:'확대',onPressed:columns>1?()=>setState(()=>_columns=columns-1):null,icon:const Icon(Icons.zoom_in)),
-          Text('$columns열'),IconButton(tooltip:'축소',onPressed:columns<math.max(1,(available/80).floor())?()=>setState(()=>_columns=columns+1):null,icon:const Icon(Icons.zoom_out)),
+          IconButton(tooltip:'확대',onPressed:columns>1?()=>setState(()=>_squareColumns=columns-1):null,icon:const Icon(Icons.zoom_in)),
+          Text('$columns열'),IconButton(tooltip:'축소',onPressed:columns<math.max(1,(available/80).floor())?()=>setState(()=>_squareColumns=columns+1):null,icon:const Icon(Icons.zoom_out)),
         ])))),Expanded(child:GridView.builder(key:const ValueKey('thought-square-grid'),padding:const EdgeInsets.all(12),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:columns,crossAxisSpacing:8,mainAxisSpacing:8),itemCount:records.length,itemBuilder:(_,i)=>_tile(records[i],desktop,width:(available-8*(columns-1))/columns)))]);
       }
       final maxWidth = desktop ? math.min(480.0, available)

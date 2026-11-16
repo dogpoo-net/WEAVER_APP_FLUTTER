@@ -87,12 +87,14 @@ class GoogleAuthController extends ChangeNotifier {
   bool _googleLinkArmed = false;
   bool googleLinkBusy = false;
   int _profileReadGeneration = 0;
+  String _nameOrEmail(String? name, String email) => name != null && name.trim().isNotEmpty ? name.trim() : email.split('@').first;
   Future<void> loadProfile() async {
     final readGeneration = ++_profileReadGeneration;
     final owner = identity?.id;
     if (!_emailSignedIn || owner == null) return;
     final data = await emailApi.profile('read');
     if (_disposed || identity?.id != owner || readGeneration != _profileReadGeneration) return;
+    data['name'] = _nameOrEmail((data['name'] as String?)?.trim().isNotEmpty == true ? data['name'] as String : identity?.displayName, identity!.email);
     profile = data;
     try { profilePhoto = data['image'] is String ? base64Decode(data['image'] as String) : null; }
     catch (_) { profilePhoto = null; }
@@ -221,7 +223,9 @@ class GoogleAuthController extends ChangeNotifier {
     final changedAccount = identity?.id != 'email:${data['id']}';
     if (changedAccount) { profile = null; profilePhoto = null; }
     _emailSignedIn = true; isGuest = false; emailRestorePending = false;
-    identity = GoogleIdentity(id: 'email:${data['id']}', email: data['email'] as String, idToken: null, displayName: data['name'] as String?);
+    final incomingName = (data['name'] as String?)?.trim();
+    final retainedName = changedAccount ? null : (profile?['name'] as String? ?? identity?.displayName);
+    identity = GoogleIdentity(id: 'email:${data['id']}', email: data['email'] as String, idToken: null, displayName: _nameOrEmail(incomingName?.isNotEmpty == true ? incomingName : retainedName, data['email'] as String));
     error = null;
     _emailAccessExpires = DateTime.now().add(Duration(seconds: data['expiresIn'] as int));
     _emailExpiry?.cancel();

@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'edit_lock.dart';
 import 'workspace_storage.dart';
 import 'save_shortcuts.dart';
@@ -73,7 +74,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   MemoBox? _hoverBox;
   final _liftBoxes = <MemoBox, Rect>{};
   bool _centered = false;
-  bool _selectionMode = false, _movingSelection = false;
+  bool _selectionMode = false, _movingSelection = false, _ctrlPressed = false;
+  bool get _rangeSelection => _selectionMode || _ctrlPressed || _selectionStart != null;
+  bool _controlSelection(KeyEvent event) {
+    final pressed = HardwareKeyboard.instance.isControlPressed;
+    if (mounted && pressed != _ctrlPressed) setState(() => _ctrlPressed = pressed);
+    return false;
+  }
   final _selected = <String>{};
   Offset? _selectionStart, _selectionEnd, _selectionDown, _selectionGlobalDown;
   final _selectionDragOrigins = <String, Offset>{};
@@ -279,6 +286,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   @override
   void initState() {
     super.initState();
+    _ctrlPressed = HardwareKeyboard.instance.isControlPressed;
+    HardwareKeyboard.instance.addHandler(_controlSelection);
     widget.storage?.editorResources.add(_resource);
     if(widget.storage?.documentLease!=null)_lock=EditLock(_resource,widget.storage)..addListener(_lockChanged);
     _filters.addListener(_filterChanged);
@@ -345,6 +354,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appActive = state == AppLifecycleState.resumed;
     if (!_appActive) {
+      _ctrlPressed = false;
       _saveLayout(flush: true);
     } else if (mounted && _routeVisible) {
       setState(_sync);
@@ -594,6 +604,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_controlSelection);
     _saveLayout(flush: true);
     widget.storage?.editorResources.remove(_resource);
     _lock?.removeListener(_lockChanged);_lock?.dispose();
@@ -748,7 +759,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           });
         }
         return InteractiveViewer(key: _viewportKey,
-        panEnabled: !_canEdit || !_selectionMode, scaleEnabled: !_canEdit || !_selectionMode,
+        panEnabled: !_canEdit || !_rangeSelection, scaleEnabled: !_canEdit || !_rangeSelection,
         onInteractionEnd: (_) => _saveLayout(flush: true),
         transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: MediaQuery.sizeOf(context).width >= 760 ? 12 : 8,
         boundaryMargin: const EdgeInsets.all(double.infinity),
@@ -913,7 +924,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               onPanEnd: (_) => _saveLayout(flush: true), onPanCancel: () => _saveLayout(flush: true),
               child: Tooltip(message: '#$tag', child: Chip(side: BorderSide(color: Color(hashtagColors[tag] ?? 0xFF90A4AE), width: 2.5), label: Text('#$tag', maxLines: 1, overflow: TextOverflow.ellipsis),
               backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: .3))))),
-          if (_selectionMode) Positioned.fill(child: Listener(
+          if (_rangeSelection) Positioned.fill(child: Listener(
             onPointerDown: (event) {
               if (_selectionPointers.isEmpty) {
                 _selectionDown = event.localPosition; _selectionGlobalDown = event.position;

@@ -120,6 +120,17 @@ void main() {
       auth.dispose();
     },
   );
+  testWidgets('missing profile and session names use email prefix', (tester) async {
+    final api=EmailAuthApi(store:MemorySessionStore(isWeb:true),client:MockClient((r)async{
+      if(r.url.path.endsWith('/profile/read')) return http.Response(jsonEncode({'name':'','email':'person@example.com','providers':[],'defaultFace':0}),200);
+      return http.Response(jsonEncode({'id':'a','email':'person@example.com','name':'','expiresIn':1800}),200);
+    }));
+    final auth=GoogleAuthController(FakeGoogleClient(configured:false),emailApi:api);
+    await auth.signInWithEmail('person@example.com','test-password');await auth.loadProfile();
+    await tester.pumpWidget(GoogleAuthScope(controller:auth,child:MaterialApp(home:ProfilePage(auth:auth))));await tester.pumpAndSettle();
+    expect(find.text('person'),findsOneWidget);expect(auth.identity?.displayName,'person');
+    await tester.pumpWidget(const SizedBox());auth.dispose();
+  });
   testWidgets('profile photo menu applies a server-selected default', (tester) async {
     var face=1,calls=0;
     final api=EmailAuthApi(store:MemorySessionStore(isWeb:true),client:MockClient((r)async{

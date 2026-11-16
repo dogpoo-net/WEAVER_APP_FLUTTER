@@ -1,3 +1,4 @@
+import 'memo_comments.dart';
 import 'caret_assist.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
@@ -321,6 +322,8 @@ class _ElementMetadataState extends State<_ElementMetadata> {
           }),
       ]),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
+        Align(alignment: Alignment.centerLeft, child: Text(element.createdAt.toLocal().toString().split('.').first,
+          key: const ValueKey('element-created-at'), style: Theme.of(context).textTheme.bodySmall)),
         Flexible(child: SizedBox(
         width: mobile ? MediaQuery.sizeOf(context).width : 440,
         child: SingleChildScrollView(controller: _contentScroll, primary: false,
@@ -405,9 +408,10 @@ class _ElementMetadataState extends State<_ElementMetadata> {
         ),
       )),
         const Divider(key: ValueKey('element-actions-divider'), height: 16, thickness: 1),
-        Align(alignment: Alignment.centerRight,
-          child: Text(element.createdAt.toLocal().toString().split('.').first,
-            key: const ValueKey('element-created-at'), style: Theme.of(context).textTheme.bodySmall)),
+        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+          TextButton(onPressed: () => showMemoComments(context, element.id), child: const Text('댓글보기')),
+          TextButton(onPressed: () => showMemoComments(context, element.id, write: true), child: const Text('댓글쓰기')),
+        ]),
       ]),
       actions: [
         FilledButton.tonal(

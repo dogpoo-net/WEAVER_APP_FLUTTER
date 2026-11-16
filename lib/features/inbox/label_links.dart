@@ -83,16 +83,25 @@ bool hasOpenLinkMarkup(TextEditingValue value) {
 
 Future<void> insertAssistedLink(BuildContext context, LabelTextController controller, String key, {bool alwaysPrompt = false, bool replaceQuery = true}) async {
   final before = controller.value;
-  if (!alwaysPrompt && hasOpenLinkMarkup(before)) { controller.insertTarget(key); return; }
-  final fallback = projectTarget(key)?.title ?? elements.records[key]?.text ?? key;
-  String title = '';
-  final result = await showDialog<String>(context: context, builder: (context) => AlertDialog(
-    title: const Text('링크 타이틀'),
-    content: TextField(key: const ValueKey('link-title-input'), autofocus: true,
-      decoration: InputDecoration(hintText: fallback, helperText: '비워두면 메모 본문 또는 문서 제목을 표시합니다.'),
-      onChanged: (value) => title = value, onSubmitted: (value) => Navigator.pop(context, value)),
-    actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-      TextButton(onPressed: () => Navigator.pop(context, title), child: const Text('확인'))]));
+  final document = projectTarget(key);
+  final alias = pendingLabelLink(before)?.display.trim();
+  if (!alwaysPrompt && hasOpenLinkMarkup(before) && (document != null || (alias != null && alias.isNotEmpty))) { controller.insertTarget(key); return; }
+  final fallback = document?.title ?? elements.records[key]?.text ?? key;
+  String title = ''; String? error;
+  final result = await showDialog<String>(context: context, builder: (context) => StatefulBuilder(builder: (context, update) {
+    void submit(String value) {
+      if (document == null && value.trim().isEmpty) { update(() => error = '링크 제목을 입력해주세요.'); return; }
+      Navigator.pop(context, value);
+    }
+    return AlertDialog(
+      title: const Text('링크 타이틀'),
+      content: TextField(key: const ValueKey('link-title-input'), autofocus: true,
+        decoration: InputDecoration(hintText: document?.title, errorText: error,
+          helperText: document == null ? '링크를 보여줄 제목을 설정하세요.' : '비워두면 문서 제목으로 입력됩니다.'),
+        onChanged: (value) { title = value; if (error != null) update(() => error = null); }, onSubmitted: submit),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+        TextButton(onPressed: () => submit(title), child: const Text('확인'))]);
+  }));
   if (!context.mounted || result == null || controller.text != before.text) return;
   controller.selection = before.selection;
   controller.insertTarget(key, display: result.trim().isEmpty ? fallback : result.trim(), complete: replaceQuery);
