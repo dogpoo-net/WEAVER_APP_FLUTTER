@@ -45,7 +45,7 @@ void main() {
     await tester.ensureVisible(find.text('저장')); await tester.tap(find.text('저장')); await tester.pumpAndSettle();
     expect(elements.records['남겨둘 생각']!.location, isNull);
     expect(elements.records['남겨둘 생각']!.tags, {'기록'});
-  }, variant: TargetPlatformVariant({TargetPlatform.android}));
+  }, variant: TargetPlatformVariant({TargetPlatform.android, TargetPlatform.iOS, TargetPlatform.windows}));
   testWidgets('opt-in location attaches coordinates and resets for the next thought', (tester) async {
     await tester.pumpWidget(const MyApp(requireLogin: false, ));
     expect(location.positions, 0);
@@ -56,7 +56,7 @@ void main() {
     expect(elements.records['위치가 있는 생각']!.location!.accuracy, 25);
     expect(location.positions, 1);
     expect(tester.widget<IconButton>(find.byKey(const ValueKey('quick-location'))).isSelected, isFalse);
-  }, variant: TargetPlatformVariant({TargetPlatform.android}));
+  }, variant: TargetPlatformVariant({TargetPlatform.android, TargetPlatform.iOS, TargetPlatform.windows}));
   testWidgets('location alone saves with timestamp title and preserves tags', (tester) async {
     await tester.pumpWidget(const MyApp(requireLogin: false, ));
     await tester.enterText(find.byKey(const ValueKey('quick-memo')), '#산책');
@@ -66,6 +66,6 @@ void main() {
     expect(record.text, matches(RegExp(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} / 위치 메모$')));
     expect(record.tags, contains('산책'));
     expect(record.location!.latitude, 37.5);
-  }, variant: TargetPlatformVariant({TargetPlatform.android}));
+  }, variant: TargetPlatformVariant({TargetPlatform.android, TargetPlatform.iOS, TargetPlatform.windows}));
 
 }

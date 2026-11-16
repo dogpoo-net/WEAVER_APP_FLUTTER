@@ -1,5 +1,4 @@
 import '../sync/workspace_events.dart';
-import '../capture/location_editor.dart';
 import 'overview_collections.dart';
 import 'memo_comments.dart';
 import 'dart:async';
@@ -79,7 +78,6 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
   final _savedPhotos = <PhotoAttachment>[];
   bool _locationBusy = false, _captureSaving = false, _photoBusy = false;
   int _locationGeneration = 0;
-  bool get _mobileCapture => defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS;
   void _clearCapture() {
     _locationGeneration++; _draftLocation = null; _locationBusy = false;
     _voiceDraft = null; _photoDrafts.clear(); _savedVoice = null; _savedPhotos.clear();
@@ -92,8 +90,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     if (!enabled) { setState(() { _locationBusy = false; _draftLocation = null; }); return; }
     setState(() => _locationBusy = true);
     try {
-      final location = _mobileCapture ? await captureLocation()
-        : (await showLocationEditor(context,locateInitially:false,confirmLabel:'확인'))?.location;
+      final location = await captureLocation();
       if (mounted && generation == _locationGeneration) setState(() => _draftLocation = location);
     } catch (error) {
       if (mounted && generation == _locationGeneration) _captureError(error is StateError ? error.message.toString() : '위치를 가져오지 못했습니다. 위치 권한과 기기 설정을 확인해주세요.');
@@ -1225,7 +1222,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
                   visualDensity: VisualDensity.standard, constraints: const BoxConstraints.tightFor(width: 36, height: 36), padding: EdgeInsets.zero,
                   onPressed: _captureSaving ? null : () => _toggleLocation(!_locationBusy && _draftLocation == null),
                   selectedIcon: const Icon(Icons.location_on, size: 19),
-                  icon: _locationBusy && _mobileCapture ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.location_on_outlined, size: 19)),
+                  icon: _locationBusy ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.location_on_outlined, size: 19)),
                 const SizedBox(width:4),
                 IconButton(tooltip: '음성 메모', style:IconButton.styleFrom(minimumSize:const Size(36,36),maximumSize:const Size(36,36),tapTargetSize:MaterialTapTargetSize.shrinkWrap), visualDensity: VisualDensity.standard, constraints: const BoxConstraints.tightFor(width: 36, height: 36), padding: EdgeInsets.zero,
                   onPressed: _captureSaving || _photoBusy ? null : _recordVoice, icon: const Icon(Icons.mic_none, size: 19)),
