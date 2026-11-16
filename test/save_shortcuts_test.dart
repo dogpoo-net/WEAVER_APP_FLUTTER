@@ -15,15 +15,14 @@ void main(){
   await tester.enterText(find.byKey(const ValueKey('project-document')),'after');await saveKey(tester);
   expect(project.document,'after');expect(saves,1);expect(find.text('저장되었습니다.'),findsOneWidget);
  });
- testWidgets('Locked document is read-only until confirmed takeover', (tester)async{
-  final project=WritingProject([],[],name:'shared')..document='original';bool available=false;var releases=0;
+ testWidgets('Document editing does not acquire or release locks', (tester)async{
+  final project=WritingProject([],[],name:'shared')..document='original';var calls=0;
   SharedPreferences.setMockInitialValues({});final storage=WorkspaceStorage(await SharedPreferences.getInstance());
-  storage.documentLease=(id,token,release)async{if(release){releases++;return {'released':true};}return {'acquired':available,'holder':'Other'};};
-  storage.takeLease=(id,token)async{available=true;return {'acquired':true};};
+  storage.documentLease=(id,token,release)async{calls++;return {'acquired':false,'holder':'Other'};};
   await tester.pumpWidget(MaterialApp(home:ProjectDocumentEditor(project:project,storage:storage)));
-  await tester.pumpAndSettle();expect(find.byKey(const ValueKey('project-document')),findsNothing);expect(find.text('Other 편집 중 · 읽기 전용'),findsOneWidget);
-  await saveKey(tester);expect(project.document,'original');await tester.tap(find.byTooltip('Other 편집 중 · 읽기 전용'));await tester.pumpAndSettle();await tester.tap(find.text('잠금 해제'));await tester.pumpAndSettle();expect(find.byKey(const ValueKey('project-document')),findsOneWidget);
-  await tester.pumpWidget(const SizedBox());await tester.pumpAndSettle();expect(releases,1);
+  await tester.pumpAndSettle();expect(find.byKey(const ValueKey('project-document')),findsOneWidget);
+  await tester.enterText(find.byKey(const ValueKey('project-document')),'edited');await saveKey(tester);expect(project.document,'edited');
+  await tester.pumpWidget(const SizedBox());await tester.pumpAndSettle();expect(calls,0);
  });
  testWidgets('Background updates leave the active document and caret untouched',(tester)async{
   SharedPreferences.setMockInitialValues({});final storage=WorkspaceStorage(await SharedPreferences.getInstance());final project=WritingProject([],[],name:'doc')..document='saved';

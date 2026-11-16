@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
+import '../sync/document_merge.dart';
+import 'document_merge_dialog.dart';
+import 'element_binding.dart';
 import 'memo_boxes.dart';
 import 'document_table.dart';
 import 'document_line_numbers.dart';
-import 'edit_lock.dart';
+import 'edit_lock.dart' show confirmReload;
 import 'workspace_storage.dart';
 import 'save_shortcuts.dart';
 import 'thought_settings.dart';
@@ -33,18 +38,25 @@ class ProjectDocumentEditor extends StatefulWidget {
 class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   late final LabelTextController _body;
   bool _preview = false, _loading = false;
-  EditLock? _lock;
-  bool get _leaseGranted=>_lock?.granted??true;
-  String? get _leaseMessage=>_lock?.message;
-  bool get _needsLease=>widget.project!=null && (widget.onLease!=null || widget.storage?.documentLease!=null);
-  Future<bool> _renewLease()async=>await _lock?.renew()??true;
+  String get _draftId=>widget.project?.id??'new-document';
+  Map<String,dynamic>? _original;
+  bool get _canEdit=>widget.storage?.canvasWritable??true;
+  bool _draftQueued=false;
+  Future<void> _storeDraft()async{
+    if(_loading || !_dirty || widget.storage==null)return;
+    await widget.storage!.writeDocumentDraft(_draftId,{'text':_body.text,'links':_body.bindings.map((b)=>b.toJson()).toList(),'tags':{..._tags,..._filters.tags}.toList(),'base':_original});
+  }
+  void _queueDraft(){
+    if(_draftQueued || _loading)return;_draftQueued=true;
+    scheduleMicrotask(()async{_draftQueued=false;if(!mounted)return;try{await _storeDraft();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('로컬 초안을 저장하지 못했습니다. $e')));}});
+  }
   Future<void> _reload()async{
     if(widget.onReload==null || !await confirmReload(context))return;
     try{
-      await widget.onReload!();await _renewLease();if(!mounted)return;
+      await widget.onReload!();if(!mounted)return;
       _loading=true;
       _body.text=widget.project!.content;_body.bindings..clear()..addAll(widget.project!.documentLinks);
-      _tags..clear()..addAll(widget.project!.tags);_filters.tags..clear()..addAll(_tags);setState(()=>_dirty=false);_loading=false;
+      _tags..clear()..addAll(widget.project!.tags);_filters.tags..clear()..addAll(_tags);_captureBase();await widget.storage?.writeDocumentDraft(_draftId,null);setState(()=>_dirty=false);_loading=false;
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('갱신하지 못했습니다. $e')));}
   }
   final _search = TextEditingController(), _documentSearch = TextEditingController();
@@ -59,7 +71,6 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   void initState() {
     super.initState();
     widget.storage?.editorResources.add(widget.project?.id??'new-document');
-    if(_needsLease){_lock=EditLock(widget.project!.id,widget.storage,fallback:widget.onLease,lazy:true)..addListener(_refresh);}
     _body = LabelTextController( widget.project?.document ?? widget.project?.paragraphs.map((p) =>
       p.role == ParagraphRole.title ? '======${p.text}======' : p.role == ParagraphRole.subtitle ? '=====${p.text}=====' : p.text).join('\n\n') ?? '', widget.project?.documentLinks ?? const []);
     for (final project in widget.projects) { elements.indexProject(project); }
@@ -67,6 +78,13 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     _tags.addAll(widget.project?.tags ?? {});
     if (widget.project?.document == null) _tags.addAll(widget.project?.paragraphs.expand((p) => p.tags) ?? <String>[]);
     _filters.tags.addAll(_tags); _filters.addListener(_refresh);
+    _captureBase();
+    final draft=widget.storage?.documentDraft(_draftId);
+    if(draft!=null){
+      _body.loadDocument(draft['text'] as String,[for(final b in draft['links'] as List)ElementBinding(b['id'] as String,b['start'] as int,b['end'] as int)]);
+      _tags..clear()..addAll(List<String>.from(draft['tags'] as List? ?? []));_filters.tags..clear()..addAll(_tags);
+      _original=draft['base']==null?null:Map<String,dynamic>.from(draft['base'] as Map);widget.storage?.documentSaveBases[_draftId]=_original;_dirty=true;
+    }
     _lastEdit = _editSignature;
     _body.addListener(_edited); elements.addListener(_refresh);
   }
@@ -77,18 +95,28 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     if (visible && !_keyboardVisible) _boxPanelOpen = false;
     _keyboardVisible = visible;
   }
+  void _captureBase(){
+    final storage=widget.storage;if(storage==null||widget.project==null)return;
+    final raw=storage.read();if(raw==null)return;
+    final note=(jsonDecode(raw)['notes'] as List).where((n)=>n['project']?['id']==widget.project!.id).firstOrNull;
+    if(note==null)return;
+    final metadata=storage.itemMetadata?.call('list:notes',note['id'] as String);
+    _original=metadata==null?null:jsonDecode(jsonEncode(metadata)) as Map<String,dynamic>;
+    storage.documentSaveBases[_draftId]=_original;
+  }
   String? _lastEdit;
   String get _editSignature => '${_body.text}|${_body.bindings.map((b) => '${b.id}:${b.start}:${b.end}').join(',')}';
   void _edited() {
     final edit = _editSignature;
     if (_lastEdit == edit) return;
     _lastEdit = edit;
-    if (!_loading) _lock?.startEditing();
+    if(_loading)return;
     if (mounted) setState(() => _dirty = true);
+    _queueDraft();
   }
   void _refresh() { if (mounted) setState(() {}); }
   @override
-  void dispose() { widget.storage?.editorResources.remove(widget.project?.id??'new-document');_lock?.removeListener(_refresh);_lock?.dispose();elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _documentSearch.dispose(); _documentReferenceScroll.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
+  void dispose() { widget.storage?.editorResources.remove(widget.project?.id??'new-document');elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _documentSearch.dispose(); _documentReferenceScroll.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
   Future<void> _insertLabel(String word) async {
     await insertAssistedLink(context, _body, word); if (mounted) _bodyFocus.requestFocus();
   }
@@ -116,7 +144,6 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     if(_saving)return;
     setState(()=>_saving=true);
     try {
-    if(_needsLease && !(await _lock!.startEditing()))return;
     if(!mounted)return;
     _body.completeLinks();
     _tags.addAll(cleanLinkedInput(_body).tags);
@@ -128,10 +155,27 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     project.document = _body.text; project.name = documentTitle(_body.text);
     project.documentLinks = List.of(_body.bindings);
     project.words.clear(); project.tags..clear()..addAll({..._tags, ..._filters.tags});
-    if (widget.project == null) { Navigator.pop(context, project); return; }
+    await _storeDraft();
+    if(!mounted)return;
+    if (widget.project == null) { setState((){_dirty=false;_saving=false;});Navigator.pop(context, project); return; }
     elements.indexProject(project); await widget.onChanged?.call(); await widget.onSave?.call();
-    await _lock?.saved();
+    final storage=widget.storage;
+    if(storage?.syncResource!=null){
+      final saved=WorkspaceSnapshot.decode(storage!.read()!).notes.where((n)=>n.project?.id==project.id).firstOrNull?.project;
+      if(saved!=null){project.document=saved.document;project.documentLinks=saved.documentLinks;project.name=saved.name;project.tags..clear()..addAll(saved.tags);_tags..clear()..addAll(saved.tags);_filters.tags..clear()..addAll(saved.tags);_loading=true;_body.loadDocument(project.content,project.documentLinks);_loading=false;}
+      _original=storage.documentSaveBases[project.id];
+    }
+    await storage?.writeDocumentDraft(_draftId,null);
     if (mounted) { setState(() => _dirty = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.storage?.lastSaveReplaced==true?'서버 최신 자료로 갱신했습니다.':'저장되었습니다.'))); }
+    } on DocumentMergeConflict catch(conflict){
+      if(!mounted)return;
+      final resolved=await resolveDocumentConflict(context,conflict);
+      if(resolved!=null&&mounted){
+        final content=documentSegment(resolved);_loading=true;_body.loadDocument(content.text,content.links);_loading=false;
+        _tags..clear()..addAll(List<String>.from(resolved['project']['tags'] as List? ?? []));_filters.tags..clear()..addAll(_tags);
+        _original=conflict.remoteItem;widget.storage?.documentSaveBases[_draftId]=_original;
+        _dirty=true;await _storeDraft();_saving=false;await _save();
+      }
     } catch(e) { if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('저장 또는 동기화에 실패했습니다. 로컬 자료는 유지됩니다. $e'))); }
     finally {if(mounted){setState(()=>_saving=false);}else{_saving=false;}}
   }
@@ -180,7 +224,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     return null;
   }
   Future<void> _dropLink(DragTargetDetails<Object> details) async {
-    final key = _dragKey(details.data); if (key == null || !_leaseGranted || _saving) return;
+    final key = _dragKey(details.data); if (key == null || !_canEdit || _saving) return;
     EditableTextState? editor;
     void visit(Element element) {
       if (element is StatefulElement && element.state is EditableTextState) { editor = element.state as EditableTextState; return; }
@@ -205,16 +249,14 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   }
   @override
   Widget build(BuildContext context) => SaveShortcuts(onSave:_save,child:_build(context));
-  Widget _build(BuildContext context) => PopScope(canPop: !_dirty, onPopInvokedWithResult: (didPop, result) async {
-    if (didPop) return;
-    final discard = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('변경 내용을 저장하지 않고 나갈까요?'), actions: [
-      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('계속 작성')),
-      TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('나가기'))]));
-    if (discard == true && mounted) { setState(() => _dirty = false); WidgetsBinding.instance.addPostFrameCallback((_) { if (context.mounted) Navigator.pop(context); }); }
-  }, child: Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(_needsLease)IconButton(tooltip:_leaseMessage??(_lock?.shared==true?'강제 해제됨 · 모두 편집 가능':_lock?.held==true?'내가 편집 중 · 강제 잠금 해제':'잠금 없음 · 강제 잠금 해제'),onPressed:()=>_lock?.takeOver(context),icon:Icon(_leaseGranted?Icons.lock_open:Icons.lock_outline)), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _preview = !_preview)), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _leaseGranted && !_saving ? _save : null),
+  Widget _build(BuildContext context) => PopScope(canPop: !_saving && !_dirty, onPopInvokedWithResult: (didPop, result) async {
+    if(didPop || _saving)return;
+    try{await _storeDraft();if(mounted){setState(()=>_dirty=false);WidgetsBinding.instance.addPostFrameCallback((_){if(context.mounted)Navigator.pop(context);});}}
+    catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('초안을 보관하지 못했습니다. $e')));}
+  }, child: Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _preview = !_preview)), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _canEdit && !_saving ? _save : null),
     IconButton(tooltip: '작성 문법 안내', icon: const Icon(Icons.info_outline), onPressed: _showHelp),
-   ]))]), bottomNavigationBar: _leaseGranted?null:SafeArea(child:Padding(padding:const EdgeInsets.all(12),child:Text(_leaseMessage??'편집 권한을 확인하고 있습니다.'))), body: DesktopMenuBody(child: SafeArea(top: false, child: LayoutBuilder(builder: (context, constraints) {
-      final documentBody = !_leaseGranted
+   ]))]), bottomNavigationBar: _canEdit?null:SafeArea(child:Padding(padding:const EdgeInsets.all(12),child:Text('읽기 전용 워크스페이스입니다.'))), body: DesktopMenuBody(child: SafeArea(top: false, child: LayoutBuilder(builder: (context, constraints) {
+      final documentBody = !_canEdit
         ? SingleChildScrollView(child:SelectableText(_body.text))
         : _preview
         ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
@@ -225,16 +267,16 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
           child: TextField(key: const ValueKey('project-document'), readOnly: _saving, controller: _body, focusNode: _bodyFocus, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
           onTapOutside: _wide ? null : (_) {},
           onTap: () => _body.openAtCaret(context), textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
-          decoration: InputDecoration(fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder()))));
-      final documentInput = !_leaseGranted || _preview ? documentBody : DragTarget<Object>(key: const ValueKey('document-link-drop'),
+          decoration: InputDecoration(contentPadding:EdgeInsets.fromLTRB(12,16,12,_dirty?36:16),fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder()))));
+      final documentInput = !_canEdit || _preview ? documentBody : DragTarget<Object>(key: const ValueKey('document-link-drop'),
         onWillAcceptWithDetails: (details) => !_saving && _dragKey(details.data) != null,
         onAcceptWithDetails: _dropLink, builder: (context, candidates, rejected) => KeyedSubtree(key: _dropEditorKey, child: documentBody));
       final panel = Material(key: const ValueKey('project-reference-panel'),
         color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(12),
         child: Padding(padding: const EdgeInsets.all(4), child: _referencesPanel()));
       final document = Column(children: [
-        if (!_preview) Align(key: const ValueKey('document-editor-toolbar'), alignment: Alignment.centerRight, child: TextButton.icon(style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12), tapTargetSize: MaterialTapTargetSize.shrinkWrap), onPressed: _leaseGranted && !_saving ? _insertTable : null, icon: const Icon(Icons.table_chart_outlined, size: 18), label: const Text('표 삽입'))),
-        Expanded(child: documentInput),
+        if (!_preview) Align(key: const ValueKey('document-editor-toolbar'), alignment: Alignment.centerRight, child: TextButton.icon(style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12), tapTargetSize: MaterialTapTargetSize.shrinkWrap), onPressed: _canEdit && !_saving ? _insertTable : null, icon: const Icon(Icons.table_chart_outlined, size: 18), label: const Text('표 삽입'))),
+        Expanded(child: Stack(children:[Positioned.fill(child:documentInput),if(_dirty&&!_preview)const Positioned(left:12,bottom:4,child:IgnorePointer(child:Text('아직 저장되지 않았습니다.',style:TextStyle(color:Colors.red,fontSize:12))))])),
       ]);
       return Column(children: [
         Expanded(child: Padding(padding: EdgeInsets.fromLTRB(_wide ? 12 : 6, 2, _wide ? 12 : 6, 0), child: _wide

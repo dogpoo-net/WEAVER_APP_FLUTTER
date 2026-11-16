@@ -1,3 +1,4 @@
+import 'document_merge.dart';
 import 'dart:async';
 import '../inbox/memo_comments.dart';
 import 'package:collection/collection.dart';
@@ -350,7 +351,7 @@ class WorkspaceSync extends ChangeNotifier {
     storage.canvasWritable=!readOnly;storage.syncCanvas=flushCanvas;
     storage.itemMetadata=(kind,id)=>base[itemKey(kind,id)];
     storage.comments=request;storage.commentsWritable=!readOnly;
-    storage.onChanged=schedule;storage.syncNow=flush;storage.syncDeleted=flushDeletions;storage.syncFolders=flushFolders;storage.refreshNow=refreshFromServer;storage.checkRemote=checkRemote;storage.syncContent=readOnly?null:()=>_enqueueFlush(false,contentOnly:true);storage.syncResource=(id)=>id.startsWith('canvas:')?flushCanvas():_enqueueFlush(false,resource:id);storage.reloadResource=reloadResource;storage.takeLease=takeLease;storage.inspectLease=inspectLease;storage.acquireLease=acquireLease;
+    storage.onChanged=schedule;storage.syncNow=flush;storage.syncDeleted=flushDeletions;storage.syncFolders=flushFolders;storage.refreshNow=refreshFromServer;storage.checkRemote=checkRemote;storage.syncContent=readOnly?null:()=>_enqueueFlush(false,contentOnly:true);storage.syncResource=(id)=>id.startsWith('canvas:')?flushCanvas():saveDocument(id);storage.reloadResource=reloadResource;storage.takeLease=takeLease;storage.inspectLease=inspectLease;storage.acquireLease=acquireLease;
     changed();if(storage.read()!=_lastSynced)schedule();
   }
   Future<void> refreshFromServer() async {
@@ -359,6 +360,39 @@ class WorkspaceSync extends ChangeNotifier {
     final oldSnapshot = _lastSynced;
     await (_running = initialize().whenComplete(() => _running = null));
     if (error != null) { base = previous; cursor = oldCursor; _lastSynced = oldSnapshot; throw EmailAuthFailure(error!); }
+  }
+  Future<void> saveDocument(String id)async{
+    await storage.flush();
+    while(_running!=null){await _running;}
+    await (_running=_saveDocument(id).whenComplete(()=>_running=null));
+  }
+  Future<void> _saveDocument(String id)async{
+    storage.lastSaveReplaced=false;
+    final local=splitWorkspace(storage.read());
+    final entry=local.entries.where((e)=>e.value['kind']=='list:notes'&&editResource(e.value)==id).firstOrNull;
+    if(entry==null)throw const EmailAuthFailure('저장할 문서를 찾지 못했습니다.');
+    var candidate=Map<String,dynamic>.from(entry.value['value'] as Map);
+    var expected=storage.documentSaveBases.containsKey(id)?storage.documentSaveBases[id]:base[entry.key];
+    for(var attempt=0;attempt<5;attempt++){
+      final result=await request('save',{'resourceId':id,'documentMerge':true,'changes':[{'kind':entry.value['kind'],'id':entry.value['id'],'value':candidate,'baseRevision':expected?['revision']??0,'deleted':false}]});
+      if(result['documentConflict'] is Map){
+        final remote=Map<String,dynamic>.from(result['documentConflict'] as Map);
+        if(remote['deleted']==true)throw const EmailAuthFailure('다른 기기에서 삭제된 문서입니다. 로컬 초안은 보관됩니다.');
+        remote['value']=jsonDecode(remote.remove('payload') as String);
+        final ancestor=expected?['value'];
+        if(ancestor is! Map)throw const EmailAuthFailure('문서의 원본 버전을 찾지 못했습니다. 로컬 초안은 보관됩니다.');
+        final plan=mergeDocument(Map<String,dynamic>.from(ancestor),candidate,Map<String,dynamic>.from(remote['value'] as Map));
+        if(plan.hasConflicts)throw DocumentMergeConflict(plan,remote);
+        candidate=plan.resolve();expected=remote;continue;
+      }
+      final row=Map<String,dynamic>.from((result['changes'] as List).single as Map);
+      row['value']=jsonDecode(row.remove('payload') as String);
+      base[entry.key]=row;storage.documentSaveBases[id]=row;
+      await storage.flush();final current=splitWorkspace(storage.read());current[entry.key]=row;
+      await storage.replaceFromBackup(joinWorkspace(current));await saveBase();
+      storage.applyServerSnapshot?.call();error=null;return;
+    }
+    throw const EmailAuthFailure('다른 사용자의 저장이 계속되고 있습니다. 초안을 보관했으니 다시 저장해주세요.');
   }
   Future<void> flushFolders() => _enqueueFlush(false, foldersOnly: true);
   Future<void> flush() async {await flushCanvas();await _enqueueFlush(false);}

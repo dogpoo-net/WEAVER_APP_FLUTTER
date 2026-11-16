@@ -947,7 +947,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     final project = await Navigator.push<WritingProject>(
       context,
       MaterialPageRoute(
-        builder: (_) => DesktopMenuFrame(child: ProjectDocumentEditor(projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: _persist)),
+        builder: (_) => DesktopMenuFrame(child: ProjectDocumentEditor(storage:widget.storage,projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: _persist)),
       ),
     );
     if (project == null || !mounted) return;
@@ -955,7 +955,11 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       ..project = project
       ..paragraphs = project.paragraphs;
     setState(() => _notes.insert(0, note));
-    await _saveAndSync(resource:project.id);
+    final newDraft=widget.storage?.documentDraft('new-document');
+    if(newDraft!=null)await widget.storage!.writeDocumentDraft(project.id,newDraft);
+    widget.storage?.documentSaveBases[project.id]=null;
+    try{await _saveAndSync(resource:project.id);await widget.storage?.writeDocumentDraft(project.id,null);await widget.storage?.writeDocumentDraft('new-document',null);}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('문서를 로컬에 보관했습니다. 서버에 저장하지 못했습니다. $e')));await _showProject(note);return;}
     if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('저장되었습니다.')));
     await _showProject(note);
   }

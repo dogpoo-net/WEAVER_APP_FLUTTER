@@ -335,6 +335,23 @@ class WorkspaceStorage {
   String? currentUserId;
   Future<Map<String,dynamic>> Function(String,Map<String,Object?>)? comments;
   bool commentsWritable=false;
+  final documentDraftChanges=ValueNotifier<int>(0);
+  final documentSaveBases=<String,Map<String,dynamic>?>{};
+  Map<String,dynamic>? documentDraft(String id){
+    final raw=preferences.getString(scoped('document.draft.$id'));
+    if(raw==null)return null;
+    final draft=jsonDecode(raw) as Map<String,dynamic>;
+    return draft['saved']==0?draft:null;
+  }
+  Future<void> writeDocumentDraft(String id,Map<String,dynamic>? draft){
+    final encoded=jsonEncode(draft==null?{'saved':1}:{...draft,'saved':0});
+    final task=_pending.catchError((Object _){}).then((_)async{
+      await writable();
+      if(!await preferences.setString(scoped('document.draft.$id'),encoded))throw StateError('Document draft save failed');
+      documentDraftChanges.value++;
+    });
+    _pending=task;return task;
+  }
   bool canvasWritable=true;
   bool canvasInteracting=false;
   final canvasSaveState=ValueNotifier<String>('저장됨');

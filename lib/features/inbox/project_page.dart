@@ -1,4 +1,4 @@
-import 'dart:async';
+import '../sync/document_merge.dart';
 import 'workspace_storage.dart';
 import 'document_markup.dart';
 import 'workspace_routes.dart';
@@ -40,8 +40,8 @@ class ProjectPage extends StatefulWidget {
   @override State<ProjectPage> createState()=>_ProjectPageState();
 }
 class _ProjectPageState extends State<ProjectPage>{
- Timer? _readTimer;
- bool _refreshing = false, _editing = false, _deleted = false;
+
+ bool _editing = false, _deleted = false;
  void _changed(){
    if(!mounted || _editing)return;
    final raw=widget.storage?.read();
@@ -52,16 +52,9 @@ class _ProjectPageState extends State<ProjectPage>{
    }
    setState((){});
  }
- Future<void> _refreshRead() async {
-   final state=WidgetsBinding.instance.lifecycleState;
-   if(!mounted || _editing || _refreshing || ModalRoute.of(context)?.isCurrent!=true || (state!=null && state!=AppLifecycleState.resumed))return;
-   final refresh=refreshWorkspaceForRead ?? widget.onReload ?? widget.storage?.refreshNow;
-   if(refresh==null)return;
-   _refreshing=true;
-   try { await refresh(); if(mounted && !_editing)_changed(); } catch (_) { /* Keep the last readable version and retry on the next tick. */ }
-   finally {_refreshing=false;}
- }
- @override void initState(){super.initState();widget.storage?.liveChanges.addListener(_changed);_readTimer=Timer.periodic(const Duration(seconds:3),(_)=>_refreshRead());}
- @override void dispose(){_readTimer?.cancel();widget.storage?.liveChanges.removeListener(_changed);super.dispose();}
- @override Widget build(BuildContext context)=>DesktopMenuFrame(child:Scaffold(appBar:AppBar(title:WorkspaceTitle(widget.project.title),actions:[if(widget.onHistory!=null)IconButton(tooltip:'문서 변경 이력',onPressed:()=>widget.onHistory!(widget.project.id),icon:const Icon(Icons.history)),if(!_deleted)IconButton(tooltip:'문서 수정',icon:const Icon(Icons.edit_outlined),onPressed:()async{_editing=true;await Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>DesktopMenuFrame(child:ProjectDocumentEditor(project:widget.project,projects:widget.projects,onChanged:widget.onChanged,onSave:widget.onSave,onHistory:widget.onHistory,onLease:widget.onLease,storage:widget.storage,onReload:widget.onReload))));if(mounted){_editing=false;setState((){});_refreshRead();}})]),body:DesktopMenuBody(child:SelectionArea(child:SingleChildScrollView(padding:const EdgeInsets.all(20),child:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:900),child:_deleted?const Text('다른 기기에서 삭제된 문서입니다.'):DocumentMarkup(text:widget.project.content,links:widget.project.documentLinks))))))));
+ @override void initState(){super.initState();widget.storage?.documentDraftChanges.addListener(_changed);}
+ @override void dispose(){widget.storage?.documentDraftChanges.removeListener(_changed);super.dispose();}
+ Map<String,dynamic>? get _draft=>widget.storage?.documentDraft(widget.project.id);
+ DocumentSegment get _display=>_draft==null?DocumentSegment(widget.project.content,widget.project.documentLinks):DocumentSegment(_draft!['text'] as String,[for(final b in _draft!['links'] as List)ElementBinding(b['id'] as String,b['start'] as int,b['end'] as int)]);
+ @override Widget build(BuildContext context)=>DesktopMenuFrame(child:Scaffold(appBar:AppBar(title:WorkspaceTitle(widget.project.title),actions:[if(widget.onHistory!=null)IconButton(tooltip:'문서 변경 이력',onPressed:()=>widget.onHistory!(widget.project.id),icon:const Icon(Icons.history)),if(!_deleted)IconButton(tooltip:'문서 수정',icon:const Icon(Icons.edit_outlined),onPressed:()async{_editing=true;await Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>DesktopMenuFrame(child:ProjectDocumentEditor(project:widget.project,projects:widget.projects,onChanged:widget.onChanged,onSave:widget.onSave,onHistory:widget.onHistory,onLease:widget.onLease,storage:widget.storage,onReload:widget.onReload))));if(mounted){_editing=false;_changed();}})]),body:DesktopMenuBody(child:SelectionArea(child:SingleChildScrollView(padding:const EdgeInsets.all(20),child:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:900),child:_deleted?const Text('다른 기기에서 삭제된 문서입니다.'):Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[if(_draft!=null)const Padding(padding:EdgeInsets.only(bottom:12),child:Text('아직 저장되지 않았습니다.',style:TextStyle(color:Colors.red))),DocumentMarkup(text:_display.text,links:_display.links)]))))))));
 }
