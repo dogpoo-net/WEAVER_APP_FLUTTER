@@ -84,6 +84,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     return false;
   }
   final _selected = <String>{};
+  Offset? _canvasTapDown;
+  int? _canvasTapPointer;
   String? _rangeAnchor;
   Offset? _selectionStart, _selectionEnd, _selectionDown, _selectionGlobalDown;
   final _selectionDragOrigins = <String, Offset>{};
@@ -792,7 +794,18 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               viewport.maxHeight / 2 - (top + bottom) / 2 * scale, 0);
           });
         }
-        return InteractiveViewer(key: _viewportKey,
+        return Listener(
+          onPointerDown:(event){if(_canvasTapPointer!=null){_canvasTapDown=null;return;}_canvasTapPointer=event.pointer;_canvasTapDown=event.position;},
+          onPointerMove:(event){if(_canvasTapDown!=null&&(event.position-_canvasTapDown!).distance>4)_canvasTapDown=null;},
+          onPointerCancel:(_){_canvasTapDown=null;_canvasTapPointer=null;},
+          onPointerUp:(event){
+            final click=_canvasTapPointer==event.pointer&&_canvasTapDown!=null;
+            _canvasTapDown=null;_canvasTapPointer=null;
+            if(!click||_selected.isEmpty)return;
+            final scene=_sceneKey.currentContext?.findRenderObject() as RenderBox?;
+            if(scene==null)return;final point=scene.globalToLocal(event.position);
+            if(!records.any((r)=>RRect.fromRectAndRadius(_bounds(r.id),Radius.circular(widget.blocks?6:12)).contains(point)))setState((){_selected.clear();_rangeAnchor=null;});
+          },child:InteractiveViewer(key: _viewportKey,
         panEnabled: !_canEdit || !_rangeSelection, scaleEnabled: !_canEdit || !_rangeSelection,
         onInteractionEnd: (_) => _saveLayout(flush: true),
         transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: MediaQuery.sizeOf(context).width >= 760 ? 12 : 8,
@@ -988,7 +1001,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   if (selectsVisibleThought(range,_bounds(records[i].id),records.skip(i+1).map((r)=>_bounds(r.id)),radius:widget.blocks?6:12)) _selected.add(records[i].id);
                 }
               } else {
-                if (!_selected.add(hit.id)) _selected.remove(hit.id);
+                if(_ctrlPressed||_selectionMode){if(!_selected.add(hit.id))_selected.remove(hit.id);}
+                else{_selected..clear()..add(hit.id);}
                 _rangeAnchor=hit.id;
               }
             }),
@@ -1035,7 +1049,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               color.primary, widget.blocks ? 6 : 12, captureAll: _rangeSelection)),
           ))),
         ])))),
-      ); })),
+      )); })),
         if (_canEdit && _selected.isNotEmpty) Positioned(top: 8, right: 12, child: Material(key: const ValueKey('canvas-layer-panel'),
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: IntrinsicWidth(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -1120,7 +1134,7 @@ class _SelectionPainter extends CustomPainter {
   bool hitTest(Offset position) {
     if (captureAll) return true;
     for (final item in selected.reversed) {
-      if (RRect.fromRectAndRadius(item.rect,Radius.circular(radius)).contains(position)) return item.selected;
+      if (RRect.fromRectAndRadius(item.rect,Radius.circular(radius)).contains(position)) return true;
     }
     return false;
   }

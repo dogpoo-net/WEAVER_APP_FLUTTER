@@ -23,6 +23,19 @@ void main(){for(final blocks in [false,true]){testWidgets('Ctrl drag selects wit
  final shift=layout.positions[a.id]!-startA;
  expect(shift.distance,greaterThan(40));expect(layout.positions[b.id]!-startB,shift);
  expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'2');
+ await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${a.id}'))));await tester.pumpAndSettle();
+ expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'1');
+ await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${b.id}'))));await tester.pumpAndSettle();
+ expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'1');
+ expect(find.byType(AlertDialog),findsNothing);
+ await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
+ await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${a.id}'))));await tester.pump();
+ await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
+ expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'2');
+ final canvas=tester.renderObject<RenderBox>(find.byKey(const ValueKey('canvas-selection')));
+ await tester.tapAt(canvas.localToGlobal(const Offset(450,450)));await tester.pumpAndSettle();
+ expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'');
+ expect(find.byKey(const ValueKey('canvas-selection')),findsNothing);
  await tester.pumpWidget(const SizedBox());
 });
 testWidgets('Shift click selects spatial range ($blocks)',(tester)async{
