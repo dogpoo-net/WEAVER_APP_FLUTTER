@@ -39,10 +39,10 @@ void main() {
     final date = find.byKey(const ValueKey('element-created-at'));
     final author = find.byKey(const ValueKey('element-author'));
     expect(find.text('테스트 작성자'), findsOneWidget);
-    expect(tester.getTopLeft(author).dx, greaterThan(tester.getTopLeft(date).dx));
+    expect(tester.getTopLeft(author).dx, lessThan(tester.getTopLeft(date).dx));
     expect(tester.getCenter(author).dy, closeTo(tester.getCenter(date).dy, 1));
     expect(tester.getTopLeft(date).dy, greaterThanOrEqualTo(tester.getBottomRight(find.byKey(const ValueKey('element-tags'))).dy));
-    expect(tester.getBottomRight(date).dy, lessThan(tester.getTopLeft(editor).dy));
+    expect(tester.getTopLeft(date).dy, greaterThan(tester.getBottomRight(editor).dy));
     expect(find.byKey(const ValueKey('element-connections-divider')), findsNothing);
     for (final removed in ['검색에서 숨기기', '메인과 생각 어시스트에 표시하지 않습니다.', '생성일', '문서 사용', '사용 위치', '함께 쓰인 생각', '원소 삭제']) {
       expect(find.text(removed), findsNothing);
@@ -50,6 +50,7 @@ void main() {
     expect(tester.widget<AlertDialog>(dialog).actions!.length, 3);
     final divider = find.byKey(const ValueKey('element-actions-divider'));
     expect(divider, findsOneWidget);
+    expect(tester.getTopLeft(date).dy-tester.getBottomRight(divider).dy, closeTo(2, .1));
     expect(tester.getTopLeft(find.text('댓글보기')).dy, greaterThanOrEqualTo(tester.getBottomRight(divider).dy));
 
     final save = find.widgetWithText(FilledButton, '저장');

@@ -322,14 +322,6 @@ class _ElementMetadataState extends State<_ElementMetadata> {
           }),
       ]),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
-        Row(children: [
-          Expanded(child: Text(element.createdAt.toLocal().toString().split('.').first,
-            key: const ValueKey('element-created-at'), style: Theme.of(context).textTheme.bodySmall)),
-          const SizedBox(width: 8),
-          Flexible(child: Text(workspaceMemoAuthor?.call(element.id) ?? '작성자 정보 없음',
-            key: const ValueKey('element-author'), textAlign: TextAlign.right,
-            style: Theme.of(context).textTheme.bodySmall)),
-        ]),
         Flexible(child: SizedBox(
         width: mobile ? MediaQuery.sizeOf(context).width : 440,
         child: SingleChildScrollView(controller: _contentScroll, primary: false,
@@ -413,7 +405,16 @@ class _ElementMetadataState extends State<_ElementMetadata> {
           ),
         ),
       )),
-        const Divider(key: ValueKey('element-actions-divider'), height: 16, thickness: 1),
+        const Padding(padding: EdgeInsets.only(top: 8),
+          child: Divider(key: ValueKey('element-actions-divider'), height: 1, thickness: 1)),
+        Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
+          Flexible(child: Text(workspaceMemoAuthor?.call(element.id) ?? '작성자 정보 없음',
+            key: const ValueKey('element-author'), maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall)),
+          Text(' ', style: Theme.of(context).textTheme.bodySmall),
+          Text(element.createdAt.toLocal().toString().split('.').first,
+            key: const ValueKey('element-created-at'), style: Theme.of(context).textTheme.bodySmall),
+        ])),
         Row(mainAxisAlignment: MainAxisAlignment.end, children: [
           TextButton(onPressed: () => showMemoComments(context, element.id), child: const Text('댓글보기')),
           TextButton(onPressed: () => showMemoComments(context, element.id, write: true), child: const Text('댓글쓰기')),
