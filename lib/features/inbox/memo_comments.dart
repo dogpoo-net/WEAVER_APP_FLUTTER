@@ -6,6 +6,7 @@ import 'workspace_routes.dart';
 typedef CommentRequest = Future<Map<String,dynamic>> Function(String, Map<String,Object?>);
 CommentRequest? memoCommentRequest;
 bool memoCommentsWritable = false;
+final memoCommentCounts = ValueNotifier<Map<String,int>>({});
 String commentAge(DateTime date, DateTime now) {
   final seconds=max(0,now.difference(date).inSeconds);
   if(seconds<60)return '$seconds초 전';
@@ -34,6 +35,7 @@ class _CommentsState extends State<_Comments> {
  Future<void> load({bool older=false})async{
   if(loading)return;setState((){loading=true;error=null;});
   try{final r=await widget.request('comments/read',{'memoId':widget.memoId,if(older&&items.isNotEmpty)'beforeId':items.last['id']});if(!mounted)return;
+   if(r['commentCount'] is num)memoCommentCounts.value={...memoCommentCounts.value,widget.memoId:(r['commentCount'] as num).toInt()};
    final rows=(r['comments'] as List).map((e)=>Map<String,dynamic>.from(e as Map)).toList();setState((){items=older?[...items,...rows]:rows;more=rows.length==50;});
   }catch(e){if(mounted)setState(()=>error='$e');}finally{if(mounted)setState(()=>loading=false);}
  }
@@ -43,6 +45,7 @@ class _CommentsState extends State<_Comments> {
   if(requestId==null||submittedText!=content){final r=Random.secure();final h=List.generate(32,(_)=>r.nextInt(16).toRadixString(16)).join();requestId='${h.substring(0,8)}-${h.substring(8,12)}-${h.substring(12,16)}-${h.substring(16,20)}-${h.substring(20)}';submittedText=content;}
   setState((){sending=true;error=null;});
   try{await saveWorkspaceContent?.call();final r=await widget.request('comments/write',{'memoId':widget.memoId,'content':content,'requestId':requestId});if(!mounted)return;
+   if(r['commentCount'] is num)memoCommentCounts.value={...memoCommentCounts.value,widget.memoId:(r['commentCount'] as num).toInt()};
    setState((){items=(r['comments'] as List).map((e)=>Map<String,dynamic>.from(e as Map)).toList();more=items.length==50;text.clear();requestId=null;submittedText=null;});
   }catch(e){if(mounted)setState(()=>error='$e');}finally{if(mounted)setState(()=>sending=false);}
  }

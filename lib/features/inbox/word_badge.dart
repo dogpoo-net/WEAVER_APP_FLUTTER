@@ -1,3 +1,4 @@
+import 'memo_comments.dart';
 import '../capture/attachment_indicators.dart';
 import 'element_store.dart';
 import 'dart:math';
@@ -147,10 +148,11 @@ class WordBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return LayoutBuilder(builder: (context, constraints) {
+    return ValueListenableBuilder<Map<String,int>>(valueListenable:memoCommentCounts,builder:(context,counts,_)=>LayoutBuilder(builder: (context, constraints) {
     final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : MediaQuery.sizeOf(context).width - 24;
     final labelColor = tag ? Color(hashtagColors[word.replaceFirst('#', '')] ?? 0xFF90A4AE) : null;
     final record = tag ? null : elements.records[word];
+    final commentCount=record==null?0:counts[record.id]??0;
     final indicators = record != null && AttachmentIndicators.hasAttachments(record);
     final title = singleLine ? (displayText ?? word).replaceAll(RegExp(r'[\r\n]+'), ' ') : displayText ?? word;
     var prefixWidth = 0.0;
@@ -189,10 +191,17 @@ class WordBadge extends StatelessWidget {
         if (indicators) ...[AttachmentIndicators(record: record), const SizedBox(width: 4)],
         Flexible(child: Text.rich(label,
         maxLines: square ? ((constraints.maxHeight - 20) / 20).floor().clamp(1, 100) : fullText && !singleLine ? null : 1, softWrap: fullText && !singleLine, overflow: square ? TextOverflow.ellipsis : fullText && !singleLine ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '문서:$title' : labelTarget ? '라벨:$title' : memo ? '메모:$title' : title)),
+        if(commentCount>0) Padding(padding:const EdgeInsets.only(left:4),child:Tooltip(
+          message:'댓글 $commentCount개',child:Container(
+            padding:const EdgeInsets.symmetric(horizontal:4,vertical:1),
+            decoration:BoxDecoration(borderRadius:BorderRadius.circular(20),border:Border.all(color:wordColor(context,word).withValues(alpha:.65))),
+            child:Text('$commentCount',key:ValueKey('comment-count-${record!.id}'),style:const TextStyle(fontSize:10,height:1.1)),
+          ))),
+
       ]),
     ));
     return onDoubleTap == null ? badge : GestureDetector(onDoubleTap: onDoubleTap, child: badge);
-    });
+    }));
   }
 }
 

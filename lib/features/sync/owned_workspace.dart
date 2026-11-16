@@ -1,3 +1,4 @@
+import '../inbox/memo_comments.dart';
 import 'package:collection/collection.dart';
 import 'dart:convert';
 import 'dart:math';
@@ -208,7 +209,9 @@ class WorkspaceSync extends ChangeNotifier {
     if(_disposed || !isCurrent())throw const EmailAuthFailure('계정이 변경되었습니다.');
     if(readOnly && {'save','claim','media/write','document-lease','comments/write'}.contains(action))throw const EmailAuthFailure('읽기 전용 워크스페이스입니다.');
     final result=await api.workspace(action,{...body,if(workspaceId!=null)'workspaceId':workspaceId});
-    if(_disposed || !isCurrent())throw const EmailAuthFailure('계정이 변경되었습니다.');return result;
+    if(_disposed || !isCurrent())throw const EmailAuthFailure('계정이 변경되었습니다.');
+    if(result['commentCounts'] is Map){final counts=(result['commentCounts'] as Map).map((key,value)=>MapEntry(key.toString(),(value as num).toInt()));if(!mapEquals(counts,memoCommentCounts.value))memoCommentCounts.value=counts;}
+    return result;
   }
   void loadBase(){
     final raw=storage.preferences.getString(storage.syncKey);if(raw==null)return;
@@ -268,7 +271,7 @@ class WorkspaceSync extends ChangeNotifier {
       await saveBase();_observedRevision=result['revision'] as int;ready=true;error=null;
     }catch(e){error=e.toString();}
     storage.itemMetadata=(kind,id)=>base[itemKey(kind,id)];
-    storage.comments=request;storage.commentsWritable=!readOnly;
+    memoCommentCounts.value={};storage.comments=request;storage.commentsWritable=!readOnly;
     storage.onChanged=schedule;storage.syncNow=flush;storage.syncDeleted=flushDeletions;storage.syncFolders=flushFolders;storage.refreshNow=refreshFromServer;storage.checkRemote=checkRemote;storage.syncContent=readOnly?null:()=>_enqueueFlush(false,contentOnly:true);storage.syncResource=(id)=>_enqueueFlush(false,resource:id);storage.reloadResource=reloadResource;storage.takeLease=takeLease;storage.inspectLease=inspectLease;storage.acquireLease=acquireLease;
     changed();if(ready && storage.read()!=_lastSynced)schedule();
   }
@@ -397,5 +400,5 @@ class WorkspaceSync extends ChangeNotifier {
     await storage.flush();if(storage.read()==_lastSynced){final raw=storage.read();await storage.clear();await storage.preferences.remove(storage.syncKey);
       if(raw!=null){final snapshot=WorkspaceSnapshot.decode(raw);for(final r in [...snapshot.records,...snapshot.trashRecords]){for(final id in [...r.photos.map((p)=>p.id),...r.recordings.map((c)=>c.id)]){try{await MediaStorage.delete(id,owner:storage.owner);}catch(_){}await storage.preferences.remove(storage.scoped('media-sent.$id'));}}}}
   }
-  @override void dispose(){_disposed=true;storage.comments=null;storage.commentsWritable=false;storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;storage.inspectLease=null;storage.acquireLease=null;super.dispose();}
+  @override void dispose(){memoCommentCounts.value={};_disposed=true;storage.comments=null;storage.commentsWritable=false;storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;storage.inspectLease=null;storage.acquireLease=null;super.dispose();}
 }

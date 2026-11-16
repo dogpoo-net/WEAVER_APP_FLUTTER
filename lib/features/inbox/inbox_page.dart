@@ -222,6 +222,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     refreshWorkspaceForRead = _refreshForBrowse;
     saveWorkspaceContent = _saveAndSync;
     workspaceMemoAuthor=(id)=>overviewAuthor(widget.storage,'list:elements',id);
+    if(widget.storage?.comments==null)memoCommentCounts.value={};
     memoCommentRequest=widget.storage?.comments;memoCommentsWritable=widget.storage?.commentsWritable??false;
     widget.storage?.applyServerSnapshot=_applyRemoteSnapshot;
     desktopMenu.visible = true;
