@@ -335,6 +335,10 @@ class WorkspaceStorage {
   String? currentUserId;
   Future<Map<String,dynamic>> Function(String,Map<String,Object?>)? comments;
   bool commentsWritable=false;
+  bool canvasWritable=true;
+  bool canvasInteracting=false;
+  final canvasSaveState=ValueNotifier<String>('저장됨');
+  Future<void> Function()? syncCanvas;
   final editorResources=<String>[];
   Future<Map<String,dynamic>> Function(String,String,bool)? documentLease;
   bool lastSaveReplaced=false;
@@ -382,6 +386,22 @@ class WorkspaceStorage {
       await writable();
       if (preferences.getString(layoutsKey) == data) return;
       if (!await preferences.setString(layoutsKey, data)) throw StateError('Graph save failed');
+      // Keep the synchronization snapshot current without rebuilding memo content.
+      final raw=read();
+      if(raw!=null){
+        final workspace=jsonDecode(raw) as Map<String,dynamic>;
+        final layouts=jsonDecode(data) as Map<String,dynamic>;
+        if(layouts['page'] is Map)workspace['graphLayout']=layouts['page'];
+        for(final box in workspace['memoBoxes'] as List? ?? []){
+          final layout=(layouts['boxes'] as Map?)?[box['name']];
+          if(layout is Map)box['layout']=layout;
+        }
+        final updated=jsonEncode(workspace);
+        if(updated!=raw){
+          if(!await preferences.setString('$workspaceKey.previous',raw)||!await preferences.setString(workspaceKey,updated))throw StateError('Graph snapshot save failed');
+          onChanged?.call();
+        }
+      }
     });
     _pending = task;
     return task;

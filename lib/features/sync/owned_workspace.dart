@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../inbox/memo_comments.dart';
 import 'package:collection/collection.dart';
 import 'dart:convert';
@@ -124,6 +125,14 @@ String? editResource(Map<String,dynamic>? item) {
   return item['kind'] == 'list:notes' && value is Map && value['project'] is Map ? value['project']['id'] as String? : null;
 }
 
+// Viewport/search are device-local. Geometry is synchronized per leaf item.
+bool sharedCanvasItem(Map<String,dynamic>? item) {
+  if(item?['kind']!='layout')return false;
+  final path=jsonDecode(item!['id'] as String) as List;
+  return !{'viewport','query','hideTags'}.contains(path.last);
+}
+bool localCanvasView(Map<String,dynamic>? item)=>item?['kind']=='layout'&&!sharedCanvasItem(item);
+
 class WorkspaceSync extends ChangeNotifier {
   WorkspaceSync(this.storage,this.api,{required this.isCurrent,this.workspaceId,this.readOnly=false}) { memoCommentCounts.value={}; }
   final WorkspaceStorage storage;
@@ -204,7 +213,75 @@ class WorkspaceSync extends ChangeNotifier {
   Future<void>? _running;
   String? _lastSynced;
   void changed(){if(!_disposed)notifyListeners();}
-  void schedule(){changed();}
+  Timer? _canvasTimer;
+  String get _canvasOutbox=>storage.scoped('canvas.outbox.v1');
+  bool get _canvasPending {
+    if(storage.preferences.containsKey(_canvasOutbox))return true;
+    final local=splitWorkspace(storage.read());
+    return {...base.keys,...local.keys}.any((key)=>sharedCanvasItem(local[key]??base[key])&&!sameItem(local[key],base[key]));
+  }
+  void schedule(){
+    changed();
+    if(_disposed || readOnly || !_canvasPending)return;
+    storage.canvasSaveState.value='저장 대기';
+    _canvasTimer?.cancel();
+    _canvasTimer=Timer(const Duration(milliseconds:750),_autoCanvas);
+  }
+  Future<void> _autoCanvas()async{
+    if(_disposed || !isCurrent())return;
+    if(storage.canvasInteracting){schedule();return;}
+    try{await flushCanvas();}catch(_){
+      if(!_disposed)_canvasTimer=Timer(const Duration(seconds:5),_autoCanvas);
+    }
+  }
+  Future<void> flushCanvas()async{
+    _canvasTimer?.cancel();
+    while(_running!=null){await _running;}
+    if(_disposed || readOnly || !isCurrent())return;
+    try{await (_running=_flushCanvas().whenComplete(()=>_running=null));}
+    catch(_){if(!_disposed)_canvasTimer=Timer(const Duration(seconds:5),_autoCanvas);rethrow;}
+    if(_canvasPending)schedule();
+  }
+  Future<void> _flushCanvas()async{
+    try{
+      await storage.flush();
+      final pending=storage.preferences.getString(_canvasOutbox);
+      Map<String,dynamic> body;
+      if(pending!=null){body=jsonDecode(pending) as Map<String,dynamic>;}else{
+        final local=splitWorkspace(storage.read());
+        final changes=<Map<String,dynamic>>[];
+        for(final key in {...base.keys,...local.keys}){
+          final item=local[key]??base[key]!;
+          if(!sharedCanvasItem(item)||sameItem(local[key],base[key]))continue;
+          changes.add({'kind':item['kind'],'id':item['id'],'value':local[key]?['value'],'deleted':local[key]==null,'baseRevision':base[key]?['revision']??0});
+        }
+        if(changes.isEmpty){storage.canvasSaveState.value='저장됨';return;}
+        body={'since':cursor,'canvasOperationId':digest('${DateTime.now().microsecondsSinceEpoch}:${Random.secure().nextDouble()}'),'changes':changes};
+        if(!await storage.preferences.setString(_canvasOutbox,jsonEncode(body)))throw StateError('Canvas outbox save failed');
+      }
+      storage.canvasSaveState.value='저장 중';
+      final result=await request('save',body);
+      await storage.flush();
+      final current=splitWorkspace(storage.read());
+      final submitted={for(final c in body['changes'] as List)itemKey(c['kind'],c['id']):Map<String,dynamic>.from(c as Map)};
+      for(final row in result['changes'] as List){
+        final item=Map<String,dynamic>.from(row as Map);
+        final key=itemKey(item['kind'],item['id']);
+        if(!submitted.containsKey(key))continue;
+        item['value']=item['payload']==null?null:jsonDecode(item.remove('payload') as String);
+        base[key]=item;
+        // Acknowledgement cannot replace a newer local drag.
+        if(sameItem(current[key],submitted[key])){
+          if(item['deleted']==true){current.remove(key);}else{current[key]=item;}
+        }
+      }
+      await storage.replaceFromBackup(joinWorkspace(current));
+      await saveBase();
+      if(!await storage.preferences.remove(_canvasOutbox))throw StateError('Canvas receipt save failed');
+      storage.applyServerSnapshot?.call();
+      storage.canvasSaveState.value='저장됨';error=null;
+    }catch(e){storage.canvasSaveState.value='로컬 보관 · 재시도 대기';rethrow;}
+  }
   Future<Map<String,dynamic>> request(String action,Map<String,Object?> body) async {
     if(_disposed || !isCurrent())throw const EmailAuthFailure('계정이 변경되었습니다.');
     if(readOnly && {'save','claim','media/write','document-lease','comments/write'}.contains(action))throw const EmailAuthFailure('읽기 전용 워크스페이스입니다.');
@@ -261,7 +338,7 @@ class WorkspaceSync extends ChangeNotifier {
       // A server response must not undo edits made while it was in flight,
       // or an explicit save already waiting behind this read.
       for(final key in {...beforeRead.keys,...local.keys,...previousBase.keys}){
-        if(!sameItem(local[key],beforeRead[key]) || (_pendingSaves>ignoredPendingSaves && !sameItem(local[key],previousBase[key]))){
+        if((!readOnly && sharedCanvasItem(local[key]??previousBase[key]) && !sameItem(local[key],previousBase[key])) || localCanvasView(local[key]) || !sameItem(local[key],beforeRead[key]) || (_pendingSaves>ignoredPendingSaves && !sameItem(local[key],previousBase[key]))){
           if(local[key]==null){displayed.remove(key);}else{displayed[key]=local[key]!;}
         }
       }
@@ -270,10 +347,11 @@ class WorkspaceSync extends ChangeNotifier {
       _lastSynced=joinWorkspace(base);
       await saveBase();_observedRevision=result['revision'] as int;ready=true;error=null;
     }catch(e){error=e.toString();}
+    storage.canvasWritable=!readOnly;storage.syncCanvas=flushCanvas;
     storage.itemMetadata=(kind,id)=>base[itemKey(kind,id)];
     storage.comments=request;storage.commentsWritable=!readOnly;
-    storage.onChanged=schedule;storage.syncNow=flush;storage.syncDeleted=flushDeletions;storage.syncFolders=flushFolders;storage.refreshNow=refreshFromServer;storage.checkRemote=checkRemote;storage.syncContent=readOnly?null:()=>_enqueueFlush(false,contentOnly:true);storage.syncResource=(id)=>_enqueueFlush(false,resource:id);storage.reloadResource=reloadResource;storage.takeLease=takeLease;storage.inspectLease=inspectLease;storage.acquireLease=acquireLease;
-    changed();if(ready && storage.read()!=_lastSynced)schedule();
+    storage.onChanged=schedule;storage.syncNow=flush;storage.syncDeleted=flushDeletions;storage.syncFolders=flushFolders;storage.refreshNow=refreshFromServer;storage.checkRemote=checkRemote;storage.syncContent=readOnly?null:()=>_enqueueFlush(false,contentOnly:true);storage.syncResource=(id)=>id.startsWith('canvas:')?flushCanvas():_enqueueFlush(false,resource:id);storage.reloadResource=reloadResource;storage.takeLease=takeLease;storage.inspectLease=inspectLease;storage.acquireLease=acquireLease;
+    changed();if(storage.read()!=_lastSynced)schedule();
   }
   Future<void> refreshFromServer() async {
     while (_running != null) { await _running; }
@@ -283,7 +361,7 @@ class WorkspaceSync extends ChangeNotifier {
     if (error != null) { base = previous; cursor = oldCursor; _lastSynced = oldSnapshot; throw EmailAuthFailure(error!); }
   }
   Future<void> flushFolders() => _enqueueFlush(false, foldersOnly: true);
-  Future<void> flush() => _enqueueFlush(false);
+  Future<void> flush() async {await flushCanvas();await _enqueueFlush(false);}
   Future<void> flushDeletions() => _enqueueFlush(true);
   Future<void> _enqueueFlush(bool deletionsOnly, {bool foldersOnly = false, bool contentOnly=false, String? resource}) async {
     // Capture explicit saves before waiting for an in-flight server read.
@@ -307,6 +385,7 @@ class WorkspaceSync extends ChangeNotifier {
       for(final key in {...base.keys,...local.keys}){
         if(resource==null && sameItem(local[key],base[key]))continue;
         final item=local[key]??base[key]!;
+        if(resource==null && item['kind']=='layout')continue;
         final scope=editResource(item)??editResource(base[key]);
         if(contentOnly && scope!=null)continue;
         if(resource!=null && scope!=resource)continue;
@@ -334,7 +413,7 @@ class WorkspaceSync extends ChangeNotifier {
             value = copy;
           }
         }
-        changes.add({'kind':item['kind'],'id':item['id'],'value':value,'deleted':!local.containsKey(key),'baseRevision':base[key]?['revision']??0});
+        changes.add({'kind':item['kind'],'id':item['id'],'value':value,'deleted':!local.containsKey(key),'baseRevision':base[key]?['revision']??0,if(item['kind']=='list:memoBoxes')'previousValue':base[key]?['value']});
       }
       if(changes.isNotEmpty || resource!=null){
         if (!deletionsOnly && !foldersOnly) { await uploadMedia(raw); }
@@ -344,6 +423,15 @@ class WorkspaceSync extends ChangeNotifier {
         // fetched on the next workspace open, not applied over an active editor.
         final returned={for(final row in result['changes'] as List)itemKey(row['kind'],row['id']):row};
         for(final c in changes){final key=itemKey(c['kind'],c['id']);base[key]={...c,'revision':returned[key]?['revision']??result['revision'],'author':returned[key]?['author'],'authorId':returned[key]?['authorId'],'updatedAt':returned[key]?['updatedAt']};}
+        final mergedBoxes=returned.values.where((row)=>row['kind']=='list:memoBoxes').toList();
+        if(mergedBoxes.isNotEmpty){
+          await storage.flush();final current=splitWorkspace(storage.read());var updated=false;
+          for(final row in mergedBoxes){final item=Map<String,dynamic>.from(row as Map);item['value']=item['payload']==null?null:jsonDecode(item.remove('payload') as String);final key=itemKey(item['kind'],item['id']);
+            final submitted=local[key];base[key]=item;
+            if(sameItem(current[key],submitted)&&!sameItem(current[key],item)){if(item['deleted']==true){current.remove(key);}else{current[key]=item;}updated=true;}
+          }
+          if(updated){await storage.replaceFromBackup(joinWorkspace(current));storage.applyServerSnapshot?.call();}
+        }
         if(resource!=null){
           for(final row in returned.values){final item=Map<String,dynamic>.from(row as Map);item['value']=item['payload']==null?null:jsonDecode(item.remove('payload') as String);base[itemKey(item['kind'],item['id'])]=item;}
           final current=splitWorkspace(storage.read())..removeWhere((_,item)=>editResource(item)==resource);
@@ -400,5 +488,5 @@ class WorkspaceSync extends ChangeNotifier {
     await storage.flush();if(storage.read()==_lastSynced){final raw=storage.read();await storage.clear();await storage.preferences.remove(storage.syncKey);
       if(raw!=null){final snapshot=WorkspaceSnapshot.decode(raw);for(final r in [...snapshot.records,...snapshot.trashRecords]){for(final id in [...r.photos.map((p)=>p.id),...r.recordings.map((c)=>c.id)]){try{await MediaStorage.delete(id,owner:storage.owner);}catch(_){}await storage.preferences.remove(storage.scoped('media-sent.$id'));}}}}
   }
-  @override void dispose(){memoCommentCounts.value={};_disposed=true;storage.comments=null;storage.commentsWritable=false;storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;storage.inspectLease=null;storage.acquireLease=null;super.dispose();}
+  @override void dispose(){memoCommentCounts.value={};_disposed=true;_canvasTimer?.cancel();storage.syncCanvas=null;storage.comments=null;storage.commentsWritable=false;storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;storage.inspectLease=null;storage.acquireLease=null;super.dispose();}
 }

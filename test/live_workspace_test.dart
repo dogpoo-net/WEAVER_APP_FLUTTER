@@ -23,7 +23,7 @@ class Server extends EmailAuthApi {
     }
     if(action=='save'){
       final changes=body['changes'] as List;
-      for(final c in changes){final key=itemKey(c['kind'],c['id']);if(body['resourceId']==null && (items[key]?['revision']??0)!=c['baseRevision'])throw const EmailAuthFailure('conflict',status:409);}
+      for(final c in changes){final key=itemKey(c['kind'],c['id']);if(body['canvasOperationId']==null && body['resourceId']==null && (items[key]?['revision']??0)!=c['baseRevision'])throw const EmailAuthFailure('conflict',status:409);}
       revision++;
       for(final c in changes){items[itemKey(c['kind'],c['id'])]={'kind':c['kind'],'id':c['id'],'payload':c['deleted']==true?null:jsonEncode(c['value']),'deleted':c['deleted'],'revision':revision};}
       return {'revision':revision,'changes':[for(final c in changes)items[itemKey(c['kind'],c['id'])]]};
@@ -45,7 +45,7 @@ void main(){
     edit['elements']=[];await a.storage.write(jsonEncode(edit));await a.flushDeletions();await b.refreshFromServer();expect(jsonDecode(b.storage.read()!)['elements'],isEmpty);
     a.dispose();b.dispose();server.dispose();
   });
-  test('Explicit save replaces a canvas snapshot and refresh discards local positions',()async{
+  test('Canvas patches work concurrently and explicit reload discards local positions',()async{
     final prefs=await SharedPreferences.getInstance(),server=Server();final a=WorkspaceSync(WorkspaceStorage(prefs,owner:'a'),server,isCurrent:()=>true),b=WorkspaceSync(WorkspaceStorage(prefs,owner:'b'),server,isCurrent:()=>true);
     await a.initialize();await a.storage.write(jsonEncode(sample()));await a.flush();await b.initialize();
     final tokenA='a'*64,tokenB='b'*64;
@@ -69,10 +69,10 @@ void main(){
     final local=sample();local['elements'][0]['text']='unsaved local';await a.storage.write(jsonEncode(local));int applied=0;a.storage.applyServerSnapshot=()=>applied++;
     await a.storage.syncContent!();expect(a.error,isNull);expect(a.storage.lastSaveReplaced,true);expect(applied,1);expect(a.storage.read(),contains('server wins'));expect(a.storage.read(),isNot(contains('unsaved local')));a.dispose();server.dispose();
   });
-  test('Canvas save includes unchanged positions so a later save fully replaces an earlier device',()async{
+  test('Canvas save leaves unchanged remote positions intact',()async{
     final prefs=await SharedPreferences.getInstance(),server=Server();final a=WorkspaceSync(WorkspaceStorage(prefs,owner:'a'),server,isCurrent:()=>true);
     await a.initialize();await a.storage.write(jsonEncode(sample()));await a.flush();
     final key=itemKey('layout','["page","positions","t"]');server.revision++;server.items[key]={...server.items[key]!,'payload':'[90,90]','revision':server.revision};
-    await a.storage.syncResource!('canvas:diagram');expect(server.items[key]!['payload'],'[10,20]');a.dispose();server.dispose();
+    await a.storage.syncResource!('canvas:diagram');expect(server.items[key]!['payload'],'[90,90]');a.dispose();server.dispose();
   });
 }

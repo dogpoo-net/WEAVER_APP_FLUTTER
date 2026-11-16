@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 
@@ -14,6 +15,21 @@ class GraphLayout {
   String query = '';
   bool hideTags = false;
   bool stacked = false;
+
+  void mergeRemote(GraphLayout remote, GraphLayout baseline) {
+    void points(Map<String,Offset> local,Map<String,Offset> next,Map<String,Offset> before){
+      for(final key in {...local.keys,...next.keys,...before.keys}){
+        if(local[key]!=before[key])continue;
+        if(next.containsKey(key)){local[key]=next[key]!;}else{local.remove(key);}
+      }
+    }
+    points(positions,remote.positions,baseline.positions);
+    points(sizes,remote.sizes,baseline.sizes);
+    points(tags,remote.tags,baseline.tags);
+    points(folderPositions,remote.folderPositions,baseline.folderPositions);
+    if(const ListEquality<String>().equals(layers,baseline.layers))layers..clear()..addAll(remote.layers);
+    if(stacked==baseline.stacked)stacked=remote.stacked;
+  }
 
   void copyFrom(GraphLayout other, {bool includeBlocks=true}) {
     if(includeBlocks){if(other._blocks!=null){blockLayout.copyFrom(other._blocks!);}else{_blocks=null;}}

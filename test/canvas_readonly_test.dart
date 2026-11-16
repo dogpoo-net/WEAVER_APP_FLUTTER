@@ -17,12 +17,13 @@ void main() {
       final memo=elements.add('읽기 전용 메모');
       SharedPreferences.setMockInitialValues({});
       final storage=WorkspaceStorage(await SharedPreferences.getInstance());
+      storage.canvasWritable=false;
       storage.documentLease=(id,token,release) async => release?{'released':true}:{'acquired':false,'holder':'다른 사용자'};
       var changed=0;
       await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,storage:storage,onChanged:()=>changed++)));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('canvas-readonly-notice')),findsOneWidget);
-      expect(find.text('다른 사용자 편집 중 · 읽기 전용'),findsOneWidget);
+      expect(find.text('읽기 전용 워크스페이스입니다.'),findsOneWidget);
       expect(find.text('선택'),findsNothing);
       final viewer=tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
       final transform=viewer.transformationController!;
