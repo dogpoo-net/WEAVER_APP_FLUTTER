@@ -589,6 +589,44 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       }
     }
   }
+  bool _deletingContainer=false;
+  Future<bool> _confirmContainerDelete(String name,String detail)async=>await showDialog<bool>(context:context,builder:(context)=>AlertDialog(
+    title:const Text('삭제하시겠습니까?'),content:Text('$name\n\n$detail'),
+    actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('취소')),
+      TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('삭제'))]))==true;
+  Future<void> _persistContainerDelete()async{
+    _saveLayout(flush:true);_changed();
+    final save=widget.onSave??saveWorkspaceContent;
+    if(save!=null)await save();
+    await widget.storage?.syncFolders?.call();
+  }
+  Future<void> _removeCanvasBoxes(Set<String> names)async{
+    if(!_canEdit||_deletingContainer)return;
+    _deletingContainer=true;
+    try{
+      await widget.storage?.writable();if(!mounted||!_canEdit)return;
+      final removed=memoBoxes.where((b)=>!b.isUnclassified&&names.contains(b.name)).toSet();
+      removeMemoBoxesKeepingThoughts(names);
+      _filters.boxes.removeWhere(removed.contains);_emptyBoxBounds.removeWhere((b,_)=>removed.contains(b));
+      await _persistContainerDelete();
+    }finally{_deletingContainer=false;}
+  }
+  Future<void> _deleteCanvasBox(MemoBox box)async{
+    if(!_canEdit||box.isUnclassified||_deletingContainer)return;
+    if(!await _confirmContainerDelete(box.name,'포함된 생각은 삭제하지 않고 미분류로 이동합니다.')||!mounted)return;
+    try{await _removeCanvasBoxes({box.name});}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('상자 삭제를 저장하지 못했습니다. $e')));}
+  }
+  Future<void> _deleteCanvasFolder(String folder)async{
+    if(!_canEdit||_deletingContainer)return;
+    if(!await _confirmContainerDelete(folder,'내부의 상자와 하위 폴더는 상위 폴더로 이동합니다.')||!mounted||!_canEdit)return;
+    _deletingContainer=true;
+    try{
+      await widget.storage?.writable();if(!mounted||!_canEdit)return;
+      removeMemoFolderKeepingContents(folder);_layout.folderPositions.remove(folder);_frozenFolders.remove(folder);
+      await _persistContainerDelete();
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('폴더 삭제를 저장하지 못했습니다. $e')));}
+    finally{_deletingContainer=false;}
+  }
   Future<void> _createBox() async {
     final box = await createMemoBox(context);
     if (mounted && box != null) _changed();
@@ -755,10 +793,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
       if(_lock!=null)IconButton(tooltip:_lock!.message??'편집 가능',onPressed:()=>_canEdit?_lock!.renew():_lock!.takeOver(context),icon:Icon(_canEdit?Icons.lock_open:Icons.lock_outline)),
       if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reloadCanvas,icon:const Icon(Icons.refresh)),
-      if (_canEdit && widget.blocks) MemoBoxActions(filters: _filters, onCreate: _createBox, onDelete: widget.onDeleteBoxes)
-      else if(_canEdit) PopupMenuButton<bool>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), padding: const EdgeInsets.symmetric(horizontal: 4), tooltip: '생각 만들기', icon: const Icon(Icons.add),
-        onSelected: (box) { if (box) { _createBox(); } else { _create(); } },
-        itemBuilder: (_) => const [PopupMenuItem(value: false, child: Text('생각 만들기')), PopupMenuItem(value: true, child: Text('상자 만들기'))]),
+      if(_canEdit)MemoBoxActions(filters:_filters,onCreate:_createBox,onCreateThought:_create,onDelete:_removeCanvasBoxes,preserveThoughts:true),
       PopupMenuButton<String>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: (value) {if(value=='all'){setState(() => _centered=false);}else if(_canEdit){_resetArrangement(value=='stack');}},
         itemBuilder: (_) => const [PopupMenuItem(value:'all',child:Text('전체 보기')),PopupMenuItem(value: 'spread', child: Text('펼쳐보기')), PopupMenuItem(value: 'stack', child: Text('겹쳐보기'))]),
       IconButton(tooltip: '저장 (Ctrl+S)', onPressed: _canEdit?_saveCanvas:null, icon: const Icon(Icons.save_outlined)),
@@ -818,7 +853,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: MediaQuery.sizeOf(context).width >= 760 ? 12 : 8,
         boundaryMargin: const EdgeInsets.all(double.infinity),
         child: AbsorbPointer(absorbing: !_canEdit, child: RepaintBoundary(child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
-          for (final folder in folders.entries) MemoFolderRegion(key: ValueKey('folder-region-${folder.key}'), name: folder.key, bounds: folder.value,
+          for (final folder in folders.entries) MemoFolderRegion(key: ValueKey('folder-region-${folder.key}'), name: folder.key, bounds: folder.value,onDelete:_canEdit?()=>_deleteCanvasFolder(folder.key):null,
             highlighted: _liftedFolder == folder.key,
             onLiftStart: (pointer) => _liftFolder(folder.key, pointer),
             onLiftMove: (pointer) => _moveLiftedFolder(folder.key, pointer),
@@ -838,7 +873,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               final shift = Offset(math.max(delta.dx, 32 - folder.value.left), math.max(delta.dy, 32 - folder.value.top));
               _moveFolder(folder.key, shift); _saveLayout();
             })),
-          for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds, highlighted: identical(_hoverBox, region.box) || identical(_liftedBox, region.box), rectangular: widget.blocks,
+          for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds,showLabel:false, highlighted: identical(_hoverBox, region.box) || identical(_liftedBox, region.box), rectangular: widget.blocks,
             onLiftStart: (pointer) => _liftBox(region.box, pointer),
             onLiftMove: (pointer) => _moveLiftedBox(region.box, pointer),
             onLiftEnd: (pointer) => _finishBoxDrag(region.box, pointer),
@@ -974,7 +1009,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               onLongPressEnd: (d) => _finishBoxDrag(region.box, d.globalPosition),
               onPanUpdate: (d) => setState(() => _dragBox(region.box, d.delta)),
               onPanEnd: (_) => _finishBoxDrag(region.box),
-              onPanCancel: () { if (!identical(_liftedBox, region.box)) _finishBoxDrag(region.box); })),
+              onPanCancel: () { if (!identical(_liftedBox, region.box)) _finishBoxDrag(region.box); },
+              child:Row(mainAxisAlignment:MainAxisAlignment.center,children:[Flexible(child:Text(region.box.name,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:Color(region.box.color),fontSize:13,fontWeight:FontWeight.w600))),
+                if(_canEdit&&!region.box.isUnclassified)IconButton(tooltip:'${region.box.name} 상자 삭제',onPressed:()=>_deleteCanvasBox(region.box),style:IconButton.styleFrom(minimumSize:const Size.square(24),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap),icon:const Icon(Icons.close,size:16)),
+              ]))),
           if (!widget.blocks) for (final tag in tags) Positioned(left: tagBounds(tagPositions['tag:$tag']!).left, top: tagBounds(tagPositions['tag:$tag']!).top,
             width: graphTagSize.width, height: graphTagSize.height,
             child: GestureDetector(key: ValueKey('graph-tag-$tag'), behavior: HitTestBehavior.opaque,
