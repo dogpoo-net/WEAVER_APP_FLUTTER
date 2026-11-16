@@ -3,10 +3,10 @@ import 'element_store.dart';
 
 /// The paper is translucent; the single-line title remains opaque.
 class ThoughtLabel extends StatelessWidget {
-  const ThoughtLabel({super.key, required this.record, required this.onHold, this.active = false});
+  const ThoughtLabel({super.key, required this.record, required this.onHold, this.active = false, this.movable = false});
   final ElementRecord record;
   final ValueChanged<bool> onHold;
-  final bool active;
+  final bool active, movable;
   static double width(BuildContext context, String text) {
     final painter = TextPainter(text: TextSpan(text: text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
       textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
@@ -19,7 +19,7 @@ class ThoughtLabel extends StatelessWidget {
     final paper = Color(record.indexLabelColor).withValues(alpha: .6);
     final blended = Color.alphaBlend(paper, Theme.of(context).colorScheme.surface);
     final ink = blended.computeLuminance() < .35 ? Colors.white : const Color(0xFF202020);
-    return Tooltip(message: record.indexLabel,
+    return Tooltip(message: record.indexLabel, triggerMode: movable ? TooltipTriggerMode.manual : null,
     child: Listener(key: ValueKey('label-hold-${record.id}'), behavior: HitTestBehavior.opaque,
       onPointerDown: (_) => onHold(true), onPointerUp: (_) => onHold(false), onPointerCancel: (_) => onHold(false),
       child: Material(color: Colors.transparent, child: Container(

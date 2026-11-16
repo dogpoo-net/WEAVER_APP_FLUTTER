@@ -657,7 +657,35 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       }
     }
   }
-  String? _frontThought;
+  String? _frontThought, _liftedLabel;
+  Offset? _labelPointer;
+  void _moveLabel(String id, Offset global) {
+    if (!_canEdit) return;
+    final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
+    if (scene == null) return;
+    setState(() { _liftedLabel = id; _labelPointer = scene.globalToLocal(global); });
+  }
+  Future<void> _dropLabel(ElementRecord source, Offset global) async {
+    final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
+    final point = scene?.globalToLocal(global);
+    setState(() { _liftedLabel = null; _labelPointer = null; });
+    if (!_canEdit || point == null) return;
+    final candidates = _records.where((r) => _bounds(r.id).inflate(16).contains(point)).toList()
+      ..sort((a,b) => _layout.layers.indexOf(a.id).compareTo(_layout.layers.indexOf(b.id)));
+    if (candidates.isEmpty) return;
+    final target = candidates.last;
+    if (target.id != source.id && target.indexLabel.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('이미 라벨이 있는 메모입니다. 기존 라벨을 옮기거나 지운 뒤 다시 시도해주세요.')));
+      return;
+    }
+    final title = source.indexLabel, color = source.indexLabelColor;
+    if (target.id != source.id) elements.update(source.text,source.text,indexLabel:'',tags:Set.of(source.tags),inlineLinks:source.inlineLinks);
+    elements.update(target.text,target.text,indexLabel:title,indexLabelColor:color,tags:Set.of(target.tags),
+      labelOnLeft:point.dx < _bounds(target.id).center.dx,inlineLinks:target.inlineLinks);
+    _changed();
+    try { await saveWorkspaceContent?.call(); }
+    catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('라벨 이동은 로컬에 저장했지만 서버에 저장하지 못했습니다. $e'))); }
+  }
   @override
   Widget build(BuildContext context) => SaveShortcuts(onSave:_saveCanvas,child:_build(context));
   bool _savingCanvas=false;
@@ -898,11 +926,16 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   ])))),
             ),
           for (final record in records.where((r) => r.indexLabel.isNotEmpty)) Positioned(
-            left: math.max(0, _positions[record.id]!.dx + (record.labelOnLeft ? -ThoughtLabel.width(context, record.indexLabel) + 4 : _size(record.id).width - 4)),
-            top: _positions[record.id]!.dy + 4, width: ThoughtLabel.width(context, record.indexLabel),
-            child: ThoughtLabel(key: ValueKey('thought-label-${record.id}'), record: record,
+            left: _liftedLabel == record.id ? _labelPointer!.dx - ThoughtLabel.width(context, record.indexLabel) / 2 : math.max(0, _positions[record.id]!.dx + (record.labelOnLeft ? -ThoughtLabel.width(context, record.indexLabel) + 4 : _size(record.id).width - 4)),
+            top: _liftedLabel == record.id ? _labelPointer!.dy - 12 : _positions[record.id]!.dy + 4, width: ThoughtLabel.width(context, record.indexLabel),
+            child: GestureDetector(
+              onLongPressStart: widget.blocks && _canEdit ? (d) => _moveLabel(record.id,d.globalPosition) : null,
+              onLongPressMoveUpdate: widget.blocks && _canEdit ? (d) => _moveLabel(record.id,d.globalPosition) : null,
+              onLongPressEnd: widget.blocks && _canEdit ? (d) => _dropLabel(record,d.globalPosition) : null,
+              onLongPressCancel: () { if (_liftedLabel != null) setState(() { _liftedLabel=null;_labelPointer=null; }); },
+              child: ThoughtLabel(key: ValueKey('thought-label-${record.id}'), record: record, movable: widget.blocks && _canEdit,
               active: _frontThought == record.id,
-              onHold: (held) => setState(() { if (held) { _frontThought = record.id; } else if (_frontThought == record.id) { _frontThought = null; } }))),
+              onHold: (held) => setState(() { if (held) { _frontThought = record.id; } else if (_frontThought == record.id) { _frontThought = null; } })))),
           for (final region in regions) Positioned(
             left: region.bounds.center.dx - (widget.blocks ? region.bounds.width - 64 : region.bounds.width * .45) / 2,
             top: region.bounds.top + 8,
