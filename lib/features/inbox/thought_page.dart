@@ -1,5 +1,4 @@
 import 'memo_comments.dart';
-import 'edit_lock.dart' show confirmReload;
 import 'package:flutter/services.dart';
 import 'workspace_storage.dart';
 import 'save_shortcuts.dart';
@@ -29,11 +28,11 @@ import 'graph_arrangement.dart';
 
 /// A live workspace over the same thoughts and tags.
 class ThoughtPage extends StatefulWidget {
-  const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.onReload, this.box, this.blocks = false, this.viewSelector, this.filters, this.onDeleteBoxes});
+  const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.box, this.blocks = false, this.viewSelector, this.filters, this.onDeleteBoxes});
   final Future<void> Function(Set<String>)? onDeleteBoxes;
   final VoidCallback onChanged;
   final VoidCallback? onLayoutChanged;
-  final Future<void> Function()? onSave, onReload;
+  final Future<void> Function()? onSave;
   final WorkspaceStorage? storage;
   final MemoBox? box;
   final bool blocks;
@@ -60,13 +59,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   final _activeCanvasPointers=<int>{};
   String get _resource=>widget.blocks?'canvas:boxes':'canvas:diagram';
   bool get _canEdit=>widget.storage?.canvasWritable??true;
-  Future<void> _reloadCanvas()async{
-    if(widget.onReload==null || !await confirmReload(context))return;
-    try{
-      _saveTimer?.cancel();await widget.onReload!();if(!mounted)return;_layout.copyFrom(_targetLayout);
-      setState((){_positions..clear()..addAll(_layout.positions);_tagPositions..clear()..addAll(_layout.tags);_emptyBoxBounds.clear();_frozenFolders.clear();_centered=false;_sync();});
-    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('갱신하지 못했습니다. $e')));}
-  }
   late final TextEditingController _search;
   String? _draggingId;
   final _dragStartStacks = <String, Set<String>>{};
@@ -813,7 +805,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40), maximumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
       if(widget.storage!=null)ValueListenableBuilder<String>(valueListenable:widget.storage!.canvasSaveState,builder:(context,state,_)=>Tooltip(message:state,child:Padding(padding:const EdgeInsets.symmetric(horizontal:4),child:Icon(state=='저장됨'?Icons.cloud_done_outlined:state=='저장 중'?Icons.cloud_upload_outlined:Icons.cloud_queue,size:18)))),
-      if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reloadCanvas,icon:const Icon(Icons.refresh)),
       if(_canEdit)MemoBoxActions(filters:_filters,onCreate:_createBox,onCreateThought:_create,onDelete:_removeCanvasBoxes,preserveThoughts:true),
       PopupMenuButton<String>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: (value) {if(value=='all'){setState(() => _centered=false);}else if(_canEdit){_resetArrangement(value=='stack');}},
         itemBuilder: (_) => const [PopupMenuItem(value:'all',child:Text('전체 보기')),PopupMenuItem(value: 'spread', child: Text('펼쳐보기')), PopupMenuItem(value: 'stack', child: Text('겹쳐보기'))]),

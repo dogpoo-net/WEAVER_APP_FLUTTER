@@ -247,6 +247,6 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(filters: _filters, notes: widget.notes, initialBox: activeBox,
       onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes)); }
     return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey('${_view.name}-$_epoch'), box: activeBox, blocks: _view == ThoughtView.page,
-      onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, onSave:widget.onSave, storage:widget.storage, onReload:()=>widget.onReloadResource?.call(_view==ThoughtView.page?'canvas:boxes':'canvas:diagram')??Future.value(), viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes));
+      onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, onSave:widget.onSave, storage:widget.storage, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes));
   }
 }

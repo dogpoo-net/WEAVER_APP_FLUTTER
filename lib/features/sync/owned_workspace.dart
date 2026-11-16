@@ -181,7 +181,10 @@ class WorkspaceSync extends ChangeNotifier {
   }
   Future<bool> checkRemote() async {
     final leaseEpoch=_leaseEpoch;
-    final result=await request('status',{'documentLeases':observedLeases});
+    late final Map<String,dynamic> result;
+    try{result=await request('status',{'documentLeases':observedLeases});}
+    catch(_){storage.canvasSaveState.value='연결 대기';rethrow;}
+    if(storage.canvasSaveState.value=='연결 대기'&&!_canvasPending)storage.canvasSaveState.value='저장됨';
     if(leaseEpoch==_leaseEpoch)for(final entry in ((result['leases'] as Map?)??{}).entries){final id=entry.key as String;final token=observedLeases[id];if(token!=null)_acceptLease(id,token,Map<String,dynamic>.from(entry.value as Map));}
     final revision=result['revision'] as int;
     if(_observedRevision==revision)return false;
@@ -224,7 +227,7 @@ class WorkspaceSync extends ChangeNotifier {
   void schedule(){
     changed();
     if(_disposed || readOnly || !_canvasPending)return;
-    storage.canvasSaveState.value='저장 대기';
+    storage.canvasSaveState.value='저장 중';
     _canvasTimer?.cancel();
     _canvasTimer=Timer(const Duration(milliseconds:750),_autoCanvas);
   }
@@ -281,7 +284,7 @@ class WorkspaceSync extends ChangeNotifier {
       if(!await storage.preferences.remove(_canvasOutbox))throw StateError('Canvas receipt save failed');
       storage.applyServerSnapshot?.call();
       storage.canvasSaveState.value='저장됨';error=null;
-    }catch(e){storage.canvasSaveState.value='로컬 보관 · 재시도 대기';rethrow;}
+    }catch(e){storage.canvasSaveState.value='연결 대기';rethrow;}
   }
   Future<Map<String,dynamic>> request(String action,Map<String,Object?> body) async {
     if(_disposed || !isCurrent())throw const EmailAuthFailure('계정이 변경되었습니다.');
