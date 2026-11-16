@@ -10,6 +10,18 @@ TileCoordinates tile(double lat, double lon, int z) {
     ((1 - math.log(math.tan(radians) + 1 / math.cos(radians)) / math.pi) / 2 * n).floor(), z);
 }
 void main() {
+  test('Japan uses global tiles at detail zooms while Korean coast and islands stay regional',(){
+    for(final z in [12,14,17,19]){
+      for(final point in [(33.883,130.875),(34.20,129.29),(34.66,129.45),(33.75,129.69)]){
+        expect(usesKoreaTiles(tile(point.$1,point.$2,z)),isFalse,reason:'Japan $point zoom $z');
+      }
+      for(final point in [(35.10,129.04),(34.87,128.62),(35.54,129.31),(37.50,130.87),(33.50,126.50),(37.24,131.87)]){
+        expect(usesKoreaTiles(tile(point.$1,point.$2,z)),isTrue,reason:'Korea $point zoom $z');
+      }
+    }
+    expect(usesKoreaTiles(tile(35.10,129.04,8)),isFalse);
+  });
+
   test('Korean detail includes Seoul, Jeju and Dokdo; overseas and world use global', () {
     for (final point in [(37.56, 126.97), (33.5, 126.5), (37.24, 131.87)]) {
       expect(usesKoreaTiles(tile(point.$1, point.$2, 14)), isTrue);

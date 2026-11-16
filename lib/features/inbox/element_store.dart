@@ -1,3 +1,4 @@
+import '../capture/voice_dialog.dart';
 import '../capture/attachment_picker.dart';
 import '../capture/location_editor.dart';
 import 'memo_comments.dart';
@@ -243,25 +244,25 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   final _photoUploads=<String,List<PhotoDraft>>{};
   final _audioUploads=<String,List<VoiceDraft>>{};
   final _locationEdits=<String,ThoughtLocation>{};
-  bool _attachmentBusy=false,_pickingLocation=false;
+  bool _attachmentBusy=false,_captureModalOpen=false;
   bool get _canAttach=>memoCommentRequest==null||memoCommentsWritable;
   late final String? _mediaOwner;
   Future<void> _attach(ElementRecord record,String type) async {
     if(_attachmentBusy||!_canAttach)return;
-    setState((){_attachmentBusy=true;_pickingLocation=type=='location';});
+    setState((){_attachmentBusy=true;_captureModalOpen=type=='location'||type=='audio';});
     try {
       if(type=='photo'){
         final drafts=await pickPhotoUploads(5-record.photos.length-(_photoUploads[record.id]?.length??0));
         if(mounted)setState(()=>_photoUploads.putIfAbsent(record.id,()=>[]).addAll(drafts));
       }else if(type=='audio'){
-        final draft=await pickAudioUpload();
+        final draft=await showVoiceRecorder(context);
         if(mounted&&draft!=null)setState(()=>_audioUploads.putIfAbsent(record.id,()=>[]).add(draft));
       }else{
         final draft=await showLocationEditor(context,initial:_locationEdits[record.id]??record.location);
         if(mounted&&draft!=null)setState(()=>_locationEdits[record.id]=draft.location);
       }
     }catch(e){if(mounted)setState(()=>_error='$e');}
-    finally{if(mounted)setState((){_attachmentBusy=false;_pickingLocation=false;});}
+    finally{if(mounted)setState((){_attachmentBusy=false;_captureModalOpen=false;});}
   }
   @override
   void initState() {
@@ -422,11 +423,11 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                     onChanged: (hidden) => setState(() => _closed = hidden)))),
               )),
               Wrap(spacing:4,children:[
-                TextButton.icon(onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'photo'),icon:const Icon(Icons.add_photo_alternate_outlined,size:18),label:const Text('사진 업로드')),
-                TextButton.icon(onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const Icon(Icons.audio_file_outlined,size:18),label:const Text('음성 업로드')),
-                TextButton.icon(onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.add_location_alt_outlined,size:18),label:const Text('위치 기록')),
+                IconButton(tooltip:'사진 업로드',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'photo'),icon:const Icon(Icons.add_photo_alternate_outlined,size:20)),
+                IconButton(tooltip:'음성 녹음',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const SizedBox.square(dimension:24,child:Stack(children:[Align(alignment:Alignment.centerLeft,child:Icon(Icons.mic_none,size:21)),Positioned(right:0,top:0,child:Icon(Icons.add,size:11))]))),
+                IconButton(tooltip:'위치 기록',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.add_location_alt_outlined,size:20)),
               ]),
-              if(_attachmentBusy&&!_pickingLocation)const LinearProgressIndicator(),
+              if(_attachmentBusy&&!_captureModalOpen)const LinearProgressIndicator(),
               for(final photo in _photoUploads[element.id]??<PhotoDraft>[])Row(children:[
                 SizedBox(width:48,height:48,child:Image.memory(photo.bytes,fit:BoxFit.cover,errorBuilder:(_,error,stack)=>const Icon(Icons.broken_image))),
                 Expanded(child:Text(photo.name,maxLines:1,overflow:TextOverflow.ellipsis)),
@@ -449,18 +450,19 @@ class _ElementMetadataState extends State<_ElementMetadata> {
       )),
         const Padding(padding: EdgeInsets.only(top: 8),
           child: Divider(key: ValueKey('element-actions-divider'), height: 1, thickness: 1)),
-        Padding(padding: const EdgeInsets.only(top: 2), child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+        Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
+          TextButton(style:TextButton.styleFrom(minimumSize:Size.zero,padding:const EdgeInsets.symmetric(horizontal:4,vertical:2),tapTargetSize:MaterialTapTargetSize.shrinkWrap),
+            onPressed:()=>showMemoComments(context,element.id),child:const Text('댓글')),
+          const SizedBox(width:8),
+          Expanded(child:Row(mainAxisAlignment:MainAxisAlignment.end,children:[
           Flexible(child: Text(workspaceMemoAuthor?.call(element.id) ?? '작성자 정보 없음',
             key: const ValueKey('element-author'), maxLines: 1, overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall)),
           Text(' ', style: Theme.of(context).textTheme.bodySmall),
           Text(element.createdAt.toLocal().toString().split('.').first,
             key: const ValueKey('element-created-at'), style: Theme.of(context).textTheme.bodySmall),
+          ])),
         ])),
-        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-          TextButton(onPressed: () => showMemoComments(context, element.id), child: const Text('댓글보기')),
-          TextButton(onPressed: () => showMemoComments(context, element.id, write: true), child: const Text('댓글쓰기')),
-        ]),
       ]),
       actions: [
         FilledButton.tonal(

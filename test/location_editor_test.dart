@@ -37,7 +37,7 @@ void main(){
   record.location=ThoughtLocation(37,127,10,DateTime.now());
   await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()=>showElementMetadata(context,record.text),child:const Text('상세'))))));
   await tester.tap(find.text('상세'));await tester.pumpAndSettle();
-  await tester.ensureVisible(find.text('위치 기록'));await tester.tap(find.text('위치 기록'));await tester.pumpAndSettle();
+  await tester.ensureVisible(find.byTooltip('위치 기록'));await tester.tap(find.byTooltip('위치 기록'));await tester.pumpAndSettle();
   tester.widget<FlutterMap>(find.byType(FlutterMap)).options.onTap!(const TapPosition(Offset.zero,Offset.zero),const LatLng(35,129));await tester.pump();
   await tester.tap(find.widgetWithText(FilledButton,'저장').last);await tester.pumpAndSettle();
   expect(record.location!.latitude,37);

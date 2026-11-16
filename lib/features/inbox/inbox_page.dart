@@ -1,5 +1,4 @@
 import '../capture/location_editor.dart';
-import '../capture/attachment_picker.dart';
 import 'overview_collections.dart';
 import 'memo_comments.dart';
 import 'dart:async';
@@ -100,12 +99,6 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     } finally {
       if (mounted && generation == _locationGeneration) setState(() => _locationBusy = false);
     }
-  }
-  Future<void> _uploadVoice() async {
-    if(_photoBusy||_captureSaving)return;setState(()=>_photoBusy=true);
-    try{final voice=await pickAudioUpload();if(mounted&&voice!=null)setState(()=>_voiceDraft=voice);}
-    catch(e){_captureError('$e');}
-    finally{if(mounted)setState(()=>_photoBusy=false);}
   }
   Future<void> _recordVoice() async {
     dismissKeyboard();
@@ -1177,19 +1170,20 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
                 IconButton(key: const ValueKey('quick-location'),
                   tooltip: _locationBusy ? '위치 요청 취소' : _draftLocation == null ? '위치 기록' : '위치 기록 해제',
                   isSelected: _draftLocation != null,
-                  style: IconButton.styleFrom(backgroundColor: _draftLocation != null ? colors.secondaryContainer : null),
-                  visualDensity: VisualDensity.compact, constraints: const BoxConstraints.tightFor(width: 32, height: 32), padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(minimumSize:const Size(36,36),maximumSize:const Size(36,36),tapTargetSize:MaterialTapTargetSize.shrinkWrap,backgroundColor: _draftLocation != null ? colors.secondaryContainer : null),
+                  visualDensity: VisualDensity.standard, constraints: const BoxConstraints.tightFor(width: 36, height: 36), padding: EdgeInsets.zero,
                   onPressed: _captureSaving ? null : () => _toggleLocation(!_locationBusy && _draftLocation == null),
                   selectedIcon: const Icon(Icons.location_on, size: 19),
                   icon: _locationBusy && _mobileCapture ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.location_on_outlined, size: 19)),
-                IconButton(tooltip: '음성 메모', visualDensity: VisualDensity.compact, constraints: const BoxConstraints.tightFor(width: 30, height: 32), padding: EdgeInsets.zero,
+                const SizedBox(width:4),
+                IconButton(tooltip: '음성 메모', style:IconButton.styleFrom(minimumSize:const Size(36,36),maximumSize:const Size(36,36),tapTargetSize:MaterialTapTargetSize.shrinkWrap), visualDensity: VisualDensity.standard, constraints: const BoxConstraints.tightFor(width: 36, height: 36), padding: EdgeInsets.zero,
                   onPressed: _captureSaving || _photoBusy ? null : _recordVoice, icon: const Icon(Icons.mic_none, size: 19)),
-                PopupMenuButton<String>(key: const ValueKey('quick-photo-menu'), tooltip: '사진·음성 업로드',
-                  enabled: !_captureSaving && !_photoBusy,
-                  position: PopupMenuPosition.under, padding: EdgeInsets.zero,
-                  iconSize: 19, icon: const Icon(Icons.add_photo_alternate_outlined),
-                  onSelected: (value) => value=='audio'?_uploadVoice():_pickPhotos(),
-                  itemBuilder: (_) => [PopupMenuItem(value: 'gallery',enabled:_photoDrafts.length<5, child: Text('사진 선택 (${5 - _photoDrafts.length}장까지)')),const PopupMenuItem(value:'audio',child:Text('음성 파일 업로드'))]),
+                const SizedBox(width:4),
+                IconButton(key:const ValueKey('quick-photo-menu'),tooltip:'사진 업로드 (최대 5장)',
+                  style:IconButton.styleFrom(minimumSize:const Size(36,36),maximumSize:const Size(36,36),tapTargetSize:MaterialTapTargetSize.shrinkWrap),
+                  visualDensity:VisualDensity.standard,constraints:const BoxConstraints.tightFor(width:36,height:36),padding:EdgeInsets.zero,
+                  onPressed:_captureSaving||_photoBusy||_photoDrafts.length>=5?null:_pickPhotos,
+                  icon:const Icon(Icons.add_photo_alternate_outlined,size:19)),
               ],
             ],
           ),

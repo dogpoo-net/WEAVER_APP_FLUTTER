@@ -172,11 +172,12 @@ class WordBadge extends StatelessWidget {
       onPressed: onTap,
       onLongPress: onLongPress,
       style: TextButton.styleFrom(
-        alignment: Alignment.topLeft,
+        alignment: square ? Alignment.centerLeft : Alignment.topLeft,
         backgroundColor: record?.hiddenFromSearch == true ? wordBackgroundColor(context, word) : labelColor?.withValues(alpha: dark ? .3 : .18) ?? wordBackgroundColor(context, word),
         foregroundColor: record?.hiddenFromSearch == true ? wordColor(context, word) : labelColor ?? wordColor(context, word),
-        minimumSize: Size(0, dense ? 25 : 30),
-        padding: EdgeInsets.symmetric(horizontal: dense ? 5 : compact ? 7 : 12, vertical: dense ? 1 : compact ? 3 : 5),
+        minimumSize: fullText ? Size.zero : Size(0, dense ? 25 : 30),
+        visualDensity: VisualDensity.standard,
+        padding: fullText ? EdgeInsets.fromLTRB(4,4,!square && commentCount>0?6:4,4) : EdgeInsets.symmetric(horizontal: dense ? 5 : compact ? 7 : 12, vertical: dense ? 1 : compact ? 3 : 5),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         shape: fullText ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: selected ? BorderSide(color: Theme.of(context).colorScheme.primary, width: 2) : BorderSide.none) : StadiumBorder(
           side: selected
@@ -190,11 +191,11 @@ class WordBadge extends StatelessWidget {
       ),
       child: Row(mainAxisSize: square ? MainAxisSize.max : MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (indicators) ...[AttachmentIndicators(record: record), const SizedBox(width: 4)],
-        Flexible(fit: square ? FlexFit.tight : FlexFit.loose, child: Text.rich(label,
+        Flexible(fit: square ? FlexFit.tight : FlexFit.loose, child: Text.rich(label, textAlign: TextAlign.start,
         maxLines: square ? ((constraints.maxHeight - 20) / 20).floor().clamp(1, 100) : fullText && !singleLine ? null : 1, softWrap: fullText && !singleLine, overflow: square ? TextOverflow.ellipsis : fullText && !singleLine ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '문서:$title' : labelTarget ? '라벨:$title' : memo ? '메모:$title' : title)),
-        if(commentCount>0) Padding(padding:const EdgeInsets.only(left:4),child:Tooltip(
+        if(commentCount>0) Padding(padding:const EdgeInsets.only(left:4,top:2),child:Tooltip(
           message:'댓글 $commentCount개',child:Container(
-            padding:const EdgeInsets.symmetric(horizontal:4,vertical:1),
+            padding:const EdgeInsets.symmetric(horizontal:3,vertical:1),
             decoration:BoxDecoration(borderRadius:BorderRadius.circular(20),border:Border.all(color:wordColor(context,word).withValues(alpha:.65))),
             child:Text('$commentCount',key:ValueKey('comment-count-${record!.id}'),style:const TextStyle(fontSize:10,height:1.1)),
           ))),

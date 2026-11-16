@@ -36,7 +36,7 @@ class _LocationEditorState extends State<LocationEditor> {
   catch(_){if(mounted&&request==generation)setState(()=>error='현재 위치를 찾지 못했습니다. 지도에서 원하는 위치를 선택해주세요.');}
   finally{if(mounted&&request==generation){locateTimer?.cancel();setState(()=>busy=false);}}
  }
- void select(LatLng point){setState((){generation++;locateTimer?.cancel();busy=false;error=null;selected=ThoughtLocation(point.latitude,((point.longitude+180)%360)-180,0,DateTime.now());});}
+ void select(LatLng point){setState((){generation++;locateTimer?.cancel();busy=false;error=null;selected=ThoughtLocation(point.latitude,((point.longitude+180)%360)-180,0,DateTime.now(),isCurrentLocation:false);});}
  @override void dispose(){generation++;locateTimer?.cancel();map.dispose();text.dispose();super.dispose();}
  @override Widget build(BuildContext context){
   final point=selected;
@@ -48,7 +48,7 @@ class _LocationEditorState extends State<LocationEditor> {
    Expanded(child:ClipRect(child:Stack(children:[
     FlutterMap(mapController:map,options:MapOptions(initialCenter:point==null?const LatLng(20,0):LatLng(point.latitude,point.longitude),initialZoom:point==null?2:16,minZoom:2,maxZoom:19,onTap:(_,position)=>select(position)),children:[
      TileLayer(urlTemplate:globalTileTemplate,tileProvider:RegionalTileProvider(),userAgentPackageName:'net.dogpoo.weaver',maxNativeZoom:19),
-     MarkerLayer(markers:[if(point!=null)Marker(point:LatLng(point.latitude,point.longitude),width:40,height:40,alignment:Alignment.topCenter,child:const Icon(Icons.location_on,size:40,color:activeMapMarkerColor))]),
+     MarkerLayer(markers:[if(point!=null)Marker(point:LatLng(point.latitude,point.longitude),width:40,height:40,alignment:Alignment.topCenter,child:Icon(Icons.location_on,size:40,color:locationMarkerColor(point)))]),
     ]),const MapAttribution(),
    ]))),
    if(point!=null)Text('${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}',style:Theme.of(context).textTheme.bodySmall),

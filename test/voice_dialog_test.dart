@@ -1,3 +1,4 @@
+import 'package:weaver/features/inbox/element_store.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -42,6 +43,16 @@ void main() {
   late FakeRecorder recorder;
   setUp(() { original = RecordPlatform.instance; recorder = FakeRecorder(); RecordPlatform.instance = recorder; });
   tearDown(() { RecordPlatform.instance = original; });
+  testWidgets('thought detail opens recorder instead of audio file picker',(tester)async{
+    elements.clear();final thought=elements.add('녹음할 생각');
+    await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()=>showElementMetadata(context,thought.text),child:const Text('상세'))))));
+    await tester.tap(find.text('상세'));await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byTooltip('음성 녹음'));await tester.tap(find.byTooltip('음성 녹음'));await tester.pumpAndSettle();
+    expect(find.byType(VoiceRecorderDialog),findsOneWidget);expect(find.text('음성 파일 업로드'),findsNothing);
+    await tester.tap(find.text('취소'));await tester.pumpAndSettle();
+    expect(thought.recordings,isEmpty);
+    await tester.pumpWidget(const SizedBox());elements.clear();
+  });
   testWidgets('permission denial leaves recorder modal cancellable without an attachment', (tester) async {
     recorder.permitted = false;
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: VoiceRecorderDialog())));

@@ -15,19 +15,24 @@ void main() {
       const expected = findsOneWidget;
       expect(find.byKey(const ValueKey('quick-location')), expected);
       expect(find.byTooltip('음성 메모'), expected);
-      expect(find.byTooltip('사진·음성 업로드'), expected);
+      expect(find.byTooltip('사진 업로드 (최대 5장)'), expected);
+      final location=tester.getRect(find.byKey(const ValueKey('quick-location')));
+      final voice=tester.getRect(find.byTooltip('음성 메모'));
+      final upload=tester.getRect(find.byKey(const ValueKey('quick-photo-menu')));
+      expect(voice.left-location.right,closeTo(4,.1));
+      expect(upload.left-voice.right,closeTo(4,.1));
+      expect(location.width,voice.width);expect(voice.width,upload.width);
+      expect(location.center.dy,closeTo(upload.center.dy,.1));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     }, variant: TargetPlatformVariant({platform}));
   }
-  testWidgets('home links to unclassified thoughts and photo menu is anchored to icon', (tester) async {
+  testWidgets('home links to unclassified thoughts and photo picker has no dropdown', (tester) async {
     await tester.pumpWidget(const MyApp(requireLogin: false, )); await tester.pumpAndSettle();
     final photo = find.byKey(const ValueKey('quick-photo-menu'));
-    final button = tester.getRect(photo);
     await tester.tap(photo); await tester.pumpAndSettle();
-    final menu = tester.getRect(find.text('사진 선택 (5장까지)'));
-    expect((menu.top - button.bottom).abs(), lessThan(80));
-    await tester.tapAt(const Offset(5, 5)); await tester.pumpAndSettle();
+    expect(find.byType(PopupMenuItem<String>),findsNothing);
+    expect(find.text('음성 파일 업로드'),findsNothing);
     final link = find.text('미분류 정리하기');
     await tester.ensureVisible(link); await tester.tap(link); await tester.pumpAndSettle();
     expect(find.byType(ThoughtBoxView), findsOneWidget);

@@ -1,3 +1,4 @@
+import 'package:weaver/features/capture/map_marker_style.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +7,17 @@ import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
 
 void main() {
+  test('current and chosen location colors survive storage including old data',(){
+    final now=DateTime.utc(2026,11,16);
+    final gps=ThoughtLocation(35,129,0,now,isCurrentLocation:true);
+    final chosen=ThoughtLocation(35,129,0,now,isCurrentLocation:false);
+    expect(locationMarkerColor(ThoughtLocation.fromJson(gps.toJson())!),currentLocationMarkerColor);
+    expect(locationMarkerColor(ThoughtLocation.fromJson(chosen.toJson())!),activeMapMarkerColor);
+    final legacy={'latitude':35,'longitude':129,'accuracy':12,'recordedAt':now.toIso8601String()};
+    expect(ThoughtLocation.fromJson(legacy)!.isCurrentLocation,isTrue);
+    legacy['accuracy']=0;expect(ThoughtLocation.fromJson(legacy)!.isCurrentLocation,isFalse);
+  });
+
   setUp(elements.clear);
   test('one minute PCM cap generates a playable WAV header even if timer is delayed', () {
     final builder = PcmClipBuilder();

@@ -1,3 +1,4 @@
+import 'memo_comments.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'overview_collections.dart';
@@ -55,7 +56,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   ModalRoute<dynamic>? _route;
   void _refresh() { _textWidths.clear(); if (mounted) setState(() {}); }
   @override
-  void initState() { super.initState(); _loadViewMode(); _filters.addListener(_refresh); elements.addListener(_refresh); }
+  void initState() { super.initState(); _loadViewMode(); _filters.addListener(_refresh); elements.addListener(_refresh); memoCommentCounts.addListener(_refresh); }
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -75,6 +76,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     _filters.removeListener(_refresh);
     if (widget.filters == null) _filters.dispose();
     elements.removeListener(_refresh);
+    memoCommentCounts.removeListener(_refresh);
     super.dispose();
   }
   Widget _badge(String word, bool desktop) => WordBadge(word: word, compact: true, fullText: true, square: _square, query: _query,
@@ -114,12 +116,15 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
       for (final record in records) {
         final textWidth = _textWidths.putIfAbsent(record.text, () {
           final painter = TextPainter(text: TextSpan(text: record.text,
-            style: DefaultTextStyle.of(context).style.merge(const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
+            style: Theme.of(context).textTheme.labelLarge!.copyWith(fontSize: 12, fontWeight: FontWeight.w500)),
             textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
           final width = painter.width; painter.dispose(); return width;
         });
         final iconCount = (record.photos.isNotEmpty ? 1 : 0) + (record.recordings.isNotEmpty ? 1 : 0) + (record.location != null ? 1 : 0);
-        final width = (textWidth + 24 + iconCount * 13 + (iconCount > 0 ? 4 : 0)).clamp(math.min(32.0, maxWidth), maxWidth).toDouble();
+        final count=memoCommentCounts.value[record.id]??0;
+        var countWidth=0.0;
+        if(count>0){final painter=TextPainter(text:TextSpan(text:'$count',style:Theme.of(context).textTheme.labelLarge!.copyWith(fontSize:10,height:1.1,fontWeight:FontWeight.w500)),textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context))..layout();countWidth=painter.width+14;painter.dispose();}
+        final width = (textWidth + 8 + countWidth + iconCount * 13 + (iconCount > 0 ? 4 : 0)).clamp(math.min(16.0, maxWidth), maxWidth).toDouble();
         items.add((record: record, width: width));
       }
       return GestureDetector(

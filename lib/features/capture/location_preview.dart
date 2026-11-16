@@ -14,8 +14,8 @@ Future<void> showLocationPreview(BuildContext context, ThoughtLocation location)
       Expanded(child: FlutterMap(options: MapOptions(initialCenter: LatLng(location.latitude, location.longitude), initialZoom: 16, minZoom: 2, maxZoom: 19), children: [
         TileLayer(urlTemplate: globalTileTemplate, tileProvider: RegionalTileProvider(), userAgentPackageName: 'net.dogpoo.weaver', maxNativeZoom: 19),
         MarkerLayer(markers: [Marker(point: LatLng(location.latitude, location.longitude), alignment: Alignment.topCenter,
-          child: Icon(Icons.location_on, size: 40, color: activeMapMarkerColor))]),
+          child: Icon(Icons.location_on, size: 40, color: locationMarkerColor(location)))]),
         const MapAttribution(),
       ])),
-      Padding(padding: const EdgeInsets.all(12), child: Text('${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)} · ${location.accuracy>0?'정확도 약 ${location.accuracy.round()}m':'지도에서 선택한 위치'}')),
+      Padding(padding: const EdgeInsets.all(12), child: Text('${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)} · ${location.isCurrentLocation?(location.accuracy>0?'현재 위치 · 정확도 약 ${location.accuracy.round()}m':'현재 위치'):'지도에서 선택한 위치'}')),
     ]))));
