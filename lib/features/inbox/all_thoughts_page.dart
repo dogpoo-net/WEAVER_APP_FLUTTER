@@ -1,3 +1,4 @@
+import 'grid_columns_preference.dart';
 import 'memo_comments.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
@@ -42,12 +43,16 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   late final _filters = widget.filters ?? ThoughtFilterSelection(initialBox: widget.initialBox);
   MemoBox? get _filterBox => _filters.singleBox;
   int _columns = 2;
-  int? _squareColumns;
+  int? _squareColumns=thoughtGridColumns.value;
   bool _square = thoughtSquareViewCache??true, _viewChosen=false;
-  bool _viewReady=thoughtSquareViewCache!=null;
+  bool _viewReady=thoughtSquareViewCache!=null && thoughtGridColumns.loaded;
   Future<void> _viewWrite=Future.value();
   Future<void> _loadViewMode() async {
-    try{final prefs=await SharedPreferences.getInstance();if(mounted&&!_viewChosen)setState((){_square=thoughtSquareViewCache??prefs.getBool(thoughtViewModePreference)??true;thoughtSquareViewCache=_square;_viewReady=true;});}catch(_){if(mounted)setState(()=>_viewReady=true);}
+    try{await thoughtGridColumns.load();final prefs=await SharedPreferences.getInstance();if(mounted&&!_viewChosen)setState((){_squareColumns=thoughtGridColumns.value;_square=thoughtSquareViewCache??prefs.getBool(thoughtViewModePreference)??true;thoughtSquareViewCache=_square;_viewReady=true;});}catch(_){if(mounted)setState(()=>_viewReady=true);}
+  }
+  void _setSquareColumns(int value) {
+    setState(()=>_squareColumns=value);
+    thoughtGridColumns.save(value).catchError((Object error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('열 개수를 기기에 저장하지 못했습니다.')));});
   }
   void _toggleViewMode(){
     _viewChosen=true;final next=!_square;thoughtSquareViewCache=next;setState(()=>_square=next);
@@ -87,9 +92,9 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   Widget _tile(ElementRecord record, bool desktop, {double width = 280}) {
     final tile = SizedBox(key: ValueKey('thought-${record.id}'), width: width, height: _square ? width : null, child: _badge(record.text, desktop));
     final feedback = Material(color: Colors.transparent, child: SizedBox(width: 180, child: _badge(record.text, false)));
-    if (desktop) { return Draggable<MemoDrag>(data: MemoDrag(record.id), feedback: feedback,
+    if (desktop) { return Draggable<MemoDrag>(key:ValueKey(record.id), data: MemoDrag(record.id), feedback: feedback,
       childWhenDragging: Opacity(opacity: .4, child: tile), child: tile); }
-    return LongPressDraggable<MemoDrag>(data: MemoDrag(record.id), feedback: feedback,
+    return LongPressDraggable<MemoDrag>(key:ValueKey(record.id), data: MemoDrag(record.id), feedback: feedback,
       childWhenDragging: Opacity(opacity: .4, child: tile), child: tile);
   }
   @override
@@ -110,8 +115,8 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         final defaultColumns = MediaQuery.sizeOf(context).shortestSide >= 600 || desktop ? 6 : 2;
         final columns=(_squareColumns ?? defaultColumns).clamp(1, math.max(1,(available/80).floor())).toInt();
         return Column(children:[Center(child:SizedBox(width:available,child:IconButtonTheme(data:IconButtonThemeData(style:IconButton.styleFrom(minimumSize:const Size(36,36),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap)),child:Row(children:[Expanded(child:Text(_query.isEmpty && _filters.isEmpty ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개',style:Theme.of(context).textTheme.bodyMedium)),
-          IconButton(tooltip:'확대',onPressed:columns>1?()=>setState(()=>_squareColumns=columns-1):null,icon:const Icon(Icons.zoom_in)),
-          Text('$columns열'),IconButton(tooltip:'축소',onPressed:columns<math.max(1,(available/80).floor())?()=>setState(()=>_squareColumns=columns+1):null,icon:const Icon(Icons.zoom_out)),
+          IconButton(tooltip:'확대',onPressed:columns>1?()=>_setSquareColumns(columns-1):null,icon:const Icon(Icons.zoom_in)),
+          Text('$columns열'),IconButton(tooltip:'축소',onPressed:columns<math.max(1,(available/80).floor())?()=>_setSquareColumns(columns+1):null,icon:const Icon(Icons.zoom_out)),
         ])))),Expanded(child:records.isEmpty?Center(child:Text(allRecords.isEmpty?'아직 생각이 없어요.':_filterBox!=null&&_query.isEmpty?'이 상자에 담긴 메모가 없어요.':'일치하는 생각이 없어요.')):GridView.builder(key:const ValueKey('thought-square-grid'),padding:const EdgeInsets.all(12),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:columns,crossAxisSpacing:8,mainAxisSpacing:8),itemCount:records.length,itemBuilder:(_,i)=>_tile(records[i],desktop,width:(available-8*(columns-1))/columns)))]);
       }
       final maxWidth = desktop ? math.min(480.0, available)
@@ -204,21 +209,17 @@ class AllThoughtsPage extends StatefulWidget {
   @override
   State<AllThoughtsPage> createState() => _ThoughtViewsState();
 }
-class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProviderStateMixin {
   void _liveChanged(){if(mounted)setState((){});}
   bool _loading = false;
-  int _epoch = 0;
   Future<void> _reload() async {
     if (_loading || widget.onRefresh == null) return;
-    final names = _filters.boxes.map((b) => b.name).toSet();
-    setState(() => _loading = true);
-    // Dispose the old canvas before merging its saved local placement with server changes.
-    await WidgetsBinding.instance.endOfFrame;
+    _loading = true;
+    // Keep the mounted collection and its scroll/filter state while reading deltas.
     try { await widget.onRefresh!(); }
     catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('서버 변경을 확인하지 못했습니다. 기기의 자료를 표시합니다. $e'))); }
-    finally { if (mounted) { _filters.boxes..clear()..addAll(memoBoxes.where((b) => names.contains(b.name))); setState(() { _loading = false; _epoch++; }); } }
+    finally { if (mounted) { final names = _filters.boxes.map((b) => b.name).toSet(); _filters.boxes..clear()..addAll(memoBoxes.where((b) => names.contains(b.name))); setState(() { _loading = false; }); } }
   }
-  @override void didChangeAppLifecycleState(AppLifecycleState state) { if (state == AppLifecycleState.resumed && _view!=ThoughtView.diagram && _view!=ThoughtView.page && ModalRoute.of(context)?.isCurrent == true) _reload(); }
   late final AnimationController _tabPosition;
   late final _filters = ThoughtFilterSelection(initialBox: widget.initialBox);
   @override
@@ -226,28 +227,26 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     super.initState();
     ensureUnclassifiedBox();
     widget.storage?.liveChanges.addListener(_liveChanged);
-    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _reload(); });
     _tabPosition=AnimationController(vsync:this,upperBound:ThoughtView.values.length-1.0,value:widget.initialView.index.toDouble());
   }
   @override
-  void dispose() { widget.storage?.liveChanges.removeListener(_liveChanged); WidgetsBinding.instance.removeObserver(this); _filters.dispose(); _tabPosition.dispose(); super.dispose(); }
+  void dispose() { widget.storage?.liveChanges.removeListener(_liveChanged); _filters.dispose(); _tabPosition.dispose(); super.dispose(); }
   late ThoughtView _view = widget.initialView;
   @override
   Widget build(BuildContext context) {
     final activeBox = widget.initialBox == null ? null : memoBoxes.where((b) => b.name == widget.initialBox!.name).firstOrNull;
     final selector=SingleChildScrollView(key:const PageStorageKey('overview-tabs'),scrollDirection:Axis.horizontal,child:SizedBox(height:40,width:ThoughtView.values.length*104,child:Stack(children:[
       AnimatedBuilder(animation:_tabPosition,builder:(context,_)=>Positioned(left:_tabPosition.value*104,top:0,bottom:0,width:104,child:ColoredBox(key:const ValueKey('thought-tab-highlight'),color:Theme.of(context).colorScheme.secondaryContainer))),
-      Row(children:[for(final view in ThoughtView.values)SizedBox(width:104,height:40,child:Semantics(selected:view==_view,child:TextButton(style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),onPressed:(){setState(()=>_view=view);_tabPosition.animateTo(view.index.toDouble(),duration:const Duration(milliseconds:200),curve:Curves.easeInOutCubic);_reload();},child:Text(switch(view){ThoughtView.documents=>'문서',ThoughtView.boxes=>'생각',ThoughtView.diagram=>'다이어그램',ThoughtView.page=>'메모상자',ThoughtView.photos=>'사진',ThoughtView.audio=>'음성',ThoughtView.geolog=>'지오로그'}))))])
+      Row(children:[for(final view in ThoughtView.values)SizedBox(width:104,height:40,child:Semantics(selected:view==_view,child:TextButton(style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),onPressed:(){if(_view==view)return;setState(()=>_view=view);_tabPosition.animateTo(view.index.toDouble(),duration:const Duration(milliseconds:200),curve:Curves.easeInOutCubic);_reload();},child:Text(switch(view){ThoughtView.documents=>'문서',ThoughtView.boxes=>'생각',ThoughtView.diagram=>'다이어그램',ThoughtView.page=>'메모상자',ThoughtView.photos=>'사진',ThoughtView.audio=>'음성',ThoughtView.geolog=>'지오로그'}))))])
     ])));
-    if (_loading) return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('전체 보기')), body: DesktopMenuBody(child: Column(children: [selector, const LinearProgressIndicator(), const Expanded(child: Center(child: Text('서버 변경을 불러오는 중입니다.')))])));
     if(_view==ThoughtView.documents)return DesktopMenuFrame(child:DocumentCollection(notes:widget.notes,selector:selector,storage:widget.storage,onOpen:widget.onDocument,onCreate:widget.onCreateDocument));
     if(_view==ThoughtView.photos || _view==ThoughtView.audio)return DesktopMenuFrame(child:AttachmentCollection(key:ValueKey(_view),audio:_view==ThoughtView.audio,selector:selector,filters:_filters,storage:widget.storage,onChanged:widget.onChanged));
     if (_view == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(filters: _filters, box: activeBox,
       viewSelector: selector, onChanged: () => widget.onChanged?.call())); }
     if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(filters: _filters, notes: widget.notes, initialBox: activeBox,
       onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes)); }
-    return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey('${_view.name}-$_epoch'), box: activeBox, blocks: _view == ThoughtView.page,
+    return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey(_view), box: activeBox, blocks: _view == ThoughtView.page,
       onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, onSave:widget.onSave, storage:widget.storage, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes));
   }
 }

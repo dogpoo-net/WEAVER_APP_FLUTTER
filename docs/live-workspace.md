@@ -72,3 +72,23 @@ Tests cover chunked SSE parsing, reconnect/idle timeout, cancellation, no idle
 polling, home/thought changes and deferred editor refresh. Server fan-out currently
 uses a single-process test implementation; migrate that service to Durable Objects
 before distributing the API across Workers instances.
+
+## Stable overview refresh and grid preferences (2026-11-16)
+
+Overview delta reads no longer replace the mounted tab with a loading Scaffold or
+increment the canvas identity. Search, scroll and zoom remain mounted during a
+refresh. Clicking the already-selected tab does not initiate another read.
+Visible but unfocused windows (`inactive`) continue applying SSE invalidations;
+only hidden/paused states suspend the connection. Focus alone does not reload the
+page. Actual resume still reconciles missed revisions through the existing stream.
+
+Thought and photo grid column counts are independently persisted in device-local
+preferences, with synchronous in-session cache and display-only viewport clamping.
+Tests cover refresh without disposal, search/scroll/zoom preservation, independent
+column preferences across tab recreation/cold cache, and live badge updates while
+inactive without a subsequent click.
+
+The older all_thoughts_test/thought_views_test suites had five failures on both the
+previous deployed c3818bf checkout and this change (missing asynchronous preference
+setup/initial UI). Those unchanged baseline failures are not counted as passing
+validation for this update.

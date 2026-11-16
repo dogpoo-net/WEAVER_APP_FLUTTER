@@ -1,3 +1,4 @@
+import 'package:weaver/features/inbox/word_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,11 +32,14 @@ void main(){
   expect(elements.records.containsKey('서버에서 변경됨'),true);expect(reads,1);
   await tester.tap(find.byKey(const ValueKey('thoughts-all')));await tester.pumpAndSettle();
   await tester.tap(find.text('생각').last);await tester.pumpAndSettle();
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
   remote=remote.replaceAll('서버에서 변경됨','생각 탭 변경');
   storage.editorResources.add('document');final before=checks;dirty=true;events.onChange();
   await tester.pump(const Duration(seconds:2));expect(checks,before);
-  storage.editorResources.clear();await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();expect(checks,greaterThan(before));expect(dirty,false);expect(elements.records.containsKey('생각 탭 변경'),true);
+  storage.editorResources.clear();await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();expect(checks,greaterThan(before));expect(dirty,false);expect(elements.records.containsKey('생각 탭 변경'),true);expect(find.byWidgetPredicate((w)=>w is WordBadge && w.word=='생각 탭 변경'),findsOneWidget);
   final after=checks;await tester.pump(const Duration(seconds:30));expect(checks,after);
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+  await tester.pump(const Duration(milliseconds:500));expect(checks,after);
   await tester.pumpWidget(const SizedBox());elements.clear();memoBoxes.clear();
  });
 }

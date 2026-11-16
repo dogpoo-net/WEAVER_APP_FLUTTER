@@ -207,7 +207,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
   Future<void> _pollRemote() async {
     final storage=widget.storage;
     if(_retryAfter!=null && DateTime.now().isBefore(_retryAfter!))return;
-    if(_checkingRemote || _contentTimer?.isActive==true || _contentSync!=null || !mounted || storage?.checkRemote==null || WidgetsBinding.instance.lifecycleState==AppLifecycleState.paused || WidgetsBinding.instance.lifecycleState==AppLifecycleState.hidden || WidgetsBinding.instance.lifecycleState==AppLifecycleState.inactive)return;
+    if(_checkingRemote || _contentTimer?.isActive==true || _contentSync!=null || !mounted || storage?.checkRemote==null || WidgetsBinding.instance.lifecycleState==AppLifecycleState.paused || WidgetsBinding.instance.lifecycleState==AppLifecycleState.hidden)return;
     _checkingRemote=true;
     try {
       // Keep the invalidation pending without querying while an editor/modal is open.
@@ -869,15 +869,15 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     ..._notes.where((n) => n.project == null && n.paragraphs != null).expand((n) => n.tags)}.toList()..sort();
 
   Future<void>? _browseRequest;
+  bool _wasSuspended=false;
   @override void didChangeAppLifecycleState(AppLifecycleState state) {
-    if(state==AppLifecycleState.resumed){
-      _retryAfter=null;_events?.resume();_remoteChanged();
+    if(state==AppLifecycleState.resumed && _wasSuspended){
+      _wasSuspended=false;_retryAfter=null;_events?.resume();_remoteChanged();
     }else if(state==AppLifecycleState.paused || state==AppLifecycleState.hidden){
-      _events?.pause();_remoteDebounce?.cancel();_remoteDebounce=null;
+      _wasSuspended=true;_events?.pause();_remoteDebounce?.cancel();_remoteDebounce=null;
     }
-    if (state == AppLifecycleState.resumed && mounted && ModalRoute.of(context)?.isCurrent == true) {
-      _refreshForBrowse().catchError((Object e) { if (mounted) _captureError('서버 변경을 확인하지 못했습니다. $e'); });
-    }
+    // Inactive can mean an unfocused but visible browser window. Keep receiving
+    // changes there; focus alone must never tear down/reload an overview tab.
   }
   Future<void> _refreshForBrowse() => _browseRequest ??= _performBrowseRefresh().whenComplete(() => _browseRequest = null);
   Future<void> _performBrowseRefresh() async {
