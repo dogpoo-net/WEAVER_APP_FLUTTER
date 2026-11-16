@@ -45,14 +45,16 @@ class AttachmentCollection extends StatefulWidget {
 }
 class _AttachmentCollectionState extends State<AttachmentCollection>{
  bool details=false;
- int columns=2;
+ int? columns;
  void refresh(){if(mounted)setState((){});}
  @override void initState(){super.initState();elements.addListener(refresh);widget.filters.addListener(refresh);}
  @override void dispose(){elements.removeListener(refresh);widget.filters.removeListener(refresh);super.dispose();}
  String duration(int ms){if(ms==0)return '시간 미확인';final seconds=(ms/1000).ceil();return '${seconds~/60}:${(seconds%60).toString().padLeft(2,'0')}';}
  @override Widget build(BuildContext context){
  final maxColumns=(MediaQuery.sizeOf(context).width/100).floor().clamp(1,8);
- final shownColumns=columns.clamp(1,maxColumns);
+ final desktop={TargetPlatform.windows,TargetPlatform.macOS,TargetPlatform.linux}.contains(Theme.of(context).platform);
+ final defaultColumns=MediaQuery.sizeOf(context).shortestSide>=600||desktop?6:2;
+ final shownColumns=(columns??defaultColumns).clamp(1,maxColumns);
  final entries=<({ElementRecord record,String id,PhotoAttachment? photo,VoiceAttachment? voice})>[];
  for(final r in elements.records.values.where((r)=>canBrowseThought(r)&&widget.filters.matches(r))){if(widget.audio){for(final v in r.recordings){entries.add((record:r,id:v.id,photo:null,voice:v));}}else{for(final p in r.photos){entries.add((record:r,id:p.id,photo:p,voice:null));}}}
  entries.sort((a,b)=>b.record.createdAt.compareTo(a.record.createdAt));
