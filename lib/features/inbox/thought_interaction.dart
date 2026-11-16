@@ -4,13 +4,14 @@ class ThoughtInteraction extends StatefulWidget {
   static const hitPadding = 0.0;
   const ThoughtInteraction({super.key, required this.size, required this.child,
     required this.onMove, required this.onResize, required this.onDrop, required this.onEnd,
-    required this.onTap, required this.desktop, this.onLift, this.onActiveChanged, this.onResizeStart});
+    required this.onTap, required this.desktop, this.onLift, this.onActiveChanged, this.onResizeStart, this.groupLifted = false});
   final Size size;
   final Widget child;
   final ValueChanged<Offset> onMove, onDrop;
   final void Function(Size size, Offset shift) onResize;
   final VoidCallback onEnd, onTap;
   final bool desktop;
+  final bool groupLifted;
   final VoidCallback? onLift, onResizeStart;
   final ValueChanged<bool>? onActiveChanged;
   @override
@@ -61,7 +62,7 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
     onScaleEnd: (_) { if (!_resized) widget.onDrop(_pointer); widget.onActiveChanged?.call(false); widget.onEnd(); },
     child: Padding(padding: const EdgeInsets.all(ThoughtInteraction.hitPadding),
       child: SizedBox(width: widget.size.width, height: widget.size.height, child: Stack(fit: StackFit.expand, children: [
-      AnimatedScale(scale: _lifted ? 1.04 : 1, duration: const Duration(milliseconds: 100), child: RepaintBoundary(child: widget.child)),
+      AnimatedScale(scale: (_lifted || widget.groupLifted) ? 1.04 : 1, duration: const Duration(milliseconds: 100), child: RepaintBoundary(child: widget.child)),
       if (widget.desktop) ...[
         Positioned(left: 0, top: 10, bottom: 10, width: 12, child: _handle('left', SystemMouseCursors.resizeLeftRight, true, false, true, false)),
         Positioned(right: 0, top: 10, bottom: 10, width: 12, child: _handle('right', SystemMouseCursors.resizeLeftRight, false, false, true, false)),

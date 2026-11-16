@@ -961,6 +961,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             icon: const Icon(Icons.add), label: Text(_query.isNotEmpty ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
           for (final record in records) Positioned(left: _positions[record.id]!.dx - ThoughtInteraction.hitPadding, top: _positions[record.id]!.dy - ThoughtInteraction.hitPadding,
             child: ThoughtInteraction(key: ValueKey('canvas-thought-${record.id}'), size: _size(record.id), desktop: MediaQuery.sizeOf(context).width >= 760,
+                groupLifted: _selectionLifted && _selected.contains(record.id),
                 onLift: () => setState(() {
                   _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
                 }),
