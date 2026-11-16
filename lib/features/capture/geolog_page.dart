@@ -132,7 +132,7 @@ class _GeologPageState extends State<GeologPage> {
                     Text(group.length > 1 ? '${group.length}개의 생각' : group.first.text,
                       maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: group.every((r) => r.hiddenFromSearch) ? wordColor(context, group.first.text) : Theme.of(context).colorScheme.onPrimaryContainer)),
                   ]))),
-                Icon(Icons.location_on, color: group.every((r) => r.hiddenFromSearch) ? Colors.grey : group.every((r)=>r.location!.isCurrentLocation)?currentLocationMarkerColor:activeMapMarkerColor, size: 28,
+                Icon(Icons.location_on, color: group.every((r) => r.hiddenFromSearch) ? Colors.grey : locationMarkerColor(group.first.location!), size: 28,
                   shadows: const [Shadow(color: Colors.white, blurRadius: 3)]),
               ]))))]),
           ]))))),

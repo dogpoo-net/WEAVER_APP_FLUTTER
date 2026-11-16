@@ -447,7 +447,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               ]),
               if (_locationEdits[element.id]??element.location case final location?) Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: TextButton.icon(onPressed: () => showLocationPreview(context, location),
+                child: TextButton.icon(onPressed: () => showLocationPreview(context, location,onChanged:_canAttach?(updated){if(mounted)setState(()=>_locationEdits[element.id]=updated);}:null),
                   icon: const Icon(Icons.location_on_outlined, size: 18), label: const Text('지도 보기'))),
               if (element.photos.isNotEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: PhotoGallery(photos: element.photos)),
               for (final clip in element.recordings) VoicePlayer(key: ValueKey(clip.id),

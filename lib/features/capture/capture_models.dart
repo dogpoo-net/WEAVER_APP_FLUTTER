@@ -1,13 +1,15 @@
 import 'dart:typed_data';
 
 class ThoughtLocation {
-  const ThoughtLocation(this.latitude, this.longitude, this.accuracy, this.recordedAt,{bool? isCurrentLocation})
+  const ThoughtLocation(this.latitude, this.longitude, this.accuracy, this.recordedAt,{bool? isCurrentLocation,this.markerColor})
     : isCurrentLocation=isCurrentLocation??(accuracy>0);
   final double latitude, longitude, accuracy;
   final bool isCurrentLocation;
+  final int? markerColor;
+  ThoughtLocation withMarkerColor(int color)=>ThoughtLocation(latitude,longitude,accuracy,recordedAt,isCurrentLocation:isCurrentLocation,markerColor:color);
   final DateTime recordedAt;
   Map<String, dynamic> toJson() => {'latitude': latitude, 'longitude': longitude,
-    'accuracy': accuracy, 'recordedAt': recordedAt.toIso8601String(),'isCurrentLocation':isCurrentLocation};
+    'accuracy': accuracy, 'recordedAt': recordedAt.toIso8601String(),'isCurrentLocation':isCurrentLocation,if(markerColor!=null)'markerColor':markerColor};
   static ThoughtLocation? fromJson(dynamic json) {
     if (json == null) return null;
     final lat = (json['latitude'] as num).toDouble(), lon = (json['longitude'] as num).toDouble();
@@ -15,7 +17,7 @@ class ThoughtLocation {
     if (!lat.isFinite || !lon.isFinite || lat.abs() > 90 || lon.abs() > 180 || !accuracy.isFinite || accuracy < 0) {
       throw const FormatException('Invalid thought location');
     }
-    return ThoughtLocation(lat, lon, accuracy, DateTime.parse(json['recordedAt'] as String),isCurrentLocation:json['isCurrentLocation'] as bool?);
+    return ThoughtLocation(lat, lon, accuracy, DateTime.parse(json['recordedAt'] as String),isCurrentLocation:json['isCurrentLocation'] as bool?,markerColor:json['markerColor'] is int && json['markerColor']>=0xFF000000 && json['markerColor']<=0xFFFFFFFF ? json['markerColor'] as int : null);
   }
 }
 
