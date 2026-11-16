@@ -430,7 +430,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               )),
               const Divider(key:ValueKey('element-attachments-divider'),height:9,thickness:1),
               Row(children:[
-                IconButton(tooltip:'위치 기록',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.add_location_alt_outlined,size:20)),
+                IconButton(tooltip:'위치 기록',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.location_on_outlined,size:20)),
                 const SizedBox(width:4),
                 IconButton(tooltip:'음성 녹음',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const Icon(Icons.mic_none,size:20)),
                 const SizedBox(width:4),
@@ -457,13 +457,15 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                 load: () => MediaStorage.read(clip.id), durationMs: clip.durationMs,textStyle:Theme.of(context).textTheme.labelLarge)),
                 IconButton(tooltip:'음성 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_removedAudio.putIfAbsent(element.id,()=>{}).add(clip.id)),icon:const Icon(Icons.delete_outline)),
               ]),
-              Wrap(spacing:8,runSpacing:8,children:[
+              if(_photosFor(element).isNotEmpty||(_photoUploads[element.id]?.isNotEmpty??false))Padding(padding:const EdgeInsets.symmetric(vertical:8),child:PhotoGallery(
+                photos:_photosFor(element),
+                onDelete:_attachmentBusy||!_canAttach?null:(photo)=>setState(()=>_removedPhotos.putIfAbsent(element.id,()=>{}).add(photo.id)),
+                trailing:[
                 for(final photo in _photoUploads[element.id]??<PhotoDraft>[])SizedBox.square(dimension:88,child:Stack(fit:StackFit.expand,children:[
                   Image.memory(photo.bytes,fit:BoxFit.cover,errorBuilder:(_,error,stack)=>const Icon(Icons.broken_image)),
                   Positioned(top:2,right:2,child:PhotoRemoveButton(onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_photoUploads[element.id]!.remove(photo)))),
                 ])),
-              ]),
-              if (_photosFor(element).isNotEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: PhotoGallery(photos: _photosFor(element),onDelete:_attachmentBusy||!_canAttach?null:(photo)=>setState(()=>_removedPhotos.putIfAbsent(element.id,()=>{}).add(photo.id)))),
+              ])),
             ],
           ),
         ),
