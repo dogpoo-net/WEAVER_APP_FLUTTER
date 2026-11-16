@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/all_thoughts_page.dart';
@@ -8,11 +9,13 @@ import 'package:weaver/features/inbox/workspace_storage.dart';
 
 void main() {
   testWidgets('box and tag color labels edit without changing the active filter', (tester) async {
+    SharedPreferences.setMockInitialValues({});thoughtSquareViewCache=null;
     elements.clear(); memoBoxes.clear(); hashtagColors.clear();
     final record = elements.add('생각 #독서');
     final box = MemoBox('자료', ids: [record.id]); memoBoxes.add(box);
     var saves = 0;
     await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(initialView: ThoughtView.boxes, notes: const [], onChanged: () => saves++)));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('자료 상자 색상 변경')); await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('hashtag-palette')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('hashtag-color-2'))); await tester.pumpAndSettle();

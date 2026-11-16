@@ -1,3 +1,4 @@
+import 'thought_colors.dart';
 import '../capture/voice_dialog.dart';
 import '../capture/attachment_picker.dart';
 import '../capture/location_editor.dart';
@@ -346,10 +347,10 @@ class _ElementMetadataState extends State<_ElementMetadata> {
           onRemove: (tag) => setState(() => _tags.remove(tag)))),
         IconButton(key: const ValueKey('thought-color'), tooltip: '생각 색상 변경',
           visualDensity: VisualDensity.compact, icon: Container(width: 20, height: 20,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: _closed ? wordBackgroundColor(context, word, closed: true) : _labelColor == null ? wordBackgroundColor(context, word, closed: false) : Color(_labelColor!),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: _closed ? wordBackgroundColor(context, word, closed: true) : _labelColor == null ? wordBackgroundColor(context, word, closed: false) : thoughtBackgroundForColor(context,Color(_labelColor!)),
               border: Border.all(color: Theme.of(context).colorScheme.outlineVariant))),
           onPressed: _closed ? null : () async {
-            final color = await pickHashtagColor(context, '생각', _labelColor == null ? null : Color(_labelColor!), prefix: '');
+            final color = await pickThoughtColor(context, _labelColor == null ? null : Color(_labelColor!));
             if (color == null || !mounted) return;
             setState(() => _labelColor = color.toARGB32());
           }),
@@ -488,6 +489,20 @@ class _ElementMetadataState extends State<_ElementMetadata> {
             final cleaned = cleanLinkedInput(_editor);
             if(cleaned.text.trim().isEmpty || cleaned.text!=word && elements.records.containsKey(cleaned.text)){
               setState(()=>_error='생각 내용을 확인해주세요. 같은 내용의 생각은 중복 저장할 수 없습니다.');return;
+            }
+            final deletesSavedData=element.photos.any((p)=>_removedPhotos[element.id]?.contains(p.id)??false)||
+              element.recordings.any((a)=>(_removedAudio[element.id]?.contains(a.id)??false)||(_audioUploads[element.id]?.isNotEmpty??false))||
+              element.location!=null&&_locationEdits.containsKey(element.id)&&_locationEdits[element.id]==null;
+            if(deletesSavedData){
+              setState((){_attachmentBusy=true;_captureModalOpen=true;});
+              final confirmed=await showDialog<bool>(context:context,builder:(dialogContext)=>AlertDialog(
+                content:const Text('삭제된 데이터가 있습니다. 저장하시겠습니까?'),
+                actions:[TextButton(onPressed:()=>Navigator.pop(dialogContext,false),child:const Text('취소')),
+                  FilledButton(onPressed:()=>Navigator.pop(dialogContext,true),child:const Text('저장'))]));
+              if(!mounted)return;
+              _captureModalOpen=false;
+              if(confirmed!=true){setState(()=>_attachmentBusy=false);return;}
+              if(_mediaOwner!=MediaStorage.activeOwner){setState((){_attachmentBusy=false;_error='워크스페이스가 변경되었습니다. 다시 열어주세요.';});return;}
             }
             final written=<String>[],photos=<PhotoAttachment>[],voices=<VoiceAttachment>[];
             setState(()=>_attachmentBusy=true);

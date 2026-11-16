@@ -8,10 +8,10 @@ void main(){
  testWidgets('badge counts appear only for comments and update in place',(tester)async{
  elements.clear();final memo=elements.add('댓글 메모\n두 번째 줄\n세 번째 줄');
  await tester.pumpWidget(MaterialApp(home:Scaffold(body:WordBadge(word:memo.text,fullText:true,onTap:(){}))));
- final count=find.byKey(ValueKey('comment-count-${memo.id}'));
+ final count=find.byKey(ValueKey('comment-icon-${memo.id}'));
  expect(count,findsNothing);
  memoCommentCounts.value={memo.id:12};await tester.pump();
- expect(count,findsOneWidget);expect(find.text('12'),findsOneWidget);
+ expect(count,findsOneWidget);expect(find.text('12'),findsNothing);
  expect(tester.getCenter(count).dy,closeTo(tester.getCenter(find.text(memo.text)).dy,.1));
  expect(tester.getCenter(count).dx,lessThan(tester.getCenter(find.text(memo.text)).dx));
  memoCommentCounts.value={};await tester.pump();expect(count,findsNothing);

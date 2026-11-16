@@ -19,6 +19,11 @@ void main(){
   await remove();await tester.tap(find.text('닫기'));await tester.pump();await tester.pump(const Duration(milliseconds:300));
   expect(record.location,isNotNull);expect(record.photos,hasLength(1));expect(record.recordings,hasLength(1));
   await remove();await tester.tap(find.widgetWithText(FilledButton,'저장'));await tester.pump();await tester.pump(const Duration(milliseconds:300));
+  expect(find.text('삭제된 데이터가 있습니다. 저장하시겠습니까?'),findsOneWidget);
+  await tester.tap(find.text('취소'));await tester.pumpAndSettle();
+  expect(record.location,isNotNull);expect(record.photos,hasLength(1));expect(record.recordings,hasLength(1));
+  await tester.tap(find.widgetWithText(FilledButton,'저장'));await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(FilledButton,'저장').last);await tester.pumpAndSettle();
   expect(record.location,isNull);expect(record.photos,isEmpty);expect(record.recordings,isEmpty);expect(elements.trash,isEmpty);
   await tester.pumpWidget(const SizedBox());elements.clear();
  });

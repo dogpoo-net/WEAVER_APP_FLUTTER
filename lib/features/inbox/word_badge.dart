@@ -1,3 +1,4 @@
+import 'thought_colors.dart';
 import 'memo_comments.dart';
 import '../capture/attachment_indicators.dart';
 import 'element_store.dart';
@@ -24,7 +25,7 @@ const starterWords = ['관찰', '질문', '연결', '기억', '성장'];
 Color wordBackgroundColor(BuildContext context, String word, {bool? closed}) {
   if (closed ?? (elements.records[word]?.hiddenFromSearch == true)) return Theme.of(context).brightness == Brightness.dark ? const Color(0xFF303030) : const Color(0xFFBABABA);
   final custom = elements.records[word]?.labelColor;
-  if (custom != null) return HSLColor.fromColor(Color(custom)).withLightness(Theme.of(context).brightness == Brightness.dark ? .25 : .9).toColor();
+  if (custom != null) return thoughtBackgroundForColor(context,Color(custom));
   final hue = _wordHues.putIfAbsent(word, () => _random.nextDouble() * 360);
   return HSLColor.fromAHSL(
     1,
@@ -48,7 +49,7 @@ Widget elementBadge(BuildContext context, String word) => Chip(
 Color wordColor(BuildContext context, String word) {
   if (elements.records[word]?.hiddenFromSearch == true) return Theme.of(context).brightness == Brightness.dark ? const Color(0xFF969696) : const Color(0xFF303030);
   final custom = elements.records[word]?.labelColor;
-  if (custom != null) return HSLColor.fromColor(Color(custom)).withLightness(Theme.of(context).brightness == Brightness.dark ? .9 : .23).toColor();
+  if (custom != null) return thoughtForegroundForColor(context,Color(custom));
   final hue = _wordHues.putIfAbsent(word, () => _random.nextDouble() * 360);
   return HSLColor.fromAHSL(
     1,
@@ -174,7 +175,7 @@ class WordBadge extends StatelessWidget {
       maxLines:square?((constraints.maxHeight-(hasMetadata?40:20))/20).floor().clamp(1,100):fullText&&!singleLine?null:1,
       softWrap:fullText&&!singleLine,overflow:square?TextOverflow.ellipsis:fullText&&!singleLine?TextOverflow.visible:TextOverflow.ellipsis,
       semanticsLabel:project?'문서:$title':labelTarget?'라벨:$title':memo?'메모:$title':title);
-    final metadata=record==null?const SizedBox.shrink():AttachmentIndicators(record:record,commentCount:commentCount,vertical:!square);
+    final metadata=record==null?const SizedBox.shrink():AttachmentIndicators(record:record,commentCount:square?0:commentCount,vertical:!square);
     final badge = ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: TextButton(
       onPressed: onTap,
       onLongPress: onLongPress,
@@ -197,7 +198,10 @@ class WordBadge extends StatelessWidget {
         textStyle: badgeTextStyle,
       ),
       child:square?Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        if(hasMetadata)metadata,
+        if(hasMetadata)Row(children:[metadata,const Spacer(),if(commentCount>0)Tooltip(message:'댓글 $commentCount개',child:Row(mainAxisSize:MainAxisSize.min,children:[
+          Icon(Icons.chat_bubble_outline,size:13,key:ValueKey('comment-icon-${record!.id}')),const SizedBox(width:2),
+          Text('$commentCount',key:ValueKey('comment-count-${record.id}'),style:const TextStyle(fontSize:10,height:1.3)),
+        ]))]),
         Expanded(child:Align(alignment:Alignment.centerLeft,child:body)),
       ]):Row(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.center,children:[
         if(hasMetadata)...[metadata,const SizedBox(width:4)],

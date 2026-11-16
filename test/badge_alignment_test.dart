@@ -18,7 +18,7 @@ void main(){
   final location=tester.getRect(find.byIcon(Icons.location_on_outlined));
   final voice=tester.getRect(find.byIcon(Icons.mic_none));
   final photo=tester.getRect(find.byIcon(Icons.image_outlined));
-  final count=tester.getRect(find.byKey(ValueKey('comment-count-${record.id}')));
+  final count=tester.getRect(find.byKey(ValueKey('comment-icon-${record.id}')));
   final badge=tester.getRect(find.byType(TextButton));
   expect(label.center.dy,closeTo(badge.center.dy,.5));
   expect(count.bottom,lessThanOrEqualTo(location.top));
@@ -29,7 +29,7 @@ void main(){
  }
  }
 
- testWidgets('square metadata starts at top left with unbordered count first',(tester)async{
+ testWidgets('square comment icon and count sit at the top right',(tester)async{
   elements.clear();final record=elements.add('메모');memoCommentCounts.value={record.id:3};
   record.location=ThoughtLocation(37,127,0,DateTime.utc(2026));
   record.recordings.add(const VoiceAttachment('voice',1000));
@@ -38,8 +38,9 @@ void main(){
   final count=find.byKey(ValueKey('comment-count-${record.id}'));
   final countRect=tester.getRect(count),badge=tester.getRect(find.byType(TextButton));
   final location=tester.getRect(find.byIcon(Icons.location_on_outlined));
-  expect(countRect.left-badge.left,closeTo(4,.1));expect(countRect.top-badge.top,closeTo(4,.1));
-  expect(countRect.right,lessThanOrEqualTo(location.left));expect(countRect.center.dy,closeTo(location.center.dy,.1));
+  expect(badge.right-countRect.right,closeTo(4,.1));expect(countRect.top-badge.top,closeTo(4,.1));
+  expect(countRect.left,greaterThan(location.right));
+  expect(tester.getRect(find.byKey(ValueKey('comment-icon-${record.id}'))).right,lessThan(countRect.left));expect(countRect.center.dy,closeTo(location.center.dy,.1));
   expect(find.ancestor(of:count,matching:find.byType(Container)),findsNothing);
   await tester.pumpWidget(const SizedBox());memoCommentCounts.value={};elements.clear();
  });

@@ -126,9 +126,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         });
         final iconCount = (record.photos.isNotEmpty ? 1 : 0) + (record.recordings.isNotEmpty ? 1 : 0) + (record.location != null ? 1 : 0);
         final count=memoCommentCounts.value[record.id]??0;
-        var countWidth=0.0;
-        if(count>0){final painter=TextPainter(text:TextSpan(text:'$count',style:Theme.of(context).textTheme.labelLarge!.copyWith(fontSize:10,height:1.1,fontWeight:FontWeight.w500)),textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context))..layout();countWidth=painter.width;painter.dispose();}
-        final width = (textWidth + 8 + math.max(countWidth,iconCount>0?13.0:0.0) + (iconCount>0||count>0?4:0)).clamp(math.min(16.0, maxWidth), maxWidth).toDouble();
+        final width = (textWidth + 8 + (iconCount>0||count>0?17:0)).clamp(math.min(16.0, maxWidth), maxWidth).toDouble();
         items.add((record: record, width: width));
       }
       return GestureDetector(

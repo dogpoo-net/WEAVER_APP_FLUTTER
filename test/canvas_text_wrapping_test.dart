@@ -16,7 +16,7 @@ void main() {
   memoCommentCounts.value={record.id:2};final layout=blocks?pageGraphLayout.blockLayout:pageGraphLayout;
   layout.positions[record.id]=const Offset(500,500);layout.sizes[record.id]=const Offset(170,76);
   await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,onChanged:(){})));await tester.pumpAndSettle();
-  final count=tester.getRect(find.byKey(ValueKey('comment-count-${record.id}')));
+  final count=tester.getRect(find.byKey(ValueKey('comment-icon-${record.id}')));
   final location=tester.getRect(find.byIcon(Icons.location_on_outlined));final audio=tester.getRect(find.byIcon(Icons.mic_none));final photo=tester.getRect(find.byIcon(Icons.image_outlined));
   expect(count.bottom,lessThanOrEqualTo(location.top+.1));expect(location.bottom,lessThanOrEqualTo(audio.top+.1));expect(audio.bottom,lessThanOrEqualTo(photo.top+.1));
   expect(tester.getCenter(find.text(record.text)).dy,closeTo((count.top+photo.bottom)/2,.5));
