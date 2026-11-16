@@ -10,6 +10,27 @@ import 'package:weaver/features/inbox/thought_page.dart';
 
 void main() {
  for(final blocks in [false,true]) {
+ testWidgets('covered cards align at top and foreground cards stay centered ($blocks)',(tester)async{
+  elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();
+  final back=elements.add('뒤쪽'),front=elements.add('앞쪽');
+  final layout=blocks?pageGraphLayout.blockLayout:pageGraphLayout;
+  layout.positions.addAll({back.id:const Offset(500,500),front.id:const Offset(500,532)});
+  layout.sizes.addAll({back.id:const Offset(230,160),front.id:const Offset(230,160)});
+  layout.layers.addAll([back.id,front.id]);
+  Future<void> show()async{
+   await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,onChanged:(){})));await tester.pumpAndSettle();
+  }
+  await show();
+  double inset(String id,String text)=>tester.getTopLeft(find.text(text)).dy-tester.getTopLeft(find.byKey(ValueKey('canvas-thought-$id'))).dy;
+  expect(inset(back.id,back.text),lessThan(inset(front.id,front.text)-10));
+  await tester.pumpWidget(const SizedBox());
+  layout.layers..clear()..addAll([front.id,back.id]);await show();
+  expect(inset(front.id,front.text),lessThan(inset(back.id,back.text)-10));
+  await tester.pumpWidget(const SizedBox());
+  layout.positions[front.id]=const Offset(800,532);await show();
+  expect(inset(front.id,front.text),closeTo(inset(back.id,back.text),.1));
+  expect(tester.takeException(),isNull);await tester.pumpWidget(const SizedBox());elements.clear();
+ });
  testWidgets('canvas metadata is vertical and text centered even in a small object ($blocks)',(tester)async{
   elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();final record=elements.add('본문');
   record.location=ThoughtLocation(37,127,0,DateTime.utc(2026));record.photos.add(const PhotoAttachment('p','p.png'));record.recordings.add(const VoiceAttachment('a',1000));

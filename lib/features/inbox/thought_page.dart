@@ -711,6 +711,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final front = records.where((r) => r.id == _frontThought).firstOrNull;
       if (front != null) { records.remove(front); records.add(front); }
     }
+    final coveredThoughts=<String>{};
+    final thoughtBounds=[for(final record in records)_bounds(record.id)];
+    for(var i=0;i<records.length;i++){
+      for(var j=i+1;j<records.length;j++){
+        if(thoughtBounds[i].overlaps(thoughtBounds[j])){coveredThoughts.add(records[i].id);break;}
+      }
+    }
     final visiblePositions = {for (final r in records) r.id: _positions[r.id]!};
     final labelExtent = records.where((r) => r.indexLabel.isNotEmpty).fold(180.0, (width, r) => math.max(width, ThoughtLabel.width(context, r.indexLabel) + 36));
     final tags = _hideTags && !widget.blocks ? <String>[] : (records.expand((r) => r.tags).toSet().toList()..sort());
@@ -937,7 +944,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _dropHighlights.contains(record.id) || _draggingId == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) ? 3 : 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: _dropHighlights.contains(record.id) || _draggingId == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) || _draggingId == record.id ? 3 : 2)),
                   child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    Expanded(child: Padding(padding: const EdgeInsets.all(8), child: ValueListenableBuilder<Map<String,int>>(valueListenable:memoCommentCounts,builder:(context,counts,_)=>Row(crossAxisAlignment:CrossAxisAlignment.center,children:[
+                    Expanded(child: Padding(padding: const EdgeInsets.all(8), child: ValueListenableBuilder<Map<String,int>>(valueListenable:memoCommentCounts,builder:(context,counts,_)=>Row(crossAxisAlignment:coveredThoughts.contains(record.id)?CrossAxisAlignment.start:CrossAxisAlignment.center,children:[
                       if(AttachmentIndicators.hasAttachments(record)||(counts[record.id]??0)>0)...[FittedBox(fit:BoxFit.scaleDown,child:AttachmentIndicators(record:record,commentCount:counts[record.id]??0)),const SizedBox(width:4)],
                       Expanded(child:Text(record.text,softWrap:true,overflow:TextOverflow.clip,style:TextStyle(color:wordColor(context,record.text)))),
                     ])))),
