@@ -6,8 +6,8 @@ import 'media_storage.dart';
 void showPhoto(BuildContext context, Uint8List bytes) {
   showDialog<void>(context: context, builder: (context) => Dialog.fullscreen(child: Scaffold(
     appBar: AppBar(title: const Text('첨부 사진'), leading: IconButton(tooltip: '닫기', icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))),
-    body: Center(child: InteractiveViewer(minScale: .5, maxScale: 5,
-      child: Image.memory(bytes, fit: BoxFit.contain, errorBuilder: (_, error, stack) => const Text('사진을 표시할 수 없습니다.')))),
+    body: SizedBox.expand(child: InteractiveViewer(minScale: .5, maxScale: 5,
+      child: SizedBox.expand(child: Image.memory(bytes, fit: BoxFit.contain, errorBuilder: (_, error, stack) => const Center(child: Text('사진을 표시할 수 없습니다.')))))),
   )));
 }
 class PhotoGallery extends StatelessWidget {
