@@ -2,7 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/packed_badges.dart';
 import 'package:weaver/features/inbox/word_badge.dart';
+class _CountingPacked extends PackedBadges {
+ const _CountingPacked({required super.children});
+ @override RenderPackedBadges createRenderObject(BuildContext context)=>_CountingLayout();
+}
+class _CountingLayout extends RenderPackedBadges {
+ _CountingLayout():super(TextDirection.ltr,null,null,30);
+ int layouts=0;
+ @override void performLayout(){layouts++;super.performLayout();}
+}
 void main(){
+ testWidgets('unrelated parent rebuild does not repack unchanged badges',(tester)async{
+  final signal=ValueNotifier(0);addTearDown(signal.dispose);
+  await tester.pumpWidget(MaterialApp(home:ValueListenableBuilder<int>(valueListenable:signal,builder:(context,value,child)=>_CountingPacked(children:const [SizedBox(width:100,height:30),SizedBox(width:100,height:50)]))));
+  final render=tester.renderObject<_CountingLayout>(find.byType(_CountingPacked));final before=render.layouts;
+  signal.value++;await tester.pump();expect(render.layouts,before);
+  await tester.pumpWidget(const SizedBox());
+ });
  testWidgets('short badges stack alongside a taller badge without overlap',(tester)async{
   await tester.pumpWidget(const MaterialApp(home:Scaffold(body:Align(alignment:Alignment.topLeft,child:SizedBox(width:220,child:PackedBadges(children:[
    SizedBox(key:ValueKey('tall'),width:100,height:66),SizedBox(key:ValueKey('one'),width:100,height:30),SizedBox(key:ValueKey('two'),width:100,height:30),SizedBox(key:ValueKey('wide'),width:212,height:30),SizedBox(key:ValueKey('last'),width:90,height:30),

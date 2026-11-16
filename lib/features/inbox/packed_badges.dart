@@ -10,7 +10,10 @@ class PackedBadges extends MultiChildRenderObjectWidget {
   final ValueChanged<bool>? onOverflowChanged;
   @override RenderObject createRenderObject(BuildContext context) => RenderPackedBadges(Directionality.of(context), maxRows, onOverflowChanged, math.max(30, MediaQuery.textScalerOf(context).scale(12) * 1.5 + 10));
   @override void updateRenderObject(BuildContext context, covariant RenderPackedBadges renderObject) {
-    renderObject..direction=Directionality.of(context)..rows=maxRows..rowHeight=math.max(30, MediaQuery.textScalerOf(context).scale(12) * 1.5 + 10)..onOverflowChanged=onOverflowChanged..markNeedsLayout();
+    final direction=Directionality.of(context),height=math.max(30.0,MediaQuery.textScalerOf(context).scale(12)*1.5+10);
+    final changed=renderObject.direction!=direction||renderObject.rows!=maxRows||renderObject.rowHeight!=height;
+    renderObject..direction=direction..rows=maxRows..rowHeight=height..onOverflowChanged=onOverflowChanged;
+    if(changed)renderObject.markNeedsLayout();
   }
 }
 class _Data extends ContainerBoxParentData<RenderBox> {}

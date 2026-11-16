@@ -475,6 +475,7 @@ class WorkspaceStorage {
     final task = _pending.catchError((Object _) {}).then((_) async {
       await writable();
       final old = preferences.getString(workspaceKey);
+      if(old==data)return;
       if (old != null && !await preferences.setString('$workspaceKey.previous', old)) {
         throw StateError('Backup failed');
       }

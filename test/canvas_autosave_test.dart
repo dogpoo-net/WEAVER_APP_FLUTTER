@@ -65,6 +65,19 @@ void main(){
   api.entered=null;api.release=null;await sync.flushCanvas();expect(jsonDecode(api.items.values.first['payload']),[30,40]);
   sync.dispose();api.dispose();
  });
+ test('acknowledging our own canvas move does not rebuild or replace the workspace',()async{
+  final api=ReceiptApi();final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'a');final sync=WorkspaceSync(storage,api,isCurrent:()=>true);await sync.initialize();
+  var applied=0;storage.applyServerSnapshot=()=>applied++;
+  final raw=snapshot({'a':[10,20]});await storage.write(raw);await sync.flushCanvas();
+  expect(applied,0);expect(storage.read(),raw);expect(api.requests.length,1);
+  sync.dispose();api.dispose();
+ });
+ test('identical persistence does not notify or replace the recovery checkpoint',()async{
+  final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'a');var changes=0;storage.onChanged=()=>changes++;
+  final before=snapshot({'a':[1,2]}),after=snapshot({'a':[3,4]});await storage.write(before);await storage.write(after);
+  for(var i=0;i<20;i++){await storage.write(after);}
+  expect(changes,2);expect(storage.preferences.getString('${storage.workspaceKey}.previous'),before);
+ });
  test('readonly workspace never schedules automatic writes',()async{
   final api=ReceiptApi();final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'a');final sync=WorkspaceSync(storage,api,isCurrent:()=>true,readOnly:true);await sync.initialize();
   await storage.write(snapshot({'a':[1,2]}));await sync.flushCanvas();expect(api.requests,isEmpty);expect(storage.canvasWritable,false);sync.dispose();api.dispose();

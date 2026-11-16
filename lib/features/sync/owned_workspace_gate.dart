@@ -266,7 +266,14 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     }
   }
 
+  String? _shownSyncError;
+  bool _shownSyncBusy=false;
   void refresh() {
+    final error=sync?.error,busy=sync?.busy??false;
+    // The body does not depend on save progress. Rebuild only when the error
+    // banner (or its retry button) actually changes.
+    if(error==_shownSyncError&&(error==null||busy==_shownSyncBusy))return;
+    _shownSyncError=error;_shownSyncBusy=busy;
     if (mounted) setState(() {});
   }
 

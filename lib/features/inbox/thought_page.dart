@@ -1,3 +1,4 @@
+import 'canvas_occlusion.dart';
 import 'memo_comments.dart';
 import 'package:flutter/services.dart';
 import 'workspace_storage.dart';
@@ -762,13 +763,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final front = records.where((r) => r.id == _frontThought).firstOrNull;
       if (front != null) { records.remove(front); records.add(front); }
     }
-    final coveredThoughts=<String>{};
     final thoughtBounds=[for(final record in records)_bounds(record.id)];
-    for(var i=0;i<records.length;i++){
-      for(var j=i+1;j<records.length;j++){
-        if(thoughtBounds[i].overlaps(thoughtBounds[j])){coveredThoughts.add(records[i].id);break;}
-      }
-    }
+    final coveredThoughts={for(final i in coveredCanvasItems(thoughtBounds))records[i].id};
     final visiblePositions = {for (final r in records) r.id: _positions[r.id]!};
     final labelExtent = records.where((r) => r.indexLabel.isNotEmpty).fold(180.0, (width, r) => math.max(width, ThoughtLabel.width(context, r.indexLabel) + 36));
     final tags = _hideTags && !widget.blocks ? <String>[] : (records.expand((r) => r.tags).toSet().toList()..sort());

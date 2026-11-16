@@ -267,6 +267,7 @@ class WorkspaceSync extends ChangeNotifier {
       final result=await request('save',body);
       await storage.flush();
       final current=splitWorkspace(storage.read());
+      var snapshotChanged=false;
       final submitted={for(final c in body['changes'] as List)itemKey(c['kind'],c['id']):Map<String,dynamic>.from(c as Map)};
       for(final row in result['changes'] as List){
         final item=Map<String,dynamic>.from(row as Map);
@@ -275,14 +276,15 @@ class WorkspaceSync extends ChangeNotifier {
         item['value']=item['payload']==null?null:jsonDecode(item.remove('payload') as String);
         base[key]=item;
         // Acknowledgement cannot replace a newer local drag.
-        if(sameItem(current[key],submitted[key])){
+        if(sameItem(current[key],submitted[key])&&!sameItem(current[key],item)){
+          snapshotChanged=true;
           if(item['deleted']==true){current.remove(key);}else{current[key]=item;}
         }
       }
-      await storage.replaceFromBackup(joinWorkspace(current));
+      if(snapshotChanged)await storage.replaceFromBackup(joinWorkspace(current));
       await saveBase();
       if(!await storage.preferences.remove(_canvasOutbox))throw StateError('Canvas receipt save failed');
-      storage.applyServerSnapshot?.call();
+      if(snapshotChanged)storage.applyServerSnapshot?.call();
       storage.canvasSaveState.value='저장됨';error=null;
     }catch(e){storage.canvasSaveState.value='연결 대기';rethrow;}
   }
