@@ -17,9 +17,15 @@ void main() {
     'profile edits name and keeps the same account; settings has no social links',
     (tester) async {
       var name = 'Original';
+      var socialApplied = false;
+      var linked = true;
       final api = EmailAuthApi(
         store: MemorySessionStore(isWeb: true),
         client: MockClient((r) async {
+          if (r.url.path.endsWith('/profile/photo/social')) {
+            socialApplied = true;
+            return http.Response('{}', 200);
+          }
           if (r.url.path.endsWith('/profile/name')) {
             name = jsonDecode(r.body)['name'] as String;
             return http.Response('{}', 200);
@@ -29,7 +35,7 @@ void main() {
               jsonEncode({
                 'name': name,
                 'email': 'a@example.com',
-                'providers': ['github'],
+                'providers': linked ? ['github'] : [],
                 'emailEnabled': true,
                 'defaultFace': 3,
               }),
@@ -64,6 +70,19 @@ void main() {
       final fallback =
           tester.widget<Image>(find.byType(Image).first).image as AssetImage;
       expect(fallback.assetName, 'assets/branding/profile/face_3.png');
+      await tester.tap(find.byTooltip('프로필 사진 변경'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('소셜 이미지 적용'));
+      await tester.pumpAndSettle();
+      expect(socialApplied, isTrue);
+      linked = false;
+      await auth.loadProfile();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('프로필 사진 변경'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<PopupMenuItem<String>>(find.ancestor(of: find.text('소셜 이미지 적용'), matching: find.byType(PopupMenuItem<String>))).enabled, isFalse);
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('이름 변경'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'Changed');

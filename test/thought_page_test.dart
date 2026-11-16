@@ -81,7 +81,7 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
-  for (final blocks in [false, true]) for (final inBox in [false, true]) {
+  for (final blocks in [false, true]) { for (final inBox in [false, true]) {
     testWidgets('graph search, unlinked review and tag dragging (blocks=$blocks box=$inBox)', (tester) async {
       elements.clear();
       final a = elements.add('연결된 생각 #독서');
@@ -117,4 +117,5 @@ void main() {
     });
   }
 
+  }
 }

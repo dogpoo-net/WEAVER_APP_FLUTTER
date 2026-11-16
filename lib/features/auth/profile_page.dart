@@ -146,6 +146,11 @@ class _ProfilePageState extends State<ProfilePage> {
     await auth.loadProfile();
     message('기본 사진을 적용했습니다.');
   });
+  Future<void> socialPhoto() => run(() async {
+    await auth.emailApi.profile('photo/social');
+    await auth.loadProfile();
+    message('소셜 사진을 적용했습니다.');
+  });
   Future<void> editPhoto() => run(() async {
     final photo = await ImagePicker().pickImage(
       source: ImageSource.gallery,
@@ -208,11 +213,12 @@ class _ProfilePageState extends State<ProfilePage> {
                 Center(
                   child: PopupMenuButton<String>(
                     enabled: !disabled,
-                    itemBuilder: (_) => const [
+                    itemBuilder: (_) => [
                       PopupMenuItem(value: 'upload', child: Text('사진 변경')),
                       PopupMenuItem(value: 'default', child: Text('기본 사진 적용')),
+                      PopupMenuItem(value: 'social', enabled: providers.isNotEmpty, child: const Text('소셜 이미지 적용')),
                     ],
-                    onSelected: (action) { if (action == 'default') { defaultPhoto(); } else { editPhoto(); } },
+                    onSelected: (action) { if (action == 'default') { defaultPhoto(); } else if (action == 'social') { socialPhoto(); } else { editPhoto(); } },
                     tooltip: '프로필 사진 변경',
                     icon: Stack(
                       children: [
