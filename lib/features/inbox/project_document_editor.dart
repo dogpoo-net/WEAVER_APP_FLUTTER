@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'dart:async';
 import 'dart:convert';
 import '../sync/document_merge.dart';
@@ -216,6 +217,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     ]);
   }
   double _referenceSplit=.5;
+  double _referenceDragY=0,_referenceDragHeight=0;
   Widget _referencesPanel() => !_wide ? _referenceList(documents: false) : LayoutBuilder(builder:(context,constraints){
     final available=(constraints.maxHeight-16).clamp(0.0,double.infinity);
     final minimum=available>0?(56/available).clamp(.15,.5):.5;
@@ -224,7 +226,9 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       SizedBox(height:available*split,child:_referenceList(documents:false)),
       MouseRegion(cursor:SystemMouseCursors.resizeUpDown,child:GestureDetector(
         key:const ValueKey('document-reference-divider'),behavior:HitTestBehavior.opaque,
-        onVerticalDragUpdate:(details){if(available>0)setState(()=>_referenceSplit=(split+details.delta.dy/available).clamp(minimum,1-minimum));},
+        dragStartBehavior:DragStartBehavior.down,
+        onVerticalDragStart:(details){_referenceDragY=details.globalPosition.dy;_referenceDragHeight=available*split;},
+        onVerticalDragUpdate:(details){if(available>0)setState(()=>_referenceSplit=((_referenceDragHeight+details.globalPosition.dy-_referenceDragY)/available).clamp(minimum,1-minimum));},
         child:Tooltip(message:'드래그하여 패널 높이 조절',child:SizedBox(height:16,child:Center(child:Container(width:40,height:3,decoration:BoxDecoration(color:Theme.of(context).colorScheme.outlineVariant,borderRadius:BorderRadius.circular(2)))))))),
       Expanded(child:_referenceList(documents:true)),
     ]);
@@ -275,10 +279,12 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
           showWhenEmpty: false, enterSelectsVisible: true, showShortcutHint: true,
-          child: TextField(key: const ValueKey('project-document'), readOnly: _saving, controller: _body, focusNode: _bodyFocus, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
+          child: Stack(fit:StackFit.expand,children:[TextField(key: const ValueKey('project-document'), readOnly: _saving, controller: _body, focusNode: _bodyFocus, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
           onTapOutside: _wide ? null : (_) {},
           onTap: () => _body.openAtCaret(context), textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
-          decoration: InputDecoration(contentPadding:EdgeInsets.fromLTRB(12,16,12,_dirty?36:16),fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder()))));
+          decoration: InputDecoration(contentPadding:EdgeInsets.fromLTRB(12,16,12,_dirty?36:16),fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder())),
+          if(_dirty)const Positioned(left:12,right:12,bottom:8,child:IgnorePointer(child:Text('아직 저장되지 않았습니다.',textAlign:TextAlign.center,style:TextStyle(color:Colors.red,fontSize:12)))),
+        ])));
       final documentInput = !_canEdit || _preview ? documentBody : DragTarget<Object>(key: const ValueKey('document-link-drop'),
         onWillAcceptWithDetails: (details) => !_saving && _dragKey(details.data) != null,
         onAcceptWithDetails: _dropLink, builder: (context, candidates, rejected) => KeyedSubtree(key: _dropEditorKey, child: documentBody));
@@ -287,7 +293,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         child: Padding(padding: const EdgeInsets.all(4), child: _referencesPanel()));
       final document = Column(children: [
         if (!_preview) Align(key: const ValueKey('document-editor-toolbar'), alignment: Alignment.centerRight, child: TextButton.icon(style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12), tapTargetSize: MaterialTapTargetSize.shrinkWrap), onPressed: _canEdit && !_saving ? _insertTable : null, icon: const Icon(Icons.table_chart_outlined, size: 18), label: const Text('표 삽입'))),
-        Expanded(child: Stack(children:[Positioned.fill(child:documentInput),if(_dirty&&!_preview)const Positioned(left:12,bottom:4,child:IgnorePointer(child:Text('아직 저장되지 않았습니다.',style:TextStyle(color:Colors.red,fontSize:12))))])),
+        Expanded(child:documentInput),
       ]);
       return Column(children: [
         Expanded(child: Padding(padding: EdgeInsets.fromLTRB(_wide ? 12 : 6, 2, _wide ? 12 : 6, 0), child: _wide

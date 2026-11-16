@@ -36,7 +36,10 @@ void main() {
     final top=find.byKey(const ValueKey('project-thought-scroll')),bottom=find.byKey(const ValueKey('project-document-reference-scroll')),divider=find.byKey(const ValueKey('document-reference-divider'));
     final topHeight=tester.getSize(top).height,bottomHeight=tester.getSize(bottom).height;
     final body=tester.widget<TextField>(find.byKey(const ValueKey('project-document'))).controller!;final text=body.text;
-    await tester.drag(divider,const Offset(0,100));await tester.pumpAndSettle();
+    final origin=tester.getCenter(divider);final gesture=await tester.startGesture(origin);
+    for(var i=1;i<=10;i++){await gesture.moveTo(origin+Offset(0,i*10));await tester.pump();}
+    await gesture.up();await tester.pumpAndSettle();
+    expect(tester.getCenter(divider).dy-origin.dy,closeTo(100,1));
     expect(tester.getSize(top).height,greaterThan(topHeight+60));expect(tester.getSize(bottom).height,lessThan(bottomHeight-60));expect(body.text,text);
     await tester.drag(divider,const Offset(0,-1000));await tester.pumpAndSettle();expect(tester.getSize(top).height,greaterThan(0));expect(tester.takeException(),isNull);
     await tester.pumpWidget(const SizedBox());

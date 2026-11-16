@@ -5,8 +5,9 @@ import 'word_badge.dart';
 import 'workspace_routes.dart';
 
 class TrashPage extends StatefulWidget {
-  const TrashPage({super.key, required this.onDelete});
+  const TrashPage({super.key, required this.onDelete,this.onRestore});
   final Future<void> Function(String id) onDelete;
+  final Future<void> Function(String id)? onRestore;
   @override
   State<TrashPage> createState() => _TrashPageState();
 }
@@ -40,6 +41,14 @@ class _TrashPageState extends State<TrashPage> {
         content: SingleChildScrollView(child: Text(record.text)),
         actions: [
           TextButton(onPressed: busy ? null : () => Navigator.pop(dialogContext), child: const Text('닫기')),
+          if(widget.onRestore!=null)TextButton.icon(icon:const Icon(Icons.restore,size:18),label:const Text('복구'),onPressed:busy?null:()async{
+            update(()=>busy=true);
+            try{
+              await widget.onRestore!(record.id);
+              if(dialogContext.mounted)Navigator.pop(dialogContext);
+              if(mounted){setState((){});ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(content:Text('생각을 복구했습니다.')));}
+            }catch(e){if(dialogContext.mounted){update(()=>busy=false);ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content:Text('복구를 완료하지 못했습니다. $e')));}}
+          }),
           TextButton(onPressed: busy ? null : () async {
             final yes = await showDialog<bool>(context: dialogContext, builder: (context) => AlertDialog(
               title: const Text('완전히 삭제할까요?'),

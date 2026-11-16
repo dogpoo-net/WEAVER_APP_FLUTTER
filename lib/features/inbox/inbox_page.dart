@@ -444,6 +444,28 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     }
     await preferences.setStringList(_mediaCleanupKey, failed);
   }
+  Future<void> _restoreThought(String id) async {
+    final storage=widget.storage;
+    if(storage==null || _restoreBlocked)throw StateError('저장소를 사용할 수 없습니다.');
+    if(!storage.canvasWritable)throw StateError('읽기 전용 워크스페이스입니다.');
+    await storage.writable();await storage.flush();
+    final record=elements.trash[id];
+    if(record!=null){
+      final existing=elements.records[record.text];
+      if(existing!=null && existing.id!=id)throw StateError('같은 내용의 생각이 이미 있습니다. 기존 생각의 내용을 수정한 후 다시 복구해주세요.');
+      final deletedAt=record.deletedAt,folder=record.folder;
+      record.deletedAt=null;
+      if(record.folder!=null && !elementFolders.contains(record.folder))record.folder=null;
+      elements.trash.remove(id);elements.records[record.text]=record;
+      try{await storage.write(WorkspaceSnapshot.encode(_notes));}
+      catch(_){elements.records.remove(record.text);record.deletedAt=deletedAt;record.folder=folder;elements.trash[id]=record;rethrow;}
+      elements.refreshVisibility();
+    }else if(!elements.records.values.any((r)=>r.id==id)){
+      throw StateError('이미 영구 삭제되었거나 다른 기기에서 변경된 생각입니다.');
+    }
+    try{await _saveAndSync();if(!elements.records.values.any((r)=>r.id==id))throw StateError('서버의 최신 변경으로 복구가 적용되지 않았습니다. 자료를 확인해주세요.');}
+    catch(e){if(!elements.records.values.any((r)=>r.id==id))rethrow;throw StateError('복구 내용은 이 기기에 보관했습니다. 서버 동기화를 다시 시도해주세요. $e');}
+  }
   Future<void> _purgeThought(String id) async {
     final storage = widget.storage;
     if (storage == null || _restoreBlocked) throw StateError('Storage unavailable');
@@ -1147,7 +1169,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       return;
     }
     if (choice == WorkspaceMenu.trash) {
-      await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => TrashPage(onDelete: _purgeThought)));
+      await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => TrashPage(onDelete: _purgeThought,onRestore:widget.storage?.canvasWritable==false?null:_restoreThought)));
       return;
     }
     if (choice == WorkspaceMenu.createFolder) {

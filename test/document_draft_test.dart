@@ -16,6 +16,8 @@ void main(){
   await tester.pumpWidget(MaterialApp(home:ProjectDocumentEditor(project:project,storage:storage)));
   await tester.enterText(find.byKey(const ValueKey('project-document')),'local draft');await tester.pumpAndSettle();
   expect(storage.documentDraft('p')!['text'],'local draft');expect(storage.documentDraft('p')!['saved'],0);expect(project.document,'saved');expect(find.text('아직 저장되지 않았습니다.'),findsOneWidget);
+  final form=tester.getRect(find.byKey(const ValueKey('project-document'))),notice=tester.getRect(find.text('아직 저장되지 않았습니다.'));
+  expect(notice.center.dx,closeTo(form.center.dx,.1));expect(notice.left,greaterThanOrEqualTo(form.left));expect(notice.right,lessThanOrEqualTo(form.right));expect(notice.bottom,lessThan(form.bottom));
   await tester.pumpWidget(const SizedBox());await tester.pump();
   await tester.pumpWidget(MaterialApp(home:ProjectPage(project:project,storage:storage)));await tester.pumpAndSettle();
   expect(find.text('아직 저장되지 않았습니다.'),findsOneWidget);expect(find.text('local draft',findRichText:true),findsWidgets);
