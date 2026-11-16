@@ -17,8 +17,8 @@ void main(){
   final voice=tester.getRect(find.byIcon(Icons.mic_none));
   final photo=tester.getRect(find.byIcon(Icons.image_outlined));
   expect(location.center.dy,closeTo(label.top+label.height/4,.5));
-  expect(voice.center.dy,closeTo(location.center.dy,.1));expect(photo.center.dy,closeTo(location.center.dy,.1));
-  expect(location.left,lessThan(voice.left));expect(voice.left,lessThan(photo.left));
+  expect(voice.top,greaterThanOrEqualTo(location.bottom));expect(photo.top,greaterThanOrEqualTo(voice.bottom));
+  expect(location.left,closeTo(voice.left,.1));expect(voice.left,closeTo(photo.left,.1));
   await tester.pumpWidget(const SizedBox());elements.clear();
  });
  }

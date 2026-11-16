@@ -53,6 +53,21 @@ void main() {
     expect(thought.recordings,isEmpty);
     await tester.pumpWidget(const SizedBox());elements.clear();
   });
+  testWidgets('new recording replaces the preview but closing preserves saved audio',(tester)async{
+    elements.clear();final thought=elements.add('기존 녹음');
+    thought.recordings.addAll([const VoiceAttachment('old1',1000),const VoiceAttachment('old2',2000)]);
+    await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()=>showElementMetadata(context,thought.text),child:const Text('상세'))))));
+    await tester.tap(find.text('상세'));await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byTooltip('음성 녹음'));await tester.tap(find.byTooltip('음성 녹음'));await tester.pumpAndSettle();
+    await tester.tap(find.text('녹음 시작'));await tester.pumpAndSettle();
+    recorder.audio.add(Uint8List(PcmClipBuilder.maxBytes));await tester.pumpAndSettle();
+    await tester.tap(find.text('메모에 첨부'));await tester.pumpAndSettle();
+    expect(find.text('음성 메모 · 60초'),findsOneWidget);
+    expect(find.text('음성 메모 · 1초'),findsNothing);expect(find.text('음성 메모 · 2초'),findsNothing);
+    expect(thought.recordings,hasLength(2));
+    await tester.tap(find.text('닫기'));await tester.pumpAndSettle();expect(thought.recordings,hasLength(2));
+    await tester.pumpWidget(const SizedBox());elements.clear();
+  });
   testWidgets('permission denial leaves recorder modal cancellable without an attachment', (tester) async {
     recorder.permitted = false;
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: VoiceRecorderDialog())));

@@ -11,11 +11,14 @@ void showPhoto(BuildContext context, Uint8List bytes) {
   )));
 }
 class PhotoGallery extends StatelessWidget {
-  const PhotoGallery({super.key, required this.photos});
+  const PhotoGallery({super.key, required this.photos,this.onDelete});
   final List<PhotoAttachment> photos;
+  final ValueChanged<PhotoAttachment>? onDelete;
   @override
   Widget build(BuildContext context) => Wrap(spacing: 8, runSpacing: 8, children: [
-    for (final photo in photos) _StoredPhoto(key: ValueKey(photo.id), photo: photo),
+    for (final photo in photos) SizedBox.square(dimension:88,child:Stack(children:[_StoredPhoto(key: ValueKey(photo.id), photo: photo),
+      if(onDelete!=null)Positioned(top:0,right:0,child:IconButton.filledTonal(tooltip:'사진 삭제',onPressed:()=>onDelete!(photo),icon:const Icon(Icons.close,size:18))),
+    ])),
   ]);
 }
 class _StoredPhoto extends StatefulWidget {

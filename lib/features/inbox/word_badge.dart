@@ -170,9 +170,19 @@ class WordBadge extends StatelessWidget {
     ]) : fullText ? TextSpan(text: title) : _badgeExcerpt(context, title, query, maxWidth - 24);
     final badgeTextStyle=Theme.of(context).textTheme.labelLarge!.copyWith(fontSize:dense?11:12,fontWeight:FontWeight.w500);
     var firstLineHeight=0.0;
+    var verticalIndicators=false;
+    var indicatorTextWidth=double.infinity;
     if(indicators){
       final metrics=TextPainter(text:TextSpan(text:'가',style:badgeTextStyle),textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context))..layout();
       firstLineHeight=metrics.height;metrics.dispose();
+      if(fullText&&!singleLine){
+        final count=(record.photos.isNotEmpty?1:0)+(record.recordings.isNotEmpty?1:0)+(record.location!=null?1:0);
+        var counterWidth=0.0;
+        if(commentCount>0){final counter=TextPainter(text:TextSpan(text:'$commentCount',style:const TextStyle(fontSize:10,height:1.1)),textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context))..layout();counterWidth=counter.width+14;counter.dispose();}
+        indicatorTextWidth=(maxWidth-8-count*13-4-counterWidth).clamp(1.0,double.infinity);
+        final lines=TextPainter(text:TextSpan(style:badgeTextStyle,children:[label]),textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context))..layout(maxWidth:indicatorTextWidth);
+        verticalIndicators=lines.computeLineMetrics().length>1;lines.dispose();
+      }
     }
     final badge = ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: TextButton(
       onPressed: onTap,
@@ -196,9 +206,9 @@ class WordBadge extends StatelessWidget {
         textStyle: badgeTextStyle,
       ),
       child: Row(mainAxisSize: square ? MainAxisSize.max : MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (indicators) ...[SizedBox(height:firstLineHeight,child:Center(child:AttachmentIndicators(record: record))), const SizedBox(width: 4)],
-        Flexible(fit: square ? FlexFit.tight : FlexFit.loose, child: Text.rich(label, textAlign: TextAlign.start,
-        maxLines: square ? ((constraints.maxHeight - 20) / 20).floor().clamp(1, 100) : fullText && !singleLine ? null : 1, softWrap: fullText && !singleLine, overflow: square ? TextOverflow.ellipsis : fullText && !singleLine ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '문서:$title' : labelTarget ? '라벨:$title' : memo ? '메모:$title' : title)),
+        if (indicators) ...[verticalIndicators?Padding(padding:EdgeInsets.only(top:((firstLineHeight-13)/2).clamp(0.0,double.infinity)),child:AttachmentIndicators(record:record,vertical:true)):SizedBox(height:firstLineHeight,child:Center(child:AttachmentIndicators(record: record))), const SizedBox(width: 4)],
+        Flexible(fit: square ? FlexFit.tight : FlexFit.loose, child: ConstrainedBox(constraints:BoxConstraints(maxWidth:verticalIndicators?indicatorTextWidth:double.infinity),child:Text.rich(label, textAlign: TextAlign.start,
+        maxLines: square ? ((constraints.maxHeight - 20) / 20).floor().clamp(1, 100) : fullText && !singleLine ? null : 1, softWrap: fullText && !singleLine, overflow: square ? TextOverflow.ellipsis : fullText && !singleLine ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '문서:$title' : labelTarget ? '라벨:$title' : memo ? '메모:$title' : title))),
         if(commentCount>0) Padding(padding:const EdgeInsets.only(left:4,top:2),child:Tooltip(
           message:'댓글 $commentCount개',child:Container(
             padding:const EdgeInsets.symmetric(horizontal:3,vertical:1),

@@ -20,7 +20,7 @@ Future<void> showLocationPreview(BuildContext context, ThoughtLocation location,
         const MapAttribution(),
       ])),
       Padding(padding: const EdgeInsets.all(12), child: Row(children:[Expanded(child:Text('${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)} · ${location.isCurrentLocation?(location.accuracy>0?'현재 위치 · 정확도 약 ${location.accuracy.round()}m':'현재 위치'):'지도에서 선택한 위치'}')),
-        if(onChanged!=null)IconButton(tooltip:'마커 색상',icon:const Icon(Icons.palette_outlined),onPressed:()async{
+        if(onChanged!=null)IconButton(tooltip:'마커 색상',icon:Container(width:28,height:28,decoration:BoxDecoration(color:locationMarkerColor(selected),shape:BoxShape.circle,border:Border.all(color:Theme.of(context).colorScheme.outlineVariant))),onPressed:()async{
           final color=await showMarkerPalette(context,locationMarkerColor(selected));
           if(color==null||!context.mounted)return;
           setState(()=>selected=selected.withMarkerColor(color));onChanged(selected);

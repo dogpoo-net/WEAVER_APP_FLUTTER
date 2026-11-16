@@ -20,11 +20,9 @@ const markerPalette=<({String name,int value})>[
 ];
 Future<int?> showMarkerPalette(BuildContext context,Color selected)=>showDialog<int>(
  context:context,builder:(context)=>AlertDialog(title:const Text('마커 색상'),
- content:SizedBox(width:280,child:Wrap(spacing:8,runSpacing:8,children:[
-  for(final color in markerPalette)Tooltip(message:color.name,child:Semantics(
-   label:color.name,button:true,selected:selected.toARGB32()==color.value,
-   child:InkWell(key:ValueKey('marker-color-${color.value}'),borderRadius:BorderRadius.circular(22),
-    onTap:()=>Navigator.pop(context,color.value),child:Container(width:44,height:44,
-     decoration:BoxDecoration(color:Color(color.value),shape:BoxShape.circle,border:Border.all(color:Colors.black38)),
-     child:selected.toARGB32()==color.value?Icon(Icons.check,color:Color(color.value).computeLuminance()>.45?Colors.black:Colors.white,size:22):null)))),
+ content:SizedBox(width:240,height:192,child:GridView.count(crossAxisCount:5,physics:const NeverScrollableScrollPhysics(),children:[
+  for(final color in markerPalette)IconButton(key:ValueKey('marker-color-${color.value}'),tooltip:color.name,
+   onPressed:()=>Navigator.pop(context,color.value),icon:Container(width:28,height:28,
+    decoration:BoxDecoration(color:Color(color.value),shape:BoxShape.circle,border:Border.all(color:Theme.of(context).colorScheme.outlineVariant)),
+    child:selected.toARGB32()==color.value?Icon(Icons.check,color:Color(color.value).computeLuminance()>.4?Colors.black:Colors.white,size:18):null)),
  ])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('취소'))]));

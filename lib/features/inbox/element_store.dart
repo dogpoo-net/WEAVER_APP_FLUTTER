@@ -243,7 +243,12 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   String? _error;
   final _photoUploads=<String,List<PhotoDraft>>{};
   final _audioUploads=<String,List<VoiceDraft>>{};
-  final _locationEdits=<String,ThoughtLocation>{};
+  final _locationEdits=<String,ThoughtLocation?>{};
+  final _removedPhotos=<String,Set<String>>{};
+  final _removedAudio=<String,Set<String>>{};
+  ThoughtLocation? _locationFor(ElementRecord r)=>_locationEdits.containsKey(r.id)?_locationEdits[r.id]:r.location;
+  List<PhotoAttachment> _photosFor(ElementRecord r)=>r.photos.where((p)=>!(_removedPhotos[r.id]?.contains(p.id)??false)).toList();
+  List<VoiceAttachment> _audioFor(ElementRecord r)=>(_audioUploads[r.id]?.isNotEmpty??false)?[]:r.recordings.where((a)=>!(_removedAudio[r.id]?.contains(a.id)??false)).toList();
   bool _attachmentBusy=false,_captureModalOpen=false;
   bool get _canAttach=>memoCommentRequest==null||memoCommentsWritable;
   late final String? _mediaOwner;
@@ -252,13 +257,13 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     setState((){_attachmentBusy=true;_captureModalOpen=type=='location'||type=='audio';});
     try {
       if(type=='photo'){
-        final drafts=await pickPhotoUploads(5-record.photos.length-(_photoUploads[record.id]?.length??0));
+        final drafts=await pickPhotoUploads(5-_photosFor(record).length-(_photoUploads[record.id]?.length??0));
         if(mounted)setState(()=>_photoUploads.putIfAbsent(record.id,()=>[]).addAll(drafts));
       }else if(type=='audio'){
         final draft=await showVoiceRecorder(context);
-        if(mounted&&draft!=null)setState(()=>_audioUploads.putIfAbsent(record.id,()=>[]).add(draft));
+        if(mounted&&draft!=null)setState(()=>_audioUploads[record.id]=[draft]);
       }else{
-        final draft=await showLocationEditor(context,initial:_locationEdits[record.id]??record.location);
+        final draft=await showLocationEditor(context,initial:_locationFor(record));
         if(mounted&&draft!=null)setState(()=>_locationEdits[record.id]=draft.location);
       }
     }catch(e){if(mounted)setState(()=>_error='$e');}
@@ -437,22 +442,27 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                     child:Text('댓글 ${counts[element.id]??0}'))),
               ]),
               if(_attachmentBusy&&!_captureModalOpen)const LinearProgressIndicator(),
-              if (_locationEdits[element.id]??element.location case final location?) Padding(
+              if (_locationFor(element) case final location?) Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: TextButton.icon(onPressed: () => showLocationPreview(context, location,onChanged:_canAttach?(updated){if(mounted)setState(()=>_locationEdits[element.id]=updated);}:null),
-                  icon: const Icon(Icons.location_on_outlined, size: 18), label: const Text('지도 보기'))),
+                child: Row(children:[Expanded(child:Align(alignment:Alignment.centerLeft,child:TextButton.icon(onPressed: () => showLocationPreview(context, location,onChanged:_canAttach?(updated){if(mounted)setState(()=>_locationEdits[element.id]=updated);}:null),
+                  icon: const Icon(Icons.location_on_outlined, size: 18), label: const Text('지도 보기')))),
+                  IconButton(tooltip:'위치 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_locationEdits[element.id]=null),icon:const Icon(Icons.delete_outline)),
+                ])),
               for(final audio in _audioUploads[element.id]??<VoiceDraft>[])Row(children:[
                 Expanded(child:VoicePlayer(key:ObjectKey(audio),load:()async=>audio.bytes,durationMs:audio.durationMs,textStyle:Theme.of(context).textTheme.labelLarge)),
-                IconButton(tooltip:'첨부 취소',onPressed:_attachmentBusy?null:()=>setState(()=>_audioUploads[element.id]!.remove(audio)),icon:const Icon(Icons.close)),
+                IconButton(tooltip:'음성 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState((){_audioUploads[element.id]!.clear();_removedAudio[element.id]=element.recordings.map((a)=>a.id).toSet();}),icon:const Icon(Icons.delete_outline)),
               ]),
-              for (final clip in element.recordings) VoicePlayer(key: ValueKey(clip.id),
-                load: () => MediaStorage.read(clip.id), durationMs: clip.durationMs,textStyle:Theme.of(context).textTheme.labelLarge),
-              for(final photo in _photoUploads[element.id]??<PhotoDraft>[])Row(children:[
-                SizedBox(width:48,height:48,child:Image.memory(photo.bytes,fit:BoxFit.cover,errorBuilder:(_,error,stack)=>const Icon(Icons.broken_image))),
-                Expanded(child:Text(photo.name,maxLines:1,overflow:TextOverflow.ellipsis)),
-                IconButton(tooltip:'첨부 취소',onPressed:_attachmentBusy?null:()=>setState(()=>_photoUploads[element.id]!.remove(photo)),icon:const Icon(Icons.close)),
+              for (final clip in _audioFor(element)) Row(children:[Expanded(child:VoicePlayer(key: ValueKey(clip.id),
+                load: () => MediaStorage.read(clip.id), durationMs: clip.durationMs,textStyle:Theme.of(context).textTheme.labelLarge)),
+                IconButton(tooltip:'음성 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_removedAudio.putIfAbsent(element.id,()=>{}).add(clip.id)),icon:const Icon(Icons.delete_outline)),
               ]),
-              if (element.photos.isNotEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: PhotoGallery(photos: element.photos)),
+              Wrap(spacing:8,runSpacing:8,children:[
+                for(final photo in _photoUploads[element.id]??<PhotoDraft>[])SizedBox.square(dimension:88,child:Stack(fit:StackFit.expand,children:[
+                  Image.memory(photo.bytes,fit:BoxFit.cover,errorBuilder:(_,error,stack)=>const Icon(Icons.broken_image)),
+                  Positioned(top:0,right:0,child:IconButton.filledTonal(tooltip:'사진 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_photoUploads[element.id]!.remove(photo)),icon:const Icon(Icons.close,size:18))),
+                ])),
+              ]),
+              if (_photosFor(element).isNotEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: PhotoGallery(photos: _photosFor(element),onDelete:_attachmentBusy||!_canAttach?null:(photo)=>setState(()=>_removedPhotos.putIfAbsent(element.id,()=>{}).add(photo.id)))),
             ],
           ),
         ),
@@ -490,7 +500,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                 final id='voice-$stamp-${written.length}';written.add(id);await MediaStorage.write(id,audio.bytes,owner:_mediaOwner);voices.add(VoiceAttachment(id,audio.durationMs));
               }
               if(!mounted||_mediaOwner!=MediaStorage.activeOwner||elements.records[word]?.id!=element.id)throw StateError('편집 화면이나 워크스페이스가 변경되었습니다.');
-              if(elements.records[word]!.photos.length+photos.length>5)throw StateError('사진은 최대 5장까지 저장할 수 있습니다.');
+              if(_photosFor(elements.records[word]!).length+photos.length>5)throw StateError('사진은 최대 5장까지 저장할 수 있습니다.');
             }catch(e){
               for(final id in written){try{await MediaStorage.delete(id,owner:_mediaOwner);}catch(_){}}
               if(mounted)setState((){_attachmentBusy=false;_error='첨부 저장에 실패했습니다. $e';});return;
@@ -502,7 +512,14 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               return;
             }
             final savedRecord=elements.records[cleaned.text]!;
+            final removedIds=<String>{...?_removedPhotos[element.id],...?_removedAudio[element.id],if(voices.isNotEmpty)...savedRecord.recordings.map((a)=>a.id)};
+            savedRecord.photos.removeWhere((p)=>removedIds.contains(p.id));
+            savedRecord.recordings.removeWhere((a)=>removedIds.contains(a.id));
             savedRecord.photos.addAll(photos);savedRecord.recordings.addAll(voices);
+            for(final id in removedIds){
+              final referenced=[...elements.records.values,...elements.trash.values].any((r)=>r.photos.any((p)=>p.id==id)||r.recordings.any((a)=>a.id==id));
+              if(!referenced)unawaited(MediaStorage.delete(id,owner:_mediaOwner).catchError((Object _){}));
+            }
             if(_locationEdits.containsKey(element.id))savedRecord.location=_locationEdits[element.id];
             elements.refreshVisibility();
             if(!context.mounted)return;
