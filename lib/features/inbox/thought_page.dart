@@ -925,7 +925,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                     if (_layout.stacked && (record.tags.isEmpty || (!widget.blocks && _hideTags))) const SizedBox(height: 24),
                   ])))),
             ),
-          for (final record in records.where((r) => r.indexLabel.isNotEmpty)) Positioned(
+          for (final record in records.where((r) => r.indexLabel.isNotEmpty)) Positioned(key: ValueKey('label-position-${record.id}'),
             left: _liftedLabel == record.id ? _labelPointer!.dx - ThoughtLabel.width(context, record.indexLabel) / 2 : math.max(0, _positions[record.id]!.dx + (record.labelOnLeft ? -ThoughtLabel.width(context, record.indexLabel) + 4 : _size(record.id).width - 4)),
             top: _liftedLabel == record.id ? _labelPointer!.dy - 12 : _positions[record.id]!.dy + 4, width: ThoughtLabel.width(context, record.indexLabel),
             child: GestureDetector(

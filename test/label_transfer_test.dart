@@ -11,9 +11,10 @@ void main() {
   elements.clear();memoBoxes.clear();memoBoxFolders.clear();memoBoxFolderParents.clear();pageGraphLayout=GraphLayout();
   final source=elements.add('원본 #보존')..indexLabel='옮길 라벨'..indexLabelColor=0xFFFFCC80;
   final target=elements.add('대상 #유지');
+  final other=elements.add('다른 메모')..indexLabel='다른 라벨';
   final layout=pageGraphLayout.blockLayout;
-  layout.positions.addAll({source.id:const Offset(640,400),target.id:const Offset(940,400)});
-  layout.layers.addAll([source.id,target.id]);
+  layout.positions.addAll({source.id:const Offset(640,400),target.id:const Offset(940,400),other.id:const Offset(640,550)});
+  layout.layers.addAll([source.id,target.id,other.id]);
   await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));
   await tester.pumpAndSettle();
   final rect=tester.getRect(find.byKey(ValueKey('canvas-thought-${target.id}')));
