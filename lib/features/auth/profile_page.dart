@@ -178,8 +178,13 @@ class _ProfilePageState extends State<ProfilePage> {
   }
   Widget connected(String provider, bool disabled) {
     final initial = auth.profile?['signupProvider'] as String?;
-    if (initial == null || initial == 'unknown' || initial == provider) return const Text('연결됨');
-    return TextButton(key: ValueKey('unlink-$provider'), onPressed: disabled ? null : () => unlink(provider), child: const Text('연결 해제'));
+    final canUnlink = initial != null && initial != 'unknown' && initial != provider;
+    final label = SizedBox(width: 64, height: 40, child: Align(
+      alignment: Alignment.centerRight,
+      child: Text('연결됨', style: Theme.of(context).textTheme.bodyMedium)));
+    if (!canUnlink) return label;
+    return InkWell(key: ValueKey('unlink-$provider'),
+      onTap: disabled ? null : () => unlink(provider), child: label);
   }
   @override
   Widget build(BuildContext context) => ListenableBuilder(
