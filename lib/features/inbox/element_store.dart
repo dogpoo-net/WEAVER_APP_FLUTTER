@@ -422,12 +422,13 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                   child: Switch.adaptive(value: _closed,
                     onChanged: (hidden) => setState(() => _closed = hidden)))),
               )),
+              const Divider(key:ValueKey('element-attachments-divider'),height:9,thickness:1),
               Row(children:[
-                IconButton(tooltip:'사진 업로드',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'photo'),icon:const Icon(Icons.add_photo_alternate_outlined,size:20)),
+                IconButton(tooltip:'위치 기록',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.add_location_alt_outlined,size:20)),
                 const SizedBox(width:4),
                 IconButton(tooltip:'음성 녹음',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const Icon(Icons.mic_none,size:20)),
                 const SizedBox(width:4),
-                IconButton(tooltip:'위치 기록',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.add_location_alt_outlined,size:20)),
+                IconButton(tooltip:'사진 업로드',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'photo'),icon:const Icon(Icons.add_photo_alternate_outlined,size:20)),
                 const Spacer(),
                 ValueListenableBuilder<Map<String,int>>(
                   valueListenable:memoCommentCounts,
@@ -436,22 +437,22 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                     child:Text('댓글 ${counts[element.id]??0}'))),
               ]),
               if(_attachmentBusy&&!_captureModalOpen)const LinearProgressIndicator(),
+              if (_locationEdits[element.id]??element.location case final location?) Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: TextButton.icon(onPressed: () => showLocationPreview(context, location,onChanged:_canAttach?(updated){if(mounted)setState(()=>_locationEdits[element.id]=updated);}:null),
+                  icon: const Icon(Icons.location_on_outlined, size: 18), label: const Text('지도 보기'))),
+              for(final audio in _audioUploads[element.id]??<VoiceDraft>[])Row(children:[
+                Expanded(child:VoicePlayer(key:ObjectKey(audio),load:()async=>audio.bytes,durationMs:audio.durationMs,textStyle:Theme.of(context).textTheme.labelLarge)),
+                IconButton(tooltip:'첨부 취소',onPressed:_attachmentBusy?null:()=>setState(()=>_audioUploads[element.id]!.remove(audio)),icon:const Icon(Icons.close)),
+              ]),
+              for (final clip in element.recordings) VoicePlayer(key: ValueKey(clip.id),
+                load: () => MediaStorage.read(clip.id), durationMs: clip.durationMs,textStyle:Theme.of(context).textTheme.labelLarge),
               for(final photo in _photoUploads[element.id]??<PhotoDraft>[])Row(children:[
                 SizedBox(width:48,height:48,child:Image.memory(photo.bytes,fit:BoxFit.cover,errorBuilder:(_,error,stack)=>const Icon(Icons.broken_image))),
                 Expanded(child:Text(photo.name,maxLines:1,overflow:TextOverflow.ellipsis)),
                 IconButton(tooltip:'첨부 취소',onPressed:_attachmentBusy?null:()=>setState(()=>_photoUploads[element.id]!.remove(photo)),icon:const Icon(Icons.close)),
               ]),
-              for(final audio in _audioUploads[element.id]??<VoiceDraft>[])Row(children:[
-                Expanded(child:VoicePlayer(key:ObjectKey(audio),load:()async=>audio.bytes,durationMs:audio.durationMs)),
-                IconButton(tooltip:'첨부 취소',onPressed:_attachmentBusy?null:()=>setState(()=>_audioUploads[element.id]!.remove(audio)),icon:const Icon(Icons.close)),
-              ]),
-              if (_locationEdits[element.id]??element.location case final location?) Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: TextButton.icon(onPressed: () => showLocationPreview(context, location,onChanged:_canAttach?(updated){if(mounted)setState(()=>_locationEdits[element.id]=updated);}:null),
-                  icon: const Icon(Icons.location_on_outlined, size: 18), label: const Text('지도 보기'))),
               if (element.photos.isNotEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: PhotoGallery(photos: element.photos)),
-              for (final clip in element.recordings) VoicePlayer(key: ValueKey(clip.id),
-                load: () => MediaStorage.read(clip.id), durationMs: clip.durationMs),
             ],
           ),
         ),

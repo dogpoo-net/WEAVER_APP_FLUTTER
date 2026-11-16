@@ -5,9 +5,10 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
 class VoicePlayer extends StatefulWidget {
-  const VoicePlayer({super.key, required this.load, required this.durationMs});
+  const VoicePlayer({super.key, required this.load, required this.durationMs,this.textStyle});
   final Future<Uint8List?> Function() load;
   final int durationMs;
+  final TextStyle? textStyle;
   @override
   State<VoicePlayer> createState() => _VoicePlayerState();
 }
@@ -54,7 +55,7 @@ class _VoicePlayerState extends State<VoicePlayer> {
     Row(mainAxisSize: MainAxisSize.min, children: [
       IconButton(tooltip: _playing ? '녹음 재생 중지' : '녹음 재생', onPressed: _busy ? null : _toggle,
         icon: _busy ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(_playing ? Icons.stop : Icons.play_arrow)),
-      Text(widget.durationMs==0?'음성 파일':'음성 메모 · ${(widget.durationMs / 1000).ceil()}초', style: Theme.of(context).textTheme.bodySmall),
+      Text(widget.durationMs==0?'음성 파일':'음성 메모 · ${(widget.durationMs / 1000).ceil()}초', style: widget.textStyle ?? Theme.of(context).textTheme.bodySmall),
     ]),
     if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12)),
   ]);

@@ -54,6 +54,9 @@ void main() {
     expect(tester.getCenter(find.text('댓글 0')).dy,closeTo(tester.getCenter(find.byTooltip('음성 녹음')).dy,1));
     expect(find.text('댓글보기'),findsNothing);expect(find.text('댓글쓰기'),findsNothing);
     expect(find.byTooltip('음성 녹음'),findsOneWidget);expect(find.text('음성 업로드'),findsNothing);
+    expect(find.byKey(const ValueKey('element-attachments-divider')),findsOneWidget);
+    expect(tester.getCenter(find.byTooltip('위치 기록')).dx,lessThan(tester.getCenter(find.byTooltip('음성 녹음')).dx));
+    expect(tester.getCenter(find.byTooltip('음성 녹음')).dx,lessThan(tester.getCenter(find.byTooltip('사진 업로드')).dx));
     expect(tester.getTopLeft(find.text('댓글 0')).dx, greaterThan(tester.getBottomRight(find.byTooltip('위치 기록')).dx));
 
     final save = find.widgetWithText(FilledButton, '저장');
