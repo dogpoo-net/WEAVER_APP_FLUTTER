@@ -399,6 +399,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     });
     if (widget.blocks) {
       _arrangeBlocks(ordered);
+      arrangeGraph(thoughts: [], tags: tags, positions: _positions, tagPositions: _tagPositions,
+        sizes: {for (final id in _positions.keys) id: _size(id)});
     } else {
       arrangeGraph(thoughts: ordered.map((r) => r.id).toList(), tags: tags,
         positions: _positions, tagPositions: _tagPositions,
@@ -411,7 +413,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final occupied = [
         for (final id in _positions.keys.where((id) => !loose.contains(id))) _bounds(id),
         for (final box in _allRegionBoxes) ?_boxBounds(box),
-        if (!widget.blocks) for (final point in _tagPositions.values) tagBounds(point),
+        for (final point in _tagPositions.values) tagBounds(point),
       ];
       final y = occupied.map((r) => r.bottom).fold(400.0, math.max) + 120;
       for (var i = 0; i < loose.length; i++) {
@@ -571,7 +573,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       return folder == null ? bounds : Rect.fromLTRB(bounds.left - 28, bounds.top - 44, bounds.right + 28, bounds.bottom + 28);
     }
     pack(null);
-    if (!widget.blocks) {
+    {
       final occupied = <Rect>[for (final box in boxes) _boxBounds(box)!, ...loose.map(_bounds)];
       for (final tag in _tagPositions.keys.toList()) {
         final related = _scopeRecords.where((r) => r.tags.contains(tag.substring(4))).map((r) => r.id).toList();
@@ -835,8 +837,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final coveredThoughts={for(final i in coveredCanvasItems(thoughtBounds))records[i].id};
     final visiblePositions = {for (final r in records) r.id: _positions[r.id]!};
     final labelExtent = records.where((r) => r.indexLabel.isNotEmpty).fold(180.0, (width, r) => math.max(width, ThoughtLabel.width(context, r.indexLabel) + 36));
-    final tags = _hideTags && !widget.blocks ? <String>[] : (records.expand((r) => r.tags).toSet().toList()..sort());
-    final tagPositions = <String, Offset>{if (!widget.blocks) for (final tag in tags) 'tag:$tag': _tagPositions['tag:$tag']!};
+    final tags = _hideTags ? <String>[] : (records.expand((r) => r.tags).toSet().toList()..sort());
+    final tagPositions = <String, Offset>{for (final tag in tags) 'tag:$tag': _tagPositions['tag:$tag']!};
     final nodeRects = <String, Rect>{
       for (final e in visiblePositions.entries) e.key: _bounds(e.key),
       for (final e in tagPositions.entries) e.key: tagBounds(e.value),
@@ -885,7 +887,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 13 : 14),
           decoration: const InputDecoration(hintText: '생각·해시태그 찾기', prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 36), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), isDense: true),
           onChanged: (value) => setState(() { _query = value.trim().replaceFirst(RegExp(r'^#'), '').toLowerCase(); _centered = false; _sync(); }))),
-        if (!widget.blocks) ...[
+        ...[
           const SizedBox(width: 8),
           FilterChip(showCheckmark: false, visualDensity: VisualDensity.compact,
             label: const Text('해시태그 숨기기', style: TextStyle(fontSize: 12)), selected: _hideTags,
@@ -956,7 +958,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onDragEnd: () => _finishBoxDrag(region.box)),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
             nodeRects,
-            {for (final r in records) r.id: {if (!widget.blocks && !_hideTags) ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
+            {for (final r in records) r.id: {if (!_hideTags) ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
           if (records.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
             icon: const Icon(Icons.add), label: Text(_query.isNotEmpty ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
           for (final record in records) Positioned(left: _positions[record.id]!.dx - ThoughtInteraction.hitPadding, top: _positions[record.id]!.dy - ThoughtInteraction.hitPadding,
@@ -1058,9 +1060,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                       if(AttachmentIndicators.hasAttachments(record)||(counts[record.id]??0)>0)...[FittedBox(fit:BoxFit.scaleDown,child:AttachmentIndicators(record:record,commentCount:counts[record.id]??0)),const SizedBox(width:4)],
                       Expanded(child:Text(record.text,softWrap:true,overflow:TextOverflow.clip,style:TextStyle(color:wordColor(context,record.text)))),
                     ])))),
-                    if ((widget.blocks || (_layout.stacked && !_hideTags)) && record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 8, 8), child: Align(alignment: Alignment.centerLeft,
+                    if ((widget.blocks || _layout.stacked) && !_hideTags && record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 8, 8), child: Align(alignment: Alignment.centerLeft,
                       child: Text(record.tags.map((tag) => '#$tag').join('  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)))),
-                    if (_layout.stacked && (record.tags.isEmpty || (!widget.blocks && _hideTags))) const SizedBox(height: 24),
+                    if (_layout.stacked && (record.tags.isEmpty || _hideTags)) const SizedBox(height: 24),
                   ])))),
             ),
           for (final record in records.where((r) => r.indexLabel.isNotEmpty)) Positioned(key: ValueKey('label-position-${record.id}'),
@@ -1088,7 +1090,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               child:Row(mainAxisAlignment:MainAxisAlignment.center,children:[Flexible(child:Text(region.box.name,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:Color(region.box.color),fontSize:13,fontWeight:FontWeight.w600))),
                 if(_canEdit&&!region.box.isUnclassified)IconButton(tooltip:'${region.box.name} 상자 삭제',onPressed:()=>_deleteCanvasBox(region.box),style:IconButton.styleFrom(minimumSize:const Size.square(24),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap),icon:const Icon(Icons.close,size:16)),
               ]))),
-          if (!widget.blocks) for (final tag in tags) Positioned(left: tagBounds(tagPositions['tag:$tag']!).left, top: tagBounds(tagPositions['tag:$tag']!).top,
+          for (final tag in tags) Positioned(left: tagBounds(tagPositions['tag:$tag']!).left, top: tagBounds(tagPositions['tag:$tag']!).top,
             width: graphTagSize.width, height: graphTagSize.height,
             child: GestureDetector(key: ValueKey('graph-tag-$tag'), behavior: HitTestBehavior.opaque,
               onPanUpdate: (d) => setState(() {

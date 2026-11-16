@@ -81,14 +81,14 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
-  for (final inBox in [false, true]) {
-    testWidgets('graph search, unlinked review and tag dragging (box=$inBox)', (tester) async {
+  for (final blocks in [false, true]) for (final inBox in [false, true]) {
+    testWidgets('graph search, unlinked review and tag dragging (blocks=$blocks box=$inBox)', (tester) async {
       elements.clear();
       final a = elements.add('연결된 생각 #독서');
       final b = elements.add('참고 생각');
       final c = elements.add('홀로 생각 #검토');
       final box = MemoBox('검토 상자', ids: [a.id, b.id, c.id]);
-      await tester.pumpWidget(MaterialApp(home: ThoughtPage(box: inBox ? box : null, onChanged: () {})));
+      await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, box: inBox ? box : null, onChanged: () {})));
       await tester.pumpAndSettle();
       final tag = find.byKey(const ValueKey('graph-tag-독서'));
       final before = tester.getCenter(tag);
@@ -106,6 +106,8 @@ void main() {
       expect(find.text('연결된 생각'), findsOneWidget);
       expect(find.text('참고 생각'), findsOneWidget);
       expect(tag, findsNothing);
+      final layout = inBox ? box.layout : pageGraphLayout;
+      expect((blocks ? layout.blockLayout : layout).hideTags, isTrue);
       await tester.tap(find.text('해시태그 숨기기'));
       await tester.pumpAndSettle();
       expect(tag, findsOneWidget);
