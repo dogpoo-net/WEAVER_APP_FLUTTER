@@ -675,7 +675,75 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _view.dispose(); _search.dispose();
     super.dispose();
   }
+  bool _selectionLifted=false;
   String? _selectionAnchor;
+  void _startSelectionLift(Offset global,List<ElementRecord> records,List<({MemoBox box,Rect bounds})> regions){
+    final scene=_sceneKey.currentContext?.findRenderObject() as RenderBox?;
+    if(scene==null || !_canEdit)return;
+    final point=scene.globalToLocal(global);
+    final hit=records.where((r)=>RRect.fromRectAndRadius(_bounds(r.id),Radius.circular(widget.blocks?6:12)).contains(point)).lastOrNull;
+    if(hit==null)return;
+    setState((){
+      _selected.removeWhere((id)=>!_positions.containsKey(id));
+      if(!_selected.contains(hit.id)){_selected..clear()..add(hit.id);}
+      _selectionLifted=true;_movingSelection=true;_selectionAnchor=hit.id;
+      _selectionStart=point;_selectionEnd=point;_selectionGlobalDown=global;
+      _selectionDragOrigins..clear()..addEntries(_selected.map((id)=>MapEntry(id,_positions[id]!)));
+      _liftBoxes..clear()..addEntries(regions.where((r)=>r.box.elementIds.any(_selected.contains)).map((r)=>MapEntry(r.box,r.bounds)));
+    });
+  }
+  void _moveLiftedSelection(Offset global,List<ElementRecord> records){
+    if(!_selectionLifted || _selectionGlobalDown==null || _selectionDragOrigins.isEmpty)return;
+    setState((){
+      final delta=(global-_selectionGlobalDown!)/_view.value.storage[0].abs();
+      final left=_selectionDragOrigins.values.map((p)=>p.dx).reduce(math.min),top=_selectionDragOrigins.values.map((p)=>p.dy).reduce(math.min);
+      final shift=Offset(math.max(delta.dx,32-left),math.max(delta.dy,32-top));
+      for(final entry in _selectionDragOrigins.entries){_positions[entry.key]=entry.value+shift;}
+      final target=records.where((r)=>!_selected.contains(r.id)&&_bounds(r.id).overlaps(_bounds(_selectionAnchor!))).lastOrNull;
+      _dropHighlights..clear()..addAll(target==null?<String>{}:alignedStackMembers(target.id,_positions).difference(_selected));
+    });
+  }
+  void _clearSelectionLift(){
+    _selectionLifted=false;_liftBoxes.clear();_selectionAnchor=null;_dropHighlights.clear();
+    _selectionStart=null;_selectionEnd=null;_movingSelection=false;_selectionDragOrigins.clear();
+  }
+  void _cancelSelectionLift(){
+    if(!_selectionLifted)return;
+    setState((){_positions.addAll(_selectionDragOrigins);_clearSelectionLift();});
+    _saveLayout(flush:true);
+  }
+  void _finishSelectionLift(Offset global,List<ElementRecord> records,List<({MemoBox box,Rect bounds})> regions,Map<String,Rect> folders){
+    if(!_selectionLifted)return;
+    setState((){
+      final anchor=_selectionAnchor!;
+      final origin=_selectionDragOrigins[anchor]!;
+      if((_positions[anchor]!-origin).distance<.5){_clearSelectionLift();return;}
+      final scene=_sceneKey.currentContext?.findRenderObject() as RenderBox?;
+      final point=scene?.globalToLocal(global)??_bounds(anchor).center;
+      final target=records.where((r)=>!_selected.contains(r.id)&&_bounds(r.id).overlaps(_bounds(anchor))).lastOrNull;
+      if(target!=null){_snapSelection(records);}
+      else if(widget.blocks && folders.values.any((bounds)=>bounds.contains(point))&&!regions.any((r)=>_inside(r.bounds,point))){
+        _positions.addAll(_selectionDragOrigins);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('생각은 메모상자 안에 담아주세요. 폴더에는 직접 넣을 수 없습니다.')));
+      }else{
+        final shift=snapThought(_bounds(anchor),records.where((r)=>!_selected.contains(r.id)).map((r)=>_bounds(r.id)),tolerance:(24/_view.value.storage[0].abs()).clamp(12,48));
+        if(_selected.every((id)=>(_positions[id]!+shift).dx>=32&&(_positions[id]!+shift).dy>=32)){for(final id in _selected){_positions[id]=_positions[id]!+shift;}}
+        var changed=false;final detached=<MemoBox>{};
+        for(final entry in _liftBoxes.entries){
+          if(!_inside(entry.value,point)){
+            for(final id in _selected){changed=entry.key.elementIds.remove(id)||changed;}
+            _emptyBoxBounds[entry.key]=entry.value;detached.add(entry.key);
+          }
+        }
+        final targets=regions.where((r)=>!detached.contains(r.box)&&_inside(r.bounds,point)).toList()..sort((a,b)=>(a.bounds.width*a.bounds.height).compareTo(b.bounds.width*b.bounds.height));
+        if(targets.isNotEmpty){for(final id in _selected){moveThoughtToBox(id,targets.first.box);}changed=true;}
+        if(changed)_changed();
+      }
+      _clearSelectionLift();_separateOverlappingBoxes();
+    });
+    _saveLayout(flush:true);
+  }
+
   void _snapSelection(List<ElementRecord> records) {
     final anchor = _selectionAnchor;
     if (!_movingSelection || _selectionStart == null || anchor == null || !_positions.containsKey(anchor)) return;
@@ -1035,6 +1103,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 _selectionDown = event.localPosition; _selectionGlobalDown = event.position;
                 _selectionBeforeGesture = Set.of(_selected);
               }
+              if(_selectionPointers.isNotEmpty && _selectionLifted)_cancelSelectionLift();
               _selectionPointers[event.pointer] = event.position;
               _updateSelectionZoom();
             },
@@ -1043,6 +1112,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onPointerCancel: (event) => _removeSelectionPointer(event.pointer),
             child: GestureDetector(
             key: const ValueKey('canvas-selection'), behavior: HitTestBehavior.deferToChild, dragStartBehavior: DragStartBehavior.down,
+            onLongPressStart:(d)=>_startSelectionLift(d.globalPosition,records,regions),
+            onLongPressMoveUpdate:(d)=>_moveLiftedSelection(d.globalPosition,records),
+            onLongPressEnd:(d)=>_finishSelectionLift(d.globalPosition,records,regions,folders),
+            onLongPressCancel:_cancelSelectionLift,
             onTapUp: (d) => setState(() {
               final hit = records.where((r) => RRect.fromRectAndRadius(_bounds(r.id), Radius.circular(widget.blocks ? 6 : 12)).contains(d.localPosition)).lastOrNull;
               if (hit == null) { _selected.clear(); _rangeAnchor=null; }
