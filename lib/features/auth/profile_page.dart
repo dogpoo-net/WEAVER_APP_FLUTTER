@@ -167,6 +167,20 @@ class _ProfilePageState extends State<ProfilePage> {
       message('계정을 연결했습니다.');
     }
   }, link: true);
+  Future<void> unlink(String provider) async {
+    final accepted = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+      title: const Text('소셜 계정 연결을 해제할까요?'),
+      content: const Text('연결 해제 후에는 이 소셜 계정으로 현재 계정에 로그인할 수 없습니다. 저장한 자료는 유지됩니다.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('연결 해제'))]));
+    if (accepted != true || !mounted) return;
+    await run(() async { await auth.emailApi.profile('social/unlink', {'provider': provider}); await auth.loadProfile(); message('연결을 해제했습니다.'); });
+  }
+  Widget connected(String provider, bool disabled) {
+    final initial = auth.profile?['signupProvider'] as String?;
+    if (initial == null || initial == 'unknown' || initial == provider) return const Text('연결됨');
+    return TextButton(key: ValueKey('unlink-$provider'), onPressed: disabled ? null : () => unlink(provider), child: const Text('연결 해제'));
+  }
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: auth,
@@ -264,10 +278,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 const Text('소셜 계정 연결'),
                 const SizedBox(height: 12),
                 if (providers.contains('google'))
-                  const ListTile(
-                    leading: Image(image: AssetImage('assets/branding/social/google.png'), width: 24, height: 24),
-                    title: Text('Google'),
-                    trailing: Text('연결됨'),
+                  ListTile(
+                    leading: const Image(image: AssetImage('assets/branding/social/google.png'), width: 24, height: 24),
+                    title: const Text('Google'),
+                    trailing: connected('google', disabled),
                   )
                 else if (auth.client.configured)
                   ListTile(
@@ -292,11 +306,11 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     title: Text(entry.value),
                     trailing: providers.contains(entry.key)
-                        ? const Text('연결됨')
+                        ? connected(entry.key, disabled)
                         : const Icon(Icons.link),
                     enabled:
                         !disabled &&
-                        (entry.key != 'kakao' || auth.kakaoClient.configured),
+                        (providers.contains(entry.key) || entry.key != 'kakao' || auth.kakaoClient.configured),
                     onTap:
                         disabled ||
                             providers.contains(entry.key) ||

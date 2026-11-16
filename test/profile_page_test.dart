@@ -120,6 +120,29 @@ void main() {
       auth.dispose();
     },
   );
+  for (final initial in ['kakao', 'email']) {
+    testWidgets('unlink controls preserve initial signup method: $initial', (tester) async {
+      final providers = ['google', 'kakao'];var unlinks=0;
+      final api = EmailAuthApi(store: MemorySessionStore(isWeb:true), client:MockClient((r) async {
+        if(r.url.path.endsWith('/profile/read')) return http.Response(jsonEncode({'name':'Name','email':'same@example.com','providers':providers,'signupProvider':initial,'emailEnabled':initial=='email','defaultFace':0}),200);
+        if(r.url.path.endsWith('/profile/social/unlink')) {unlinks++;providers.remove(jsonDecode(r.body)['provider']);return http.Response('{}',200);}
+        return http.Response(jsonEncode({'id':'a','email':'same@example.com','name':'Name','expiresIn':1800}),200);
+      }));
+      final auth=GoogleAuthController(FakeGoogleClient(configured:false),emailApi:api);
+      await auth.signInWithEmail('same@example.com','test-password');
+      await tester.pumpWidget(GoogleAuthScope(controller:auth,child:MaterialApp(home:ProfilePage(auth:auth))));await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('unlink-google')),150);
+      expect(find.byKey(const ValueKey('unlink-google')),findsOneWidget);
+      if(initial=='email') { await tester.scrollUntilVisible(find.byKey(const ValueKey('unlink-kakao')),150);expect(find.byKey(const ValueKey('unlink-kakao')),findsOneWidget);await tester.ensureVisible(find.byKey(const ValueKey('unlink-google')));await tester.pumpAndSettle(); }
+      else {expect(find.byKey(const ValueKey('unlink-kakao')),findsNothing);}
+      await tester.tap(find.byKey(const ValueKey('unlink-google')));await tester.pumpAndSettle();
+      expect(unlinks,0);await tester.tap(find.widgetWithText(TextButton,'취소'));await tester.pumpAndSettle();expect(unlinks,0);
+      await tester.tap(find.byKey(const ValueKey('unlink-google')));await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of:find.byType(AlertDialog),matching:find.widgetWithText(TextButton,'연결 해제')));await tester.pumpAndSettle();
+      expect(unlinks,1);expect(providers, isNot(contains('google')));
+      await tester.pumpWidget(const SizedBox());auth.dispose();
+    });
+  }
   test('Google linking sends a linking request without replacing the current session identity', () async {
     final requests = <String>[];
     final client = FakeGoogleClient();
