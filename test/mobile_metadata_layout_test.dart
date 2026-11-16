@@ -1,3 +1,4 @@
+import 'package:weaver/features/inbox/workspace_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/element_store.dart';
@@ -21,6 +22,8 @@ void main() {
     tester.view.physicalSize = const Size(390, 844); tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
     elements.clear();
+    workspaceMemoAuthor = (_) => '테스트 작성자';
+    addTearDown(() => workspaceMemoAuthor = null);
     final thought = elements.add('내용 #태그'); elements.add('연결된 생각');
     await tester.pumpWidget(MaterialApp(theme: ThemeData(inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder())),
       home: Builder(builder: (context) => Scaffold(body: TextButton(onPressed: () => showElementMetadata(context, thought.text), child: const Text('정보'))))));
@@ -34,6 +37,10 @@ void main() {
     expect(tester.getTopLeft(label).dy, greaterThan(tester.getBottomRight(find.byKey(const ValueKey('element-tags'))).dy));
     expect(tester.getTopLeft(find.text('생각 닫기')).dy, greaterThan(tester.getBottomRight(editor).dy));
     final date = find.byKey(const ValueKey('element-created-at'));
+    final author = find.byKey(const ValueKey('element-author'));
+    expect(find.text('테스트 작성자'), findsOneWidget);
+    expect(tester.getTopLeft(author).dx, greaterThan(tester.getTopLeft(date).dx));
+    expect(tester.getCenter(author).dy, closeTo(tester.getCenter(date).dy, 1));
     expect(tester.getTopLeft(date).dy, greaterThanOrEqualTo(tester.getBottomRight(find.byKey(const ValueKey('element-tags'))).dy));
     expect(tester.getBottomRight(date).dy, lessThan(tester.getTopLeft(editor).dy));
     expect(find.byKey(const ValueKey('element-connections-divider')), findsNothing);

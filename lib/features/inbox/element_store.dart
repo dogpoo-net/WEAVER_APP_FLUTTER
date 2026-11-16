@@ -322,8 +322,14 @@ class _ElementMetadataState extends State<_ElementMetadata> {
           }),
       ]),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
-        Align(alignment: Alignment.centerLeft, child: Text(element.createdAt.toLocal().toString().split('.').first,
-          key: const ValueKey('element-created-at'), style: Theme.of(context).textTheme.bodySmall)),
+        Row(children: [
+          Expanded(child: Text(element.createdAt.toLocal().toString().split('.').first,
+            key: const ValueKey('element-created-at'), style: Theme.of(context).textTheme.bodySmall)),
+          const SizedBox(width: 8),
+          Flexible(child: Text(workspaceMemoAuthor?.call(element.id) ?? '작성자 정보 없음',
+            key: const ValueKey('element-author'), textAlign: TextAlign.right,
+            style: Theme.of(context).textTheme.bodySmall)),
+        ]),
         Flexible(child: SizedBox(
         width: mobile ? MediaQuery.sizeOf(context).width : 440,
         child: SingleChildScrollView(controller: _contentScroll, primary: false,

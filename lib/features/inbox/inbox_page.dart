@@ -1,3 +1,4 @@
+import 'overview_collections.dart';
 import 'memo_comments.dart';
 import 'dart:async';
 import 'label_links.dart';
@@ -220,6 +221,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     openWorkspaceDocument = _openDocumentById;
     refreshWorkspaceForRead = _refreshForBrowse;
     saveWorkspaceContent = _saveAndSync;
+    workspaceMemoAuthor=(id)=>overviewAuthor(widget.storage,'list:elements',id);
     memoCommentRequest=widget.storage?.comments;memoCommentsWritable=widget.storage?.commentsWritable??false;
     widget.storage?.applyServerSnapshot=_applyRemoteSnapshot;
     desktopMenu.visible = true;
@@ -524,7 +526,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     if(openWorkspaceDocument == _openDocumentById)openWorkspaceDocument=null;
     if(refreshWorkspaceForRead == _refreshForBrowse)refreshWorkspaceForRead=null;
-    if(saveWorkspaceContent == _saveAndSync){saveWorkspaceContent=null;memoCommentRequest=null;memoCommentsWritable=false;}
+    if(saveWorkspaceContent == _saveAndSync){saveWorkspaceContent=null;workspaceMemoAuthor=null;memoCommentRequest=null;memoCommentsWritable=false;}
     WidgetsBinding.instance.addPostFrameCallback((_) => desktopMenu.detach(this));
     elements.removeListener(_elementDeleted);
     elements.onRenamed = null;

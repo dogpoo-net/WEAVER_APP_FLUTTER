@@ -48,3 +48,5 @@ Future<void> Function()? refreshWorkspaceForRead;
 
 /// Persist an explicit thought save without fetching a server snapshot.
 Future<void> Function()? saveWorkspaceContent;
+
+String Function(String memoId)? workspaceMemoAuthor;
