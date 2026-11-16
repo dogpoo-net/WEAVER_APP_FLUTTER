@@ -61,7 +61,7 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
     onScaleEnd: (_) { if (!_resized) widget.onDrop(_pointer); widget.onActiveChanged?.call(false); widget.onEnd(); },
     child: Padding(padding: const EdgeInsets.all(ThoughtInteraction.hitPadding),
       child: SizedBox(width: widget.size.width, height: widget.size.height, child: Stack(fit: StackFit.expand, children: [
-      AnimatedScale(scale: _lifted ? 1.04 : 1, duration: const Duration(milliseconds: 100), child: widget.child),
+      AnimatedScale(scale: _lifted ? 1.04 : 1, duration: const Duration(milliseconds: 100), child: RepaintBoundary(child: widget.child)),
       if (widget.desktop) ...[
         Positioned(left: 0, top: 10, bottom: 10, width: 12, child: _handle('left', SystemMouseCursors.resizeLeftRight, true, false, true, false)),
         Positioned(right: 0, top: 10, bottom: 10, width: 12, child: _handle('right', SystemMouseCursors.resizeLeftRight, false, false, true, false)),
