@@ -17,7 +17,7 @@ class PhotoGallery extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Wrap(spacing: 8, runSpacing: 8, children: [
     for (final photo in photos) SizedBox.square(dimension:88,child:Stack(children:[_StoredPhoto(key: ValueKey(photo.id), photo: photo),
-      if(onDelete!=null)Positioned(top:0,right:0,child:IconButton.filledTonal(tooltip:'사진 삭제',onPressed:()=>onDelete!(photo),icon:const Icon(Icons.close,size:18))),
+      if(onDelete!=null)Positioned(top:2,right:2,child:PhotoRemoveButton(onPressed:()=>onDelete!(photo))),
     ])),
   ]);
 }
@@ -38,4 +38,16 @@ class _StoredPhotoState extends State<_StoredPhoto> {
         child: Image.memory(bytes, cacheWidth: 264, fit: BoxFit.cover, semanticLabel: widget.photo.name,
           errorBuilder: (_, error, stack) => const Icon(Icons.broken_image_outlined)))));
   });
+}
+
+class PhotoRemoveButton extends StatelessWidget {
+  const PhotoRemoveButton({super.key,required this.onPressed});
+  final VoidCallback? onPressed;
+  @override
+  Widget build(BuildContext context)=>IconButton.filledTonal(
+    tooltip:'사진 삭제',onPressed:onPressed,
+    style:IconButton.styleFrom(backgroundColor:Colors.black.withValues(alpha:.25),foregroundColor:Colors.white,
+      minimumSize:const Size.square(24),fixedSize:const Size.square(24),padding:const EdgeInsets.all(2),
+      tapTargetSize:MaterialTapTargetSize.shrinkWrap),
+    icon:const Icon(Icons.close,size:16));
 }

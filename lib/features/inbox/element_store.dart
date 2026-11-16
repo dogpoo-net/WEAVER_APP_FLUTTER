@@ -459,7 +459,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               Wrap(spacing:8,runSpacing:8,children:[
                 for(final photo in _photoUploads[element.id]??<PhotoDraft>[])SizedBox.square(dimension:88,child:Stack(fit:StackFit.expand,children:[
                   Image.memory(photo.bytes,fit:BoxFit.cover,errorBuilder:(_,error,stack)=>const Icon(Icons.broken_image)),
-                  Positioned(top:0,right:0,child:IconButton.filledTonal(tooltip:'사진 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_photoUploads[element.id]!.remove(photo)),icon:const Icon(Icons.close,size:18))),
+                  Positioned(top:2,right:2,child:PhotoRemoveButton(onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_photoUploads[element.id]!.remove(photo)))),
                 ])),
               ]),
               if (_photosFor(element).isNotEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: PhotoGallery(photos: _photosFor(element),onDelete:_attachmentBusy||!_canAttach?null:(photo)=>setState(()=>_removedPhotos.putIfAbsent(element.id,()=>{}).add(photo.id)))),
