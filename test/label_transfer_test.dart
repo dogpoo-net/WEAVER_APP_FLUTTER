@@ -1,3 +1,4 @@
+import 'package:weaver/features/inbox/thought_label.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/element_store.dart';
@@ -6,6 +7,19 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 
 void main() {
+ test('label chooses largest overlap rather than pointer or inflated bounds',(){
+   final candidates=[(id:'upper',bounds:const Rect.fromLTWH(0,0,200,80)),(id:'source',bounds:const Rect.fromLTWH(0,80,200,80))];
+   expect(labelOverlapTarget(const Rect.fromLTWH(40,60,80,24),candidates),'upper');
+   expect(labelOverlapTarget(const Rect.fromLTWH(40,78,80,24),candidates),'source');
+   expect(labelOverlapTarget(const Rect.fromLTWH(205,50,80,24),candidates),isNull);
+ });
+ test('equal overlap favors frontmost memo',(){
+   expect(labelOverlapTarget(const Rect.fromLTWH(40,40,80,24),[
+     (id:'back',bounds:const Rect.fromLTWH(0,0,200,100)),
+     (id:'front',bounds:const Rect.fromLTWH(0,32,200,100)),
+   ]),'front');
+ });
+
  for(final blocks in [true,false]) {
  for(final destination in ['empty','self','occupied']) {
  for(final left in [true,false]) {

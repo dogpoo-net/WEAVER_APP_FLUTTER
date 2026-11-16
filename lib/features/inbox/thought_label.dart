@@ -1,6 +1,18 @@
 import 'package:flutter/material.dart';
 import 'element_store.dart';
 
+/// Candidates are ordered from back to front; equal overlap favors the front.
+String? labelOverlapTarget(Rect label, List<({String id, Rect bounds})> candidates) {
+  String? target;
+  double largest = 0;
+  for (final candidate in candidates) {
+    final overlap = label.intersect(candidate.bounds);
+    final area = overlap.isEmpty ? 0.0 : overlap.width * overlap.height;
+    if (area > 0 && area >= largest) { largest = area; target = candidate.id; }
+  }
+  return target;
+}
+
 /// The paper is translucent; the single-line title remains opaque.
 class ThoughtLabel extends StatelessWidget {
   const ThoughtLabel({super.key, required this.record, required this.onHold, this.active = false, this.movable = false});
@@ -13,6 +25,11 @@ class ThoughtLabel extends StatelessWidget {
     final width = painter.width + 20;
     painter.dispose();
     return width;
+  }
+  static double height(BuildContext context, String text) {
+    final painter=TextPainter(text:TextSpan(text:text,style:DefaultTextStyle.of(context).style.merge(const TextStyle(fontSize:12,fontWeight:FontWeight.w600))),
+      textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context),maxLines:1)..layout();
+    final height=painter.height+10; painter.dispose(); return height;
   }
   @override
   Widget build(BuildContext context) {

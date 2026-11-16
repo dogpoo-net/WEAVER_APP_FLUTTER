@@ -672,10 +672,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final point = scene?.globalToLocal(global);
     setState(() { _liftedLabel = null; _labelPointer = null; });
     if (!_canEdit || point == null) return;
-    final candidates = _records.where((r) => _bounds(r.id).inflate(16).contains(point)).toList()
+    final candidates = _records
       ..sort((a,b) => _layout.layers.indexOf(a.id).compareTo(_layout.layers.indexOf(b.id)));
-    if (candidates.isEmpty) return;
-    final target = candidates.last;
+    final width=ThoughtLabel.width(context,source.indexLabel);
+    final labelBounds=Rect.fromLTWH(point.dx-width/2,point.dy-12,width,ThoughtLabel.height(context,source.indexLabel));
+    final targetId=labelOverlapTarget(labelBounds,[for(final r in candidates)(id:r.id,bounds:_bounds(r.id))]);
+    if (targetId==null) return;
+    final target = candidates.firstWhere((r)=>r.id==targetId);
     if (target.id != source.id && target.indexLabel.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('이미 라벨이 있는 메모입니다. 기존 라벨을 옮기거나 지운 뒤 다시 시도해주세요.')));
       return;
