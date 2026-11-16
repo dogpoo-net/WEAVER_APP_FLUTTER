@@ -74,14 +74,16 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   MemoBox? _hoverBox;
   final _liftBoxes = <MemoBox, Rect>{};
   bool _centered = false;
-  bool _selectionMode = false, _movingSelection = false, _ctrlPressed = false;
-  bool get _rangeSelection => _selectionMode || _ctrlPressed || _selectionStart != null;
+  bool _selectionMode = false, _movingSelection = false, _ctrlPressed = false, _shiftPressed = false;
+  bool get _rangeSelection => _selectionMode || _ctrlPressed || _shiftPressed || _selectionStart != null;
   bool _controlSelection(KeyEvent event) {
     final pressed = HardwareKeyboard.instance.isControlPressed;
-    if (mounted && pressed != _ctrlPressed) setState(() => _ctrlPressed = pressed);
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+    if (mounted && (pressed != _ctrlPressed || shift != _shiftPressed)) setState(() { _ctrlPressed = pressed; _shiftPressed = shift; });
     return false;
   }
   final _selected = <String>{};
+  String? _rangeAnchor;
   Offset? _selectionStart, _selectionEnd, _selectionDown, _selectionGlobalDown;
   final _selectionDragOrigins = <String, Offset>{};
   final _selectionPointers = <int, Offset>{};
@@ -124,7 +126,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   void _endPinch() { _pinchBase = null; _pinchAnchor = null; _saveLayout(flush: true); }
   void _toggleSelection(bool value) => setState(() {
-    _selectionMode = value; _selected.clear(); _selectionStart = null; _selectionEnd = null;
+    _selectionMode = value; _selected.clear(); _rangeAnchor = null; _selectionStart = null; _selectionEnd = null;
     _selectionPointers.clear(); _selectionZoomBase = null; _selectionZoomDistance = null; _selectionZoomAnchor = null; _selectionPinched = false;
   });
   String? _resizingThought;
@@ -354,7 +356,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appActive = state == AppLifecycleState.resumed;
     if (!_appActive) {
-      _ctrlPressed = false;
+      _ctrlPressed = false; _shiftPressed = false;
       _saveLayout(flush: true);
     } else if (mounted && _routeVisible) {
       setState(_sync);
@@ -830,7 +832,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
                 }),
                 onActiveChanged: (active) => setState(() { if (active) { _thoughtDragOrigins.putIfAbsent(record.id, () => _positions[record.id]!); _dragStartStacks.putIfAbsent(record.id, () => alignedStackMembers(record.id, _positions)); } _draggingId = active ? record.id : null; if (!active) { _hoverBox = null; _dropHighlights.clear(); } }),
-                onTap: () => showElementMetadata(context, record.text),
+                onTap: () { _rangeAnchor=record.id; showElementMetadata(context, record.text); },
                 onMove: (delta) => setState(() { final previous = _positions[record.id]!; final p = previous + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
                   if (_liftBoxes.isEmpty && _memberCollides(record.id)) _positions[record.id] = previous;
                   final target = records.where((r) => r.id != record.id && _bounds(r.id).overlaps(_bounds(record.id))).lastOrNull;
@@ -957,7 +959,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               onPanEnd: (_) => _saveLayout(flush: true), onPanCancel: () => _saveLayout(flush: true),
               child: Tooltip(message: '#$tag', child: Chip(side: BorderSide(color: Color(hashtagColors[tag] ?? 0xFF90A4AE), width: 2.5), label: Text('#$tag', maxLines: 1, overflow: TextOverflow.ellipsis),
               backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: .3))))),
-          if (_rangeSelection) Positioned.fill(child: Listener(
+          if (_rangeSelection || _selected.isNotEmpty) Positioned.fill(child: Listener(
             onPointerDown: (event) {
               if (_selectionPointers.isEmpty) {
                 _selectionDown = event.localPosition; _selectionGlobalDown = event.position;
@@ -970,11 +972,19 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onPointerUp: (event) => _removeSelectionPointer(event.pointer),
             onPointerCancel: (event) => _removeSelectionPointer(event.pointer),
             child: GestureDetector(
-            key: const ValueKey('canvas-selection'), behavior: HitTestBehavior.opaque, dragStartBehavior: DragStartBehavior.down,
+            key: const ValueKey('canvas-selection'), behavior: HitTestBehavior.deferToChild, dragStartBehavior: DragStartBehavior.down,
             onTapUp: (d) => setState(() {
               final hit = records.where((r) => RRect.fromRectAndRadius(_bounds(r.id), Radius.circular(widget.blocks ? 6 : 12)).contains(d.localPosition)).lastOrNull;
-              if (hit == null) { _selected.clear(); }
-              else if (!_selected.add(hit.id)) { _selected.remove(hit.id); }
+              if (hit == null) { _selected.clear(); _rangeAnchor=null; }
+              else if (_shiftPressed && _rangeAnchor != null && visiblePositions.containsKey(_rangeAnchor)) {
+                final range = _bounds(_rangeAnchor!).expandToInclude(_bounds(hit.id));
+                for (var i=0;i<records.length;i++) {
+                  if (selectsVisibleThought(range,_bounds(records[i].id),records.skip(i+1).map((r)=>_bounds(r.id)),radius:widget.blocks?6:12)) _selected.add(records[i].id);
+                }
+              } else {
+                if (!_selected.add(hit.id)) _selected.remove(hit.id);
+                _rangeAnchor=hit.id;
+              }
             }),
             onScaleStart: (d) => setState(() {
               if (d.pointerCount > 1 || _selectionPinched) return;
@@ -984,7 +994,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               _movingSelection = hit != null; _selectionAnchor = hit?.id;
               if (hit != null && !_selected.contains(hit.id)) { _selected..clear()..add(hit.id); }
               _selectionStart = _selectionDown ?? d.localFocalPoint; _selectionEnd = d.localFocalPoint;
-              if (!_movingSelection) _selected.clear();
+              if (!_movingSelection) { _selected.clear(); _rangeAnchor=null; }
               _selectionDragOrigins..clear()..addEntries(_selected.map((id) => MapEntry(id, _positions[id]!)));
             }),
             onScaleUpdate: (d) => setState(() {
@@ -1008,7 +1018,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 _selected.clear();
                 for (var i = 0; i < records.length; i++) {
                   if (selectsVisibleThought(rect, _bounds(records[i].id), records.skip(i + 1).map((r) => _bounds(r.id)),
-                      radius: widget.blocks ? 6 : 12)) { _selected.add(records[i].id); }
+                      radius: widget.blocks ? 6 : 12)) { _selected.add(records[i].id); _rangeAnchor ??= records[i].id; }
                 }
               }
             }),
@@ -1016,7 +1026,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             child: CustomPaint(painter: _SelectionPainter(
               [for (final r in records) (rect: _bounds(r.id), selected: _selected.contains(r.id))],
               !_movingSelection && _selectionStart != null && _selectionEnd != null ? Rect.fromPoints(_selectionStart!, _selectionEnd!) : null,
-              color.primary, widget.blocks ? 6 : 12)),
+              color.primary, widget.blocks ? 6 : 12, captureAll: _rangeSelection)),
           ))),
         ])))),
       ); })),
@@ -1098,7 +1108,16 @@ class _Connections extends CustomPainter {
 }
 
 class _SelectionPainter extends CustomPainter {
-  _SelectionPainter(this.selected, this.marquee, this.color, this.radius);
+  _SelectionPainter(this.selected, this.marquee, this.color, this.radius, {this.captureAll=false});
+  final bool captureAll;
+  @override
+  bool hitTest(Offset position) {
+    if (captureAll) return true;
+    for (final item in selected.reversed) {
+      if (RRect.fromRectAndRadius(item.rect,Radius.circular(radius)).contains(position)) return item.selected;
+    }
+    return false;
+  }
   final double radius;
   final List<({Rect rect, bool selected})> selected;
   final Rect? marquee;

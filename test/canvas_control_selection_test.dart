@@ -16,5 +16,30 @@ void main(){for(final blocks in [false,true]){testWidgets('Ctrl drag selects wit
  await gesture.moveTo(box.localToGlobal(const Offset(1060,650)));await tester.pump();await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
  expect(find.byKey(const ValueKey('canvas-selection')),findsOneWidget);await gesture.up();await tester.pumpAndSettle();
  expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'2');expect(view.transformationController!.value.storage,before);
- expect(tester.widget<InteractiveViewer>(find.byType(InteractiveViewer)).panEnabled,isTrue);await tester.pumpWidget(const SizedBox());
-});}}
+ expect(tester.widget<InteractiveViewer>(find.byType(InteractiveViewer)).panEnabled,isTrue);
+ expect(find.byKey(const ValueKey('canvas-selection')),findsOneWidget);
+ final startA=layout.positions[a.id]!,startB=layout.positions[b.id]!;
+ await tester.dragFrom(tester.getCenter(find.byKey(ValueKey('canvas-thought-${a.id}'))),const Offset(100,120));await tester.pumpAndSettle();
+ final shift=layout.positions[a.id]!-startA;
+ expect(shift.distance,greaterThan(40));expect(layout.positions[b.id]!-startB,shift);
+ expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'2');
+ await tester.pumpWidget(const SizedBox());
+});
+testWidgets('Shift click selects spatial range ($blocks)',(tester)async{
+ tester.view.physicalSize=const Size(1200,900);tester.view.devicePixelRatio=1;addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
+ elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();
+ final a=elements.add('시작'),b=elements.add('중간'),c=elements.add('끝'),d=elements.add('바깥');
+ final layout=blocks?pageGraphLayout.blockLayout:pageGraphLayout;
+ layout.positions.addAll({a.id:const Offset(500,500),b.id:const Offset(800,500),c.id:const Offset(1100,500),d.id:const Offset(500,800)});
+ layout.layers.addAll([a.id,b.id,c.id,d.id]);layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,onChanged:(){})));await tester.pumpAndSettle();
+ await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
+ await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${a.id}'))));await tester.pump();
+ await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);await tester.pump();
+ await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${c.id}'))));await tester.pump();
+ expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'3');
+ await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);await tester.pump();
+ expect(find.byKey(const ValueKey('canvas-selection')),findsOneWidget);
+ await tester.pumpWidget(const SizedBox());
+});
+}}
