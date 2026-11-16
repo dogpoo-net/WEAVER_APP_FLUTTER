@@ -15,8 +15,9 @@ class GridColumnsPreference {
       try {
         final prefs = await SharedPreferences.getInstance();
         final saved = prefs.getInt(key);
-        if (!loaded && saved != null && saved >= 1 && saved <= 64)
+        if (!loaded && saved != null && saved >= 1 && saved <= 64) {
           value = saved;
+        }
       } finally {
         loaded = true;
       }
@@ -30,8 +31,9 @@ class GridColumnsPreference {
     final task = (() async {
       if (previous != null) await previous;
       final prefs = await SharedPreferences.getInstance();
-      if (!await prefs.setInt(key, columns))
+      if (!await prefs.setInt(key, columns)) {
         throw StateError('Column preference save failed');
+      }
     })();
     _writing = task.catchError((Object _) {});
     return task;
