@@ -45,6 +45,8 @@ void main() {
     expect(tester.getTopLeft(find.textContaining('위치가 기록된 생각이 없습니다.')).dy,
       lessThan(tester.getCenter(find.byType(FlutterMap)).dy));
     expect(find.textContaining('위치가 기록된 생각이 없습니다.'), findsOneWidget);
+    expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
+    expect(find.textContaining('한국 상세 타일'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
