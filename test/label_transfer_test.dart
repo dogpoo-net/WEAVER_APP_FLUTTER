@@ -6,16 +6,20 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 
 void main() {
+ for(final blocks in [true,false]) {
+ for(final destination in ['empty','self','occupied']) {
  for(final left in [true,false]) {
- testWidgets('hold label transfers to closest edge left=$left',(tester)async{
+ testWidgets('hold label transfers to closest edge blocks=$blocks destination=$destination left=$left',(tester)async{
   elements.clear();memoBoxes.clear();memoBoxFolders.clear();memoBoxFolderParents.clear();pageGraphLayout=GraphLayout();
   final source=elements.add('원본 #보존')..indexLabel='옮길 라벨'..indexLabelColor=0xFFFFCC80;
-  final target=elements.add('대상 #유지');
+  source.labelOnLeft=!left;
+  final target=destination=='self'?source:elements.add('대상 #유지');
+  if(destination=='occupied')target.indexLabel='기존 라벨';
   final other=elements.add('다른 메모')..indexLabel='다른 라벨';
-  final layout=pageGraphLayout.blockLayout;
-  layout.positions.addAll({source.id:const Offset(640,400),target.id:const Offset(940,400),other.id:const Offset(640,550)});
-  layout.layers.addAll([source.id,target.id,other.id]);
-  await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));
+  final layout=blocks?pageGraphLayout.blockLayout:pageGraphLayout;
+  layout.positions.addAll({source.id:const Offset(640,400),if(target!=source)target.id:const Offset(940,400),other.id:const Offset(640,550)});
+  layout.layers.addAll({source.id,target.id,other.id});
+  await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,onChanged:(){})));
   await tester.pumpAndSettle();
   final rect=tester.getRect(find.byKey(ValueKey('canvas-thought-${target.id}')));
   final label=find.byKey(ValueKey('thought-label-${source.id}'));
@@ -24,10 +28,17 @@ void main() {
   await gesture.moveTo(Offset(left?rect.left+10:rect.right-10,rect.center.dy));
   await tester.pump();
   await gesture.up();await tester.pumpAndSettle();
-  expect(source.indexLabel,isEmpty);expect(target.indexLabel,'옮길 라벨');
+  if(destination=='occupied'){
+   expect(source.indexLabel,'옮길 라벨');expect(target.indexLabel,'기존 라벨');
+   expect(find.text('이미 라벨이 있는 메모입니다. 기존 라벨을 옮기거나 지운 뒤 다시 시도해주세요.'),findsOneWidget);
+  }else{
+  if(target!=source)expect(source.indexLabel,isEmpty);expect(target.indexLabel,'옮길 라벨');
   expect(target.labelOnLeft,left);expect(target.indexLabelColor,0xFFFFCC80);
-  expect(source.tags,contains('보존'));expect(target.tags,contains('유지'));
+  expect(source.tags,contains('보존'));if(target!=source)expect(target.tags,contains('유지'));
+  }
   await tester.pumpWidget(const SizedBox());elements.clear();
  });
+ }
+ }
  }
 }
