@@ -46,3 +46,5 @@ GridColumnsPreference thoughtGridColumns = GridColumnsPreference(
 GridColumnsPreference photoGridColumns = GridColumnsPreference(
   'weaver.photoGridColumns.v1',
 );
+
+GridColumnsPreference audioGridColumns = GridColumnsPreference('weaver.audioGridColumns.v1');

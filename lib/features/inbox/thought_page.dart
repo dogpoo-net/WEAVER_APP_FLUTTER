@@ -857,6 +857,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         transformationController: _view, scaleFactor: 1000, constrained: false, minScale: .15, maxScale: MediaQuery.sizeOf(context).width >= 760 ? 12 : 8,
         boundaryMargin: const EdgeInsets.all(double.infinity),
         child: AbsorbPointer(absorbing: !_canEdit, child: RepaintBoundary(child: SizedBox(key: _sceneKey, width: sceneWidth, height: sceneHeight, child: Stack(clipBehavior: Clip.none, children: [
+          Positioned.fill(child: IgnorePointer(child: RepaintBoundary(child: AnimatedBuilder(animation:_view,builder:(context,_)=>CustomPaint(key: const ValueKey('canvas-boundary'),
+            painter: CanvasBoundaryPainter(color.outline.withValues(alpha: .7),scale:_view.value.getMaxScaleOnAxis())))))),
           for (final folder in folders.entries) MemoFolderRegion(key: ValueKey('folder-region-${folder.key}'), name: folder.key, bounds: folder.value,onDelete:_canEdit?()=>_deleteCanvasFolder(folder.key):null,
             highlighted: _liftedFolder == folder.key,
             onLiftStart: (pointer) => _liftFolder(folder.key, pointer),

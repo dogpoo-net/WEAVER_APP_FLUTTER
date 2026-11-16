@@ -1,3 +1,4 @@
+import 'hashtags.dart';
 import 'grid_columns_preference.dart';
 import 'memo_comments.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,8 +25,9 @@ const thoughtViewModePreference='weaver.thoughtSquareView.v1';
 bool? thoughtSquareViewCache;
 
 class ThoughtBoxView extends StatefulWidget {
-  const ThoughtBoxView({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox, this.filters, this.viewSelector, this.onDeleteBoxes});
+  const ThoughtBoxView({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox, this.filters, this.viewSelector, this.onDeleteBoxes, this.storage});
   final Future<void> Function(Set<String>)? onDeleteBoxes;
+  final WorkspaceStorage? storage;
   final ThoughtFilterSelection? filters;
   final Widget? viewSelector;
   final List<Note> notes;
@@ -61,6 +63,23 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   }
   int _scaleColumns = 2;
   void _changed() { setState(() {}); widget.onChanged?.call(); }
+  Future<void> _createThought() async {
+    var draft='';
+    final text=await showDialog<String>(context:context,builder:(context)=>AlertDialog(
+      title:const Text('생각 만들기'),content:TextField(autofocus:true,minLines:3,maxLines:8,onChanged:(value)=>draft=value,decoration:const InputDecoration(hintText:'생각을 적어주세요')),
+      actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('취소')),FilledButton(onPressed:(){if(parseTaggedInput(draft).text.isNotEmpty)Navigator.pop(context,draft);},child:const Text('만들기'))]));
+    if(text==null || !mounted)return;
+    try{
+      await widget.storage?.writable();if(!mounted)return;
+      final record=elements.add(text);if(_filterBox!=null)moveThoughtToBox(record.id,_filterBox!);
+      _changed();await saveWorkspaceContent?.call();
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('생각을 저장하지 못했습니다. $e')));}
+  }
+  Future<void> _removeBoxes(Set<String> names)async{
+    await widget.storage?.writable();if(!mounted)return;
+    removeMemoBoxesKeepingThoughts(names);_filters.boxes.removeWhere((box)=>names.contains(box.name));
+    _changed();await saveWorkspaceContent?.call();await widget.storage?.syncFolders?.call();
+  }
   ModalRoute<dynamic>? _route;
   void _refresh() { _textWidths.clear(); if (mounted) setState(() {}); }
   @override
@@ -114,10 +133,10 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
       if(_square){
         final defaultColumns = MediaQuery.sizeOf(context).shortestSide >= 600 || desktop ? 6 : 2;
         final columns=(_squareColumns ?? defaultColumns).clamp(1, math.max(1,(available/80).floor())).toInt();
-        return Column(children:[Center(child:SizedBox(width:available,child:IconButtonTheme(data:IconButtonThemeData(style:IconButton.styleFrom(minimumSize:const Size(36,36),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap)),child:Row(children:[Expanded(child:Text(_query.isEmpty && _filters.isEmpty ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개',style:Theme.of(context).textTheme.bodyMedium)),
+        return Column(children:[Padding(padding:const EdgeInsets.symmetric(horizontal:12),child:IconButtonTheme(data:IconButtonThemeData(style:IconButton.styleFrom(minimumSize:const Size(36,36),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap)),child:Row(children:[Expanded(child:Text(_query.isEmpty && _filters.isEmpty ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개',style:Theme.of(context).textTheme.bodyMedium)),
           IconButton(tooltip:'확대',onPressed:columns>1?()=>_setSquareColumns(columns-1):null,icon:const Icon(Icons.zoom_in)),
           Text('$columns열'),IconButton(tooltip:'축소',onPressed:columns<math.max(1,(available/80).floor())?()=>_setSquareColumns(columns+1):null,icon:const Icon(Icons.zoom_out)),
-        ])))),Expanded(child:records.isEmpty?Center(child:Text(allRecords.isEmpty?'아직 생각이 없어요.':_filterBox!=null&&_query.isEmpty?'이 상자에 담긴 메모가 없어요.':'일치하는 생각이 없어요.')):GridView.builder(key:const ValueKey('thought-square-grid'),padding:const EdgeInsets.all(12),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:columns,crossAxisSpacing:8,mainAxisSpacing:8),itemCount:records.length,itemBuilder:(_,i)=>_tile(records[i],desktop,width:(available-8*(columns-1))/columns)))]);
+        ]))),Expanded(child:records.isEmpty?Center(child:Text(allRecords.isEmpty?'아직 생각이 없어요.':_filterBox!=null&&_query.isEmpty?'이 상자에 담긴 메모가 없어요.':'일치하는 생각이 없어요.')):GridView.builder(key:const ValueKey('thought-square-grid'),padding:const EdgeInsets.all(12),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:columns,crossAxisSpacing:8,mainAxisSpacing:8),itemCount:records.length,itemBuilder:(_,i)=>_tile(records[i],desktop,width:(available-8*(columns-1))/columns)))]);
       }
       final maxWidth = desktop ? math.min(480.0, available)
         : (available * 2 / _columns).clamp(math.min(48.0, available), available);
@@ -160,7 +179,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
             } else {
               child = Padding(padding: const EdgeInsets.only(bottom: 6), child: PackedBadges(children: [for (final item in items.skip((index - 1) * 32).take(32)) _tile(item.record, desktop, width: item.width)]));
             }
-            return Center(child: SizedBox(width: available, child: child));
+            return index==0?child:Center(child: SizedBox(width: available, child: child));
           }));
     });
     final footer = ThoughtFilters(tags: tags, selection: _filters,
@@ -174,7 +193,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
       IconButton(tooltip: '음성 있는 생각', isSelected: _audioOnly,
         style: IconButton.styleFrom(backgroundColor: _audioOnly ? Theme.of(context).colorScheme.primaryContainer : null),
         icon: const Icon(Icons.volume_up_outlined), onPressed: () => setState(() => _audioOnly = !_audioOnly)),
-      MemoBoxActions(filters: _filters, onDelete: widget.onDeleteBoxes, onCreate: () async { final box = await createMemoBox(context); if (mounted && box != null) _changed(); }),
+      if(widget.storage?.canvasWritable??true)MemoBoxActions(filters: _filters, preserveThoughts:true,onCreateThought:_createThought,onDelete:_removeBoxes, onCreate: () async { final box = await createMemoBox(context); if (mounted && box != null) _changed(); }),
       IconButton(tooltip: _square ? '바둑판식 보기 · 행으로 전환' : '행으로 보기 · 바둑판으로 전환', icon: Icon(_square ? Icons.grid_view : Icons.view_stream), onPressed:_toggleViewMode),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('생각 보기 안내'),
@@ -244,7 +263,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     if(_view==ThoughtView.photos || _view==ThoughtView.audio)return DesktopMenuFrame(child:AttachmentCollection(key:ValueKey(_view),audio:_view==ThoughtView.audio,selector:selector,filters:_filters,storage:widget.storage,onChanged:widget.onChanged));
     if (_view == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(filters: _filters, box: activeBox,
       viewSelector: selector, onChanged: () => widget.onChanged?.call())); }
-    if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(filters: _filters, notes: widget.notes, initialBox: activeBox,
+    if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(storage:widget.storage,filters: _filters, notes: widget.notes, initialBox: activeBox,
       onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes)); }
     return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey(_view), box: activeBox, blocks: _view == ThoughtView.page,
       onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, onSave:widget.onSave, storage:widget.storage, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes));

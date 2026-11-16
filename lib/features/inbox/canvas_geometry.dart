@@ -163,3 +163,24 @@ Set<String> alignedStackMembers(String seed, Map<String, Offset> positions) {
   }
   return group;
 }
+
+/// Only top and left are fixed; the scene grows to the right and bottom.
+class CanvasBoundaryPainter extends CustomPainter {
+  const CanvasBoundaryPainter(this.color,{this.scale=1});
+  final Color color;
+  final double scale;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final zoom=scale.isFinite && scale>0?scale:1.0;
+    final dash=6/zoom,step=12/zoom;
+    final paint = Paint()..color = color..strokeWidth = 1/zoom;
+    for (var x = 32.0; x < size.width; x += step) {
+      canvas.drawLine(Offset(x, 32), Offset(math.min(x + dash, size.width), 32), paint);
+    }
+    for (var y = 32.0; y < size.height; y += step) {
+      canvas.drawLine(Offset(32, y), Offset(32, math.min(y + dash, size.height)), paint);
+    }
+  }
+  @override
+  bool shouldRepaint(CanvasBoundaryPainter oldDelegate) => oldDelegate.color != color || oldDelegate.scale != scale;
+}
