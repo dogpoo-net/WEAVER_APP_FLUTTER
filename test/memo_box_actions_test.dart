@@ -12,7 +12,7 @@ import 'package:weaver/features/inbox/workspace_menu.dart';
 
 void main() {
   setUp(() { memoBoxes.clear(); memoBoxFolders.clear(); memoBoxFolderParents.clear(); });
-  testWidgets('Deleting a box permanently removes its thoughts while deleting a folder preserves them', (tester) async {
+  testWidgets('Canvas box deletion preserves thoughts and syncs container changes', (tester) async {
     SharedPreferences.setMockInitialValues({});elements.clear();
     final record=elements.add('보관된 메모');final box=MemoBox('상자',folder:'폴더',ids:[record.id]);memoBoxes.add(box);memoBoxFolders.add('폴더');
     final storage=WorkspaceStorage(await SharedPreferences.getInstance());await storage.write(WorkspaceSnapshot.encode([]));
@@ -21,9 +21,9 @@ void main() {
     await tester.tap(find.byTooltip('메뉴 열기'));await tester.pumpAndSettle();await tester.ensureVisible(find.byTooltip('폴더 폴더 관리'));await tester.tap(find.byTooltip('폴더 폴더 관리'));await tester.pumpAndSettle();await tester.tap(find.text('폴더 삭제'));await tester.pumpAndSettle();await tester.tap(find.text('삭제'));await tester.pumpAndSettle();
     expect(folders,1);expect(memoBoxFolders,isEmpty);expect(memoBoxes.firstWhere((b)=>b.name=='상자').folder,isNull);expect(elements.records,contains('보관된 메모'));
     await tester.tap(find.byTooltip('메뉴 닫기'));await tester.pumpAndSettle();await tester.tap(find.byKey(const ValueKey('thoughts-all')));await tester.pumpAndSettle();await tester.tap(find.text('메모상자').last);await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('thought-filter-box-상자')));await tester.pumpAndSettle();await tester.tap(find.byTooltip('메모상자 관리'));await tester.pumpAndSettle();await tester.tap(find.text('메모상자 삭제'));await tester.pumpAndSettle();await tester.tap(find.text('삭제'));await tester.pumpAndSettle();await tester.tap(find.text('삭제'));await tester.pumpAndSettle();
-    expect(deleted,1);expect(elements.records,isEmpty);expect(elements.trash,isEmpty);expect(memoBoxes.any((b)=>b.name=='상자'),isFalse);
-    expect(WorkspaceSnapshot.decode(storage.read()!).records,isEmpty);await tester.pumpWidget(const SizedBox());
+    await tester.tap(find.byKey(const ValueKey('thought-filter-box-상자')));await tester.pumpAndSettle();await tester.tap(find.byTooltip('메모상자 관리'));await tester.pumpAndSettle();await tester.tap(find.text('상자 삭제'));await tester.pumpAndSettle();await tester.tap(find.text('삭제'));await tester.pumpAndSettle();await tester.tap(find.text('삭제'));await tester.pumpAndSettle();
+    expect(deleted,0);expect(elements.records,contains('보관된 메모'));expect(ensureUnclassifiedBox().elementIds,contains(record.id));expect(elements.trash,isEmpty);expect(memoBoxes.any((b)=>b.name=='상자'),isFalse);
+    expect(WorkspaceSnapshot.decode(storage.read()!).records,hasLength(1));await tester.pumpWidget(const SizedBox());
   });
   testWidgets('Box deletion requires selection and two confirmations; cancel changes nothing', (tester) async {
     final box=MemoBox('삭제 대상');memoBoxes.add(box);ensureUnclassifiedBox();final filters=ThoughtFilterSelection(initialBox:box);Set<String>? deleted;

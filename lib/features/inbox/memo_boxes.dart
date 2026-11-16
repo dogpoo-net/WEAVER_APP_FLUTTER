@@ -133,3 +133,22 @@ class MemoFolderDrag {
   const MemoFolderDrag(this.name);
   final String name;
 }
+
+/// Delete only the container; all thoughts remain in the workspace.
+void removeMemoBoxesKeepingThoughts(Set<String> names){
+  final removed=memoBoxes.where((b)=>!b.isUnclassified&&names.contains(b.name)).toList();
+  final ids=removed.expand((b)=>b.elementIds).toSet();
+  memoBoxes.removeWhere(removed.contains);
+  for(final box in memoBoxes.where((b)=>!b.isUnclassified)){box.elementIds.removeAll(ids);}
+  ensureUnclassifiedBox();
+}
+/// Promote direct children by one level, preserving nested folder contents.
+void removeMemoFolderKeepingContents(String folder){
+  if(!memoBoxFolders.contains(folder))return;
+  final parent=memoFolderParent(folder);
+  for(final box in memoBoxes){if(box.folder==folder)box.folder=parent;}
+  for(final child in memoBoxFolders.where((f)=>memoFolderParent(f)==folder).toList()){
+    if(parent==null){memoBoxFolderParents.remove(child);}else{memoBoxFolderParents[child]=parent;}
+  }
+  memoBoxFolders.remove(folder);memoBoxFolderParents.remove(folder);
+}

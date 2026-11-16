@@ -25,10 +25,10 @@ bool memoBoxRegionsOverlap(Rect a, Rect b, {required bool rectangular, double ga
   rectangular ? a.inflate(gap).overlaps(b) : (a.center - b.center).distance < (a.width + b.width) / 2 + gap;
 
 class MemoBoxRegion extends StatelessWidget {
-  const MemoBoxRegion({super.key, required this.box, required this.bounds, this.onDrag, this.onDragEnd, this.onDragCancel, this.onLiftStart, this.onLiftMove, this.onLiftEnd, this.highlighted = false, this.rectangular = false});
+  const MemoBoxRegion({super.key, required this.box, required this.bounds, this.onDrag, this.onDragEnd, this.onDragCancel, this.onLiftStart, this.onLiftMove, this.onLiftEnd, this.highlighted = false, this.rectangular = false,this.showLabel=true});
   final MemoBox box;
   final Rect bounds;
-  final bool highlighted, rectangular;
+  final bool highlighted, rectangular,showLabel;
   final ValueChanged<Offset>? onDrag, onLiftStart, onLiftMove, onLiftEnd;
   final VoidCallback? onDragEnd, onDragCancel;
   @override
@@ -41,7 +41,7 @@ class MemoBoxRegion extends StatelessWidget {
       child: DecoratedBox(decoration: BoxDecoration(shape: rectangular ? BoxShape.rectangle : BoxShape.circle, borderRadius: rectangular ? BorderRadius.circular(24) : null,
         color: Color(box.color).withValues(alpha: highlighted ? .16 : .10),
         border: Border.all(color: Color(box.color).withValues(alpha: .7), width: highlighted ? 3 : 1.5)),
-        child: Align(alignment: Alignment.topCenter, child: Padding(padding: const EdgeInsets.fromLTRB(32, 15, 32, 0),
+        child: !showLabel?null:Align(alignment: Alignment.topCenter, child: Padding(padding: const EdgeInsets.fromLTRB(32, 15, 32, 0),
           child: Text(box.name, maxLines: 1, overflow: TextOverflow.ellipsis,
             style: TextStyle(color: Color(box.color), fontSize: 13, fontWeight: FontWeight.w600)))),
       ),

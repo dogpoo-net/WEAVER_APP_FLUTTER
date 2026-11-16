@@ -19,11 +19,12 @@ Map<String, Rect> memoFolderRegions(Map<MemoBox, Rect> boxes, Map<String, Offset
 
 /// A background group, deliberately not a `DragTarget<MemoDrag>` or a `MemoBox`.
 class MemoFolderRegion extends StatefulWidget {
-  const MemoFolderRegion({super.key, required this.name, required this.bounds, required this.onMove, required this.onEnd, this.onLiftStart, this.onLiftMove, this.onLiftEnd, this.highlighted = false, this.onZoom});
+  const MemoFolderRegion({super.key, required this.name, required this.bounds, required this.onMove, required this.onEnd, this.onLiftStart, this.onLiftMove, this.onLiftEnd, this.highlighted = false, this.onZoom,this.onDelete});
   final String name;
   final Rect bounds;
   final ValueChanged<Offset> onMove;
   final VoidCallback onEnd;
+  final VoidCallback? onDelete;
   final ValueChanged<Offset>? onLiftStart, onLiftMove, onLiftEnd;
   final bool highlighted;
   final void Function(double scale, Offset focal)? onZoom;
@@ -57,9 +58,10 @@ class _MemoFolderRegionState extends State<MemoFolderRegion> {
       border: Border.all(color: widget.highlighted ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline.withValues(alpha: .4), width: widget.highlighted ? 3 : 1)),
       child: Align(alignment: Alignment.topLeft, child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
+        child: Row(children: [
           const Icon(Icons.folder_outlined, size: 16), const SizedBox(width: 6),
-          Flexible(child: Text(widget.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12))),
+          Expanded(child: Text(widget.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12))),
+          if(widget.onDelete!=null)IconButton(tooltip:'${widget.name} 폴더 삭제',onPressed:widget.onDelete,style:IconButton.styleFrom(minimumSize:const Size.square(24),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap),icon:const Icon(Icons.close,size:16)),
         ]))),
   ))));
 }
