@@ -141,6 +141,11 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
+  Future<void> defaultPhoto() => run(() async {
+    await auth.emailApi.profile('photo/default');
+    await auth.loadProfile();
+    message('기본 사진을 적용했습니다.');
+  });
   Future<void> editPhoto() => run(() async {
     final photo = await ImagePicker().pickImage(
       source: ImageSource.gallery,
@@ -201,9 +206,14 @@ class _ProfilePageState extends State<ProfilePage> {
               padding: const EdgeInsets.all(24),
               children: [
                 Center(
-                  child: IconButton(
+                  child: PopupMenuButton<String>(
+                    enabled: !disabled,
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'upload', child: Text('사진 변경')),
+                      PopupMenuItem(value: 'default', child: Text('기본 사진 적용')),
+                    ],
+                    onSelected: (action) { if (action == 'default') { defaultPhoto(); } else { editPhoto(); } },
                     tooltip: '프로필 사진 변경',
-                    onPressed: disabled ? null : editPhoto,
                     icon: Stack(
                       children: [
                         ProfileAvatar(auth: auth, size: 112),

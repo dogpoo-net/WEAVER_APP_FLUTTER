@@ -120,6 +120,23 @@ void main() {
       auth.dispose();
     },
   );
+  testWidgets('profile photo menu applies a server-selected default', (tester) async {
+    var face=1,calls=0;
+    final api=EmailAuthApi(store:MemorySessionStore(isWeb:true),client:MockClient((r)async{
+      if(r.url.path.endsWith('/photo/default')){calls++;face=4;return http.Response('{}',200);}
+      if(r.url.path.endsWith('/profile/read'))return http.Response(jsonEncode({'name':'Name','email':'a@example.com','providers':[],'defaultFace':face}),200);
+      return http.Response(jsonEncode({'id':'a','email':'a@example.com','name':'Name','expiresIn':1800}),200);
+    }));
+    final auth=GoogleAuthController(FakeGoogleClient(configured:false),emailApi:api);
+    await auth.signInWithEmail('a@example.com','test-password');
+    await tester.pumpWidget(GoogleAuthScope(controller:auth,child:MaterialApp(home:ProfilePage(auth:auth))));await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('프로필 사진 변경'));await tester.pumpAndSettle();
+    expect(find.text('사진 변경'),findsOneWidget);expect(calls,0);
+    await tester.tap(find.text('기본 사진 적용'));await tester.pumpAndSettle();
+    expect(calls,1);expect(auth.profile?['defaultFace'],4);
+    expect((tester.widget<Image>(find.byType(Image).first).image as AssetImage).assetName,'assets/branding/profile/face_4.png');
+    await tester.pumpWidget(const SizedBox());auth.dispose();
+  });
   for (final initial in ['kakao', 'email']) {
     testWidgets('unlink controls preserve initial signup method: $initial', (tester) async {
       final providers = ['google', 'kakao'];var unlinks=0;
