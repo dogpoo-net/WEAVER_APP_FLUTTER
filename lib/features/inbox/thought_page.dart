@@ -1,3 +1,4 @@
+import 'memo_comments.dart';
 import 'package:flutter/services.dart';
 import 'edit_lock.dart';
 import 'workspace_storage.dart';
@@ -923,8 +924,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _dropHighlights.contains(record.id) || _draggingId == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) ? 3 : 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: _dropHighlights.contains(record.id) || _draggingId == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) || _draggingId == record.id ? 3 : 2)),
                   child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    Expanded(child: Padding(padding: const EdgeInsets.all(8), child: Row(crossAxisAlignment:CrossAxisAlignment.start,children:[if(AttachmentIndicators.hasAttachments(record))...[AttachmentIndicators(record:record),const SizedBox(width:4)],Expanded(child: Text(record.text, softWrap: true,
-                      overflow: TextOverflow.clip, style: TextStyle(color: wordColor(context, record.text))))]))),
+                    Expanded(child: Padding(padding: const EdgeInsets.all(8), child: ValueListenableBuilder<Map<String,int>>(valueListenable:memoCommentCounts,builder:(context,counts,_)=>Row(crossAxisAlignment:CrossAxisAlignment.center,children:[
+                      if(AttachmentIndicators.hasAttachments(record)||(counts[record.id]??0)>0)...[FittedBox(fit:BoxFit.scaleDown,child:AttachmentIndicators(record:record,commentCount:counts[record.id]??0)),const SizedBox(width:4)],
+                      Expanded(child:Text(record.text,softWrap:true,overflow:TextOverflow.clip,style:TextStyle(color:wordColor(context,record.text)))),
+                    ])))),
                     if ((widget.blocks || (_layout.stacked && !_hideTags)) && record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 8, 8), child: Align(alignment: Alignment.centerLeft,
                       child: Text(record.tags.map((tag) => '#$tag').join('  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)))),
                     if (_layout.stacked && (record.tags.isEmpty || (!widget.blocks && _hideTags))) const SizedBox(height: 24),

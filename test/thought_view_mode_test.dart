@@ -6,7 +6,14 @@ import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/overview_collections.dart';
 import 'package:weaver/features/inbox/thought_filters.dart';
 void main(){
- setUp(()=>SharedPreferences.setMockInitialValues({}));
+ setUp((){thoughtSquareViewCache=null;SharedPreferences.setMockInitialValues({});});
+ testWidgets('saved row preference never paints a default square frame',(tester)async{
+  SharedPreferences.setMockInitialValues({thoughtViewModePreference:false});elements.clear();elements.add('기억된 보기');
+  await tester.pumpWidget(const MaterialApp(home:ThoughtBoxView(notes:[])));
+  expect(find.byKey(const ValueKey('thought-square-grid')),findsNothing);
+  await tester.pumpAndSettle();expect(find.byKey(const ValueKey('all-thoughts-grid')),findsOneWidget);
+  await tester.pumpWidget(const SizedBox());elements.clear();
+ });
  testWidgets('photo grid zoom stops at one column and hides in detail mode',(tester)async{
   elements.clear();final filters=ThoughtFilterSelection();
   await tester.pumpWidget(MaterialApp(home:AttachmentCollection(audio:false,selector:const SizedBox(),filters:filters)));
@@ -29,7 +36,10 @@ void main(){
  expect(tester.widget<IconButton>(find.byWidgetPredicate((w)=>w is IconButton && w.tooltip=='확대')).onPressed,isNull);
  await tester.tap(find.byTooltip('바둑판식 보기 · 행으로 전환'));await tester.pumpAndSettle();expect(find.byKey(const ValueKey('thought-square-grid')),findsNothing);
  await tester.pumpWidget(const SizedBox());
- await tester.pumpWidget(const MaterialApp(home:ThoughtBoxView(notes:[])));await tester.pumpAndSettle();
+ await tester.pumpWidget(const MaterialApp(home:ThoughtBoxView(notes:[])));
+ expect(find.byKey(const ValueKey('thought-square-grid')),findsNothing);
+ expect(find.byKey(const ValueKey('all-thoughts-grid')),findsOneWidget);
+ await tester.pumpAndSettle();
  expect(find.byKey(const ValueKey('all-thoughts-grid')),findsOneWidget);
  await tester.pumpWidget(const SizedBox());elements.clear();
 });}

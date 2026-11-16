@@ -19,6 +19,8 @@ import 'workspace_routes.dart';
 import 'workspace_storage.dart';
 
 const thoughtViewModePreference='weaver.thoughtSquareView.v1';
+// Keep the selected view available synchronously when a tab is recreated.
+bool? thoughtSquareViewCache;
 
 class ThoughtBoxView extends StatefulWidget {
   const ThoughtBoxView({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox, this.filters, this.viewSelector, this.onDeleteBoxes});
@@ -41,13 +43,14 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   MemoBox? get _filterBox => _filters.singleBox;
   int _columns = 2;
   int? _squareColumns;
-  bool _square = true, _viewChosen=false;
+  bool _square = thoughtSquareViewCache??true, _viewChosen=false;
+  bool _viewReady=thoughtSquareViewCache!=null;
   Future<void> _viewWrite=Future.value();
   Future<void> _loadViewMode() async {
-    try{final prefs=await SharedPreferences.getInstance();if(mounted&&!_viewChosen)setState(()=>_square=prefs.getBool(thoughtViewModePreference)??true);}catch(_){}
+    try{final prefs=await SharedPreferences.getInstance();if(mounted&&!_viewChosen)setState((){_square=thoughtSquareViewCache??prefs.getBool(thoughtViewModePreference)??true;thoughtSquareViewCache=_square;_viewReady=true;});}catch(_){if(mounted)setState(()=>_viewReady=true);}
   }
   void _toggleViewMode(){
-    _viewChosen=true;final next=!_square;setState(()=>_square=next);
+    _viewChosen=true;final next=!_square;thoughtSquareViewCache=next;setState(()=>_square=next);
     _viewWrite=_viewWrite.then((_)async{final prefs=await SharedPreferences.getInstance();if(!await prefs.setBool(thoughtViewModePreference,next))throw StateError('Preference save failed');})
       .catchError((Object error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('보기 설정을 기기에 저장하지 못했습니다.')));});
   }
@@ -91,6 +94,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   }
   @override
   Widget build(BuildContext context) {
+    if(!_viewReady)return const SizedBox.shrink();
     final allRecords = elements.records.values.toList();
     final tags = {...allRecords.expand((record) => record.tags), ...hashtagColors.keys}.toList()..sort();
     final records = allRecords.where((record) => canBrowseThought(record) &&
@@ -123,8 +127,8 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         final iconCount = (record.photos.isNotEmpty ? 1 : 0) + (record.recordings.isNotEmpty ? 1 : 0) + (record.location != null ? 1 : 0);
         final count=memoCommentCounts.value[record.id]??0;
         var countWidth=0.0;
-        if(count>0){final painter=TextPainter(text:TextSpan(text:'$count',style:Theme.of(context).textTheme.labelLarge!.copyWith(fontSize:10,height:1.1,fontWeight:FontWeight.w500)),textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context))..layout();countWidth=painter.width+14;painter.dispose();}
-        final width = (textWidth + 8 + countWidth + iconCount * 13 + (iconCount > 0 ? 4 : 0)).clamp(math.min(16.0, maxWidth), maxWidth).toDouble();
+        if(count>0){final painter=TextPainter(text:TextSpan(text:'$count',style:Theme.of(context).textTheme.labelLarge!.copyWith(fontSize:10,height:1.1,fontWeight:FontWeight.w500)),textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context))..layout();countWidth=painter.width;painter.dispose();}
+        final width = (textWidth + 8 + math.max(countWidth,iconCount>0?13.0:0.0) + (iconCount>0||count>0?4:0)).clamp(math.min(16.0, maxWidth), maxWidth).toDouble();
         items.add((record: record, width: width));
       }
       return GestureDetector(

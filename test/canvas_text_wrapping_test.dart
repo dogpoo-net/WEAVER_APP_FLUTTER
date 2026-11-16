@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:weaver/features/capture/capture_models.dart';
+import 'package:weaver/features/inbox/memo_comments.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/element_store.dart';
@@ -8,6 +10,19 @@ import 'package:weaver/features/inbox/thought_page.dart';
 
 void main() {
  for(final blocks in [false,true]) {
+ testWidgets('canvas metadata is vertical and text centered even in a small object ($blocks)',(tester)async{
+  elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();final record=elements.add('본문');
+  record.location=ThoughtLocation(37,127,0,DateTime.utc(2026));record.photos.add(const PhotoAttachment('p','p.png'));record.recordings.add(const VoiceAttachment('a',1000));
+  memoCommentCounts.value={record.id:2};final layout=blocks?pageGraphLayout.blockLayout:pageGraphLayout;
+  layout.positions[record.id]=const Offset(500,500);layout.sizes[record.id]=const Offset(170,76);
+  await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,onChanged:(){})));await tester.pumpAndSettle();
+  final count=tester.getRect(find.byKey(ValueKey('comment-count-${record.id}')));
+  final location=tester.getRect(find.byIcon(Icons.location_on_outlined));final audio=tester.getRect(find.byIcon(Icons.mic_none));final photo=tester.getRect(find.byIcon(Icons.image_outlined));
+  expect(count.bottom,lessThanOrEqualTo(location.top+.1));expect(location.bottom,lessThanOrEqualTo(audio.top+.1));expect(audio.bottom,lessThanOrEqualTo(photo.top+.1));
+  expect(tester.getCenter(find.text(record.text)).dy,closeTo((count.top+photo.bottom)/2,.5));
+  expect(tester.takeException(),isNull);
+  await tester.pumpWidget(const SizedBox());memoCommentCounts.value={};elements.clear();
+ });
  testWidgets('canvas wraps explicit and long lines in available card space ($blocks)',(tester)async{
   elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();
   final text=List.generate(blocks?4:7,(i)=>i==1?'':'내용 ${i+1}').join('\n');

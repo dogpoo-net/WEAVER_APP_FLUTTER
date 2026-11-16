@@ -169,31 +169,22 @@ class WordBadge extends StatelessWidget {
       ]),
     ]) : fullText ? TextSpan(text: title) : _badgeExcerpt(context, title, query, maxWidth - 24);
     final badgeTextStyle=Theme.of(context).textTheme.labelLarge!.copyWith(fontSize:dense?11:12,fontWeight:FontWeight.w500);
-    var firstLineHeight=0.0;
-    var verticalIndicators=false;
-    var indicatorTextWidth=double.infinity;
-    if(indicators){
-      final metrics=TextPainter(text:TextSpan(text:'가',style:badgeTextStyle),textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context))..layout();
-      firstLineHeight=metrics.height;metrics.dispose();
-      if(fullText&&!singleLine){
-        final count=(record.photos.isNotEmpty?1:0)+(record.recordings.isNotEmpty?1:0)+(record.location!=null?1:0);
-        var counterWidth=0.0;
-        if(commentCount>0){final counter=TextPainter(text:TextSpan(text:'$commentCount',style:const TextStyle(fontSize:10,height:1.1)),textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context))..layout();counterWidth=counter.width+14;counter.dispose();}
-        indicatorTextWidth=(maxWidth-8-count*13-4-counterWidth).clamp(1.0,double.infinity);
-        final lines=TextPainter(text:TextSpan(style:badgeTextStyle,children:[label]),textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context))..layout(maxWidth:indicatorTextWidth);
-        verticalIndicators=lines.computeLineMetrics().length>1;lines.dispose();
-      }
-    }
+    final hasMetadata=indicators||commentCount>0;
+    final body=Text.rich(label,textAlign:TextAlign.start,
+      maxLines:square?((constraints.maxHeight-(hasMetadata?40:20))/20).floor().clamp(1,100):fullText&&!singleLine?null:1,
+      softWrap:fullText&&!singleLine,overflow:square?TextOverflow.ellipsis:fullText&&!singleLine?TextOverflow.visible:TextOverflow.ellipsis,
+      semanticsLabel:project?'문서:$title':labelTarget?'라벨:$title':memo?'메모:$title':title);
+    final metadata=record==null?const SizedBox.shrink():AttachmentIndicators(record:record,commentCount:commentCount,vertical:!square);
     final badge = ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: TextButton(
       onPressed: onTap,
       onLongPress: onLongPress,
       style: TextButton.styleFrom(
-        alignment: square ? Alignment.centerLeft : Alignment.topLeft,
+        alignment: Alignment.centerLeft,
         backgroundColor: record?.hiddenFromSearch == true ? wordBackgroundColor(context, word) : labelColor?.withValues(alpha: dark ? .3 : .18) ?? wordBackgroundColor(context, word),
         foregroundColor: record?.hiddenFromSearch == true ? wordColor(context, word) : labelColor ?? wordColor(context, word),
         minimumSize: fullText ? Size.zero : Size(0, dense ? 25 : 30),
         visualDensity: VisualDensity.standard,
-        padding: fullText ? EdgeInsets.fromLTRB(4,4,!square && commentCount>0?6:4,4) : EdgeInsets.symmetric(horizontal: dense ? 5 : compact ? 7 : 12, vertical: dense ? 1 : compact ? 3 : 5),
+        padding: fullText ? const EdgeInsets.all(4) : EdgeInsets.symmetric(horizontal: dense ? 5 : compact ? 7 : 12, vertical: dense ? 1 : compact ? 3 : 5),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         shape: fullText ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: selected ? BorderSide(color: Theme.of(context).colorScheme.primary, width: 2) : BorderSide.none) : StadiumBorder(
           side: selected
@@ -205,17 +196,12 @@ class WordBadge extends StatelessWidget {
         ),
         textStyle: badgeTextStyle,
       ),
-      child: Row(mainAxisSize: square ? MainAxisSize.max : MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (indicators) ...[verticalIndicators?Padding(padding:EdgeInsets.only(top:((firstLineHeight-13)/2).clamp(0.0,double.infinity)),child:AttachmentIndicators(record:record,vertical:true)):SizedBox(height:firstLineHeight,child:Center(child:AttachmentIndicators(record: record))), const SizedBox(width: 4)],
-        Flexible(fit: square ? FlexFit.tight : FlexFit.loose, child: ConstrainedBox(constraints:BoxConstraints(maxWidth:verticalIndicators?indicatorTextWidth:double.infinity),child:Text.rich(label, textAlign: TextAlign.start,
-        maxLines: square ? ((constraints.maxHeight - 20) / 20).floor().clamp(1, 100) : fullText && !singleLine ? null : 1, softWrap: fullText && !singleLine, overflow: square ? TextOverflow.ellipsis : fullText && !singleLine ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '문서:$title' : labelTarget ? '라벨:$title' : memo ? '메모:$title' : title))),
-        if(commentCount>0) Padding(padding:const EdgeInsets.only(left:4,top:2),child:Tooltip(
-          message:'댓글 $commentCount개',child:Container(
-            padding:const EdgeInsets.symmetric(horizontal:3,vertical:1),
-            decoration:BoxDecoration(borderRadius:BorderRadius.circular(20),border:Border.all(color:wordColor(context,word).withValues(alpha:.65))),
-            child:Text('$commentCount',key:ValueKey('comment-count-${record!.id}'),style:const TextStyle(fontSize:10,height:1.1)),
-          ))),
-
+      child:square?Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        if(hasMetadata)metadata,
+        Expanded(child:Align(alignment:Alignment.centerLeft,child:body)),
+      ]):Row(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.center,children:[
+        if(hasMetadata)...[metadata,const SizedBox(width:4)],
+        Flexible(child:body),
       ]),
     ));
     return onDoubleTap == null ? badge : GestureDetector(onDoubleTap: onDoubleTap, child: badge);

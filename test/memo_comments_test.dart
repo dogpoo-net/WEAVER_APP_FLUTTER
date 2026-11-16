@@ -12,8 +12,8 @@ void main(){
  expect(count,findsNothing);
  memoCommentCounts.value={memo.id:12};await tester.pump();
  expect(count,findsOneWidget);expect(find.text('12'),findsOneWidget);
- expect(tester.getTopLeft(count).dy,lessThan(tester.getCenter(find.byType(Text).first).dy));
- expect(tester.getCenter(count).dx,greaterThan(tester.getCenter(find.byType(Text).first).dx));
+ expect(tester.getCenter(count).dy,closeTo(tester.getCenter(find.text(memo.text)).dy,.1));
+ expect(tester.getCenter(count).dx,lessThan(tester.getCenter(find.text(memo.text)).dx));
  memoCommentCounts.value={};await tester.pump();expect(count,findsNothing);
  await tester.pumpWidget(const SizedBox());elements.clear();
  });

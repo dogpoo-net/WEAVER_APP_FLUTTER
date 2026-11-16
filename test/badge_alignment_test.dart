@@ -6,8 +6,10 @@ import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/memo_comments.dart';
 void main(){
  for(final scale in [1.0,1.5]){
- testWidgets('attachment icons align with first line at scale $scale',(tester)async{
-  elements.clear();memoCommentCounts.value={};final record=elements.add('첫 줄\n둘째 줄');
+ for(final multiline in [false,true]){
+ testWidgets('row metadata is vertical and body centered $scale multiline=$multiline',(tester)async{
+  elements.clear();memoCommentCounts.value={};final record=elements.add(multiline?'첫 줄\n둘째 줄':'한 줄');
+  memoCommentCounts.value={record.id:3};
   record.location=ThoughtLocation(37,127,0,DateTime.utc(2026));
   record.recordings.add(const VoiceAttachment('voice',1000));
   record.photos.add(const PhotoAttachment('photo','photo.png'));
@@ -16,21 +18,29 @@ void main(){
   final location=tester.getRect(find.byIcon(Icons.location_on_outlined));
   final voice=tester.getRect(find.byIcon(Icons.mic_none));
   final photo=tester.getRect(find.byIcon(Icons.image_outlined));
-  expect(location.center.dy,closeTo(label.top+label.height/4,.5));
+  final count=tester.getRect(find.byKey(ValueKey('comment-count-${record.id}')));
+  final badge=tester.getRect(find.byType(TextButton));
+  expect(label.center.dy,closeTo(badge.center.dy,.5));
+  expect(count.bottom,lessThanOrEqualTo(location.top));
   expect(voice.top,greaterThanOrEqualTo(location.bottom));expect(photo.top,greaterThanOrEqualTo(voice.bottom));
   expect(location.left,closeTo(voice.left,.1));expect(voice.left,closeTo(photo.left,.1));
   await tester.pumpWidget(const SizedBox());elements.clear();
  });
  }
+ }
 
- testWidgets('comment counter has equal top and right inset',(tester)async{
-  elements.clear();final record=elements.add('메모\n둘째 줄');memoCommentCounts.value={record.id:3};
-  await tester.pumpWidget(MaterialApp(home:Scaffold(body:Align(alignment:Alignment.topLeft,child:WordBadge(word:record.text,fullText:true,onTap:(){})))));
+ testWidgets('square metadata starts at top left with unbordered count first',(tester)async{
+  elements.clear();final record=elements.add('메모');memoCommentCounts.value={record.id:3};
+  record.location=ThoughtLocation(37,127,0,DateTime.utc(2026));
+  record.recordings.add(const VoiceAttachment('voice',1000));
+  record.photos.add(const PhotoAttachment('photo','photo.png'));
+  await tester.pumpWidget(MaterialApp(home:Scaffold(body:Align(alignment:Alignment.topLeft,child:SizedBox(width:180,height:180,child:WordBadge(word:record.text,fullText:true,square:true,onTap:(){}))))));
   final count=find.byKey(ValueKey('comment-count-${record.id}'));
-  final pill=tester.getRect(find.ancestor(of:count,matching:find.byType(Container)).first);
-  final badge=tester.getRect(find.byType(TextButton));
-  expect(pill.top-badge.top,closeTo(badge.right-pill.right,.1));
-  expect(pill.top-badge.top,closeTo(6,.1));
+  final countRect=tester.getRect(count),badge=tester.getRect(find.byType(TextButton));
+  final location=tester.getRect(find.byIcon(Icons.location_on_outlined));
+  expect(countRect.left-badge.left,closeTo(4,.1));expect(countRect.top-badge.top,closeTo(4,.1));
+  expect(countRect.right,lessThanOrEqualTo(location.left));expect(countRect.center.dy,closeTo(location.center.dy,.1));
+  expect(find.ancestor(of:count,matching:find.byType(Container)),findsNothing);
   await tester.pumpWidget(const SizedBox());memoCommentCounts.value={};elements.clear();
  });
 
