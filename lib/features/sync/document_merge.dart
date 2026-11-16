@@ -21,6 +21,9 @@ DocumentSegment documentSegment(Map<String,dynamic> note){
   return DocumentSegment(text,links);
 }
 List<DocumentSegment> _lines(DocumentSegment source){
+  // Compare logical lines independently of the final newline. Appending a new
+  // line must not appear to replace the previous, unterminated final line.
+  if(source.text.isNotEmpty&&!source.text.endsWith('\n'))source=DocumentSegment('${source.text}\n',source.links);
   final boundaries=<int>[0];
   for(var i=0;i<source.text.length;i++){
     if(source.text[i]=='\n'&&!source.links.any((b)=>b.start<i+1&&b.end>i+1))boundaries.add(i+1);
@@ -38,9 +41,17 @@ List<_Edit> _edits(List<DocumentSegment> base,List<DocumentSegment> next,bool mi
   var ae=a.length,be=b.length;while(ae>prefix&&be>prefix&&a[ae-1]==b[be-1]){ae--;be--;}
   if(ae==prefix&&be==prefix)return [];
   final n=ae-prefix,m=be-prefix;
-  // Bound memory for very large documents. A coarse conflict is safer than an
-  // approximate patch that silently loses text. Common prefix/suffix stay exact.
-  if(n*m>2000000)return [_Edit(prefix,ae,next.sublist(prefix,be),mine)];
+  // Keep exact line boundaries even for large sparse edits, using linear-space
+  // LCS instead of treating the whole changed region as one replacement.
+  if(n*m>2000000){
+    final matches=<(int,int)>[];_linearMatches(a,prefix,ae,b,prefix,be,matches);
+    final result=<_Edit>[];var i=prefix,j=prefix;
+    for(final pair in [...matches,(ae,be)]){
+      if(i<pair.$1||j<pair.$2)result.add(_Edit(i,pair.$1,next.sublist(j,pair.$2),mine));
+      i=pair.$1+1;j=pair.$2+1;
+    }
+    return result;
+  }
   final rows=List.generate(n+1,(_)=>Uint32List(m+1));
   for(var i=n-1;i>=0;i--){for(var j=m-1;j>=0;j--){rows[i][j]=a[prefix+i]==b[prefix+j]?rows[i+1][j+1]+1:(rows[i+1][j]>rows[i][j+1]?rows[i+1][j]:rows[i][j+1]);}}
   final result=<_Edit>[];var i=0,j=0;
@@ -55,10 +66,31 @@ List<_Edit> _edits(List<DocumentSegment> base,List<DocumentSegment> next,bool mi
   }
   return result;
 }
+Uint32List _scores(List<String> a,int start,int end,List<String> b,int left,int right,{bool reverse=false}){
+  var previous=Uint32List(right-left+1),row=Uint32List(right-left+1);
+  for(var i=0;i<end-start;i++){
+    row[0]=0;final value=a[reverse?end-1-i:start+i];
+    for(var j=1;j<=right-left;j++){
+      row[j]=value==b[reverse?right-j:left+j-1]?previous[j-1]+1:(previous[j]>row[j-1]?previous[j]:row[j-1]);
+    }
+    final swap=previous;previous=row;row=swap;
+  }
+  return previous;
+}
+void _linearMatches(List<String> a,int start,int end,List<String> b,int left,int right,List<(int,int)> matches){
+  if(start==end||left==right)return;
+  if(end-start==1){for(var j=left;j<right;j++){if(a[start]==b[j]){matches.add((start,j));break;}}return;}
+  final middle=(start+end)~/2;
+  final forward=_scores(a,start,middle,b,left,right),backward=_scores(a,middle,end,b,left,right,reverse:true);
+  var split=0,best=-1;
+  for(var j=0;j<=right-left;j++){final score=forward[j]+backward[right-left-j];if(score>best){best=score;split=j;}}
+  _linearMatches(a,start,middle,b,left,left+split,matches);
+  _linearMatches(a,middle,end,b,left+split,right,matches);
+}
 bool _overlap(_Edit a,_Edit b){
   if(a.start==a.end&&b.start==b.end)return a.start==b.start;
-  if(a.start==a.end)return a.start>=b.start&&a.start<b.end;
-  if(b.start==b.end)return b.start>=a.start&&b.start<a.end;
+  if(a.start==a.end)return a.start>b.start&&a.start<b.end;
+  if(b.start==b.end)return b.start>a.start&&b.start<a.end;
   return a.start<b.end&&b.start<a.end;
 }
 class DocumentMergePart {
@@ -75,10 +107,13 @@ class DocumentMergePlan {
     final joined=DocumentSegment.join([for(var i=0;i<parts.length;i++)choices[i]??parts[i].mine]);
     final result=jsonDecode(jsonEncode(remoteNote)) as Map<String,dynamic>;
     final project=result['project'] as Map;
-    project['document']=joined.text;project['documentLinks']=joined.links.map((b)=>b.toJson()).toList();project['name']=documentTitle(joined.text);project['words']=[];
+    final beforeNewline=documentSegment(baseNote).text.endsWith('\n'),localNewline=documentSegment(localNote).text.endsWith('\n'),remoteNewline=documentSegment(remoteNote).text.endsWith('\n');
+    final trailingNewline=localNewline!=beforeNewline?localNewline:remoteNewline;
+    final text=!trailingNewline&&joined.text.endsWith('\n')?joined.text.substring(0,joined.text.length-1):joined.text;
+    project['document']=text;project['documentLinks']=joined.links.where((b)=>b.start<text.length).map((b)=>ElementBinding(b.id,b.start,b.end.clamp(b.start,text.length)).toJson()).toList();project['name']=documentTitle(text);project['words']=[];
     final before=Set<dynamic>.from(baseNote['project']['tags']??[]),mine=Set<dynamic>.from(localNote['project']['tags']??[]),remote=Set<dynamic>.from(project['tags']??[]);
     project['tags']=(remote..removeAll(before.difference(mine))..addAll(mine.difference(before))).toList();
-    result['content']=joined.text;
+    result['content']=text;
     return result;
   }
 }

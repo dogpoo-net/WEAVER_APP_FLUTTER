@@ -215,9 +215,20 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         child: Wrap(spacing: 6, runSpacing: 6, children: targets.map(_referenceBadge).toList())))),
     ]);
   }
-  Widget _referencesPanel() => _wide ? Column(children: [
-    Expanded(child: _referenceList(documents: false)), const Divider(height: 12), Expanded(child: _referenceList(documents: true)),
-  ]) : _referenceList(documents: false);
+  double _referenceSplit=.5;
+  Widget _referencesPanel() => !_wide ? _referenceList(documents: false) : LayoutBuilder(builder:(context,constraints){
+    final available=(constraints.maxHeight-16).clamp(0.0,double.infinity);
+    final minimum=available>0?(56/available).clamp(.15,.5):.5;
+    final split=_referenceSplit.clamp(minimum,1-minimum);
+    return Column(children:[
+      SizedBox(height:available*split,child:_referenceList(documents:false)),
+      MouseRegion(cursor:SystemMouseCursors.resizeUpDown,child:GestureDetector(
+        key:const ValueKey('document-reference-divider'),behavior:HitTestBehavior.opaque,
+        onVerticalDragUpdate:(details){if(available>0)setState(()=>_referenceSplit=(split+details.delta.dy/available).clamp(minimum,1-minimum));},
+        child:Tooltip(message:'드래그하여 패널 높이 조절',child:SizedBox(height:16,child:Center(child:Container(width:40,height:3,decoration:BoxDecoration(color:Theme.of(context).colorScheme.outlineVariant,borderRadius:BorderRadius.circular(2)))))))),
+      Expanded(child:_referenceList(documents:true)),
+    ]);
+  });
   String? _dragKey(Object data) {
     if (data is InlineLinkDragSource) return data.linkKey;
     if (data is MemoDrag) return elements.records.values.where((record) => record.id == data.id).firstOrNull?.text;

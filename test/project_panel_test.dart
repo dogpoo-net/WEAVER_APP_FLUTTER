@@ -29,6 +29,18 @@ void main() {
     expect(find.text('닫힌 참고'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
+  testWidgets('desktop divider resizes both reference panels without changing the document', (tester) async {
+    tester.view.physicalSize=const Size(1200,900);tester.view.devicePixelRatio=1;
+    addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
+    final doc=project();await tester.pumpWidget(MaterialApp(home:ProjectDocumentEditor(project:doc)));await tester.pumpAndSettle();
+    final top=find.byKey(const ValueKey('project-thought-scroll')),bottom=find.byKey(const ValueKey('project-document-reference-scroll')),divider=find.byKey(const ValueKey('document-reference-divider'));
+    final topHeight=tester.getSize(top).height,bottomHeight=tester.getSize(bottom).height;
+    final body=tester.widget<TextField>(find.byKey(const ValueKey('project-document'))).controller!;final text=body.text;
+    await tester.drag(divider,const Offset(0,100));await tester.pumpAndSettle();
+    expect(tester.getSize(top).height,greaterThan(topHeight+60));expect(tester.getSize(bottom).height,lessThan(bottomHeight-60));expect(body.text,text);
+    await tester.drag(divider,const Offset(0,-1000));await tester.pumpAndSettle();expect(tester.getSize(top).height,greaterThan(0));expect(tester.takeException(),isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('desktop reference list scrolls independently above a full-width filter footer', (tester) async {
     tester.view.physicalSize = const Size(1200, 900); tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
