@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'overview_collections.dart';
 import 'memo_box_actions.dart';
@@ -15,6 +16,8 @@ import 'word_badge.dart';
 import 'packed_badges.dart';
 import 'workspace_routes.dart';
 import 'workspace_storage.dart';
+
+const thoughtViewModePreference='weaver.thoughtSquareView.v1';
 
 class ThoughtBoxView extends StatefulWidget {
   const ThoughtBoxView({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.initialBox, this.filters, this.viewSelector, this.onDeleteBoxes});
@@ -37,13 +40,22 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   MemoBox? get _filterBox => _filters.singleBox;
   int _columns = 2;
   int? _squareColumns;
-  bool _square = false;
+  bool _square = true, _viewChosen=false;
+  Future<void> _viewWrite=Future.value();
+  Future<void> _loadViewMode() async {
+    try{final prefs=await SharedPreferences.getInstance();if(mounted&&!_viewChosen)setState(()=>_square=prefs.getBool(thoughtViewModePreference)??true);}catch(_){}
+  }
+  void _toggleViewMode(){
+    _viewChosen=true;final next=!_square;setState(()=>_square=next);
+    _viewWrite=_viewWrite.then((_)async{final prefs=await SharedPreferences.getInstance();if(!await prefs.setBool(thoughtViewModePreference,next))throw StateError('Preference save failed');})
+      .catchError((Object error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('보기 설정을 기기에 저장하지 못했습니다.')));});
+  }
   int _scaleColumns = 2;
   void _changed() { setState(() {}); widget.onChanged?.call(); }
   ModalRoute<dynamic>? _route;
   void _refresh() { _textWidths.clear(); if (mounted) setState(() {}); }
   @override
-  void initState() { super.initState(); _filters.addListener(_refresh); elements.addListener(_refresh); }
+  void initState() { super.initState(); _loadViewMode(); _filters.addListener(_refresh); elements.addListener(_refresh); }
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -94,7 +106,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         return Column(children:[Center(child:SizedBox(width:available,child:IconButtonTheme(data:IconButtonThemeData(style:IconButton.styleFrom(minimumSize:const Size(36,36),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap)),child:Row(children:[Expanded(child:Text(_query.isEmpty && _filters.isEmpty ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개',style:Theme.of(context).textTheme.bodyMedium)),
           IconButton(tooltip:'확대',onPressed:columns>1?()=>setState(()=>_squareColumns=columns-1):null,icon:const Icon(Icons.zoom_in)),
           Text('$columns열'),IconButton(tooltip:'축소',onPressed:columns<math.max(1,(available/80).floor())?()=>setState(()=>_squareColumns=columns+1):null,icon:const Icon(Icons.zoom_out)),
-        ])))),Expanded(child:GridView.builder(key:const ValueKey('thought-square-grid'),padding:const EdgeInsets.all(12),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:columns,crossAxisSpacing:8,mainAxisSpacing:8),itemCount:records.length,itemBuilder:(_,i)=>_tile(records[i],desktop,width:(available-8*(columns-1))/columns)))]);
+        ])))),Expanded(child:records.isEmpty?Center(child:Text(allRecords.isEmpty?'아직 생각이 없어요.':_filterBox!=null&&_query.isEmpty?'이 상자에 담긴 메모가 없어요.':'일치하는 생각이 없어요.')):GridView.builder(key:const ValueKey('thought-square-grid'),padding:const EdgeInsets.all(12),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:columns,crossAxisSpacing:8,mainAxisSpacing:8),itemCount:records.length,itemBuilder:(_,i)=>_tile(records[i],desktop,width:(available-8*(columns-1))/columns)))]);
       }
       final maxWidth = desktop ? math.min(480.0, available)
         : (available * 2 / _columns).clamp(math.min(48.0, available), available);
@@ -151,7 +163,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         style: IconButton.styleFrom(backgroundColor: _audioOnly ? Theme.of(context).colorScheme.primaryContainer : null),
         icon: const Icon(Icons.volume_up_outlined), onPressed: () => setState(() => _audioOnly = !_audioOnly)),
       MemoBoxActions(filters: _filters, onDelete: widget.onDeleteBoxes, onCreate: () async { final box = await createMemoBox(context); if (mounted && box != null) _changed(); }),
-      IconButton(tooltip: _square ? '바둑판식 보기 · 행으로 전환' : '행으로 보기 · 바둑판으로 전환', icon: Icon(_square ? Icons.grid_view : Icons.view_stream), onPressed:()=>setState(()=>_square=!_square)),
+      IconButton(tooltip: _square ? '바둑판식 보기 · 행으로 전환' : '행으로 보기 · 바둑판으로 전환', icon: Icon(_square ? Icons.grid_view : Icons.view_stream), onPressed:_toggleViewMode),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('생각 보기 안내'),
           content: const Text('생각이나 해시태그로 검색하고, 아래의 메모상자·태그를 눌러 분류별로 볼 수 있습니다.\n\n사진·음성 버튼을 켜면 해당 첨부가 있는 생각을 보여줍니다. 둘 다 켜면 사진 또는 음성이 있는 생각을 보여줍니다.\n\n생각을 메모상자로 드래그해 정리하세요. 모바일에서는 길게 눌러 드래그할 수 있습니다. 해시태그는 생각 본문에 #태그를 입력해 추가합니다.'),

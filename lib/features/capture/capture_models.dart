@@ -24,7 +24,7 @@ class VoiceAttachment {
   Map<String, dynamic> toJson() => {'id': id, 'durationMs': durationMs};
   factory VoiceAttachment.fromJson(dynamic json) {
     final id = json['id'] as String, duration = json['durationMs'] as int;
-    if (id.isEmpty || duration <= 0 || duration > 60000) throw const FormatException('Invalid voice attachment');
+    if (id.isEmpty || duration < 0 || duration > 86400000) throw const FormatException('Invalid voice attachment');
     return VoiceAttachment(id, duration);
   }
 }

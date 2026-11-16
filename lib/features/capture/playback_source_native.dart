@@ -1,3 +1,4 @@
+import 'audio_format.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
@@ -9,9 +10,10 @@ class PlaybackSource {
   static Future<PlaybackSource> create(Uint8List bytes) async {
     final directory = await (await getTemporaryDirectory()).createTemp('weaver-voice-');
     try {
-      final file = File('${directory.path}/memo.wav');
+      final mime=audioMime(bytes);
+      final file = File('${directory.path}/memo.${audioExtension(mime)}');
       await file.writeAsBytes(bytes);
-      return PlaybackSource._(DeviceFileSource(file.path, mimeType: 'audio/wav'), directory);
+      return PlaybackSource._(DeviceFileSource(file.path, mimeType: mime), directory);
     } catch (_) { await directory.delete(recursive: true); rethrow; }
   }
   Future<void> dispose() async {

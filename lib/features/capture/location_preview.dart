@@ -17,5 +17,5 @@ Future<void> showLocationPreview(BuildContext context, ThoughtLocation location)
           child: Icon(Icons.location_on, size: 40, color: activeMapMarkerColor))]),
         const MapAttribution(),
       ])),
-      Padding(padding: const EdgeInsets.all(12), child: Text('${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)} · 정확도 약 ${location.accuracy.round()}m')),
+      Padding(padding: const EdgeInsets.all(12), child: Text('${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)} · ${location.accuracy>0?'정확도 약 ${location.accuracy.round()}m':'지도에서 선택한 위치'}')),
     ]))));

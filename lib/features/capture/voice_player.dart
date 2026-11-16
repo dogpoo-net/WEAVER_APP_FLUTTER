@@ -54,7 +54,7 @@ class _VoicePlayerState extends State<VoicePlayer> {
     Row(mainAxisSize: MainAxisSize.min, children: [
       IconButton(tooltip: _playing ? '녹음 재생 중지' : '녹음 재생', onPressed: _busy ? null : _toggle,
         icon: _busy ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(_playing ? Icons.stop : Icons.play_arrow)),
-      Text('음성 메모 · ${(widget.durationMs / 1000).ceil()}초', style: Theme.of(context).textTheme.bodySmall),
+      Text(widget.durationMs==0?'음성 파일':'음성 메모 · ${(widget.durationMs / 1000).ceil()}초', style: Theme.of(context).textTheme.bodySmall),
     ]),
     if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12)),
   ]);

@@ -6,12 +6,13 @@ import 'package:weaver/features/inbox/memo_comments.dart';
 void main(){
  tearDown((){memoCommentRequest=null;memoCommentsWritable=false;memoCommentCounts.value={};});
  testWidgets('badge counts appear only for comments and update in place',(tester)async{
- elements.clear();final memo=elements.add('댓글 메모');
- await tester.pumpWidget(MaterialApp(home:Scaffold(body:WordBadge(word:memo.text,onTap:(){}))));
+ elements.clear();final memo=elements.add('댓글 메모\n두 번째 줄\n세 번째 줄');
+ await tester.pumpWidget(MaterialApp(home:Scaffold(body:WordBadge(word:memo.text,fullText:true,onTap:(){}))));
  final count=find.byKey(ValueKey('comment-count-${memo.id}'));
  expect(count,findsNothing);
  memoCommentCounts.value={memo.id:12};await tester.pump();
  expect(count,findsOneWidget);expect(find.text('12'),findsOneWidget);
+ expect(tester.getTopLeft(count).dy,lessThan(tester.getCenter(find.byType(Text).first).dy));
  expect(tester.getCenter(count).dx,greaterThan(tester.getCenter(find.byType(Text).first).dx));
  memoCommentCounts.value={};await tester.pump();expect(count,findsNothing);
  await tester.pumpWidget(const SizedBox());elements.clear();

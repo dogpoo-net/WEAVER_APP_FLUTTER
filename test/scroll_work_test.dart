@@ -63,7 +63,7 @@ void main() {
     expect(find.byType(LongPressDraggable<MemoDrag>).evaluate().length, lessThan(100));
     expect(find.byType(LongPressDraggable<MemoDrag>), findsWidgets);
     final search = tester.getTopLeft(find.byKey(const ValueKey('all-thoughts-search')));
-    await tester.drag(find.byKey(const ValueKey('all-thoughts-grid')), const Offset(0, -1200));
+    await tester.drag(find.byKey(const ValueKey('thought-square-grid')), const Offset(0, -1200));
     await tester.pumpAndSettle();
     expect(find.byType(LongPressDraggable<MemoDrag>).evaluate().length, lessThan(100));
     expect(tester.getTopLeft(find.byKey(const ValueKey('all-thoughts-search'))), search);

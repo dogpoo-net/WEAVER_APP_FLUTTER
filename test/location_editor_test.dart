@@ -1,0 +1,56 @@
+import 'package:weaver/features/inbox/element_store.dart';
+import 'dart:async';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:weaver/features/capture/location_editor.dart';
+import 'package:weaver/features/capture/capture_models.dart';
+import 'package:weaver/features/capture/audio_format.dart';
+
+void main(){
+ testWidgets('manual map selection survives late GPS and saves typed memo',(tester)async{
+  final gps=Completer<ThoughtLocation>();LocationEntry? result;
+  await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()async{result=await showLocationEditor(context,compose:true,locate:()=>gps.future);},child:const Text('열기'))))));
+  await tester.tap(find.text('열기'));await tester.pump();
+  final map=tester.widget<FlutterMap>(find.byType(FlutterMap));
+  map.options.onTap!(const TapPosition(Offset.zero,Offset.zero),const LatLng(35,129));await tester.pump();
+  gps.complete(ThoughtLocation(37,127,10,DateTime.now()));await tester.pumpAndSettle();
+  expect(tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.single.point,const LatLng(35,129));
+  await tester.enterText(find.byKey(const ValueKey('geolog-memo-input')),'지도에서 쓴 생각');await tester.pump();
+  await tester.tap(find.text('저장'));await tester.pumpAndSettle();
+  expect(result!.text,'지도에서 쓴 생각');expect(result!.location.latitude,35);
+ });
+ testWidgets('location failure still permits manual selection without a composer',(tester)async{
+  LocationEntry? result;
+  await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()async{result=await showLocationEditor(context,locate:()async=>throw StateError('denied'));},child:const Text('열기'))))));
+  await tester.tap(find.text('열기'));await tester.pumpAndSettle();
+  expect(find.byType(TextField),findsNothing);
+  final save=tester.widget<FilledButton>(find.widgetWithText(FilledButton,'저장'));expect(save.onPressed,isNull);
+  tester.widget<FlutterMap>(find.byType(FlutterMap)).options.onTap!(const TapPosition(Offset.zero,Offset.zero),const LatLng(36,128));await tester.pump();
+  await tester.tap(find.text('저장'));await tester.pumpAndSettle();
+  expect(result!.location.longitude,128);
+ });
+ testWidgets('detail location is a draft until the thought is saved',(tester)async{
+  elements.clear();final record=elements.add('위치 수정');
+  record.location=ThoughtLocation(37,127,10,DateTime.now());
+  await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()=>showElementMetadata(context,record.text),child:const Text('상세'))))));
+  await tester.tap(find.text('상세'));await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text('위치 기록'));await tester.tap(find.text('위치 기록'));await tester.pumpAndSettle();
+  tester.widget<FlutterMap>(find.byType(FlutterMap)).options.onTap!(const TapPosition(Offset.zero,Offset.zero),const LatLng(35,129));await tester.pump();
+  await tester.tap(find.widgetWithText(FilledButton,'저장').last);await tester.pumpAndSettle();
+  expect(record.location!.latitude,37);
+  await tester.tap(find.widgetWithText(FilledButton,'저장'));await tester.pumpAndSettle();
+  expect(record.location!.latitude,35);
+  await tester.pumpWidget(const SizedBox());elements.clear();
+ });
+ test('uploaded audio formats and long durations preserve compatibility',(){
+  expect(audioMime(Uint8List.fromList('ID3audio'.codeUnits)),'audio/mpeg');
+  expect(audioMime(Uint8List.fromList([0,0,0,24,...'ftypM4A '.codeUnits])),'audio/mp4');
+  expect(()=>audioMime(Uint8List.fromList('bad'.codeUnits)),throwsFormatException);
+  expect(VoiceAttachment.fromJson({'id':'upload','durationMs':180000}).durationMs,180000);
+  expect(VoiceAttachment.fromJson({'id':'old','durationMs':60000}).durationMs,60000);
+  expect(VoiceAttachment.fromJson({'id':'unknown','durationMs':0}).durationMs,0);
+ });
+}

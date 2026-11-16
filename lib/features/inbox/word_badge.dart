@@ -172,6 +172,7 @@ class WordBadge extends StatelessWidget {
       onPressed: onTap,
       onLongPress: onLongPress,
       style: TextButton.styleFrom(
+        alignment: Alignment.topLeft,
         backgroundColor: record?.hiddenFromSearch == true ? wordBackgroundColor(context, word) : labelColor?.withValues(alpha: dark ? .3 : .18) ?? wordBackgroundColor(context, word),
         foregroundColor: record?.hiddenFromSearch == true ? wordColor(context, word) : labelColor ?? wordColor(context, word),
         minimumSize: Size(0, dense ? 25 : 30),
@@ -187,9 +188,9 @@ class WordBadge extends StatelessWidget {
         ),
         textStyle: Theme.of(context).textTheme.labelLarge!.copyWith(fontSize: dense ? 11 : 12, fontWeight: FontWeight.w500),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
+      child: Row(mainAxisSize: square ? MainAxisSize.max : MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (indicators) ...[AttachmentIndicators(record: record), const SizedBox(width: 4)],
-        Flexible(child: Text.rich(label,
+        Flexible(fit: square ? FlexFit.tight : FlexFit.loose, child: Text.rich(label,
         maxLines: square ? ((constraints.maxHeight - 20) / 20).floor().clamp(1, 100) : fullText && !singleLine ? null : 1, softWrap: fullText && !singleLine, overflow: square ? TextOverflow.ellipsis : fullText && !singleLine ? TextOverflow.visible : TextOverflow.ellipsis, semanticsLabel: project ? '문서:$title' : labelTarget ? '라벨:$title' : memo ? '메모:$title' : title)),
         if(commentCount>0) Padding(padding:const EdgeInsets.only(left:4),child:Tooltip(
           message:'댓글 $commentCount개',child:Container(

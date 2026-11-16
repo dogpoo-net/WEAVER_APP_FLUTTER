@@ -1,3 +1,7 @@
+import 'location_editor.dart';
+import 'media_storage.dart';
+import '../inbox/memo_comments.dart';
+import '../inbox/hashtags.dart';
 import 'map_marker_style.dart';
 import 'dart:ui' as ui;
 import 'regional_tiles.dart';
@@ -51,6 +55,28 @@ class _GeologPageState extends State<GeologPage> {
     await showElementMetadata(context, choice.text);
     if (mounted) { widget.onChanged(); setState(() {}); }
   }
+  Future<void> _create() async {
+    final owner=MediaStorage.activeOwner;
+    final draft=await showLocationEditor(context,compose:true,validate:(text){
+      final content=parseTaggedInput(text).text;
+      if(content.isEmpty)return '생각 내용을 입력해주세요.';
+      if(elements.records.containsKey(content))return '같은 내용의 생각이 이미 있습니다. 내용을 바꿔주세요.';
+      return null;
+    });
+    if(draft==null||!mounted||owner!=MediaStorage.activeOwner)return;
+    final parsed=parseTaggedInput(draft.text);
+    if(parsed.text.isEmpty || elements.records.containsKey(parsed.text)){
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('생각 내용을 입력해주세요. 같은 내용의 생각은 중복 생성할 수 없습니다.')));return;
+    }
+    final record=elements.add(draft.text)..location=draft.location;
+    final box=_filters.singleBox;
+    if(box!=null&&!box.isUnclassified)moveThoughtToBox(record.id,box);
+    widget.onChanged();elements.refreshVisibility();
+    if(_records.any((r)=>r.id==record.id)){WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)_fit([record]);});}
+    else {ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('생각을 저장했습니다. 현재 필터에서는 숨겨져 있습니다.')));}
+    try{await saveWorkspaceContent?.call();}
+    catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('생각은 기기에 보관했습니다. 서버 저장에 실패했습니다. $e')));}
+  }
   void _tileFailed() {
     if (_tileError) return;
     WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && !_tileError) setState(() => _tileError = true); });
@@ -67,6 +93,7 @@ class _GeologPageState extends State<GeologPage> {
     }
     return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filters.singleBox?.name ?? '전체 보기'), actions: [
       const DesktopMenuAction(),
+      IconButton(tooltip:'위치에 생각 추가',onPressed:memoCommentRequest!=null&&!memoCommentsWritable?null:_create,icon:const Icon(Icons.add)),
       IconButton(tooltip: '위치 전체 보기', onPressed: records.isEmpty ? null : () => _fit(records), icon: const Icon(Icons.center_focus_strong)),
     ]), body: DesktopMenuBody(child: Column(children: [
       if (widget.viewSelector != null) widget.viewSelector!,
@@ -111,7 +138,7 @@ class _GeologPageState extends State<GeologPage> {
           ]))))),
         if (records.isEmpty) Positioned(top: 16, left: 16, right: 16,
           child: Card(child: Padding(padding: const EdgeInsets.all(16),
-            child: Text('위치가 기록된 생각이 없습니다.\n모바일 빠른 메모에서 위치 기록을 켜고 저장해주세요.', textAlign: TextAlign.center)))),
+            child: Text('위치가 기록된 생각이 없습니다.\n우측 상단 +로 생각을 남기거나 빠른 메모에서 현재 위치를 기록해주세요.', textAlign: TextAlign.center)))),
         const Positioned(right: 0, bottom: 0, child: MapAttribution()),
       ])),
       ThoughtFilters(tags: _scope.expand((r) => r.tags).toSet().toList()..sort(), selection: _filters,

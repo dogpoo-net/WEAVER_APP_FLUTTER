@@ -8,14 +8,14 @@ import 'package:weaver/features/inbox/element_store.dart';
 
 void main() {
   for (final platform in [TargetPlatform.android, TargetPlatform.iOS, TargetPlatform.windows]) {
-    testWidgets('capture controls are mobile only and fit a narrow composer ($platform)', (tester) async {
+    testWidgets('capture controls fit mobile and desktop composers ($platform)', (tester) async {
       tester.view.physicalSize = const Size(360, 800); tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(const MyApp(requireLogin: false, )); await tester.pumpAndSettle();
-      final expected = platform == TargetPlatform.windows ? findsNothing : findsOneWidget;
+      const expected = findsOneWidget;
       expect(find.byKey(const ValueKey('quick-location')), expected);
       expect(find.byTooltip('음성 메모'), expected);
-      expect(find.byTooltip('사진 첨부 (최대 5장)'), expected);
+      expect(find.byTooltip('사진·음성 업로드'), expected);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     }, variant: TargetPlatformVariant({platform}));

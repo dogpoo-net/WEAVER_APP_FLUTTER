@@ -18,7 +18,7 @@ void main() {
     await tester.pumpAndSettle();
     final search = find.byKey(const ValueKey('all-thoughts-search'));
     final top = tester.getTopLeft(search);
-    await tester.drag(find.byKey(const ValueKey('all-thoughts-grid')), const Offset(0, -300));
+    await tester.drag(find.byKey(const ValueKey('thought-square-grid')), const Offset(0, -300));
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(search), top);
     await tester.tap(find.byTooltip('사진 있는 생각')); await tester.pumpAndSettle();

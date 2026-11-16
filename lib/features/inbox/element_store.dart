@@ -1,3 +1,5 @@
+import '../capture/attachment_picker.dart';
+import '../capture/location_editor.dart';
 import 'memo_comments.dart';
 import 'caret_assist.dart';
 import 'package:flutter/services.dart';
@@ -238,9 +240,33 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   int? _labelColor;
   late bool _closed;
   String? _error;
+  final _photoUploads=<String,List<PhotoDraft>>{};
+  final _audioUploads=<String,List<VoiceDraft>>{};
+  final _locationEdits=<String,ThoughtLocation>{};
+  bool _attachmentBusy=false,_pickingLocation=false;
+  bool get _canAttach=>memoCommentRequest==null||memoCommentsWritable;
+  late final String? _mediaOwner;
+  Future<void> _attach(ElementRecord record,String type) async {
+    if(_attachmentBusy||!_canAttach)return;
+    setState((){_attachmentBusy=true;_pickingLocation=type=='location';});
+    try {
+      if(type=='photo'){
+        final drafts=await pickPhotoUploads(5-record.photos.length-(_photoUploads[record.id]?.length??0));
+        if(mounted)setState(()=>_photoUploads.putIfAbsent(record.id,()=>[]).addAll(drafts));
+      }else if(type=='audio'){
+        final draft=await pickAudioUpload();
+        if(mounted&&draft!=null)setState(()=>_audioUploads.putIfAbsent(record.id,()=>[]).add(draft));
+      }else{
+        final draft=await showLocationEditor(context,initial:_locationEdits[record.id]??record.location);
+        if(mounted&&draft!=null)setState(()=>_locationEdits[record.id]=draft.location);
+      }
+    }catch(e){if(mounted)setState(()=>_error='$e');}
+    finally{if(mounted)setState((){_attachmentBusy=false;_pickingLocation=false;});}
+  }
   @override
   void initState() {
     super.initState();
+    _mediaOwner=MediaStorage.activeOwner;
     _word = widget.word;
     final record = elements.records[_word]!;
     _labelEditor = TextEditingController(text: record.indexLabel);
@@ -252,6 +278,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
 
   final _drafts = <String, ({String text, Set<String> tags, List<ElementBinding> links, String label, bool left, int labelColor, int? color, bool closed})>{};
   void _navigate(String word) {
+    if(_attachmentBusy)return;
     final record = elements.records[word];
     if (record == null || word == _word) return;
     _drafts[_word] = (text: _editor.text, tags: Set.of(_tags), links: List.of(_editor.bindings),
@@ -394,7 +421,22 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                   child: Switch.adaptive(value: _closed,
                     onChanged: (hidden) => setState(() => _closed = hidden)))),
               )),
-              if (element.location case final location?) Padding(
+              Wrap(spacing:4,children:[
+                TextButton.icon(onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'photo'),icon:const Icon(Icons.add_photo_alternate_outlined,size:18),label:const Text('사진 업로드')),
+                TextButton.icon(onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const Icon(Icons.audio_file_outlined,size:18),label:const Text('음성 업로드')),
+                TextButton.icon(onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.add_location_alt_outlined,size:18),label:const Text('위치 기록')),
+              ]),
+              if(_attachmentBusy&&!_pickingLocation)const LinearProgressIndicator(),
+              for(final photo in _photoUploads[element.id]??<PhotoDraft>[])Row(children:[
+                SizedBox(width:48,height:48,child:Image.memory(photo.bytes,fit:BoxFit.cover,errorBuilder:(_,error,stack)=>const Icon(Icons.broken_image))),
+                Expanded(child:Text(photo.name,maxLines:1,overflow:TextOverflow.ellipsis)),
+                IconButton(tooltip:'첨부 취소',onPressed:_attachmentBusy?null:()=>setState(()=>_photoUploads[element.id]!.remove(photo)),icon:const Icon(Icons.close)),
+              ]),
+              for(final audio in _audioUploads[element.id]??<VoiceDraft>[])Row(children:[
+                Expanded(child:VoicePlayer(key:ObjectKey(audio),load:()async=>audio.bytes,durationMs:audio.durationMs)),
+                IconButton(tooltip:'첨부 취소',onPressed:_attachmentBusy?null:()=>setState(()=>_audioUploads[element.id]!.remove(audio)),icon:const Icon(Icons.close)),
+              ]),
+              if (_locationEdits[element.id]??element.location case final location?) Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: TextButton.icon(onPressed: () => showLocationPreview(context, location),
                   icon: const Icon(Icons.location_on_outlined, size: 18), label: const Text('지도 보기'))),
@@ -407,7 +449,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
       )),
         const Padding(padding: EdgeInsets.only(top: 8),
           child: Divider(key: ValueKey('element-actions-divider'), height: 1, thickness: 1)),
-        Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
+        Padding(padding: const EdgeInsets.only(top: 2), child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
           Flexible(child: Text(workspaceMemoAuthor?.call(element.id) ?? '작성자 정보 없음',
             key: const ValueKey('element-author'), maxLines: 1, overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall)),
@@ -423,13 +465,39 @@ class _ElementMetadataState extends State<_ElementMetadata> {
       actions: [
         FilledButton.tonal(
           style: compact,
-          onPressed: () {
+          onPressed: _attachmentBusy ? null : () async {
+            if(_mediaOwner!=MediaStorage.activeOwner){setState(()=>_error='워크스페이스가 변경되었습니다. 다시 열어주세요.');return;}
             final cleaned = cleanLinkedInput(_editor);
+            if(cleaned.text.trim().isEmpty || cleaned.text!=word && elements.records.containsKey(cleaned.text)){
+              setState(()=>_error='생각 내용을 확인해주세요. 같은 내용의 생각은 중복 저장할 수 없습니다.');return;
+            }
+            final written=<String>[],photos=<PhotoAttachment>[],voices=<VoiceAttachment>[];
+            setState(()=>_attachmentBusy=true);
+            try{
+              final stamp=DateTime.now().microsecondsSinceEpoch;
+              for(final photo in _photoUploads[element.id]??<PhotoDraft>[]){
+                final id='photo-$stamp-${written.length}';written.add(id);await MediaStorage.write(id,photo.bytes,owner:_mediaOwner);photos.add(PhotoAttachment(id,photo.name));
+              }
+              for(final audio in _audioUploads[element.id]??<VoiceDraft>[]){
+                final id='voice-$stamp-${written.length}';written.add(id);await MediaStorage.write(id,audio.bytes,owner:_mediaOwner);voices.add(VoiceAttachment(id,audio.durationMs));
+              }
+              if(!mounted||_mediaOwner!=MediaStorage.activeOwner||elements.records[word]?.id!=element.id)throw StateError('편집 화면이나 워크스페이스가 변경되었습니다.');
+              if(elements.records[word]!.photos.length+photos.length>5)throw StateError('사진은 최대 5장까지 저장할 수 있습니다.');
+            }catch(e){
+              for(final id in written){try{await MediaStorage.delete(id,owner:_mediaOwner);}catch(_){}}
+              if(mounted)setState((){_attachmentBusy=false;_error='첨부 저장에 실패했습니다. $e';});return;
+            }
             final error = elements.update(word, cleaned.text, inlineLinks: cleaned.links, tags: {..._tags, ...cleaned.tags}, labelColor: _labelColor, hiddenFromSearch: _closed, indexLabel: _labelEditor.text, labelOnLeft: _labelOnLeft, indexLabelColor: _indexLabelColor);
             if (error != null) {
-              setState(() => _error = error);
+              for(final id in written){await MediaStorage.delete(id,owner:_mediaOwner);}
+              if(mounted)setState(() { _attachmentBusy=false;_error = error; });
               return;
             }
+            final savedRecord=elements.records[cleaned.text]!;
+            savedRecord.photos.addAll(photos);savedRecord.recordings.addAll(voices);
+            if(_locationEdits.containsKey(element.id))savedRecord.location=_locationEdits[element.id];
+            elements.refreshVisibility();
+            if(!context.mounted)return;
             final messenger=ScaffoldMessenger.of(context);
             Navigator.pop(context);
             widget.onSaved?.call();

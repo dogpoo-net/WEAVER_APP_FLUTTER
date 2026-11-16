@@ -125,7 +125,7 @@ String? editResource(Map<String,dynamic>? item) {
 }
 
 class WorkspaceSync extends ChangeNotifier {
-  WorkspaceSync(this.storage,this.api,{required this.isCurrent,this.workspaceId,this.readOnly=false});
+  WorkspaceSync(this.storage,this.api,{required this.isCurrent,this.workspaceId,this.readOnly=false}) { memoCommentCounts.value={}; }
   final WorkspaceStorage storage;
   final EmailAuthApi api;
   final String? workspaceId;final bool readOnly;
@@ -271,7 +271,7 @@ class WorkspaceSync extends ChangeNotifier {
       await saveBase();_observedRevision=result['revision'] as int;ready=true;error=null;
     }catch(e){error=e.toString();}
     storage.itemMetadata=(kind,id)=>base[itemKey(kind,id)];
-    memoCommentCounts.value={};storage.comments=request;storage.commentsWritable=!readOnly;
+    storage.comments=request;storage.commentsWritable=!readOnly;
     storage.onChanged=schedule;storage.syncNow=flush;storage.syncDeleted=flushDeletions;storage.syncFolders=flushFolders;storage.refreshNow=refreshFromServer;storage.checkRemote=checkRemote;storage.syncContent=readOnly?null:()=>_enqueueFlush(false,contentOnly:true);storage.syncResource=(id)=>_enqueueFlush(false,resource:id);storage.reloadResource=reloadResource;storage.takeLease=takeLease;storage.inspectLease=inspectLease;storage.acquireLease=acquireLease;
     changed();if(ready && storage.read()!=_lastSynced)schedule();
   }

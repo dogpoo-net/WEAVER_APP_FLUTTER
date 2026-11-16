@@ -49,7 +49,7 @@ class _AttachmentCollectionState extends State<AttachmentCollection>{
  void refresh(){if(mounted)setState((){});}
  @override void initState(){super.initState();elements.addListener(refresh);widget.filters.addListener(refresh);}
  @override void dispose(){elements.removeListener(refresh);widget.filters.removeListener(refresh);super.dispose();}
- String duration(int ms){final seconds=(ms/1000).ceil();return '${seconds~/60}:${(seconds%60).toString().padLeft(2,'0')}';}
+ String duration(int ms){if(ms==0)return '시간 미확인';final seconds=(ms/1000).ceil();return '${seconds~/60}:${(seconds%60).toString().padLeft(2,'0')}';}
  @override Widget build(BuildContext context){
  final maxColumns=(MediaQuery.sizeOf(context).width/100).floor().clamp(1,8);
  final shownColumns=columns.clamp(1,maxColumns);

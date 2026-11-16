@@ -1,3 +1,4 @@
+import 'package:weaver/features/inbox/memo_comments.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,7 +16,7 @@ class DeltaApi extends EmailAuthApi {
    requests.add(body);rev++;
    for(final raw in body['changes'] as List){final c=Map<String,dynamic>.from(raw as Map);items[itemKey(c['kind'],c['id'])]={'kind':c['kind'],'id':c['id'],'payload':c['deleted']==true?null:jsonEncode(c['value']),'deleted':c['deleted'],'revision':rev};}
   }
-  return {'revision':rev,'changes':items.values.toList()};
+  return {'revision':rev,'changes':items.values.toList(),'commentCounts':{'memo':3}};
  }
 }
 class DelayedReadApi extends DeltaApi {
@@ -28,6 +29,18 @@ class DelayedReadApi extends DeltaApi {
 }
 String data(String title)=>jsonEncode({'version':1,'colors':{},'elements':[],'trash':[],'notes':[{'content':title,'createdAt':'2026-01-01T00:00:00.000','tags':[],'bindings':[]}]});
 void main(){
+ test('workspace refresh never clears visible comment counts',()async{
+  SharedPreferences.setMockInitialValues({});
+  final api=DeltaApi();final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'comments');
+  final sync=WorkspaceSync(storage,api,isCurrent:()=>true);
+  await sync.initialize();expect(memoCommentCounts.value['memo'],3);
+  final seen=<Map<String,int>>[];void changed()=>seen.add(Map.of(memoCommentCounts.value));
+  memoCommentCounts.addListener(changed);
+  await sync.refreshFromServer();expect(memoCommentCounts.value['memo'],3);
+  expect(seen.any((counts)=>counts['memo']!=3),isFalse);
+  memoCommentCounts.removeListener(changed);sync.dispose();api.dispose();
+ });
+
  test('thought close save survives an older in-flight server read',()async{
   SharedPreferences.setMockInitialValues({});
   final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'account-a');
