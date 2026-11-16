@@ -1168,10 +1168,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               }
             }),
             onScaleEnd: (_) { setState(() { _snapSelection(records); _selectionAnchor = null; _dropHighlights.clear(); _selectionStart = null; _selectionEnd = null; _movingSelection = false; }); _endPinch(); },
-            child: CustomPaint(painter: _SelectionPainter(
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 1, end: _selectionLifted ? 1.04 : 1),
+              duration: const Duration(milliseconds: 100),
+              builder: (context, scale, child) => CustomPaint(painter: _SelectionPainter(
               [for (final r in records) (rect: _bounds(r.id), selected: _selected.contains(r.id))],
               !_movingSelection && _selectionStart != null && _selectionEnd != null ? Rect.fromPoints(_selectionStart!, _selectionEnd!) : null,
-              color.primary, widget.blocks ? 6 : 12, captureAll: _rangeSelection)),
+              color.primary, widget.blocks ? 6 : 12, captureAll: _rangeSelection, liftScale: scale))),
           ))),
         ])))),
       )); })),
@@ -1253,7 +1256,8 @@ class _Connections extends CustomPainter {
 }
 
 class _SelectionPainter extends CustomPainter {
-  _SelectionPainter(this.selected, this.marquee, this.color, this.radius, {this.captureAll=false});
+  _SelectionPainter(this.selected, this.marquee, this.color, this.radius, {this.captureAll=false, this.liftScale=1});
+  final double liftScale;
   final bool captureAll;
   @override
   bool hitTest(Offset position) {
@@ -1269,13 +1273,17 @@ class _SelectionPainter extends CustomPainter {
   final Color color;
   @override
   void paint(Canvas canvas, Size size) {
-    final border = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 2;
+    final border = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 2 * liftScale;
+    Rect paintedBounds(({Rect rect, bool selected}) item) => item.selected
+      ? Rect.fromCenter(center: item.rect.center, width: item.rect.width * liftScale, height: item.rect.height * liftScale)
+      : item.rect;
     for (var i = 0; i < selected.length; i++) {
       if (!selected[i].selected) continue;
-      final visible = visibleThoughtPath(selected[i].rect,
-        selected.skip(i + 1).map((item) => item.rect.inflate(.5)), radius: radius);
+      final bounds = paintedBounds(selected[i]);
+      final visible = visibleThoughtPath(bounds,
+        selected.skip(i + 1).map((item) => paintedBounds(item).inflate(.5)), radius: radius * liftScale);
       canvas.save(); canvas.clipPath(visible);
-      canvas.drawRRect(RRect.fromRectAndRadius(selected[i].rect.deflate(1), Radius.circular(radius)), border);
+      canvas.drawRRect(RRect.fromRectAndRadius(bounds.deflate(liftScale), Radius.circular(radius * liftScale)), border);
       canvas.restore();
     }
     if (marquee != null) {
