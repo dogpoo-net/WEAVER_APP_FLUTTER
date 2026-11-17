@@ -15,7 +15,7 @@ void main(){
  expect(calls,['delete-workspace-preview']);
  if(used){
  expect(tester.widget<TextButton>(find.widgetWithText(TextButton,'인증 후 삭제')).onPressed,isNull);
- expect(find.textContaining('60일'),findsOneWidget);
+ expect(find.textContaining('30일'),findsOneWidget);
  await tester.tap(find.text('소유자 이메일로 인증메일 보내기'));await tester.pumpAndSettle();
  await tester.enterText(find.byType(TextField),'12345678');await tester.pump();await tester.tap(find.text('인증 후 삭제'));
  }else{expect(find.byType(TextField),findsNothing);await tester.tap(find.text('바로 삭제'));}
