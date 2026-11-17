@@ -155,21 +155,43 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     }
   }
   void _resizeThought(String id, Size size, Offset shift, {bool snap=true}) => setState(() {
-                  if (_resizingThought != id) _beginResize(id);
-                  final currentWidth = _size(id).width;
-                  final width = !snap || size.width == currentWidth ? size.width : snapStackWidth(size.width,
-                    _resizeNeighbors.where(_positions.containsKey).map((id) => _size(id).width),
-                    tolerance: (16 / _view.value.storage[0].abs()).clamp(8, 32));
-                  final adjustedShift = Offset(shift.dx == 0 ? 0 : currentWidth - width, shift.dy);
-                  final oldSize = _layout.sizes[id], oldPosition = _positions[id]!;
-                  _layout.sizes[id] = Offset(width, size.height);
-                  final p = _positions[id]! + adjustedShift; _positions[id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
-                  if (_memberCollides(id)) {
-                    _positions[id] = oldPosition;
-                    if (oldSize == null) { _layout.sizes.remove(id); } else { _layout.sizes[id] = oldSize; }
-                  }
-                  _saveLayout();
+    if (_resizingThought != id) _beginResize(id);
+    final group = _selected.contains(id)
+        ? _selected.where(_positions.containsKey).toSet() : <String>{id};
+    final current = _size(id);
+    final width = !snap || size.width == current.width ? size.width : snapStackWidth(size.width,
+      _resizeNeighbors.where((other)=>!group.contains(other)&&_positions.containsKey(other)).map((other)=>_size(other).width),
+      tolerance:(16/_view.value.storage[0].abs()).clamp(8,32));
+    var dx=width-current.width,dy=size.height-current.height;
+    var minX=double.negativeInfinity,maxX=double.infinity,minY=double.negativeInfinity,maxY=double.infinity;
+    for(final member in group){
+      final old=_size(member),point=_positions[member]!;
+      minX=math.max(minX,170-old.width);maxX=math.min(maxX,640-old.width);
+      minY=math.max(minY,76-old.height);maxY=math.min(maxY,520-old.height);
+      if(shift.dx!=0)maxX=math.min(maxX,point.dx-32);
+      if(shift.dy!=0)maxY=math.min(maxY,point.dy-32);
+    }
+    dx=dx.clamp(minX,maxX);dy=dy.clamp(minY,maxY);
+    final oldPositions={for(final member in group)member:_positions[member]!};
+    for(final member in group){
+      final old=_size(member);
+      _layout.sizes[member]=Offset(old.width+dx,old.height+dy);
+      _positions[member]=oldPositions[member]!+Offset(shift.dx!=0?-dx:0,shift.dy!=0?-dy:0);
+    }
+    _displaceNeighbors(group);
+    _saveLayout();
   });
+  void _displaceNeighbors(Set<String> edited) {
+    final boxes=_allRegionBoxes.toList();
+    final fixed=boxes.where((box)=>box.elementIds.any(edited.contains)).toSet();
+    final occupied=<Rect>[for(final box in fixed)?_boxBounds(box)];
+    for(final box in boxes.where((box)=>!fixed.contains(box))){
+      final bounds=_boxBounds(box);if(bounds==null)continue;
+      final shift=releaseBox(bounds,occupied,rectangular:widget.blocks);
+      if(shift!=Offset.zero)_moveBox(box,shift);
+      occupied.add(bounds.shift(shift));
+    }
+  }
   Size _fitThought(ElementRecord record, bool horizontal, bool vertical) {
     final current=_size(record.id);
     final icons=[(memoCommentCounts.value[record.id]??0)>0,record.location!=null,
@@ -514,10 +536,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     }
     return bounds;
   }
-  bool _boxCollides(MemoBox moving, Rect proposed) => _allRegionBoxes.any((other) =>
-    !identical(other, moving) && _boxBounds(other) != null && memoBoxRegionsOverlap(proposed, _boxBounds(other)!, rectangular: widget.blocks));
-  bool _memberCollides(String id) => _allRegionBoxes.any((box) => box.elementIds.contains(id) &&
-    _boxBounds(box) != null && _boxCollides(box, _boxBounds(box)!));
   void _separateOverlappingBoxes() {
     final placed = <Rect>[];
     for (final box in _allRegionBoxes) {
@@ -735,18 +753,31 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     super.dispose();
   }
   Offset? _rangeAnchorPoint;
+  final _tagSizeCache = <(String, TextStyle?, TextScaler, TextDirection), Size>{};
+  Rect _tagBounds(String id) {
+    final style=Theme.of(context).textTheme.labelLarge;
+    final scaler=MediaQuery.textScalerOf(context), direction=Directionality.of(context);
+    final key=(id,style,scaler,direction);
+    final size=_tagSizeCache.putIfAbsent(key,(){
+      final text=TextPainter(text:TextSpan(text:'#${id.substring(4)}',style:style),
+        textDirection:direction,textScaler:scaler,maxLines:1)..layout();
+      final size=Size((text.width+20).ceilToDouble().clamp(32,graphTagSize.width),math.max(32,(text.height+10).ceilToDouble()));
+      text.dispose();return size;
+    });
+    return Rect.fromCenter(center:_tagPositions[id]!,width:size.width,height:size.height);
+  }
   Offset _selectionPoint(String id) => _positions[id] ?? _tagPositions[id]!;
   void _setSelectionPoint(String id, Offset point) {
     if (_positions.containsKey(id)) { _positions[id] = point; }
     else if (_tagPositions.containsKey(id)) { _tagPositions[id] = point; }
   }
-  Rect _selectionBounds(String id) => _positions.containsKey(id) ? _bounds(id) : tagBounds(_tagPositions[id]!);
+  Rect _selectionBounds(String id) => _positions.containsKey(id) ? _bounds(id) : _tagBounds(id);
   String? _hitSelection(Offset point, List<ElementRecord> records) {
     if (!_hideTags) {
       final tags = records.expand((r) => r.tags).toSet();
       for (final tag in tags.toList().reversed) {
         final id = 'tag:$tag';
-        if (_tagPositions.containsKey(id) && tagBounds(_tagPositions[id]!).contains(point)) return id;
+        if (_tagPositions.containsKey(id) && _tagBounds(id).contains(point)) return id;
       }
     }
     return records.where((r) => _bounds(r.id).contains(point)).lastOrNull?.id;
@@ -922,7 +953,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final tagPositions = <String, Offset>{for (final tag in tags) 'tag:$tag': _tagPositions['tag:$tag']!};
     final nodeRects = <String, Rect>{
       for (final e in visiblePositions.entries) e.key: _bounds(e.key),
-      for (final e in tagPositions.entries) e.key: tagBounds(e.value),
+      for (final e in tagPositions.entries) e.key: _tagBounds(e.key),
     };
     var sceneWidth = math.max(3000.0, nodeRects.values.map((r) => r.right + labelExtent).fold(0.0, math.max));
     var sceneHeight = math.max(2200.0, nodeRects.values.map((r) => r.bottom + 100).fold(0.0, math.max));
@@ -1051,7 +1082,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 onActiveChanged: (active) => setState(() { if (active) { _thoughtDragOrigins.putIfAbsent(record.id, () => _positions[record.id]!); _dragStartStacks.putIfAbsent(record.id, () => alignedStackMembers(record.id, _positions)); } _draggingId = active ? record.id : null; if (!active) { _hoverBox = null; _dropHighlights.clear(); } }),
                 onTap: () { _rangeAnchor=record.id; showElementMetadata(context, record.text); },
                 onMove: (delta) => setState(() { final previous = _positions[record.id]!; final p = previous + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
-                  if (_liftBoxes.isEmpty && _memberCollides(record.id)) _positions[record.id] = previous;
+                  if (_liftBoxes.isEmpty) _displaceNeighbors({record.id});
                   final target = records.where((r) => r.id != record.id && _bounds(r.id).overlaps(_bounds(record.id))).lastOrNull;
                   final stackPositions = Map<String, Offset>.of(_positions);
                   final origin = _thoughtDragOrigins[record.id];
@@ -1158,8 +1189,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               child:Row(mainAxisAlignment:MainAxisAlignment.center,children:[Flexible(child:Text(region.box.name,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:Color(region.box.color),fontSize:13,fontWeight:FontWeight.w600))),
                 if(_canEdit&&!region.box.isUnclassified)IconButton(tooltip:'${region.box.name} 상자 삭제',onPressed:()=>_deleteCanvasBox(region.box),style:IconButton.styleFrom(minimumSize:const Size.square(24),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap),icon:const Icon(Icons.close,size:16)),
               ]))),
-          for (final tag in tags) Positioned(left: tagBounds(tagPositions['tag:$tag']!).left, top: tagBounds(tagPositions['tag:$tag']!).top,
-            width: graphTagSize.width, height: graphTagSize.height,
+          for (final tag in tags) Positioned(left: _tagBounds('tag:$tag').left, top: _tagBounds('tag:$tag').top,
+            width: _tagBounds('tag:$tag').width, height: _tagBounds('tag:$tag').height,
             child: GestureDetector(key: ValueKey('graph-tag-$tag'), behavior: HitTestBehavior.opaque,
               // Use the same recognizer as cards: a pan recognizer can lose to
               // InteractiveViewer's scale recognizer and move the viewport instead.
@@ -1167,12 +1198,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               onScaleUpdate: (d) => setState(() {
                 if (d.pointerCount > 1) { _zoomCanvas(d.scale, d.focalPoint); return; }
                 if (_pinchBase != null) return;
-                final p = _tagPositions['tag:$tag']! + d.focalPointDelta / _view.value.getMaxScaleOnAxis();
+                // ScaleGestureRecognizer already reports delta in local scene coordinates.
+                final p = _tagPositions['tag:$tag']! + d.focalPointDelta;
                 _tagPositions['tag:$tag'] = Offset(p.dx.clamp(graphTagSize.width / 2 + 32, sceneWidth - graphTagSize.width / 2), p.dy.clamp(graphTagSize.height / 2 + 32, sceneHeight - graphTagSize.height / 2)); _saveLayout();
               }),
               onScaleEnd: (_) => _endPinch(),
-              child: AnimatedScale(scale: _selectionLifted && _selected.contains('tag:$tag') ? 1.04 : 1, duration: const Duration(milliseconds: 100), child: Tooltip(message: '#$tag', child: Chip(side: BorderSide(color: Color(hashtagColors[tag] ?? 0xFF90A4AE), width: 2.5), label: Text('#$tag', maxLines: 1, overflow: TextOverflow.ellipsis),
-              backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: .3)))))),
+              child: AnimatedScale(scale: _selectionLifted && _selected.contains('tag:$tag') ? 1.04 : 1, duration: const Duration(milliseconds: 100), child: Tooltip(message: '#$tag', child: Material(key:ValueKey('graph-tag-body-$tag'), shape: StadiumBorder(side: BorderSide(color: Color(hashtagColors[tag] ?? 0xFF90A4AE), width: 2.5)),
+              color: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: .3),child:Padding(padding:const EdgeInsets.symmetric(horizontal:10,vertical:5),child:Center(child:Text('#$tag',style:Theme.of(context).textTheme.labelLarge,maxLines:1,overflow:TextOverflow.ellipsis)))))))),
           if (_rangeSelection || _selected.isNotEmpty) Positioned.fill(child: Listener(
             onPointerDown: (event) {
               if (_selectionPointers.isEmpty) {
@@ -1346,15 +1378,14 @@ class _SelectionPainter extends CustomPainter {
   final bool captureAll;
   @override
   bool hitTest(Offset position) {
-    if (captureAll) return true;
     for (final item in selected.reversed) {
-      if (RRect.fromRectAndRadius(item.rect,Radius.circular(radius)).contains(position)) {
+      if (RRect.fromRectAndRadius(item.rect,Radius.circular(resizeRects.contains(item.rect)?radius:item.rect.shortestSide/2)).contains(position)) {
         // Let the visible frontmost card's resize handle receive border events.
-        if(resizeRects.contains(item.rect)&&!item.rect.deflate(12).contains(position))return false;
+        if(resizeRects.contains(item.rect)&&(!captureAll||item.selected)&&!item.rect.deflate(12).contains(position))return false;
         return true;
       }
     }
-    return false;
+    return captureAll;
   }
   final double radius;
   final List<({Rect rect, bool selected})> selected;
@@ -1369,10 +1400,11 @@ class _SelectionPainter extends CustomPainter {
     for (var i = 0; i < selected.length; i++) {
       if (!selected[i].selected) continue;
       final bounds = paintedBounds(selected[i]);
+      final itemRadius=resizeRects.contains(selected[i].rect)?radius:selected[i].rect.shortestSide/2;
       final visible = visibleThoughtPath(bounds,
-        selected.skip(i + 1).map((item) => paintedBounds(item).inflate(.5)), radius: radius * liftScale);
+        selected.skip(i + 1).map((item) => paintedBounds(item).inflate(.5)), radius: itemRadius * liftScale);
       canvas.save(); canvas.clipPath(visible);
-      canvas.drawRRect(RRect.fromRectAndRadius(bounds.deflate(liftScale), Radius.circular(radius * liftScale)), border);
+      canvas.drawRRect(RRect.fromRectAndRadius(bounds.deflate(liftScale), Radius.circular(itemRadius * liftScale)), border);
       canvas.restore();
     }
     if (marquee != null) {

@@ -42,7 +42,7 @@ void main() {
       expect(layout.positions[loose.id], const Offset(1000, 500));
       await tester.pumpWidget(const SizedBox());
     });
-    testWidgets('resizing cannot push neighboring boxes or loose thoughts ($blocks)', (tester) async {
+    testWidgets('resizing preserves the edit and pushes neighboring boxes without moving loose thoughts ($blocks)', (tester) async {
       final a = elements.add('확장할 생각'), b = elements.add('이웃 생각'), loose = elements.add('미분류 생각');
       memoBoxes.addAll([MemoBox('확장 상자', ids: [a.id]), MemoBox('이웃 상자', ids: [b.id])]);
       final layout = blocks ? pageGraphLayout.blockLayout : pageGraphLayout;
@@ -55,7 +55,8 @@ void main() {
       final regions = tester.widgetList<MemoBoxRegion>(find.byType(MemoBoxRegion)).toList();
       expect(memoBoxRegionsOverlap(regions[0].bounds, regions[1].bounds, rectangular: blocks), isFalse);
       expect(layout.positions[a.id], const Offset(640, 500));
-      expect(layout.positions[b.id], const Offset(1100, 500));
+      expect(layout.sizes[a.id], const Offset(640, 400));
+      expect(layout.positions[b.id], isNot(const Offset(1100, 500)));
       expect(layout.positions[loose.id], const Offset(900, 550));
       await tester.pumpWidget(const SizedBox());
     });

@@ -46,4 +46,31 @@ void main(){testWidgets('Ctrl marquee selects and moves a tag together with its 
  await gesture.up();await tester.pumpAndSettle();
  expect((layout.tags['tag:태그']!-before).distance,greaterThan(60));
  await tester.pumpWidget(const SizedBox());
+ }); for(final zoom in [.5,1.0,2.0]){
+ testWidgets('tag drag follows pointer at zoom $zoom and outline matches chip',(tester)async{
+ tester.view.physicalSize=const Size(1400,1000);tester.view.devicePixelRatio=1;addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
+ elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();final a=elements.add('메모 #짧음');
+ final layout=pageGraphLayout.blockLayout;
+ layout.positions[a.id]=const Offset(600,600);layout.tags['tag:짧음']=const Offset(800,400);
+ layout.viewport=(Matrix4.diagonal3Values(zoom,zoom,zoom)..setTranslationRaw(300-800*zoom,200-400*zoom,0)).storage.toList();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));await tester.pumpAndSettle();
+ final tag=find.byKey(const ValueKey('graph-tag-짧음'));
+ final original=tester.getCenter(tag);
+ final gesture=await tester.startGesture(original);await gesture.moveBy(const Offset(25,0));await tester.pump();
+ final accepted=tester.getCenter(tag);
+ await gesture.moveBy(const Offset(60,30));await tester.pump();
+ expect((tester.getCenter(tag)-accepted).dx,closeTo(60,.1));
+ expect((tester.getCenter(tag)-accepted).dy,closeTo(30,.1));
+ await gesture.up();await tester.pumpAndSettle();
+ await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
+ await tester.tapAt(tester.getCenter(tag));await tester.pump();
+ await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
+ final paint=tester.widget<CustomPaint>(find.descendant(of:find.byKey(const ValueKey('canvas-selection')),matching:find.byType(CustomPaint)));
+ final dynamic painter=paint.painter;
+ final items=(painter.selected as List).where((dynamic item)=>item.selected==true).toList();
+ final Rect bounds=items.single.rect;
+ final actual=tester.getSize(find.byKey(const ValueKey('graph-tag-body-짧음')));
+ expect(bounds.size,actual);expect(actual.width,lessThan(178));
+ await tester.pumpWidget(const SizedBox());
  });}
+}
