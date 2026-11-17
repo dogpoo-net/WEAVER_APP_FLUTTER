@@ -10,6 +10,7 @@ import '../inbox/workspace_routes.dart';
 import '../capture/media_storage.dart';
 import 'owned_workspace.dart';
 import 'sharing_pages.dart';
+import 'workspace_picker.dart';
 import 'readonly_workspace.dart';
 
 class OwnedWorkspaceGate extends StatefulWidget {
@@ -295,11 +296,26 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
   Future<void> chooseWorkspace()async{
     try{final result=await widget.auth.emailApi.workspace('catalog',{});if(!current)return;catalog=result['workspaces'] as List;}catch(_){if(!mounted)return;ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('워크스페이스 목록을 불러오지 못했습니다.')));return;}
     if(!mounted)return;
-    final id=await showDialog<String>(context:context,builder:(context)=>SimpleDialog(title:const Text('워크스페이스 선택'),children:[for(final item in catalog)SimpleDialogOption(onPressed:()=>Navigator.pop(context,item['workspaceId']),child:Row(children:[Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(item['name']??'공유 워크스페이스'),Text(roleLabel(item['role']),style:Theme.of(context).textTheme.bodySmall)])),if(item['workspaceId']==selected)const Icon(Icons.check)]))]));
-    if(id!=null && current)await switchWorkspace(id);
+    final id=await showDialog<String>(context:context,builder:(context)=>WorkspacePicker(
+      workspaces:catalog,selected:selected,
+      request:(action,body)async{
+        if((action=='delete-workspace'||action=='leave-workspace')&&body['workspaceId']==selected){
+          if(storage?.hasUnsavedInput?.call()==true)throw StateError('작성 중인 메모를 저장한 뒤 다시 시도해주세요.');
+          await sync?.settle();await storage?.flush();
+        }
+        return widget.auth.emailApi.workspace(action,body);
+      },
+      onCatalog:(rows){
+        if(!current)return;
+        setState(()=>catalog=rows);
+        final active=rows.where((row)=>row['workspaceId']==selected).firstOrNull;
+        if(active!=null)storage?.workspaceName=active['name'] as String?;
+      },
+    ));
+    if(id!=null && current)await switchWorkspace(id, relinquished: !catalog.any((row)=>row['workspaceId']==selected));
   }
 
-  Future<void> switchWorkspace(String id,{bool force=false}) async {
+  Future<void> switchWorkspace(String id,{bool force=false,bool relinquished=false}) async {
     if (!current || (!force && selected == id)) return;
     if (storage?.hasUnsavedInput?.call() == true) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -311,7 +327,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     await navigateHome(context);
     if(!mounted || navigator.canPop())return;
     try {
-      await sync?.settle();
+      if(!relinquished){await sync?.settle();}
       await storage?.flush();
     } catch (e) {
       if (mounted) {
