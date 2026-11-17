@@ -7,6 +7,7 @@ class GraphLayout {
   GraphLayout? _blocks;
   GraphLayout get blockLayout => _blocks ??= GraphLayout();
   final layers = <String>[];
+  final stackGroups = <String, String>{};
   final positions = <String, Offset>{};
   final sizes = <String, Offset>{};
   final tags = <String, Offset>{};
@@ -23,6 +24,11 @@ class GraphLayout {
         if(next.containsKey(key)){local[key]=next[key]!;}else{local.remove(key);}
       }
     }
+    for(final id in {...stackGroups.keys,...remote.stackGroups.keys,...baseline.stackGroups.keys}){
+      if(stackGroups[id]!=baseline.stackGroups[id])continue;
+      final group=remote.stackGroups[id];
+      if(group==null){stackGroups.remove(id);}else{stackGroups[id]=group;}
+    }
     points(positions,remote.positions,baseline.positions);
     points(sizes,remote.sizes,baseline.sizes);
     points(tags,remote.tags,baseline.tags);
@@ -33,6 +39,7 @@ class GraphLayout {
 
   void copyFrom(GraphLayout other, {bool includeBlocks=true}) {
     if(includeBlocks){if(other._blocks!=null){blockLayout.copyFrom(other._blocks!);}else{_blocks=null;}}
+    stackGroups..clear()..addAll(other.stackGroups);
     layers..clear()..addAll(other.layers);
     positions..clear()..addAll(other.positions);
     sizes..clear()..addAll(other.sizes);
@@ -55,11 +62,17 @@ class GraphLayout {
     'hideTags': hideTags,
     'stacked': stacked,
     'layers': layers,
+    'stackGroups': stackGroups,
   };
 
   static GraphLayout fromJson(dynamic data) {
     final layout = GraphLayout();
     if (data is! Map) return layout;
+    if(data['stackGroups'] is Map){
+      for(final entry in (data['stackGroups'] as Map).entries){
+        if(entry.key is String && entry.value is String)layout.stackGroups[entry.key as String]=entry.value as String;
+      }
+    }
     if (data['layers'] is List) layout.layers.addAll((data['layers'] as List).whereType<String>().toSet());
     if (data['blocks'] is Map) layout._blocks = GraphLayout.fromJson(data['blocks']);
     void readPoints(dynamic source, Map<String, Offset> target) {

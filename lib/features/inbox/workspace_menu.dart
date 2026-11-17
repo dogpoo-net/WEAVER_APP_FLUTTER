@@ -307,7 +307,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       const Divider(indent: 16, endIndent: 16),
       ListTile(dense: true, leading: const Icon(Icons.delete_outline, size: 18), title: const Text('휴지통'),
         onTap: () => _select(WorkspaceMenu.trash)),
-      ListTile(dense: true, leading: const Icon(Icons.settings_outlined, size: 18), title: const Text('환경설정'),
+      ListTile(dense: true, leading: const Icon(Icons.settings_outlined, size: 18), title: const Text('설정'),
         onTap: () => _select(WorkspaceMenu.settings)),
     ]);
     if (widget.embedded) return Material(child: SizedBox(width: 280, child: content));

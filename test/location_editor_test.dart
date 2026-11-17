@@ -19,6 +19,9 @@ void main(){
   gps.complete(ThoughtLocation(37,127,10,DateTime.now()));await tester.pumpAndSettle();
   expect(tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.single.point,const LatLng(35,129));
   expect(find.text('지오로그 남기기'),findsOneWidget);
+  final input=find.byKey(const ValueKey('geolog-memo-input'));
+  expect(tester.widget<TextField>(input).minLines,3);
+  expect(tester.getTopLeft(find.widgetWithText(TextButton,'저장')).dy-tester.getBottomLeft(input).dy,lessThan(24));
   expect(find.byTooltip('음성 메모'),findsOneWidget);
   expect(find.byTooltip('사진 업로드 (최대 5장)'),findsOneWidget);
   expect(tester.getCenter(find.byTooltip('마커 색상')).dx,lessThan(tester.getCenter(find.byTooltip('현재 위치')).dx));

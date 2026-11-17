@@ -85,19 +85,12 @@ void reverseThoughtLayers(List<String> order, Set<String> selected) {
   }
 }
 
-/// Only exact 32px stack slots form a group; arbitrary overlaps are excluded.
-void reorderStackPositions(Map<String, Offset> positions, Set<String> selected, {bool? up}) {
+/// Use remembered groups after resizing; legacy layouts use exact stack slots.
+void reorderStackPositions(Map<String, Offset> positions, Set<String> selected, {bool? up, Map<String,String> groups = const {}}) {
   final remaining = positions.keys.toSet();
   while (remaining.isNotEmpty) {
-    final group = <String>[remaining.first]; remaining.remove(group.first);
-    for (var i = 0; i < group.length; i++) {
-      final p = positions[group[i]]!;
-      final adjacent = remaining.where((id) {
-        final q = positions[id]!;
-        return (p.dx - q.dx).abs() < .5 && ((p.dy - q.dy).abs() - 32).abs() < .5;
-      }).toList();
-      group.addAll(adjacent); remaining.removeAll(adjacent);
-    }
+    final group = alignedStackMembers(remaining.first, positions, groups: groups).toList();
+    remaining.removeAll(group);
     if (group.length < 2 || !group.any(selected.contains)) continue;
     group.sort((a, b) => positions[a]!.dy.compareTo(positions[b]!.dy));
     if (up == null) {
@@ -147,15 +140,16 @@ double snapStackWidth(double width, Iterable<double> neighbors, {double toleranc
   return result;
 }
 
-/// Exact aligned stack slots, including the seed.
-Set<String> alignedStackMembers(String seed, Map<String, Offset> positions) {
+/// Remembered membership, or exact aligned slots for unmigrated cards.
+Set<String> alignedStackMembers(String seed, Map<String, Offset> positions, {Map<String,String> groups = const {}}) {
+  if(groups.containsKey(seed))return positions.keys.where((id)=>groups[id]==groups[seed]).toSet();
   final group = <String>{seed};
   final queue = <String>[seed];
   for (var i = 0; i < queue.length; i++) {
     final p = positions[queue[i]];
     if (p == null) continue;
     for (final e in positions.entries) {
-      if (!group.contains(e.key) && (e.value.dx - p.dx).abs() < .5 &&
+      if (!groups.containsKey(e.key) && !group.contains(e.key) && (e.value.dx - p.dx).abs() < .5 &&
           ((e.value.dy - p.dy).abs() - 32).abs() < .5) {
         group.add(e.key); queue.add(e.key);
       }

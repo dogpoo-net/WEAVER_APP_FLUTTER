@@ -122,8 +122,7 @@ class _GeologPageState extends State<GeologPage> {
           options: MapOptions(initialCenter: records.isEmpty ? const LatLng(20, 0) : _point(records.first), initialZoom: records.isEmpty ? 2 : 14, minZoom: 2, maxZoom: 19,
             initialCameraFit: records.length > 1 ? CameraFit.bounds(bounds: LatLngBounds.fromPoints(records.map(_point).toList()), padding: const EdgeInsets.all(48), maxZoom: 16) : null),
           children: [
-            TileLayer(urlTemplate: globalTileTemplate, tileProvider: RegionalTileProvider(), userAgentPackageName: 'net.dogpoo.weaver', maxNativeZoom: 19,
-              errorTileCallback: (_, error, stack) => _tileFailed()),
+            RegionalTileLayer(onError: _tileFailed),
             MarkerLayer(markers: [for (final group in groups.values) Marker(point: _point(group.first), width: 132, height: 84, alignment: Alignment.topCenter, rotate: true,
               child: Semantics(button: true, label: group.first.text, child: InkWell(onTap: () => _open(group), child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
                 Material(elevation: 2, surfaceTintColor: Colors.transparent, borderRadius: BorderRadius.circular(8),

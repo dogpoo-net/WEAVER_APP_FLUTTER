@@ -367,12 +367,7 @@ class _LocationEditorState extends State<LocationEditor> {
                             onTap: saving ? null : (_, position) => select(position),
                           ),
                           children: [
-                            TileLayer(
-                              urlTemplate: globalTileTemplate,
-                              tileProvider: RegionalTileProvider(),
-                              userAgentPackageName: 'net.dogpoo.weaver',
-                              maxNativeZoom: 19,
-                            ),
+                            const RegionalTileLayer(),
                             MarkerLayer(
                               markers: [
                                 if (point != null)
@@ -424,7 +419,8 @@ class _LocationEditorState extends State<LocationEditor> {
                     ],
                   ),
                 if (widget.compose)
-                  Flexible(
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: height * .45),
                     child: SingleChildScrollView(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -493,8 +489,8 @@ class _LocationEditorState extends State<LocationEditor> {
                               key: const ValueKey('geolog-memo-input'),
                               controller: text,
                               readOnly: saving,
-                              minLines: 2,
-                              maxLines: 3,
+                              minLines: 3,
+                              maxLines: 4,
                               onChanged: (_) => setState(() {}),
                               decoration: const InputDecoration(
                                 hintText: '이 위치에 남길 생각',

@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 
 const globalTileTemplate = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -30,7 +32,7 @@ bool usesKoreaTiles(TileCoordinates tile) {
 }
 
 class RegionalTileProvider extends NetworkTileProvider {
-  RegionalTileProvider() : super(silenceExceptions: true);
+  RegionalTileProvider() : super(silenceExceptions: false);
 
   @override
   String getTileUrl(TileCoordinates coordinates, TileLayer options) {
@@ -40,4 +42,36 @@ class RegionalTileProvider extends NetworkTileProvider {
       .replaceAll('{x}', '${coordinates.x % count}')
       .replaceAll('{y}', '${coordinates.y}');
   }
+}
+
+/// Keep the provider alive across composer rebuilds. Failed tiles must remain
+/// errors, not successful transparent images, so they can be evicted/retried.
+class RegionalTileLayer extends StatefulWidget {
+  const RegionalTileLayer({super.key, this.onError});
+  final VoidCallback? onError;
+  @override
+  State<RegionalTileLayer> createState()=>_RegionalTileLayerState();
+}
+class _RegionalTileLayerState extends State<RegionalTileLayer>{
+  final provider=RegionalTileProvider();
+  final reset=StreamController<void>.broadcast();
+  Timer? retry;
+  int attempts=0;
+  void failed(){
+    if(retry!=null)return;
+    if(attempts>=2){widget.onError?.call();return;}
+    retry=Timer(Duration(seconds:2*(++attempts)),(){
+      retry=null;
+      if(mounted)reset.add(null);
+    });
+  }
+  @override
+  void dispose(){retry?.cancel();reset.close();super.dispose();}
+  @override
+  Widget build(BuildContext context)=>TileLayer(
+    urlTemplate:globalTileTemplate,tileProvider:provider,
+    userAgentPackageName:'net.dogpoo.weaver',maxNativeZoom:19,
+    evictErrorTileStrategy:EvictErrorTileStrategy.dispose,
+    reset:reset.stream,errorTileCallback:(_,error,stack)=>failed(),
+  );
 }

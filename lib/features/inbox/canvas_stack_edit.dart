@@ -3,18 +3,18 @@ import 'canvas_geometry.dart';
 
 /// Close only slots vacated by an edit, never normalize unrelated arrangements.
 void closeVacatedStackSlots(Map<String, Offset> positions,
-    Map<String, Offset> before, Set<String> removed) {
+    Map<String, Offset> before, Set<String> removed, {Map<String,String> groups = const {}}) {
   final visited = <String>{};
   for (final id in removed) {
     if (!before.containsKey(id) || visited.contains(id)) continue;
-    final group = alignedStackMembers(id, before).toList()
+    final group = alignedStackMembers(id, before,groups:groups).toList()
       ..sort((a, b) => before[a]!.dy.compareTo(before[b]!.dy));
     visited.addAll(group);
     var gaps = 0;
     for (final member in group) {
       if (removed.contains(member)) { gaps++; continue; }
       if (gaps > 0 && positions[member] == before[member]) {
-        positions[member] = before[member]! - Offset(0, 32.0 * gaps);
+        positions[member] = before[group[group.indexOf(member)-gaps]]!;
       }
     }
   }

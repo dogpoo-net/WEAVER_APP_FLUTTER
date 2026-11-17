@@ -22,6 +22,7 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
   String? workspaceName,
 }) async {
   var busy = false;
+  var choosingWorkspace = false;
   await showDialog<void>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (context, update) {
     Future<void> run(Future<void> Function() action) async {
       if (busy) return;
@@ -60,7 +61,7 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
           title: Text(auth!.identity!.displayName ?? '내 계정', textAlign: TextAlign.right),
           subtitle: Text(auth.identity!.email, textAlign: TextAlign.right),
           onTap: busy ? null : () { Navigator.pop(dialogContext); Navigator.push(context, MaterialPageRoute<void>(builder: (_) => ProfilePage(auth: auth))); }),
-        ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.workspaces_outline),title:const Text('워크스페이스'),subtitle:Text(workspaceName??(guest?'비회원 작업공간':'내 워크스페이스')),trailing:const Icon(Icons.chevron_right),onTap:busy||onWorkspaces==null?null:(){Navigator.pop(dialogContext);onWorkspaces();}),
+        ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.workspaces_outline),title:const Text('워크스페이스'),subtitle:Text(workspaceName??(guest?'비회원 작업공간':'내 워크스페이스')),trailing:const Icon(Icons.chevron_right),onTap:busy||onWorkspaces==null?null:() async { choosingWorkspace=true; try { await run(onWorkspaces); } finally { choosingWorkspace=false; } }),
         if(signedIn)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.group_add_outlined),title:const Text('초대하기'),onTap:busy||onInvite==null?null:(){Navigator.pop(dialogContext);onInvite();}),
         const Divider(),
         if (guest) const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.person_outline),
@@ -75,7 +76,7 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
           onTap: busy ? null : () => changeVisibility(!showClosedThoughts),
           trailing: SizedBox(width: 44, height: 36, child: Transform.scale(scale: .75, child: Switch(value: !showClosedThoughts,
           onChanged: busy ? null : (hidden) => changeVisibility(!hidden))))),
-        if (busy) const LinearProgressIndicator(),
+        if (busy && !choosingWorkspace) const LinearProgressIndicator(),
         const Divider(),
         ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.refresh), title: const Text('데이터 초기화', style: TextStyle(color: Colors.white)),
           onTap: busy || onReset == null ? null : () { Navigator.pop(dialogContext); onReset(); }),
@@ -103,8 +104,8 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
           onTap: busy ? null : () => showLicensePage(context: context, applicationName: 'WEAVER')),
       ])));
     final theme=ThemeControls.of(context);
-    final header=Row(children:[Expanded(child:Text('환경설정',style:Theme.of(context).textTheme.titleMedium)),IconButton(tooltip:'테마 선택',onPressed:busy||theme==null?null:()=>theme.open(context),icon:Icon(Theme.of(context).brightness==Brightness.dark?Icons.dark_mode_outlined:Icons.light_mode_outlined)),IconButton(key:const ValueKey('close-settings'),tooltip:'닫기',onPressed:busy?null:()=>Navigator.pop(dialogContext),icon:const Icon(Icons.close))]);
-    return PopScope(canPop: !busy, child: mobile ? Dialog(
+    final header=Row(children:[Expanded(child:Text('설정',style:Theme.of(context).textTheme.titleMedium)),IconButton(tooltip:'테마 선택',onPressed:busy||theme==null?null:()=>theme.open(context),icon:Icon(Theme.of(context).brightness==Brightness.dark?Icons.dark_mode_outlined:Icons.light_mode_outlined)),IconButton(key:const ValueKey('close-settings'),tooltip:'닫기',onPressed:busy?null:()=>Navigator.pop(dialogContext),icon:const Icon(Icons.close))]);
+    return PopScope(canPop: !busy || choosingWorkspace, child: mobile ? Dialog(
       alignment: AlignmentDirectional.topStart,
       insetPadding: const EdgeInsets.fromLTRB(16, 64, 16, 12),
       child: SizedBox(width: double.infinity, height: double.infinity, child: Padding(

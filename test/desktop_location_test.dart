@@ -31,7 +31,7 @@ void main(){
   final maps=tester.widgetList<FlutterMap>(find.byType(FlutterMap));
   maps.last.options.onTap!(const TapPosition(Offset.zero,Offset.zero),const LatLng(36,128));await tester.pump();
   await tester.enterText(find.byKey(const ValueKey('geolog-memo-input')),'새 위치 #여행');await tester.pump();
-  await tester.tap(find.widgetWithText(FilledButton,'저장'));await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(TextButton,'저장'));await tester.pumpAndSettle();
   expect(elements.records['새 위치']!.location!.longitude,128);
   expect(elements.records['새 위치']!.tags,contains('여행'));expect(saved,1);
   await tester.pumpWidget(const SizedBox());elements.clear();
