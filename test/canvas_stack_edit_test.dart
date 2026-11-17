@@ -30,4 +30,15 @@ void main() {
     expect(exposedSideAnchor(card,[],const Offset(600,500)),const Offset(330,160));
     expect(exposedSideAnchor(card,[card],const Offset(0,0)),isNull);
   });
+  test('connection uses center unless a covered card connects outside its width', () {
+    const card=Rect.fromLTWH(100,100,230,120), cover=Rect.fromLTWH(100,132,230,120);
+    expect(hashtagConnectionAnchor(card,[],const Offset(0,500)),card.center);
+    expect(hashtagConnectionAnchor(card,[const Rect.fromLTWH(500,500,20,20)],const Offset(600,500)),card.center);
+    expect(hashtagConnectionAnchor(card,[cover],const Offset(0,116)),const Offset(100,116));
+    expect(hashtagConnectionAnchor(card,[cover],const Offset(600,116)),const Offset(330,116));
+    for(final x in [100.0,215.0,330.0]){
+      expect(hashtagConnectionAnchor(card,[cover],Offset(x,0)),card.center);
+      expect(hashtagConnectionAnchor(card,[cover],Offset(x,500)),card.center);
+    }
+  });
 }

@@ -39,3 +39,13 @@ Offset? exposedSideAnchor(Rect card, Iterable<Rect> above, Offset target) {
   segments.sort((a, b) => (b.$2-b.$1).compareTo(a.$2-a.$1));
   return Offset(x, (segments.first.$1 + segments.first.$2) / 2);
 }
+
+/// Only obscured cards need side ports. A tag above/below the card's horizontal
+/// span uses the original center port, avoiding an awkward vertical side edge.
+Offset? hashtagConnectionAnchor(Rect card, Iterable<Rect> above, Offset target) {
+  final covers = above.where(card.overlaps).toList();
+  if (covers.isEmpty || (target.dx >= card.left && target.dx <= card.right)) {
+    return card.center;
+  }
+  return exposedSideAnchor(card, covers, target);
+}

@@ -1343,7 +1343,7 @@ class _Connections extends CustomPainter {
           final tag = positions[id]!;
           final above = positions.entries.skipWhile((e) => e.key != entry.key).skip(1)
               .where((e) => !tagColors.containsKey(e.key)).map((e) => e.value);
-          final start = tagColors.containsKey(id) ? exposedSideAnchor(card, above, tag.center) : card.center;
+          final start = tagColors.containsKey(id) ? hashtagConnectionAnchor(card, above, tag.center) : card.center;
           if (start == null) continue;
           final end = tag.center;
           final points = [start, end];
