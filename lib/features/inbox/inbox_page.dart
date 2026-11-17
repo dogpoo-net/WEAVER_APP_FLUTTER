@@ -167,6 +167,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
   String _query = '';
   int _memoRows = 5, _paragraphLimit = 5, _projectLimit = 5;
   bool _memoHasMore = false;
+  final _menuViewState = WorkspaceMenuViewState();
   bool get _menuVisible => desktopMenu.visible;
   set _menuVisible(bool value) => desktopMenu.setVisible(value);
   bool _pendingImeSave = false;
@@ -1079,6 +1080,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     final choice = await showDialog<int>(
       context: context,
       builder: (_) => WorkspaceMenu(
+        viewState: _menuViewState,
         projects: projects.map((n) => n.title).toList(),
         projectIds: projects.map((n) => n.project!.id).toList(),
         onPin: MediaQuery.sizeOf(context).width >= 1000
@@ -1418,6 +1420,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
 
   Widget _desktopSidebar(BuildContext context) => SafeArea(top: false,
               child: WorkspaceMenu(
+                viewState: _menuViewState,
                 embedded: true,
                 onFloat: () { setState(() => _menuVisible = false); _menu(); },
                 onHide: () => setState(() => _menuVisible = false),
@@ -1478,15 +1481,13 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     final media = rawMedia.copyWith(viewInsets: rawMedia.viewInsets.copyWith(bottom: effectiveKeyboardInset(rawMedia)));
     return MediaQuery(data: media, child: DesktopMenuFrame(child: Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          tooltip: MediaQuery.sizeOf(context).width >= 1000 && _menuVisible
-              ? '메뉴 숨기기'
-              : '메뉴 열기',
-          onPressed: MediaQuery.sizeOf(context).width >= 1000 && _menuVisible
-              ? () => setState(() => _menuVisible = false)
-              : _menu,
-          icon: const Icon(Icons.grid_view_rounded),
-        ),
+        leading: AnimatedBuilder(animation: desktopMenu, builder: (context, _) =>
+          MediaQuery.sizeOf(context).width >= 1000 && _menuVisible
+            ? Padding(padding: const EdgeInsets.all(14), child: Image.asset(
+                'assets/branding/favicon.png', color: Theme.of(context).colorScheme.onSurface,
+                semanticLabel: '위버'))
+            : IconButton(tooltip: '메뉴 열기', onPressed: _menu,
+                icon: const Icon(Icons.grid_view_rounded))),
         actions: [
           const KeyboardDismissAction(),
           if (GoogleAuthScope.maybeOf(context)?.identity != null)

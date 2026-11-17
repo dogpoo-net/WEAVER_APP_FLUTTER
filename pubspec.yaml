@@ -72,6 +72,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
+    - assets/branding/favicon.png
     - assets/branding/social/
     - assets/branding/profile/
     - assets/fonts/OFL.txt

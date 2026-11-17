@@ -3,6 +3,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/workspace_menu.dart';
 
 void main() {
+  testWidgets('folder state survives menu recreation and collapse clears it', (tester) async {
+    final state = WorkspaceMenuViewState();
+    Widget menu(int generation) => MaterialApp(home: Scaffold(body: SizedBox(width: 320,
+      child: WorkspaceMenu(key: ValueKey(generation), viewState: state, embedded: true,
+        folders: const ['폴더'], projects: const ['안쪽 문서'], projectFolderNames: const ['폴더']))));
+    await tester.pumpWidget(menu(0));
+    await tester.tap(find.text('폴더')); await tester.pumpAndSettle();
+    expect(find.text('안쪽 문서'), findsOneWidget);
+    await tester.pumpWidget(menu(1)); await tester.pumpAndSettle();
+    expect(find.text('안쪽 문서'), findsOneWidget);
+    await tester.tap(find.byTooltip('모두 접기')); await tester.pumpAndSettle();
+    expect(find.text('안쪽 문서'), findsNothing);
+    await tester.pumpWidget(menu(2)); await tester.pumpAndSettle();
+    expect(find.text('안쪽 문서'), findsNothing);
+  });
+
   testWidgets('folder children are indented, smaller and open over 200ms without borders', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: SizedBox(width: 320, child: WorkspaceMenu(
       embedded: true, folders: ['폴더'], projects: ['폴더 안 문서', '바깥 문서'], projectFolderNames: ['폴더', null],

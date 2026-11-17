@@ -12,14 +12,21 @@ class _MenuDrag implements InlineLinkDragSource {
   final int index;
 }
 
+class WorkspaceMenuViewState {
+  final expandedFolders = <String>{};
+  double scrollOffset = 0;
+  int collapseRevision = 0;
+}
+
 class WorkspaceMenu extends StatefulWidget {
   const WorkspaceMenu({super.key, required this.projects, this.projectIds = const [], this.tags = const [],
     this.paragraphs = const [], this.elements = const [], this.embedded = false,
-    this.onSelected, this.onHide, this.onPin, this.onFloat, this.folders = const [],
+    this.viewState, this.onSelected, this.onHide, this.onPin, this.onFloat, this.folders = const [],
     this.projectFolderNames = const [], this.tagFolders = const [], this.tagFolderNames = const {},
     this.paragraphFolders = const [], this.elementFolders = const [],
     this.paragraphFolderNames = const [], this.elementFolderNames = const [],
     this.onBoxChanged, this.onDeleteFolder, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
+  final WorkspaceMenuViewState? viewState;
   final List<String> projectIds;
   final Future<void> Function(String kind, String folder)? onDeleteFolder;
   final bool embedded;
@@ -46,7 +53,12 @@ class WorkspaceMenu extends StatefulWidget {
 }
 
 class _WorkspaceMenuState extends State<WorkspaceMenu> {
-  final _scroll = ScrollController();
+  late final ScrollController _scroll;
+  late final WorkspaceMenuViewState _viewState;
+  void _expanded(String id, bool value) {
+    if (value) { _viewState.expandedFolders.add(id); }
+    else { _viewState.expandedFolders.remove(id); }
+  }
   final _viewport = GlobalKey();
   late Map<_Kind, List<String?>> _placements;
   Timer? _autoScroll;
@@ -77,7 +89,12 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   }
 
   @override
-  void initState() { super.initState(); _sync(); }
+  void initState() { super.initState();
+    _viewState = widget.viewState ?? WorkspaceMenuViewState();
+    _scroll = ScrollController(initialScrollOffset: _viewState.scrollOffset, keepScrollOffset: false);
+    _scroll.addListener(() => _viewState.scrollOffset = _scroll.offset);
+    _sync();
+  }
   @override
   void didUpdateWidget(WorkspaceMenu oldWidget) { super.didUpdateWidget(oldWidget); _sync(); }
   @override
@@ -197,7 +214,9 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           onDragStarted: _startDrag, onDragUpdate: (d) => _pointer = d.globalPosition,
           onDragEnd: (_) { _autoScroll?.cancel(); _pointer = null; }, child: label);
     return _folderDrop(folder, _target(_Kind.box, folder, ExpansionTile(
-      key: PageStorageKey('box-$folder'), title: title, trailing: _folderActions(_Kind.box, folder),
+      key: ValueKey('box-$folder-${_viewState.collapseRevision}'),
+      initiallyExpanded: _viewState.expandedFolders.contains('box-$folder'),
+      onExpansionChanged: (value) => _expanded('box-$folder', value), title: title, trailing: _folderActions(_Kind.box, folder),
       childrenPadding: const EdgeInsetsDirectional.only(start: 16),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
       collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
@@ -225,7 +244,9 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     return [
       if (kind == _Kind.box) ...[for (final folder in folders.where((f) => memoFolderParent(f) == null)) _boxFolder(folder)],
       if (kind != _Kind.box) for (final folder in folders) _target(kind, folder, ExpansionTile(
-        key: PageStorageKey('${kind.name}-$folder'), leading: const Icon(Icons.folder_outlined), title: Text(folder), trailing: _folderActions(kind, folder),
+        key: ValueKey('${kind.name}-$folder-${_viewState.collapseRevision}'),
+        initiallyExpanded: _viewState.expandedFolders.contains('${kind.name}-$folder'),
+        onExpansionChanged: (value) => _expanded('${kind.name}-$folder', value), leading: const Icon(Icons.folder_outlined), title: Text(folder), trailing: _folderActions(kind, folder),
         childrenPadding: const EdgeInsetsDirectional.only(start: 16),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
         collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
@@ -247,12 +268,18 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   @override
   Widget build(BuildContext context) {
     final content = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      if (!widget.embedded && MediaQuery.sizeOf(context).width >= 1000)
-        Center(child: IconButton(tooltip: '메뉴 고정하기', onPressed: widget.onPin,
-          icon: const Icon(Icons.push_pin_outlined))),
-      if (MediaQuery.sizeOf(context).width < 1000) const SizedBox(height: 8),
+      Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+        IconButton(tooltip: widget.embedded ? '메뉴 고정 해제' : '메뉴 고정하기',
+          onPressed: widget.embedded ? widget.onFloat : widget.onPin,
+          icon: Icon(widget.embedded ? Icons.push_pin : Icons.push_pin_outlined)),
+        IconButton(tooltip: '모두 접기', icon: const Icon(Icons.unfold_less),
+          onPressed: () => setState(() {
+            _viewState.expandedFolders.clear(); _viewState.collapseRevision++;
+          })),
+        IconButton(tooltip: '메뉴 닫기', icon: const Icon(Icons.close),
+          onPressed: widget.embedded ? widget.onHide : () => Navigator.pop(context)),
+      ]),
       ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), contentPadding: const EdgeInsets.symmetric(horizontal: 16), minLeadingWidth: 20, horizontalTitleGap: 16, titleTextStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14), leading: const Icon(Icons.home_outlined, size: 20), title: const Text('기록함'),
-        trailing: IconButton(tooltip: '메뉴 닫기', icon: const Icon(Icons.close, size: 18), onPressed: widget.embedded ? widget.onHide : () => Navigator.pop(context)),
         onTap: () => _select(WorkspaceMenu.home)),
       ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), contentPadding: const EdgeInsets.symmetric(horizontal: 16), minLeadingWidth: 20, horizontalTitleGap: 16, titleTextStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14), leading: const Icon(Icons.bubble_chart_outlined, size: 20), title: const Text('전체 보기'), onTap: () => _select(WorkspaceMenu.allThoughts)),
       const Divider(indent: 16, endIndent: 16),

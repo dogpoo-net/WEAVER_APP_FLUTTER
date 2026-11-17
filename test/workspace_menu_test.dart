@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/main.dart';
+import 'package:weaver/features/inbox/all_thoughts_page.dart';
 import 'package:weaver/features/inbox/workspace_menu.dart';
 
 void main() {
@@ -16,7 +17,7 @@ void main() {
       tester.widget<WorkspaceMenu>(find.byType(WorkspaceMenu)).embedded,
       isTrue,
     );
-    await tester.tap(find.byTooltip('메뉴 숨기기').first);
+    await tester.tap(find.byTooltip('메뉴 닫기').first);
     await tester.pumpAndSettle();
     expect(find.byType(WorkspaceMenu), findsNothing);
     await tester.tap(find.byTooltip('메뉴 열기'));
@@ -28,7 +29,8 @@ void main() {
     expect(tester.getTopLeft(find.byType(Dialog)).dx, lessThan(100));
     expect(find.byTooltip('메뉴 고정하기'), findsOneWidget);
     expect(find.byTooltip('메뉴 닫기'), findsOneWidget);
-    expect(tester.getCenter(find.byTooltip('메뉴 고정하기')).dx, closeTo(tester.getCenter(find.descendant(of: find.byType(WorkspaceMenu), matching: find.byType(ListTile)).first).dx, 1));
+    expect(tester.getCenter(find.byTooltip('메뉴 고정하기')).dx, lessThan(tester.getCenter(find.byTooltip('모두 접기')).dx));
+    expect(tester.getCenter(find.byTooltip('모두 접기')).dx, lessThan(tester.getCenter(find.byTooltip('메뉴 닫기')).dx));
     await tester.tap(find.byTooltip('메뉴 고정하기'));
     await tester.pumpAndSettle();
     expect(tester.widget<WorkspaceMenu>(find.byType(WorkspaceMenu)).embedded, isTrue);
@@ -52,10 +54,10 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('thoughts-all')));
     await tester.pumpAndSettle();
     expect(find.text('생각 만들기'), findsNothing);
-    expect(find.byTooltip('메모상자 관리'), findsOneWidget);
-    await tester.pageBack();
+    expect(find.byType(ThoughtBoxView), findsOneWidget);
+    Navigator.of(tester.element(find.byType(ThoughtBoxView))).pop();
     await tester.pumpAndSettle();
-    expect(find.byTooltip('메모상자 관리'), findsNothing);
+    expect(find.byType(ThoughtBoxView), findsNothing);
     expect(find.text('빠른 메모'), findsOneWidget);
   });
   testWidgets('only project list scrolls while navigation remains fixed', (
