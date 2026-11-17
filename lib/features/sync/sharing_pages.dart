@@ -107,11 +107,13 @@ class _SharingPageState extends State<SharingPage> {
                       );
                       await refresh();
                     }),
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'editor', child: Text('편집자로 변경')),
-                      PopupMenuItem(value: 'viewer', child: Text('읽기 전용으로 변경')),
-                      PopupMenuItem(value: 'remove', child: Text('참여자 제거')),
-                      PopupMenuItem(value: 'transfer', child: Text('소유권 이전')),
+                    itemBuilder: (_) => [
+                      if (person['role'] != 'editor')
+                        const PopupMenuItem(value: 'editor', child: Text('편집자로 변경')),
+                      if (person['role'] != 'viewer')
+                        const PopupMenuItem(value: 'viewer', child: Text('읽기 전용으로 변경')),
+                      const PopupMenuItem(value: 'remove', child: Text('참여자 제거')),
+                      const PopupMenuItem(value: 'transfer', child: Text('소유권 이전')),
                     ],
                   )
                 : null,
