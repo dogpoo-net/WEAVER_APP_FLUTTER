@@ -144,7 +144,7 @@ void main() {
       if(r.url.path.endsWith('/profile/read')) return http.Response(jsonEncode({'name':'','email':'person@example.com','providers':[],'defaultFace':0}),200);
       return http.Response(jsonEncode({'id':'a','email':'person@example.com','name':'','expiresIn':1800}),200);
     }));
-    final auth=GoogleAuthController(FakeGoogleClient(configured:false),emailApi:api);
+    final auth=GoogleAuthController(FakeGoogleClient(),emailApi:api);
     await auth.signInWithEmail('person@example.com','test-password');await auth.loadProfile();
     await tester.pumpWidget(GoogleAuthScope(controller:auth,child:MaterialApp(home:ProfilePage(auth:auth))));await tester.pumpAndSettle();
     expect(find.text('person'),findsOneWidget);expect(auth.identity?.displayName,'person');
@@ -157,7 +157,7 @@ void main() {
       if(r.url.path.endsWith('/profile/read'))return http.Response(jsonEncode({'name':'Name','email':'a@example.com','providers':[],'defaultFace':face}),200);
       return http.Response(jsonEncode({'id':'a','email':'a@example.com','name':'Name','expiresIn':1800}),200);
     }));
-    final auth=GoogleAuthController(FakeGoogleClient(configured:false),emailApi:api);
+    final auth=GoogleAuthController(FakeGoogleClient(),emailApi:api);
     await auth.signInWithEmail('a@example.com','test-password');
     await tester.pumpWidget(GoogleAuthScope(controller:auth,child:MaterialApp(home:ProfilePage(auth:auth))));await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('프로필 사진 변경'));await tester.pumpAndSettle();
@@ -169,13 +169,14 @@ void main() {
   });
   for (final initial in ['kakao', 'email']) {
     testWidgets('unlink controls preserve initial signup method: $initial', (tester) async {
-      final providers = ['google', 'kakao'];var unlinks=0;
+      final providers = ['google', 'kakao'];var unlinks=0;var relinks=0;
       final api = EmailAuthApi(store: MemorySessionStore(isWeb:true), client:MockClient((r) async {
         if(r.url.path.endsWith('/profile/read')) return http.Response(jsonEncode({'name':'Name','email':'same@example.com','providers':providers,'signupProvider':initial,'emailEnabled':initial=='email','defaultFace':0}),200);
+        if(r.url.path.endsWith('/google/link')) {relinks++;providers.add('google');return http.Response('{}',200);}
         if(r.url.path.endsWith('/profile/social/unlink')) {unlinks++;providers.remove(jsonDecode(r.body)['provider']);return http.Response('{}',200);}
         return http.Response(jsonEncode({'id':'a','email':'same@example.com','name':'Name','expiresIn':1800}),200);
       }));
-      final auth=GoogleAuthController(FakeGoogleClient(configured:false),emailApi:api);
+      final auth=GoogleAuthController(FakeGoogleClient(),emailApi:api);
       await auth.signInWithEmail('same@example.com','test-password');
       await tester.pumpWidget(GoogleAuthScope(controller:auth,child:MaterialApp(home:ProfilePage(auth:auth))));await tester.pumpAndSettle();
       await tester.scrollUntilVisible(find.byKey(const ValueKey('unlink-google')),150);
@@ -187,6 +188,12 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('unlink-google')));await tester.pumpAndSettle();
       await tester.tap(find.descendant(of:find.byType(AlertDialog),matching:find.widgetWithText(TextButton,'연결 해제')));await tester.pumpAndSettle();
       expect(unlinks,1);expect(providers, isNot(contains('google')));
+      final googleTile = find.widgetWithText(ListTile, 'Google');
+      await tester.ensureVisible(googleTile);await tester.pumpAndSettle();
+      await tester.tap(googleTile);await tester.pumpAndSettle();
+      expect(relinks,1);expect(providers,contains('google'));
+      expect(auth.identity!.id,'email:a');
+      expect(find.byKey(const ValueKey('unlink-google')),findsOneWidget);
       await tester.pumpWidget(const SizedBox());auth.dispose();
     });
   }

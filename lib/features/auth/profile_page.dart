@@ -184,18 +184,17 @@ class _ProfilePageState extends State<ProfilePage> {
       actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
         TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('연결 해제'))]));
     if (accepted != true || !mounted) return;
-    await run(() async { await auth.emailApi.profile('social/unlink', {'provider': provider}); await auth.loadProfile(); message('연결을 해제했습니다.'); });
+    await run(() async { await auth.emailApi.profile('social/unlink', {'provider': provider}); await auth.loadProfile();
+      if (mounted && provider == 'google' && auth.client.configured) await auth.prepareGoogleLink();
+      message('연결을 해제했습니다.'); });
   }
-  Widget connected(String provider, bool disabled) {
+  bool canUnlink(String provider) {
     final initial = auth.profile?['signupProvider'] as String?;
-    final canUnlink = initial != null && initial != 'unknown' && initial != provider;
-    final label = SizedBox(width: 64, height: 40, child: Align(
-      alignment: Alignment.centerRight,
-      child: Text('연결됨', style: Theme.of(context).textTheme.bodyMedium)));
-    if (!canUnlink) return label;
-    return InkWell(key: ValueKey('unlink-$provider'),
-      onTap: disabled ? null : () => unlink(provider), child: label);
+    return initial != null && initial != 'unknown' && initial != provider;
   }
+  Widget connected() => SizedBox(width: 64, height: 40, child: Align(
+    alignment: Alignment.centerRight,
+    child: Text('연결됨', style: Theme.of(context).textTheme.bodyMedium)));
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: auth,
@@ -302,7 +301,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   ListTile(
                     leading: const Image(image: AssetImage('assets/branding/social/google.png'), width: 24, height: 24),
                     title: const Text('Google'),
-                    trailing: connected('google', disabled),
+                    trailing: connected(),
+                    key: canUnlink('google') ? const ValueKey('unlink-google') : null,
+                    onTap: !disabled && canUnlink('google') ? () => unlink('google') : null,
                   )
                 else if (auth.client.configured)
                   ListTile(
@@ -319,6 +320,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   'naver': '네이버',
                 }.entries)
                   ListTile(
+                    key: providers.contains(entry.key) && canUnlink(entry.key) ? ValueKey('unlink-${entry.key}') : null,
                     leading: Image.asset(
                       'assets/branding/social/${entry.key}.png',
                       color: entry.key == 'github' && Theme.of(context).brightness == Brightness.dark ? Colors.white : null,
@@ -327,18 +329,17 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     title: Text(entry.value),
                     trailing: providers.contains(entry.key)
-                        ? connected(entry.key, disabled)
+                        ? connected()
                         : const Icon(Icons.link),
                     enabled:
                         !disabled &&
                         (providers.contains(entry.key) || entry.key != 'kakao' || auth.kakaoClient.configured),
                     onTap:
-                        disabled ||
-                            providers.contains(entry.key) ||
-                            (entry.key == 'kakao' &&
-                                !auth.kakaoClient.configured)
-                        ? null
-                        : () => link(entry.key),
+                        disabled ? null
+                        : providers.contains(entry.key)
+                          ? (canUnlink(entry.key) ? () => unlink(entry.key) : null)
+                          : (entry.key == 'kakao' && !auth.kakaoClient.configured)
+                            ? null : () => link(entry.key),
                   ),
                 const Divider(),
                 ListTile(key: const ValueKey('profile-withdrawal'), contentPadding: EdgeInsets.zero,
