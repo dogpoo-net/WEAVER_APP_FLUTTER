@@ -364,8 +364,13 @@ class _ElementMetadataState extends State<_ElementMetadata> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(padding: const EdgeInsets.only(top: 8), child: TextField(key: const ValueKey('thought-label-editor'), controller: _labelEditor,
-                maxLines: 1, decoration: InputDecoration(labelText: '라벨', hintText: '라벨 붙이기', isDense: true,
+                maxLines: 1, style: const TextStyle(fontSize: 13),
+                decoration: InputDecoration(labelText: '라벨 붙이기', hintText: '라벨 내용', isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  suffixIconConstraints: const BoxConstraints.tightFor(width: 32, height: 32),
                   suffixIcon: IconButton(key: const ValueKey('index-label-color'), tooltip: '라벨 색상',
+                    padding: EdgeInsets.zero, constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+                    style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                     icon: Icon(Icons.circle, color: Color(_indexLabelColor).withValues(alpha: .6), size: 22),
                     onPressed: () async {
                       final color = await pickHashtagColor(context, '라벨', Color(_indexLabelColor), prefix: '');

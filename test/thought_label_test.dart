@@ -30,6 +30,10 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(body: TextButton(
       onPressed: () => showElementMetadata(context, record.text), child: const Text('보기'))))));
     await tester.tap(find.text('보기')); await tester.pumpAndSettle();
+    final input = tester.widget<TextField>(find.byKey(const ValueKey('thought-label-editor')));
+    expect(input.decoration!.labelText, '라벨 붙이기');
+    expect(input.decoration!.hintText, '라벨 내용');
+    expect(input.decoration!.suffixIconConstraints!.maxHeight, 32);
     await tester.enterText(find.byKey(const ValueKey('thought-label-editor')), '제목');
     await tester.tap(find.byKey(const ValueKey('label-left'))); await tester.pump();
     expect(record.indexLabel, isEmpty); expect(record.labelOnLeft, isFalse);
@@ -82,6 +86,20 @@ void main() {
     card(b.id).onMove(const Offset(-400, 0)); await tester.pump();
     card(b.id).onDrop(Offset.zero); card(b.id).onEnd(); await tester.pumpAndSettle();
     expect(layout.positions[b.id], before); expect(layout.layers, order);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('moving a middle stack card closes the gap through the bottom', (tester) async {
+    final a=elements.add('첫째'), b=elements.add('둘째'), c=elements.add('셋째'), d=elements.add('넷째');
+    final layout=pageGraphLayout.blockLayout;
+    layout.positions.addAll({a.id:const Offset(640,400),b.id:const Offset(640,432),c.id:const Offset(640,464),d.id:const Offset(640,496)});
+    layout.layers.addAll([a.id,b.id,c.id,d.id]);
+    await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));
+    await tester.pumpAndSettle();
+    ThoughtInteraction card()=>tester.widget<ThoughtInteraction>(find.byKey(ValueKey('canvas-thought-${b.id}')));
+    card().onActiveChanged!(true);card().onMove(const Offset(500,0));await tester.pump();
+    card().onDrop(const Offset(1000,500));card().onEnd();await tester.pumpAndSettle();
+    expect(layout.positions[c.id],const Offset(640,432));
+    expect(layout.positions[d.id],const Offset(640,464));
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets('labels grow with their text', (tester) async {

@@ -55,4 +55,20 @@ testWidgets('Shift click selects spatial range ($blocks)',(tester)async{
  expect(find.byKey(const ValueKey('canvas-selection')),findsOneWidget);
  await tester.pumpWidget(const SizedBox());
 });
+testWidgets('Shift range uses click strip, not the hidden full card bounds ($blocks)',(tester)async{
+ tester.view.physicalSize=const Size(1400,900);tester.view.devicePixelRatio=1;addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
+ elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();
+ final a=elements.add('뒤쪽'),front=elements.add('아래쪽'),b=elements.add('오른쪽');
+ final layout=blocks?pageGraphLayout.blockLayout:pageGraphLayout;
+ layout.positions.addAll({a.id:const Offset(500,500),front.id:const Offset(500,532),b.id:const Offset(900,500)});
+ layout.layers.addAll([a.id,front.id,b.id]);layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,onChanged:(){})));await tester.pumpAndSettle();
+ await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
+ final canvas=tester.renderObject<RenderBox>(find.byKey(const ValueKey('canvas-selection')));
+ await tester.tapAt(canvas.localToGlobal(const Offset(520,516)));await tester.pump();
+ await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);await tester.pump();
+ await tester.tapAt(canvas.localToGlobal(const Offset(920,516)));await tester.pump();
+ expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'2');
+ await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);await tester.pumpWidget(const SizedBox());
+});
 }}
