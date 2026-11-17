@@ -267,7 +267,9 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
       viewSelector: selector, onChanged: () => widget.onChanged?.call())); }
     if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(storage:widget.storage,filters: _filters, notes: widget.notes, initialBox: activeBox,
       onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes)); }
-    return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey(_view), box: activeBox, blocks: true,
+    // A menu box selects a filter, not a different canvas. All entry routes
+    // must read/write the workspace layout so tab changes preserve placement.
+    return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey(_view), blocks: true,
       onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, onSave:widget.onSave, storage:widget.storage, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes));
   }
 }
