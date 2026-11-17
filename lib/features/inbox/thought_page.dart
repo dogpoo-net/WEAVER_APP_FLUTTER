@@ -1214,7 +1214,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               }),
               onScaleEnd: (_) => _endPinch(),
               child: AnimatedScale(scale: _selectionLifted && _selected.contains('tag:$tag') ? 1.04 : 1, duration: const Duration(milliseconds: 100), child: Tooltip(message: '#$tag', child: Material(key:ValueKey('graph-tag-body-$tag'), shape: StadiumBorder(side: BorderSide(color: Color(hashtagColors[tag] ?? 0xFF90A4AE), width: 2.5)),
-              color: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: .3),child:Padding(padding:const EdgeInsets.symmetric(horizontal:10,vertical:5),child:Center(child:Text('#$tag',style:Theme.of(context).textTheme.labelLarge,maxLines:1,overflow:TextOverflow.ellipsis)))))))),
+              color: Color.alphaBlend(Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: .3), color.surface),child:Padding(padding:const EdgeInsets.symmetric(horizontal:10,vertical:5),child:Center(child:Text('#$tag',style:Theme.of(context).textTheme.labelLarge,maxLines:1,overflow:TextOverflow.ellipsis)))))))),
           if (_rangeSelection || _selected.isNotEmpty) Positioned.fill(child: Listener(
             onPointerDown: (event) {
               if (_selectionPointers.isEmpty) {
