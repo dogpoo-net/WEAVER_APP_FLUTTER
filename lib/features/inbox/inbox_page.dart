@@ -248,7 +248,6 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     projectFolders.clear();
     paragraphFolders.clear();
     elementFolders.clear();
-    hiddenSearchTags.clear();
     hashtagFolders.clear();
     hashtagFolderAssignments.clear();
     hashtagColors.clear();
@@ -532,8 +531,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
         projectFolders.clear();
       paragraphFolders.clear();
       elementFolders.clear();
-      hiddenSearchTags.clear();
-        hashtagFolders.clear();
+          hashtagFolders.clear();
         hashtagFolderAssignments.clear();
     hashtagColors.clear();
     memoBoxes.clear();
@@ -884,7 +882,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     _persist();
   }
 
-  List<String> get _allTags => {...hashtagColors.keys, ...elements.tags, ..._notes.expand((n) => n.project?.tags ?? <String>{}),
+  List<String> get _allTags => {...elements.tags, ..._notes.expand((n) => n.project?.tags ?? <String>{}),
     ..._notes.where((n) => n.project == null && n.paragraphs != null).expand((n) => n.tags)}.toList()..sort();
 
   Future<void>? _browseRequest;
@@ -1303,7 +1301,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
         .where((n) => n.content.toLowerCase().contains(_query.toLowerCase()) || n.title.toLowerCase().contains(_query.toLowerCase()) || n.tags.any((t) => t.contains(_query.toLowerCase().replaceFirst('#', ''))))
         .toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final query = _query.toLowerCase().replaceFirst('#', '');
-    final records = elements.records.values.where((record) => !record.tags.any(hiddenSearchTags.contains) && canBrowseThought(record) &&
+    final records = elements.records.values.where((record) => canBrowseThought(record) &&
       (record.indexLabel.toLowerCase().contains(_query.toLowerCase()) || record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.contains(query))))
       .toList()..sort((a, b) {
         final closed = (a.hiddenFromSearch ? 1 : 0).compareTo(b.hiddenFromSearch ? 1 : 0);

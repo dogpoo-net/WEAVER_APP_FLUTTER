@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,18 +18,19 @@ void main() {
     elements.add('숨긴 생각 #비공개')..folder = '생각 폴더'..hiddenFromSearch = true;
     elements.add('태그로 숨긴 생각 #자료');
     elements.add('보이는 생각');
-    elements.setTagHidden('자료', true);
     final note = Note('문단 원문')..folder = '문단 폴더'..paragraphs = [const Paragraph('문단 원문', ParagraphRole.body)];
-    final snapshot = WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([note]));
+    final legacy = jsonDecode(WorkspaceSnapshot.encode([note])) as Map<String,dynamic>;
+    legacy['hiddenSearchTags'] = ['자료'];
+    final snapshot = WorkspaceSnapshot.decode(jsonEncode(legacy));
     snapshot.apply();
     expect(paragraphFolders, ['문단 폴더']);
     expect(elementFolders, ['생각 폴더']);
     expect(snapshot.notes.single.folder, '문단 폴더');
     expect(elements.records['숨긴 생각']!.folder, '생각 폴더');
-    expect(elements.visibleWords, ['보이는 생각']);
+    expect(elements.visibleWords, ['태그로 숨긴 생각', '보이는 생각']);
+    expect(jsonDecode(WorkspaceSnapshot.encode([note])), isNot(contains('hiddenSearchTags')));
     expect(elements.matches('숨긴 생각을 쓴 글').map((hit) => hit.word), ['숨긴 생각']);
     elements.setHidden('숨긴 생각', false);
-    elements.setTagHidden('자료', false);
     expect(elements.visibleWords, ['숨긴 생각', '태그로 숨긴 생각', '보이는 생각']);
   });
 

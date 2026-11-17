@@ -7,7 +7,6 @@ import 'overview_collections.dart';
 import 'memo_box_actions.dart';
 import 'thought_settings.dart';
 import '../capture/geolog_page.dart';
-import 'tag_colors.dart';
 import 'desktop_menu_frame.dart';
 import 'thought_filters.dart';
 import 'thought_page.dart';
@@ -120,7 +119,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   Widget build(BuildContext context) {
     if(!_viewReady)return const SizedBox.shrink();
     final allRecords = elements.records.values.toList();
-    final tags = {...allRecords.expand((record) => record.tags), ...hashtagColors.keys}.toList()..sort();
+    final tags = {...allRecords.expand((record) => record.tags)}.toList()..sort();
     final records = allRecords.where((record) => canBrowseThought(record) &&
       ((!_photosOnly && !_audioOnly) ||
         (_photosOnly && record.photos.isNotEmpty) ||

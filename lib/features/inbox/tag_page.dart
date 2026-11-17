@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'element_store.dart';
 import 'workspace_storage.dart';
 import 'word_badge.dart';
-import 'project_folders.dart';
 
 class TagPage extends StatefulWidget {
   const TagPage({
@@ -22,6 +21,11 @@ class TagPage extends StatefulWidget {
 }
 
 class _TagPageState extends State<TagPage> {
+  void _refresh() { if(mounted)setState((){}); }
+  @override
+  void initState() { super.initState();elements.addListener(_refresh); }
+  @override
+  void dispose() { elements.removeListener(_refresh);super.dispose(); }
   @override
   Widget build(BuildContext context) {
     final words = elements.records.values
@@ -49,11 +53,6 @@ class _TagPageState extends State<TagPage> {
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                SwitchListTile.adaptive(contentPadding: EdgeInsets.zero,
-                  title: const Text('이 태그의 생각 검색 숨기기'),
-                  subtitle: const Text('메인과 생각 어시스트에서만 숨깁니다.'),
-                  value: hiddenSearchTags.contains(widget.tag),
-                  onChanged: (hidden) => setState(() => elements.setTagHidden(widget.tag, hidden))),
                 Text(
                   '생각 ${words.length}',
                   style: Theme.of(context).textTheme.titleMedium,

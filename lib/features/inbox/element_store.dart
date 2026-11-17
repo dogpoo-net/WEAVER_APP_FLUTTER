@@ -21,7 +21,6 @@ import 'paragraph_tag_input.dart';
 import 'package:flutter/material.dart';
 
 import 'project_page.dart';
-import 'project_folders.dart';
 
 import 'word_badge.dart';
 import 'hashtags.dart';
@@ -157,17 +156,13 @@ class ElementStore extends ChangeNotifier {
   List<String> get words => records.keys.toList();
   bool isSearchable(String word) {
     final record = records[word];
-    return record == null || (!record.hiddenFromSearch && !record.tags.any(hiddenSearchTags.contains));
+    return record == null || !record.hiddenFromSearch;
   }
   List<String> get visibleWords => words.where(isSearchable).toList();
   void setHidden(String word, bool hidden) {
     final record = records[word];
     if (record == null) return;
     record.hiddenFromSearch = hidden;
-    notifyListeners();
-  }
-  void setTagHidden(String tag, bool hidden) {
-    if (hidden) { hiddenSearchTags.add(tag); } else { hiddenSearchTags.remove(tag); }
     notifyListeners();
   }
   List<String> get tags =>
@@ -197,7 +192,6 @@ class ElementStore extends ChangeNotifier {
   void clear() {
     records.clear();
     trash.clear();
-    hiddenSearchTags.clear();
     sources.clear();
   }
 }

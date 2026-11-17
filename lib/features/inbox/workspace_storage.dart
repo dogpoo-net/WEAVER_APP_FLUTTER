@@ -93,7 +93,6 @@ class WorkspaceSnapshot {
     'folders': projectFolders,
     'paragraphFolders': paragraphFolders,
     'elementFolders': elementFolders,
-    'hiddenSearchTags': hiddenSearchTags.toList(),
     'hashtagFolders': hashtagFolders,
     'hashtagColors': hashtagColors,
     'hashtagFolderAssignments': hashtagFolderAssignments,
@@ -316,7 +315,6 @@ class WorkspaceSnapshot {
     elementFolders..clear()..addAll(elementFolderList);
     elements.clear();
     elements.trash.addEntries(trashRecords.map((r) => MapEntry(r.id, r)));
-    hiddenSearchTags.addAll(hiddenTagList);
     for (final record in records) {
       elements.records[record.text] = record;
     }

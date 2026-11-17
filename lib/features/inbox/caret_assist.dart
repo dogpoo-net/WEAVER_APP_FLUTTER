@@ -7,7 +7,6 @@ import 'word_badge.dart';
 import 'label_links.dart';
 import 'document_syntax.dart';
 import 'mobile_element_assist.dart';
-import 'project_folders.dart';
 
 /// Three badge rows (30 each), two row gaps (6 each), and panel padding (8 each).
 double mobileAssistHeight(MediaQueryData media) {
@@ -409,7 +408,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     }
     if (_query != query || _tagMode != tagMode) _selected = 0;
     _tagMode = tagMode; _query = query;
-    _matches = tagMode ? wordSuggestions(widget.tags.where((tag) => !hiddenSearchTags.contains(tag)).toList(), query).map((tag) => '#$tag').toList() : (widget.useThoughtLabels ? widget.words.where((word) => assistTargetMatches(word, query)).toList() : wordSuggestions(widget.words, query));
+    _matches = tagMode ? wordSuggestions(widget.tags, query).map((tag) => '#$tag').toList() : (widget.useThoughtLabels ? widget.words.where((word) => assistTargetMatches(word, query)).toList() : wordSuggestions(widget.words, query));
     if (_selected >= _matches.length) _selected = 0;
     final manual = _manualSelection;
     if (manual != null) {
