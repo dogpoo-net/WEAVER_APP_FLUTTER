@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:weaver/features/inbox/thought_interaction.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +9,39 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 
 void main(){
+ for(final selectedUpper in [false,true]){
+ for(final left in [false,true]){
+ testWidgets('group snaps to upper card selected=$selectedUpper left=$left',(tester)async{
+ tester.view.physicalSize=const Size(1400,1000);tester.view.devicePixelRatio=1;
+ addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
+ elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();
+ final upper=elements.add('위'),driver=elements.add('조절'),distant=elements.add('멀리');
+ final layout=pageGraphLayout.blockLayout;
+ layout.positions.addAll({upper.id:const Offset(500,500),driver.id:const Offset(500,532),distant.id:const Offset(950,500)});
+ layout.sizes[upper.id]=const Offset(300,120);
+ layout.sizes[distant.id]=const Offset(270,120);
+ layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));await tester.pumpAndSettle();
+ await tester.tap(find.byType(Checkbox));await tester.pump();
+ if(selectedUpper){
+ await tester.tapAt(tester.getTopLeft(find.byKey(ValueKey('canvas-thought-${upper.id}')))+const Offset(40,16));await tester.pump();
+ }
+ for(final record in [driver,distant]){
+ await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${record.id}'))));await tester.pump();
+ }
+ expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,selectedUpper?'3':'2');
+ final interaction=tester.widget<ThoughtInteraction>(find.byKey(ValueKey('canvas-thought-${driver.id}')));
+ interaction.onResizeStart!();
+ interaction.onResize(const Size(294,120),left?const Offset(-64,0):Offset.zero);
+ await tester.pump();
+ expect(layout.sizes[driver.id]!.dx,300);
+ expect(layout.sizes[distant.id]!.dx,340);
+ expect(layout.sizes[upper.id]!.dx,300);
+ interaction.onEnd();
+ await tester.pumpAndSettle();
+ expect(layout.positions[driver.id]!.dx,left?430:500);
+ await tester.pumpWidget(const SizedBox());
+ });}}
  for(final side in ['right-bottom','left-top']){
  testWidgets('selection mode resizes both cards from $side',(tester)async{
  tester.view.physicalSize=const Size(1400,1000);tester.view.devicePixelRatio=1;addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);

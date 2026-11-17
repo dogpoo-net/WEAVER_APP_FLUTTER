@@ -143,14 +143,16 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   });
   String? _resizingThought;
   final _resizeNeighbors = <String>{};
+  String? _upperResizeNeighbor;
   void _beginResize(String id) {
-    _resizingThought = id; _resizeNeighbors.clear();
+    _resizingThought = id; _resizeNeighbors.clear(); _upperResizeNeighbor=null;
     final rect = _bounds(id);
     for (final other in _records.where((r) => r.id != id)) {
       final bounds = _bounds(other.id);
       if (((bounds.top - rect.top).abs() - 32).abs() < .5 &&
           ((bounds.left - rect.left).abs() < .5 || (bounds.right - rect.right).abs() < .5)) {
         _resizeNeighbors.add(other.id);
+        if(bounds.top<rect.top)_upperResizeNeighbor=other.id;
       }
     }
   }
@@ -159,9 +161,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final group = _selected.contains(id)
         ? _selected.where(_positions.containsKey).toSet() : <String>{id};
     final current = _size(id);
-    final width = !snap || size.width == current.width ? size.width : snapStackWidth(size.width,
+    final tolerance=(16/_view.value.storage[0].abs()).clamp(8.0,32.0);
+    final upper=_upperResizeNeighbor;
+    final upperWidth=upper!=null&&_positions.containsKey(upper)?_size(upper).width:null;
+    final snapsToUpper=snap&&size.width!=current.width&&upperWidth!=null&&(size.width-upperWidth).abs()<=tolerance;
+    final width = snapsToUpper ? upperWidth : !snap || size.width == current.width ? size.width : snapStackWidth(size.width,
       _resizeNeighbors.where((other)=>!group.contains(other)&&_positions.containsKey(other)).map((other)=>_size(other).width),
-      tolerance:(16/_view.value.storage[0].abs()).clamp(8,32));
+      tolerance:tolerance);
+
     var dx=width-current.width,dy=size.height-current.height;
     var minX=double.negativeInfinity,maxX=double.infinity,minY=double.negativeInfinity,maxY=double.infinity;
     for(final member in group){
@@ -175,8 +182,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final oldPositions={for(final member in group)member:_positions[member]!};
     for(final member in group){
       final old=_size(member);
-      _layout.sizes[member]=Offset(old.width+dx,old.height+dy);
-      _positions[member]=oldPositions[member]!+Offset(shift.dx!=0?-dx:0,shift.dy!=0?-dy:0);
+      // If the reference is also selected, retain its width for this snap;
+      // otherwise resizing it by the same delta would move the target away.
+      final memberDx=snapsToUpper&&member==upper?0.0:dx;
+      _layout.sizes[member]=Offset(old.width+memberDx,old.height+dy);
+      _positions[member]=oldPositions[member]!+Offset(shift.dx!=0?-memberDx:0,shift.dy!=0?-dy:0);
     }
     _displaceNeighbors(group);
     _saveLayout();
