@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:weaver/features/auth/email_auth.dart';
@@ -42,6 +43,7 @@ class SharingApi extends EmailAuthApi {
           {'id': 'invite', 'name': 'Team', 'role': 'viewer'},
         ],
       },
+      'invite-emails' => {'emails':['guest1@example.com','guest2@example.com']},
       'invite' => {'token':'test-token','mailSent':true},
       'accept' => {'workspaceId': 'shared'},
       'history' => {
@@ -146,7 +148,15 @@ void main() {
     await tester.tap(find.text('초대하기'));await tester.pumpAndSettle();
     expect(find.byType(AlertDialog),findsOneWidget);
     expect(tester.getSize(find.byType(TextField)).width,lessThan(600));
-    await tester.enterText(find.byType(TextField),'guest@example.com');
+    await tester.enterText(find.byType(TextField),'gu');
+    await tester.pump(const Duration(milliseconds:300));await tester.pumpAndSettle();
+    expect(find.text('guest1@example.com'),findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,'guest2@example.com');
+    expect(api.calls, isNot(contains('invite')));
+
     await tester.tap(find.text('초대메일 보내기'));await tester.pumpAndSettle();
     expect(api.calls.where((call)=>call=='invite').length,1);
     expect(find.byType(AlertDialog),findsNothing);
