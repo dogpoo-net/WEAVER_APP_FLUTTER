@@ -14,6 +14,16 @@ void main(){
  await tester.tap(find.byTooltip('워크스페이스 관리').last);await tester.pumpAndSettle();
  expect(find.text('나가기'),findsOneWidget);expect(find.text('삭제'),findsNothing);
  });
+ testWidgets('member management receives the clicked workspace, not the active one',(tester)async{
+ Map? managed;
+ await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(child:const Text('열기'),onPressed:()=>showDialog<void>(context:context,builder:(_)=>WorkspacePicker(
+ workspaces:const[{'workspaceId':'other','name':'다른 공간','role':'editor'}],selected:'active',request:(_,_)async=>{},onCatalog:(_){},onManageMembers:(row)async{managed=row;},
+ )))))));
+ await tester.tap(find.text('열기'));await tester.pumpAndSettle();
+ await tester.tap(find.byTooltip('워크스페이스 관리'));await tester.pumpAndSettle();
+ await tester.tap(find.text('멤버 관리'));await tester.pumpAndSettle();
+ expect(managed?['workspaceId'],'other');expect(find.byType(WorkspacePicker),findsNothing);
+ });
  testWidgets('create opens new workspace after catalog reload', (tester)async{
  String? selected;final calls=<String>[];
  await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(child:const Text('열기'),onPressed:()async{

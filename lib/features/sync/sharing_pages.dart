@@ -19,7 +19,10 @@ class SharingPage extends StatefulWidget {
     required this.sync,
     required this.role,
     required this.onAccepted,
+    this.workspaceId, this.requestOverride,
   });
+  final String? workspaceId;
+  final Future<Map<String,dynamic>> Function(String,Map<String,Object?>)? requestOverride;
   final WorkspaceSync sync;
   final String role;
   final Future<void> Function(String) onAccepted;
@@ -28,6 +31,8 @@ class SharingPage extends StatefulWidget {
 }
 
 class _SharingPageState extends State<SharingPage> {
+  String? get workspaceId => widget.workspaceId ?? widget.sync.workspaceId;
+  Future<Map<String,dynamic>> request(String action,Map<String,Object?> body) => (widget.requestOverride ?? widget.sync.request)(action,body);
   bool busy = false;
   String? error, link, message;
   String? workspaceName;
@@ -61,11 +66,11 @@ class _SharingPageState extends State<SharingPage> {
   }
 
   Future<void> refresh() async {
-    final data = await widget.sync.request('members', {});
-    final catalog = await widget.sync.request('catalog', {});
+    final data = await request('members', {});
+    final catalog = await request('catalog', {});
     if (mounted) {
       setState(() {
-        final workspace = (catalog['workspaces'] as List).where((item) => item['workspaceId'] == widget.sync.workspaceId).firstOrNull;
+        final workspace = (catalog['workspaces'] as List).where((item) => item['workspaceId'] == workspaceId).firstOrNull;
         workspaceName = workspace?['name'] as String? ?? widget.sync.storage.workspaceName ?? '워크스페이스';
         plan = switch ((workspace?['plan'] ?? 'free').toString().toLowerCase()) { 'standard' => 'Standard', 'pro' => 'Pro', _ => 'Free' };
         loaded = true;
@@ -87,12 +92,12 @@ class _SharingPageState extends State<SharingPage> {
                       if(action=='transfer'){
                         final yes=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('소유권을 이전할까요?'),content:Text('${person['name']??person['email']}님이 소유자가 되며, 나는 편집자로 남습니다. 이 작업을 임의로 되돌릴 수 없습니다.'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('취소')),TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('이전'))]));
                         if(yes!=true)return;
-                        await widget.sync.request('transfer',{'userId':person['userId']});
+                        await request('transfer',{'userId':person['userId']});
                         if(mounted)Navigator.pop(context);
-                        await widget.onAccepted(widget.sync.workspaceId!);
+                        await widget.onAccepted(workspaceId!);
                         return;
                       }
-                      await widget.sync.request(
+                      await request(
                         action == 'remove' ? 'remove-member' : 'member-role',
                         {
                           'userId': person['userId'],
@@ -143,7 +148,7 @@ class _SharingPageState extends State<SharingPage> {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap),
             onPressed: busy ? null : () async {
               final result = await showDialog<Map<String,dynamic>>(context: context,
-                builder: (_) => _InviteDialog(sync: widget.sync));
+                builder: (_) => _InviteDialog(request: request));
               if (!mounted || result == null) return;
               setState(() {
                 link = 'https://weaver.dogpoo.net/#invite=${result['token']}';
@@ -180,7 +185,7 @@ class _SharingPageState extends State<SharingPage> {
               onPressed: busy
                   ? null
                   : () => run(() async {
-                      await widget.sync.request('revoke', {
+                      await request('revoke', {
                         'inviteId': invite['id'],
                       });
                       await refresh();
@@ -198,7 +203,7 @@ class _SharingPageState extends State<SharingPage> {
               onPressed: busy
                   ? null
                   : () => run(() async {
-                      final result = await widget.sync.request('accept', {
+                      final result = await request('accept', {
                         'inviteId': invite['id'],
                       });
                       if (!context.mounted) return;
@@ -214,8 +219,8 @@ class _SharingPageState extends State<SharingPage> {
 }
 
 class _InviteDialog extends StatefulWidget {
-  const _InviteDialog({required this.sync});
-  final WorkspaceSync sync;
+  const _InviteDialog({required this.request});
+  final Future<Map<String,dynamic>> Function(String,Map<String,Object?>) request;
   @override
   State<_InviteDialog> createState()=>_InviteDialogState();
 }
@@ -231,7 +236,7 @@ class _InviteDialogState extends State<_InviteDialog> {
     if(email.text.trim().isEmpty){setState(()=>error='초대할 이메일을 입력해주세요.');return;}
     setState((){busy=true;error=null;});
     try{
-      final result=await widget.sync.request('invite',{'email':email.text.trim(),'role':role});
+      final result=await widget.request('invite',{'email':email.text.trim(),'role':role});
       if(mounted)Navigator.pop(context,result);
     }catch(e){if(mounted)setState(()=>error=e.toString());}
     finally{if(mounted)setState(()=>busy=false);}

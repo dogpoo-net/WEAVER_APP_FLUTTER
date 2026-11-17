@@ -298,6 +298,18 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     if(!mounted)return;
     final id=await showDialog<String>(context:context,builder:(context)=>WorkspacePicker(
       workspaces:catalog,selected:selected,
+      onManageMembers:(row)async{
+        final engine=sync;if(!current||engine==null)return;
+        final workspaceId=row['workspaceId'] as String;
+        await Navigator.of(this.context).push<void>(MaterialPageRoute(builder:(_)=>SharingPage(
+          sync:engine,role:row['role'],workspaceId:workspaceId,
+          requestOverride:(action,body)async{
+            if(!current)throw StateError('계정이 변경되었습니다.');
+            final result=await widget.auth.emailApi.workspace(action,{...body,'workspaceId':workspaceId});
+            if(!current)throw StateError('계정이 변경되었습니다.');return result;
+          },onAccepted:(id)=>switchWorkspace(id,force:true),
+        )));
+      },
       request:(action,body)async{
         if((action=='delete-workspace'||action=='leave-workspace')&&body['workspaceId']==selected){
           if(storage?.hasUnsavedInput?.call()==true)throw StateError('작성 중인 메모를 저장한 뒤 다시 시도해주세요.');
