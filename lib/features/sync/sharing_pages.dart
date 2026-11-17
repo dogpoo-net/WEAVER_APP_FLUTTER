@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'owned_workspace.dart';
+import '../inbox/caret_assist.dart';
 
 String roleLabel(String role) => switch (role) {
   'owner' => '소유자',
@@ -229,12 +230,11 @@ class _InviteDialogState extends State<_InviteDialog> {
   final emailFocus=FocusNode();
   Timer? searchTimer;
   int searchVersion=0;
-  int selected=-1;
   List<String> suggestions=[];
   void search(String value){
     searchTimer?.cancel();
     final version=++searchVersion;
-    setState((){suggestions=[];selected=-1;error=null;});
+    setState((){suggestions=[];error=null;});
     if(value.trim().length<2)return;
     searchTimer=Timer(const Duration(milliseconds:250),()async{
       try{
@@ -247,20 +247,8 @@ class _InviteDialogState extends State<_InviteDialog> {
   void choose(String value){
     searchTimer?.cancel();searchVersion++;
     email.value=TextEditingValue(text:value,selection:TextSelection.collapsed(offset:value.length));
-    setState((){suggestions=[];selected=-1;error=null;});
+    setState((){suggestions=[];error=null;});
     emailFocus.requestFocus();
-  }
-  KeyEventResult onEmailKey(FocusNode node,KeyEvent event){
-    if(busy || event is! KeyDownEvent || suggestions.isEmpty)return KeyEventResult.ignored;
-    if(event.logicalKey==LogicalKeyboardKey.arrowDown){
-      setState(()=>selected=(selected+1)%suggestions.length);return KeyEventResult.handled;
-    }
-    if(event.logicalKey==LogicalKeyboardKey.arrowUp){
-      setState(()=>selected=selected<=0?suggestions.length-1:selected-1);return KeyEventResult.handled;
-    }
-    if(event.logicalKey==LogicalKeyboardKey.enter && selected>=0){choose(suggestions[selected]);return KeyEventResult.handled;}
-    if(event.logicalKey==LogicalKeyboardKey.escape){setState((){suggestions=[];selected=-1;});return KeyEventResult.handled;}
-    return KeyEventResult.ignored;
   }
   String role='editor';
   bool busy=false;
@@ -281,11 +269,10 @@ class _InviteDialogState extends State<_InviteDialog> {
   Widget build(BuildContext context)=>PopScope(canPop:!busy,child:AlertDialog(
     title:const Text('초대하기'),
     content:SizedBox(width:400,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-      Focus(onKeyEvent:onEmailKey,child:TextField(controller:email,focusNode:emailFocus,autofocus:true,enabled:!busy,keyboardType:TextInputType.emailAddress,
-        onChanged:search,decoration:const InputDecoration(labelText:'초대할 이메일',helperText:'이메일을 두 글자 이상 입력해주세요.'),onSubmitted:(_)=>send())),
-      for(var i=0;i<suggestions.length;i++)
-        ListTile(dense:true,selected:i==selected,selectedTileColor:Theme.of(context).colorScheme.secondaryContainer,
-          title:Text(suggestions[i]),onTap:busy?null:()=>choose(suggestions[i])),
+      CaretAssist(controller:email,focus:emailFocus,words:busy?const []:suggestions,
+        arrowSelectsVisible:true,onWord:choose,
+        child:TextField(controller:email,focusNode:emailFocus,autofocus:true,enabled:!busy,keyboardType:TextInputType.emailAddress,
+          onChanged:search,decoration:const InputDecoration(labelText:'초대할 이메일',helperText:'이메일을 두 글자 이상 입력해주세요.'),onSubmitted:(_)=>send())),
       const SizedBox(height:16),
       DropdownButtonFormField<String>(initialValue:role,decoration:const InputDecoration(labelText:'멤버 타입'),
         onChanged:busy?null:(value)=>setState(()=>role=value!),items:const[

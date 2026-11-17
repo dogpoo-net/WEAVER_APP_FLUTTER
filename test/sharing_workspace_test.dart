@@ -150,7 +150,8 @@ void main() {
     expect(tester.getSize(find.byType(TextField)).width,lessThan(600));
     await tester.enterText(find.byType(TextField),'gu');
     await tester.pump(const Duration(milliseconds:300));await tester.pumpAndSettle();
-    expect(find.text('guest1@example.com'),findsOneWidget);
+    expect(find.byKey(const ValueKey('assist-popup')),findsOneWidget);
+    expect(find.byKey(const ValueKey('suggestion-guest1@example.com')),findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);await tester.pumpAndSettle();

@@ -29,6 +29,7 @@ class CaretAssist extends StatefulWidget {
     this.tags = const [],
     this.onTag,
     this.enterSelectsVisible = false,
+    this.arrowSelectsVisible = false,
     this.showShortcutHint = false,
     this.useThoughtLabels = false,
     this.selectionAssist = false,
@@ -44,6 +45,7 @@ class CaretAssist extends StatefulWidget {
   final GlobalKey? mobileViewportKey;
   final bool showWhenEmpty;
   final bool enterSelectsVisible;
+  final bool arrowSelectsVisible;
   final bool showShortcutHint;
   @override
   State<CaretAssist> createState() => CaretAssistState();
@@ -261,6 +263,16 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
         keyboard.isAltPressed ||
         keyboard.isShiftPressed) {
       return false;
+    }
+    if (widget.arrowSelectsVisible && _entry != null &&
+        (event.logicalKey == LogicalKeyboardKey.arrowDown || event.logicalKey == LogicalKeyboardKey.arrowUp)) {
+      final down = event.logicalKey == LogicalKeyboardKey.arrowDown;
+      _selected = _controlling ? (_selected + (down ? 1 : -1) + _matches.length) % _matches.length : (down ? 0 : _matches.length - 1);
+      _controlling = true;
+      _controlValue = widget.controller.value;
+      _entry?.markNeedsBuild();
+      _revealSelection();
+      return true;
     }
     if (!_controlling) return false;
     final navigation = enter || space || [LogicalKeyboardKey.escape, LogicalKeyboardKey.arrowDown,
