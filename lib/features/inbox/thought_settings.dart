@@ -21,6 +21,9 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
   Future<void> Function()? onWorkspaces,
   Future<void> Function()? onAdmin,
   Future<void> Function()? onPlan,
+  bool offline=false,
+  Future<void> Function()? onExportFile,
+  Future<void> Function()? onImportFile,
   String? workspaceName,
 }) async {
   var busy = false;
@@ -70,12 +73,15 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
         const Divider(),
         if (guest) const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.person_outline),
           title: Text('비회원 · 로컬 저장 전용'), subtitle: Text('클라우드 저장·가져오기는 로그인 후 사용할 수 있습니다. 저장한 로컬 데이터는 로그인 후에도 유지됩니다.')),
-        ExpansionTile(tilePadding:EdgeInsets.zero,title:Text('동기화 관리', style: Theme.of(context).textTheme.bodySmall),children:[
+        if(!offline)ExpansionTile(tilePadding:EdgeInsets.zero,title:Text('동기화 관리', style: Theme.of(context).textTheme.bodySmall),children:[
         ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_upload_outlined), title: const Text('변경사항 동기화'), enabled: cloudEnabled && !busy,
           onTap: busy || !cloudEnabled || onUpload == null ? null : () => run(onUpload)),
         ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_download_outlined), title: const Text('서버 변경 불러오기'), enabled: cloudEnabled && !busy,
           onTap: busy || !cloudEnabled || onDownload == null ? null : () => run(onDownload)),
         ]),
+        if(offline)const ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.offline_bolt_outlined),title:Text('오프라인 모드'),subtitle:Text('이 기기에만 저장됩니다. 무료 공간은 마지막 생성 후 24시간 뒤 다시 만들 수 있습니다.')),
+        if(onExportFile!=null)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.file_download_outlined),title:const Text('데이터 내보내기'),onTap:busy?null:()=>run(onExportFile)),
+        if(onImportFile!=null)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.file_upload_outlined),title:const Text('데이터 가져오기'),onTap:busy?null:()=>run(onImportFile)),
         ListTile(contentPadding: EdgeInsets.zero, title: Text('닫힌 생각 숨기기', style: Theme.of(context).textTheme.bodySmall),
           onTap: busy ? null : () => changeVisibility(!showClosedThoughts),
           trailing: SizedBox(width: 44, height: 36, child: Transform.scale(scale: .75, child: Switch(value: !showClosedThoughts,

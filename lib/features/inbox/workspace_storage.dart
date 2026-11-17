@@ -376,6 +376,9 @@ class WorkspaceStorage {
   Future<void> Function()? refreshNow;
   Future<void> Function()? pullNow;
   Future<void> Function()? openSharing;
+  bool offlineMode=false;
+  Future<void> Function()? exportFile;
+  Future<void> Function()? importFile;
   Future<void> Function()? openAdmin;
   Future<void> Function()? openPlan;
   Future<void> Function()? openWorkspaces;

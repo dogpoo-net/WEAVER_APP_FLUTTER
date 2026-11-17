@@ -268,12 +268,22 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   @override
   Widget build(BuildContext context) {
     final content = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
+      Row(children: [
+        Expanded(child: ListTile(
+          dense: true, visualDensity: const VisualDensity(vertical: -2),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 20, horizontalTitleGap: 16,
+          titleTextStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+          leading: const Icon(Icons.home_outlined, size: 20),
+          title: const Text('기록함'),
+          onTap: () => _select(WorkspaceMenu.home),
+        )),
+        IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
         iconSize: 18, padding: const EdgeInsets.all(5),
         minimumSize: const Size(28, 28), maximumSize: const Size(28, 28),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       )), child: Padding(padding: const EdgeInsets.only(right: 4),
-        child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+        child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.end, children: [
         IconButton(tooltip: widget.embedded ? '메뉴 고정 해제' : '메뉴 고정하기',
           onPressed: widget.embedded ? widget.onFloat : widget.onPin,
           icon: Icon(widget.embedded ? Icons.push_pin : Icons.push_pin_outlined)),
@@ -283,9 +293,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           })),
         IconButton(tooltip: '메뉴 닫기', icon: const Icon(Icons.close),
           onPressed: widget.embedded ? widget.onHide : () => Navigator.pop(context)),
-      ]))),
-      ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), contentPadding: const EdgeInsets.symmetric(horizontal: 16), minLeadingWidth: 20, horizontalTitleGap: 16, titleTextStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14), leading: const Icon(Icons.home_outlined, size: 20), title: const Text('기록함'),
-        onTap: () => _select(WorkspaceMenu.home)),
+      ])))]),
       ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), contentPadding: const EdgeInsets.symmetric(horizontal: 16), minLeadingWidth: 20, horizontalTitleGap: 16, titleTextStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14), leading: const Icon(Icons.bubble_chart_outlined, size: 20), title: const Text('전체 보기'), onTap: () => _select(WorkspaceMenu.allThoughts)),
       const Divider(indent: 16, endIndent: 16),
       Expanded(child: SizedBox(key: _viewport, child: Scrollbar(controller: _scroll,

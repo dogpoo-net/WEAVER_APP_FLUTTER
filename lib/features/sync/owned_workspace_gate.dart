@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
+import 'offline_workspace.dart';
+import 'workspace_file_transfer.dart';
 
 import 'package:flutter/material.dart';
 
 import '../auth/google_auth.dart';
+import '../auth/email_auth.dart';
 import '../inbox/workspace_storage.dart';
 import '../inbox/element_store.dart';
 import '../inbox/word_badge.dart';
@@ -110,7 +114,11 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
           }
           widget.onInviteHandled?.call();
         }
-        final list = await widget.auth.emailApi.workspace('catalog', {});
+        Map<String,dynamic> list;
+        final catalogKey='weaver.catalog.$account';
+        try{list=await widget.auth.emailApi.workspace('catalog', {});await widget.root.preferences.setString(catalogKey,jsonEncode(list));}
+        catch(e){if(e is EmailAuthFailure && (e.status==401 || e.status==403))rethrow;final cached=widget.root.preferences.getString(catalogKey);if(cached==null)rethrow;list=Map<String,dynamic>.from(jsonDecode(cached));list['workspaces']=(list['workspaces'] as List).where((r)=>r['role']=='owner'&&r['offline']==true).toList();if((list['workspaces'] as List).isEmpty)rethrow;notice='네트워크 연결 없이 이 기기의 오프라인 공간을 사용합니다.';}
+
         if (!valid()) return;
         catalog = list['workspaces'] as List;
         primaryWorkspace = list['defaultWorkspaceId'] as String?;
@@ -138,6 +146,9 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
           workspaceId == userId ? account : '$account@workspace:$workspaceId',
         );
         target.currentUserId=userId;
+        final row=catalog.firstWhere((row)=>row['workspaceId']==workspaceId);
+        if(role=='owner'&&row['offline']==true){await openOffline(owned,target,workspaceId,valid);return;}
+
         final engine = WorkspaceSync(
           target,
           widget.auth.emailApi,
@@ -150,6 +161,11 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         if (!valid()) return;
         if (!engine.ready && target.read() == null) {
           throw StateError(engine.error ?? '서버 자료를 불러오지 못했습니다.');
+        }
+        final offline=owned.scope(OfflineWorkspace.owner(account,workspaceId));
+        if(engine.ready&&role=='owner'&&!quotaReadOnly&&OfflineWorkspace.hasChanges(offline)&&mounted){
+          final publish=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('오프라인 작업을 서버에 반영할까요?'),content:const Text('이 기기에서 변경한 항목을 서버에 반영합니다. 같은 항목의 서버 내용은 오프라인 내용으로 교체될 수 있습니다. 나중에를 선택하면 오프라인 자료는 별도로 보관됩니다.'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('나중에')),TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('반영'))]));
+          if(publish==true){try{await OfflineWorkspace.publish(offline,engine);}catch(e){notice='오프라인 자료를 반영하지 못했습니다. 이 기기에 보관했습니다. $e';}}
         }
         if (engine.ready && workspaceId == primaryWorkspace && role=='owner' && !quotaReadOnly) {
           var claim = await owned.pendingClaim();
@@ -198,6 +214,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         target.workspaceName=catalog.firstWhere((row)=>row['workspaceId']==workspaceId)['name'] as String?;
         target.openWorkspaces=chooseWorkspace;
         target.openAdmin=isAdmin?openAdmin:null;
+        if(role=='owner'&&!quotaReadOnly)attachFiles(target,engine);
         target.openPlan=()=>Navigator.of(context).push<void>(MaterialPageRoute(builder:(_)=>WorkspacePolicyPage(request:widget.auth.emailApi.workspace,workspaceId:workspaceId,owner:role=='owner'))).then((_)async{if(current)await switchWorkspace(workspaceId,force:true);});
         target.documentLease = engine.documentLease;
         engine.addListener(refresh);
@@ -306,6 +323,33 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     } catch (e) {
       if (current) setState(() => sync!.error = e.toString());
     }
+  }
+
+  void attachFiles(WorkspaceStorage target,WorkspaceSync? engine){
+    Future<void> guard()async{if(target.hasUnsavedInput?.call()==true)throw StateError('작성 중인 내용을 먼저 저장해주세요.');await engine?.settle();await target.flush();}
+    target.exportFile=()async{await guard();await exportWorkspaceFile(target);};
+    target.importFile=()async{await guard();if(!mounted)return;await importWorkspaceFile(context,target,sync:engine);if(current&&mounted){await navigateHome(context);if(mounted)setState(()=>epoch++);}};
+  }
+  Future<void> openOffline(OwnedWorkspaces owned,WorkspaceStorage source,String id,bool Function() valid)async{
+    final local=owned.scope(OfflineWorkspace.owner(account,id));
+    if(local.read()==null||!OfflineWorkspace.hasChanges(local)){
+      if(source.read()==null){final reader=WorkspaceSync(source,widget.auth.emailApi,workspaceId:id,readOnly:true,isCurrent:valid);try{await reader.initialize();if(!reader.ready)throw StateError(reader.error??'서버 자료를 가져오지 못했습니다.');}finally{reader.dispose();}}
+      await OfflineWorkspace.seed(local,source);
+    }
+    if(!valid())return;
+    sync?.dispose();sync=null;local.currentUserId=userId;local.offlineMode=true;
+    local.workspaceName=catalog.firstWhere((r)=>r['workspaceId']==id)['name'];
+    local.openWorkspaces=chooseWorkspace;local.openAdmin=isAdmin?openAdmin:null;
+    local.openPlan=()=>Navigator.of(context).push<void>(MaterialPageRoute(builder:(_)=>WorkspacePolicyPage(request:widget.auth.emailApi.workspace,workspaceId:id,owner:true))).then((_)async{if(current)await switchWorkspace(id,force:true);});
+    if(!quotaReadOnly)attachFiles(local,null);
+    local.suspended=quotaReadOnly;
+    widget.auth.onSessionEnding=()async{await local.flush();};
+    widget.auth.onAccountErasureStarted=(){erasingAccount=true;local.suspended=true;};
+    widget.auth.onAccountErasureFailed=(){erasingAccount=false;local.suspended=quotaReadOnly;};
+    final scopeKey='weaver.account.scopes.$account';await widget.root.preferences.setStringList(scopeKey,{...?widget.root.preferences.getStringList(scopeKey),local.owner!}.toList());
+    await widget.root.preferences.setString('weaver.selected-workspace.$account',id);
+    MediaStorage.activeOwner=local.owner;elements.clear();restoreWordColors({});
+    if(valid())setState((){storage=local;failure=null;notice='오프라인 모드 · 이 기기에만 저장됩니다.';});
   }
 
   Future<void> openAdmin()async{
