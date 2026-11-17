@@ -37,7 +37,7 @@ class SharingApi extends EmailAuthApi {
         'invitations': [],
       },
       'catalog' => {
-        'workspaces': [],
+        'workspaces': [{'workspaceId':'shared','name':'테스트 공간','role':'owner','plan':'free'}],
         'invitations': [
           {'id': 'invite', 'name': 'Team', 'role': 'viewer'},
         ],
@@ -125,7 +125,7 @@ void main() {
       expect(find.text('초대메일 보내기'), findsNothing);
       expect(find.text('멤버 관리'), findsOneWidget);
       await tester.tap(find.byTooltip('참여 안내'));await tester.pumpAndSettle();
-      expect(find.textContaining('읽기 전용 참여자는 제한없이 참여할 수 있습니다.'),findsOneWidget);
+      expect(find.textContaining('읽기 전용 참여자는 인원제한 없이 참여할 수 있습니다.'),findsOneWidget);
       await tester.tap(find.text('확인'));await tester.pumpAndSettle();
       await tester.tap(find.text('수락'));
       await tester.pumpAndSettle();
@@ -141,6 +141,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(home:SharingPage(sync:sync,role:'owner',onAccepted:(_)async{})));
     await tester.pumpAndSettle();
     expect(find.byType(TextField),findsNothing);
+    expect(find.text('Free / 테스트 공간 / 1명'),findsOneWidget);
+    expect(tester.getCenter(find.text('참여자')).dy,closeTo(tester.getCenter(find.text('초대하기')).dy,1));
     await tester.tap(find.text('초대하기'));await tester.pumpAndSettle();
     expect(find.byType(AlertDialog),findsOneWidget);
     expect(tester.getSize(find.byType(TextField)).width,lessThan(600));

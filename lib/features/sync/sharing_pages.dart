@@ -30,6 +30,9 @@ class SharingPage extends StatefulWidget {
 class _SharingPageState extends State<SharingPage> {
   bool busy = false;
   String? error, link, message;
+  String? workspaceName;
+  String plan = 'Free';
+  bool loaded = false;
   List<dynamic> members = [], invitations = [], received = [];
   @override
   void initState() {
@@ -62,6 +65,10 @@ class _SharingPageState extends State<SharingPage> {
     final catalog = await widget.sync.request('catalog', {});
     if (mounted) {
       setState(() {
+        final workspace = (catalog['workspaces'] as List).where((item) => item['workspaceId'] == widget.sync.workspaceId).firstOrNull;
+        workspaceName = workspace?['name'] as String? ?? widget.sync.storage.workspaceName ?? '워크스페이스';
+        plan = switch ((workspace?['plan'] ?? 'free').toString().toLowerCase()) { 'standard' => 'Standard', 'pro' => 'Pro', _ => 'Free' };
+        loaded = true;
         members = data['members'] as List;
         invitations = data['invitations'] as List;
         received = catalog['invitations'] as List;
@@ -69,51 +76,7 @@ class _SharingPageState extends State<SharingPage> {
     }
   }
 
-  Future<void> load() => run(refresh);
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('멤버 관리'), actions: [
-      IconButton(tooltip: '참여 안내', icon: const Icon(Icons.info_outline),
-        onPressed: () => showDialog<void>(context: context, builder: (context) => AlertDialog(
-          title: const Text('참여 안내'),
-          content: const Text('무료 워크스페이스는 소유자를 포함해 편집자 최대 2명이 참여할 수 있습니다.\n읽기 전용 참여자는 제한없이 참여할 수 있습니다.'),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('확인'))],
-        ))),
-    ]),
-    body: ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        if (busy) const LinearProgressIndicator(),
-        if (error != null)
-          Text(
-            error!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-        if (widget.role == 'owner') ...[
-          Align(alignment: Alignment.centerRight, child: FilledButton.icon(
-            onPressed: busy ? null : () async {
-              final result = await showDialog<Map<String,dynamic>>(context: context,
-                builder: (_) => _InviteDialog(sync: widget.sync));
-              if (!mounted || result == null) return;
-              setState(() {
-                link = 'https://weaver.dogpoo.net/#invite=${result['token']}';
-                message = result['mailSent'] == true
-                  ? '초대 메일을 보냈습니다. 초대는 7일 동안 유효합니다.'
-                  : '메일 전송에 실패했습니다. 아래 초대 링크를 전달할 수 있습니다.';
-              });
-              await load();
-            }, icon: const Icon(Icons.person_add_outlined), label: const Text('초대하기'))),
-          if (message != null) Text(message!),
-          if (link != null)
-            TextButton(
-              onPressed: () => Clipboard.setData(ClipboardData(text: link!)),
-              child: const Text('초대 링크 복사'),
-            ),
-        ],
-        const Divider(),
-        const Text('참여자'),
-        for (final person in members)
-          ListTile(
+  Widget memberTile(Map person) => ListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(person['name'] ?? person['email']),
             subtitle: Text('${person['email']} · ${roleLabel(person['role'])}'),
@@ -125,7 +88,7 @@ class _SharingPageState extends State<SharingPage> {
                         final yes=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('소유권을 이전할까요?'),content:Text('${person['name']??person['email']}님이 소유자가 되며, 나는 편집자로 남습니다. 이 작업을 임의로 되돌릴 수 없습니다.'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('취소')),TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('이전'))]));
                         if(yes!=true)return;
                         await widget.sync.request('transfer',{'userId':person['userId']});
-                        if(context.mounted)Navigator.pop(context);
+                        if(mounted)Navigator.pop(context);
                         await widget.onAccepted(widget.sync.workspaceId!);
                         return;
                       }
@@ -146,7 +109,64 @@ class _SharingPageState extends State<SharingPage> {
                     ],
                   )
                 : null,
+          );
+
+  Future<void> load() => run(refresh);
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('멤버 관리'), actions: [
+      IconButton(tooltip: '참여 안내', icon: const Icon(Icons.info_outline),
+        onPressed: () => showDialog<void>(context: context, builder: (context) => AlertDialog(
+          title: const Text('참여 안내'),
+          content: const Text('읽기 전용 참여자는 인원제한 없이 참여할 수 있습니다.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('확인'))],
+        ))),
+    ]),
+    body: ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        if (busy) const LinearProgressIndicator(),
+        if (error != null)
+          Text(
+            error!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
+        Text(loaded ? '$plan / $workspaceName / ${members.length}명' : '워크스페이스 정보를 불러오는 중…',
+          key: const ValueKey('workspace-member-summary'), style: Theme.of(context).textTheme.bodySmall),
+        const Divider(),
+        Row(children: [
+          Text('참여자', style: Theme.of(context).textTheme.bodyMedium),
+          const Spacer(),
+          if (widget.role == 'owner') FilledButton.icon(
+            style: FilledButton.styleFrom(textStyle: Theme.of(context).textTheme.bodyMedium,
+              minimumSize: const Size(0, 30), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            onPressed: busy ? null : () async {
+              final result = await showDialog<Map<String,dynamic>>(context: context,
+                builder: (_) => _InviteDialog(sync: widget.sync));
+              if (!mounted || result == null) return;
+              setState(() {
+                link = 'https://weaver.dogpoo.net/#invite=${result['token']}';
+                message = result['mailSent'] == true
+                  ? '초대 메일을 보냈습니다. 초대는 7일 동안 유효합니다.'
+                  : '메일 전송에 실패했습니다. 아래 초대 링크를 전달할 수 있습니다.';
+              });
+              await load();
+            }, icon: const Icon(Icons.person_add_outlined, size: 16), label: const Text('초대하기')),
+        ]),
+        if (widget.role == 'owner') ...[
+          if (message != null) Text(message!),
+          if (link != null)
+            TextButton(
+              onPressed: () => Clipboard.setData(ClipboardData(text: link!)),
+              child: const Text('초대 링크 복사'),
+            ),
+        ],
+        for (final person in members.where((person) => person['role'] != 'viewer')) memberTile(person as Map),
+        if (members.any((person) => person['role'] == 'viewer')) ...[
+          if (members.any((person) => person['role'] != 'viewer')) const Divider(),
+          for (final person in members.where((person) => person['role'] == 'viewer')) memberTile(person as Map),
+        ],
         if (invitations.isNotEmpty) ...[
           const Divider(),
           const Text('보낸 초대 · 수락 대기'),
