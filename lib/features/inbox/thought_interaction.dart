@@ -4,8 +4,10 @@ class ThoughtInteraction extends StatefulWidget {
   static const hitPadding = 0.0;
   const ThoughtInteraction({super.key, required this.size, required this.child,
     required this.onMove, required this.onResize, required this.onDrop, required this.onEnd,
-    required this.onTap, required this.desktop, this.onLift, this.onActiveChanged, this.onResizeStart, this.groupLifted = false});
+    required this.onTap, required this.desktop, this.onLift, this.onActiveChanged, this.onResizeStart, this.groupLifted = false, this.fitSize, this.onAutoResize});
   final Size size;
+  final Size Function(bool horizontal, bool vertical)? fitSize;
+  final void Function(Size size, Offset shift)? onAutoResize;
   final Widget child;
   final ValueChanged<Offset> onMove, onDrop;
   final void Function(Size size, Offset shift) onResize;
@@ -23,16 +25,31 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
   bool _resized = false, _lifted = false;
   Offset _longOffset = Offset.zero;
   Size _resizeSize = Size.zero;
+  Offset _resizePointer = Offset.zero;
   Size _clamp(double w, double h) => Size(w.clamp(170, 640), h.clamp(76, 520));
   Widget _handle(String name, MouseCursor cursor, bool left, bool top, bool horizontal, bool vertical) =>
     MouseRegion(cursor: cursor, child: GestureDetector(key: ValueKey('resize-$name'), behavior: HitTestBehavior.opaque,
-      onPanStart: (_) { _resizeSize = widget.size; widget.onResizeStart?.call(); },
-      onPanUpdate: (d) {
-        final next = _clamp(_resizeSize.width + (horizontal ? d.delta.dx * (left ? -1 : 1) : 0),
-          _resizeSize.height + (vertical ? d.delta.dy * (top ? -1 : 1) : 0));
+      onDoubleTap: widget.fitSize == null ? null : () {
+        final fitted = widget.fitSize!(horizontal, vertical);
+        final next = _clamp(horizontal ? fitted.width : widget.size.width,
+            vertical ? fitted.height : widget.size.height);
+        widget.onResizeStart?.call();
+        (widget.onAutoResize ?? widget.onResize)(next,
+            Offset(left ? widget.size.width-next.width : 0, top ? widget.size.height-next.height : 0));
+        widget.onEnd();
+      },
+      onScaleStart: (d) { _resizeSize = widget.size; _resizePointer=d.focalPoint; widget.onResizeStart?.call(); },
+      onScaleUpdate: (d) {
+        if(d.pointerCount>1)return;
+        final box=context.findRenderObject() as RenderBox;
+        final delta=box.globalToLocal(d.focalPoint)-box.globalToLocal(_resizePointer);
+        _resizePointer=d.focalPoint;
+        final next = _clamp(_resizeSize.width + (horizontal ? delta.dx * (left ? -1 : 1) : 0),
+          _resizeSize.height + (vertical ? delta.dy * (top ? -1 : 1) : 0));
         widget.onResize(next, Offset(left ? _resizeSize.width - next.width : 0, top ? _resizeSize.height - next.height : 0));
         _resizeSize = next;
-      }, onPanEnd: (_) => widget.onEnd(), onPanCancel: widget.onEnd, child: const SizedBox.expand()));
+      }, onScaleEnd: (_) => widget.onEnd(), child: const SizedBox.expand()));
+
   @override
   Widget build(BuildContext context) => GestureDetector(behavior: HitTestBehavior.opaque,
     onTap: widget.onTap,

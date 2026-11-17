@@ -58,6 +58,27 @@ void main() {
       view.dispose();
     });
   }
+  for (final spec in [
+    ('left',true,false,true,false),('right',false,false,true,false),
+    ('top',false,true,false,true),('bottom',false,false,false,true),
+    ('left-top',true,true,true,true),('right-top',false,true,true,true),
+    ('left-bottom',true,false,true,true),('right-bottom',false,false,true,true),
+  ]) {
+    testWidgets('double click fits only the requested edges ${spec.$1}', (tester) async {
+      Size? fitted;Offset? shift;var ends=0;
+      await tester.pumpWidget(MaterialApp(home:Scaffold(body:Center(child:ThoughtInteraction(
+        size:const Size(300,200),desktop:true,child:const Text('메모'),
+        fitSize:(horizontal,vertical){expect(horizontal,spec.$4);expect(vertical,spec.$5);return const Size(210,110);},
+        onMove:(_){},onDrop:(_){},onTap:(){},onEnd:()=>ends++,
+        onResize:(next,delta){fitted=next;shift=delta;},
+      )))));
+      final handle=find.byKey(ValueKey('resize-${spec.$1}'));
+      await tester.tap(handle);await tester.pump(const Duration(milliseconds:50));await tester.tap(handle);await tester.pumpAndSettle();
+      expect(fitted,Size(spec.$4?210:300,spec.$5?110:200));
+      expect(shift,Offset(spec.$2?90:0,spec.$3?90:0));expect(ends,1);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
   test('card sizes survive layout serialization and legacy layouts use defaults', () {
     final layout = GraphLayout()..sizes['thought'] = const Offset(320, 240);
     expect(GraphLayout.fromJson(layout.toJson()).sizes['thought'], const Offset(320, 240));

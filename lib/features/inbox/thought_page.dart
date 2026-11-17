@@ -154,6 +154,43 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       }
     }
   }
+  void _resizeThought(String id, Size size, Offset shift, {bool snap=true}) => setState(() {
+                  if (_resizingThought != id) _beginResize(id);
+                  final currentWidth = _size(id).width;
+                  final width = !snap || size.width == currentWidth ? size.width : snapStackWidth(size.width,
+                    _resizeNeighbors.where(_positions.containsKey).map((id) => _size(id).width),
+                    tolerance: (16 / _view.value.storage[0].abs()).clamp(8, 32));
+                  final adjustedShift = Offset(shift.dx == 0 ? 0 : currentWidth - width, shift.dy);
+                  final oldSize = _layout.sizes[id], oldPosition = _positions[id]!;
+                  _layout.sizes[id] = Offset(width, size.height);
+                  final p = _positions[id]! + adjustedShift; _positions[id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
+                  if (_memberCollides(id)) {
+                    _positions[id] = oldPosition;
+                    if (oldSize == null) { _layout.sizes.remove(id); } else { _layout.sizes[id] = oldSize; }
+                  }
+                  _saveLayout();
+  });
+  Size _fitThought(ElementRecord record, bool horizontal, bool vertical) {
+    final current=_size(record.id);
+    final icons=[(memoCommentCounts.value[record.id]??0)>0,record.location!=null,
+      record.recordings.isNotEmpty,record.photos.isNotEmpty].where((v)=>v).length;
+    final iconWidth=icons==0?0.0:17.0;
+    final painter=TextPainter(text:TextSpan(text:record.text,style:Theme.of(context).textTheme.bodyMedium),
+      textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context));
+    painter.layout();
+    final width=horizontal?(painter.width+16+iconWidth+2).ceilToDouble().clamp(170.0,640.0):current.width;
+    painter.layout(maxWidth:width-16-iconWidth);
+    var footer=0.0;
+    if((widget.blocks||(_layout.stacked&&!_hideTags))&&record.tags.isNotEmpty){
+      final tags=TextPainter(text:TextSpan(text:record.tags.map((tag)=>'#$tag').join('  '),
+        style:Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize:10)),
+        textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context),maxLines:1)..layout(maxWidth:width-20);
+      footer=tags.height+8;tags.dispose();
+    }
+    if(_layout.stacked&&(record.tags.isEmpty||(!widget.blocks&&_hideTags)))footer+=24;
+    final height=vertical?(math.max(painter.height,icons*13.0)+16+footer+2).ceilToDouble().clamp(76.0,520.0):current.height;
+    painter.dispose();return Size(width,height);
+  }
   void _moveBox(MemoBox box, Offset shift) {
     for (final id in box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
     if (_emptyBoxBounds.containsKey(box)) _emptyBoxBounds[box] = _emptyBoxBounds[box]!.shift(shift);
@@ -1024,22 +1061,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   _hoverBox = regions.where((r) => !r.box.elementIds.contains(record.id) && _inside(r.bounds, center)).firstOrNull?.box;
                   _saveLayout(); }),
                 onResizeStart: () => _beginResize(record.id),
-                onResize: (size, shift) => setState(() {
-                  if (_resizingThought != record.id) _beginResize(record.id);
-                  final currentWidth = _size(record.id).width;
-                  final width = size.width == currentWidth ? size.width : snapStackWidth(size.width,
-                    _resizeNeighbors.where(_positions.containsKey).map((id) => _size(id).width),
-                    tolerance: (16 / _view.value.storage[0].abs()).clamp(8, 32));
-                  final adjustedShift = Offset(shift.dx == 0 ? 0 : currentWidth - width, shift.dy);
-                  final oldSize = _layout.sizes[record.id], oldPosition = _positions[record.id]!;
-                  _layout.sizes[record.id] = Offset(width, size.height);
-                  final p = _positions[record.id]! + adjustedShift; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
-                  if (_memberCollides(record.id)) {
-                    _positions[record.id] = oldPosition;
-                    if (oldSize == null) { _layout.sizes.remove(record.id); } else { _layout.sizes[record.id] = oldSize; }
-                  }
-                  _saveLayout();
-                }),
+                fitSize: (horizontal,vertical)=>_fitThought(record,horizontal,vertical),
+                onAutoResize: (size,shift)=>_resizeThought(record.id,size,shift,snap:false),
+                onResize: (size,shift)=>_resizeThought(record.id,size,shift),
                 onDrop: (pointer) {
                   final origin = _thoughtDragOrigins[record.id];
                   final tolerance = (48 / _view.value.storage[0].abs()).clamp(24, 96);
@@ -1226,7 +1250,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               builder: (context, scale, child) => CustomPaint(painter: _SelectionPainter(
               [for (final r in records) (rect: _bounds(r.id), selected: _selected.contains(r.id)), for(final id in tagPositions.keys)(rect:nodeRects[id]!,selected:_selected.contains(id))],
               !_movingSelection && _selectionStart != null && _selectionEnd != null ? Rect.fromPoints(_selectionStart!, _selectionEnd!) : null,
-              color.primary, widget.blocks ? 6 : 12, captureAll: _rangeSelection, liftScale: scale))),
+              color.primary, widget.blocks ? 6 : 12, captureAll: _rangeSelection, liftScale: scale, resizeRects: {for(final r in records)_bounds(r.id)}))),
           ))),
         ])))),
       )); })),
@@ -1317,14 +1341,19 @@ class _Connections extends CustomPainter {
 }
 
 class _SelectionPainter extends CustomPainter {
-  _SelectionPainter(this.selected, this.marquee, this.color, this.radius, {this.captureAll=false, this.liftScale=1});
+  _SelectionPainter(this.selected, this.marquee, this.color, this.radius, {this.captureAll=false, this.liftScale=1, this.resizeRects=const {}});
+  final Set<Rect> resizeRects;
   final double liftScale;
   final bool captureAll;
   @override
   bool hitTest(Offset position) {
     if (captureAll) return true;
     for (final item in selected.reversed) {
-      if (RRect.fromRectAndRadius(item.rect,Radius.circular(radius)).contains(position)) return true;
+      if (RRect.fromRectAndRadius(item.rect,Radius.circular(radius)).contains(position)) {
+        // Let the visible frontmost card's resize handle receive border events.
+        if(resizeRects.contains(item.rect)&&!item.rect.deflate(12).contains(position))return false;
+        return true;
+      }
     }
     return false;
   }
