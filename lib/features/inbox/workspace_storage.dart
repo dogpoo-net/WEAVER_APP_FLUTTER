@@ -376,6 +376,8 @@ class WorkspaceStorage {
   Future<void> Function()? refreshNow;
   Future<void> Function()? pullNow;
   Future<void> Function()? openSharing;
+  Future<void> Function()? openAdmin;
+  Future<void> Function()? openPlan;
   Future<void> Function()? openWorkspaces;
   String? workspaceName;
   Map<String,dynamic>? Function(String,String)? itemMetadata;

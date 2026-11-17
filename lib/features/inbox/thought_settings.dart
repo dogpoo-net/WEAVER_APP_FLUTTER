@@ -19,6 +19,8 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
   Future<void> Function()? onSignIn,
   Future<void> Function()? onInvite,
   Future<void> Function()? onWorkspaces,
+  Future<void> Function()? onAdmin,
+  Future<void> Function()? onPlan,
   String? workspaceName,
 }) async {
   var busy = false;
@@ -63,6 +65,8 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
           onTap: busy ? null : () { Navigator.pop(dialogContext); Navigator.push(context, MaterialPageRoute<void>(builder: (_) => ProfilePage(auth: auth))); }),
         ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.workspaces_outline),title:const Text('워크스페이스'),subtitle:Text(workspaceName??(guest?'비회원 작업공간':'내 워크스페이스')),trailing:const Icon(Icons.chevron_right),onTap:busy||onWorkspaces==null?null:() async { choosingWorkspace=true; try { await run(onWorkspaces); } finally { choosingWorkspace=false; } }),
         if(signedIn)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.group_add_outlined),title:const Text('멤버 관리'),onTap:busy||onInvite==null?null:(){Navigator.pop(dialogContext);onInvite();}),
+        if(onPlan!=null)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.credit_card_outlined),title:const Text('워크스페이스 플랜'),onTap:busy?null:(){Navigator.pop(dialogContext);onPlan();}),
+        if(onAdmin!=null)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.admin_panel_settings_outlined),title:const Text('관리자 백오피스'),onTap:busy?null:(){Navigator.pop(dialogContext);onAdmin();}),
         const Divider(),
         if (guest) const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.person_outline),
           title: Text('비회원 · 로컬 저장 전용'), subtitle: Text('클라우드 저장·가져오기는 로그인 후 사용할 수 있습니다. 저장한 로컬 데이터는 로그인 후에도 유지됩니다.')),

@@ -11,6 +11,8 @@ import '../capture/media_storage.dart';
 import 'owned_workspace.dart';
 import 'sharing_pages.dart';
 import 'workspace_picker.dart';
+import 'workspace_policy_page.dart';
+import 'admin_backoffice_page.dart';
 import 'readonly_workspace.dart';
 
 class OwnedWorkspaceGate extends StatefulWidget {
@@ -45,6 +47,8 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
   List<dynamic> catalog = [];
   int invitations = 0;
   bool handledInvite = false, erasingAccount = false;
+  bool emptyWorkspace=false,isAdmin=false,quotaReadOnly=false;
+  List<dynamic> pendingInvites=[];
   bool get current =>
       mounted &&
       (widget.auth.isGuest ? 'guest' : widget.auth.identity?.id) == account;
@@ -109,18 +113,27 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         final list = await widget.auth.emailApi.workspace('catalog', {});
         if (!valid()) return;
         catalog = list['workspaces'] as List;
-        primaryWorkspace = list['defaultWorkspaceId'] as String? ?? userId;
+        primaryWorkspace = list['defaultWorkspaceId'] as String?;
+        isAdmin=list['isAdmin']==true;pendingInvites=list['invitations'] as List;
+        if(catalog.isEmpty){
+          sync?.removeListener(refresh);sync?.dispose();sync=null;storage?.suspended=true;MediaStorage.activeOwner=null;
+          await widget.root.preferences.remove('weaver.selected-workspace.$account');
+          if(valid())setState((){storage=null;selected=null;emptyWorkspace=true;failure=null;});
+          return;
+        }
+        emptyWorkspace=false;
         invitations = (list['invitations'] as List).length;
         selected ??= widget.root.preferences.getString(
           'weaver.selected-workspace.$account',
         );
         if (!catalog.any((row) => row['workspaceId'] == selected)) {
-          selected = list['defaultWorkspaceId'] as String? ?? userId;
+          selected = list['defaultWorkspaceId'] as String? ?? catalog.first['workspaceId'] as String;
         }
         role =
             catalog.firstWhere((row) => row['workspaceId'] == selected)['role']
                 as String;
         final workspaceId = selected!;
+        quotaReadOnly=catalog.firstWhere((row)=>row['workspaceId']==workspaceId)['quotaReadOnly']==true;
         target = owned.scope(
           workspaceId == userId ? account : '$account@workspace:$workspaceId',
         );
@@ -129,7 +142,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
           target,
           widget.auth.emailApi,
           workspaceId: workspaceId,
-          readOnly: role == 'viewer',
+          readOnly: role == 'viewer'||quotaReadOnly,
           isCurrent: valid,
         );
         sync = engine;
@@ -138,7 +151,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         if (!engine.ready && target.read() == null) {
           throw StateError(engine.error ?? '서버 자료를 불러오지 못했습니다.');
         }
-        if (engine.ready && workspaceId == primaryWorkspace) {
+        if (engine.ready && workspaceId == primaryWorkspace && role=='owner' && !quotaReadOnly) {
           var claim = await owned.pendingClaim();
           if (claim == null) {
             final guest = await owned.guest();
@@ -184,6 +197,8 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         }
         target.workspaceName=catalog.firstWhere((row)=>row['workspaceId']==workspaceId)['name'] as String?;
         target.openWorkspaces=chooseWorkspace;
+        target.openAdmin=isAdmin?openAdmin:null;
+        target.openPlan=()=>Navigator.of(context).push<void>(MaterialPageRoute(builder:(_)=>WorkspacePolicyPage(request:widget.auth.emailApi.workspace,workspaceId:workspaceId,owner:role=='owner'))).then((_)async{if(current)await switchWorkspace(workspaceId,force:true);});
         target.documentLease = engine.documentLease;
         engine.addListener(refresh);
         target.pullNow = () async {
@@ -293,6 +308,11 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     }
   }
 
+  Future<void> openAdmin()async{
+    await Navigator.of(context).push<void>(MaterialPageRoute(builder:(_)=>AdminBackofficePage(request:widget.auth.emailApi.workspace)));
+    // Return to the same workspace and preserve its unsaved local state.
+    if(current){final result=await widget.auth.emailApi.workspace('catalog',{});if(current)setState(()=>isAdmin=result['isAdmin']==true);storage?.openAdmin=isAdmin?openAdmin:null;}
+  }
   Future<void> chooseWorkspace()async{
     try{final result=await widget.auth.emailApi.workspace('catalog',{});if(!current)return;catalog=result['workspaces'] as List;}catch(_){if(!mounted)return;ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('워크스페이스 목록을 불러오지 못했습니다.')));return;}
     if(!mounted)return;
@@ -324,10 +344,10 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         if(active!=null)storage?.workspaceName=active['name'] as String?;
       },
     ));
-    if(id!=null && current)await switchWorkspace(id, relinquished: !catalog.any((row)=>row['workspaceId']==selected));
+    if(current && (id!=null || !catalog.any((row)=>row['workspaceId']==selected)))await switchWorkspace(id, force:true,relinquished: !catalog.any((row)=>row['workspaceId']==selected));
   }
 
-  Future<void> switchWorkspace(String id,{bool force=false,bool relinquished=false}) async {
+  Future<void> switchWorkspace(String? id,{bool force=false,bool relinquished=false}) async {
     if (!current || (!force && selected == id)) return;
     if (storage?.hasUnsavedInput?.call() == true) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -376,6 +396,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
 
   @override
   Widget build(BuildContext context) {
+    if(emptyWorkspace && storage==null){return Scaffold(appBar:AppBar(title:const Text('워크스페이스'),actions:[if(isAdmin)IconButton(tooltip:'관리자 백오피스',onPressed:openAdmin,icon:const Icon(Icons.admin_panel_settings_outlined)),TextButton(onPressed:()=>widget.auth.signOut(),child:const Text('로그아웃'))]),body:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:480),child:ListView(shrinkWrap:true,padding:const EdgeInsets.all(24),children:[const Text('이용 가능한 워크스페이스가 없습니다.',textAlign:TextAlign.center),const SizedBox(height:12),FilledButton(onPressed:chooseWorkspace,child:const Text('워크스페이스 만들기 · 복원')),for(final invite in pendingInvites)ListTile(title:Text(invite['name']??'초대받은 워크스페이스'),trailing:TextButton(child:const Text('수락'),onPressed:()async{try{final result=await widget.auth.emailApi.workspace('accept',{'inviteId':invite['id']});if(current)await switchWorkspace(result['workspaceId'],force:true,relinquished:true);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}))]))));}
     if (storage == null) {
       return Scaffold(
         body: Center(
@@ -438,7 +459,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         Expanded(
           child: KeyedSubtree(
             key: ValueKey('${storage!.owner}:$epoch'),
-            child: role == 'viewer' && account != 'guest'
+            child: (role == 'viewer'||quotaReadOnly) && account != 'guest'
                 ? ReadonlyWorkspace(
                     storage: storage!,
                     onHistory: (id) => storage!.openHistory?.call(id),
