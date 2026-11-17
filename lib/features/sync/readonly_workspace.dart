@@ -24,7 +24,7 @@ class ReadonlyWorkspace extends StatelessWidget {
     final snapshot = WorkspaceSnapshot.decode(storage.read()!);
     final documents = snapshot.notes.where((n) => n.project != null).toList();
     return DefaultTabController(
-      length: 4,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('읽기 전용 워크스페이스'),
@@ -34,7 +34,6 @@ class ReadonlyWorkspace extends StatelessWidget {
             tabs: [
               Tab(text: '문서'),
               Tab(text: '생각'),
-              Tab(text: '다이어그램'),
               Tab(text: '메모상자'),
             ],
           ),

@@ -28,8 +28,6 @@ class SharingPage extends StatefulWidget {
 }
 
 class _SharingPageState extends State<SharingPage> {
-  final email = TextEditingController();
-  String role = 'editor';
   bool busy = false;
   String? error, link, message;
   List<dynamic> members = [], invitations = [], received = [];
@@ -41,7 +39,6 @@ class _SharingPageState extends State<SharingPage> {
 
   @override
   void dispose() {
-    email.dispose();
     super.dispose();
   }
 
@@ -75,13 +72,17 @@ class _SharingPageState extends State<SharingPage> {
   Future<void> load() => run(refresh);
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('워크스페이스 초대·참여자')),
+    appBar: AppBar(title: const Text('멤버 관리'), actions: [
+      IconButton(tooltip: '참여 안내', icon: const Icon(Icons.info_outline),
+        onPressed: () => showDialog<void>(context: context, builder: (context) => AlertDialog(
+          title: const Text('참여 안내'),
+          content: const Text('무료 워크스페이스는 소유자를 포함해 편집자 최대 2명이 참여할 수 있습니다.\n읽기 전용 참여자는 제한없이 참여할 수 있습니다.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('확인'))],
+        ))),
+    ]),
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const Text(
-          '무료 워크스페이스 · 소유자 포함 편집자 2명\n읽기 전용 참여자는 편집자 자리를 사용하지 않습니다. 초대받아도 내 워크스페이스는 유지됩니다.',
-        ),
         if (busy) const LinearProgressIndicator(),
         if (error != null)
           Text(
@@ -89,42 +90,19 @@ class _SharingPageState extends State<SharingPage> {
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         if (widget.role == 'owner') ...[
-          const SizedBox(height: 16),
-          TextField(
-            controller: email,
-            enabled: !busy,
-            keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(labelText: '초대할 이메일'),
-          ),
-          DropdownButton<String>(
-            value: role,
-            onChanged: busy ? null : (value) => setState(() => role = value!),
-            items: const [
-              DropdownMenuItem(value: 'editor', child: Text('편집자')),
-              DropdownMenuItem(value: 'viewer', child: Text('읽기 전용')),
-            ],
-          ),
-          FilledButton(
-            onPressed: busy
-                ? null
-                : () => run(() async {
-                    final result = await widget.sync.request('invite', {
-                      'email': email.text.trim(),
-                      'role': role,
-                    });
-                    if (mounted) {
-                      setState(() {
-                        link =
-                            'https://weaver.dogpoo.net/#invite=${result['token']}';
-                        message = result['mailSent'] == true
-                            ? '초대 메일을 보냈습니다. 초대는 7일 동안 유효합니다.'
-                            : '메일 전송에 실패했습니다. 아래 초대 링크를 전달할 수 있습니다.';
-                      });
-                    }
-                    await refresh();
-                  }),
-            child: const Text('초대메일 보내기'),
-          ),
+          Align(alignment: Alignment.centerRight, child: FilledButton.icon(
+            onPressed: busy ? null : () async {
+              final result = await showDialog<Map<String,dynamic>>(context: context,
+                builder: (_) => _InviteDialog(sync: widget.sync));
+              if (!mounted || result == null) return;
+              setState(() {
+                link = 'https://weaver.dogpoo.net/#invite=${result['token']}';
+                message = result['mailSent'] == true
+                  ? '초대 메일을 보냈습니다. 초대는 7일 동안 유효합니다.'
+                  : '메일 전송에 실패했습니다. 아래 초대 링크를 전달할 수 있습니다.';
+              });
+              await load();
+            }, icon: const Icon(Icons.person_add_outlined), label: const Text('초대하기'))),
           if (message != null) Text(message!),
           if (link != null)
             TextButton(
@@ -213,6 +191,49 @@ class _SharingPageState extends State<SharingPage> {
       ],
     ),
   );
+}
+
+class _InviteDialog extends StatefulWidget {
+  const _InviteDialog({required this.sync});
+  final WorkspaceSync sync;
+  @override
+  State<_InviteDialog> createState()=>_InviteDialogState();
+}
+class _InviteDialogState extends State<_InviteDialog> {
+  final email=TextEditingController();
+  String role='editor';
+  bool busy=false;
+  String? error;
+  @override
+  void dispose(){email.dispose();super.dispose();}
+  Future<void> send()async{
+    if(busy)return;
+    if(email.text.trim().isEmpty){setState(()=>error='초대할 이메일을 입력해주세요.');return;}
+    setState((){busy=true;error=null;});
+    try{
+      final result=await widget.sync.request('invite',{'email':email.text.trim(),'role':role});
+      if(mounted)Navigator.pop(context,result);
+    }catch(e){if(mounted)setState(()=>error=e.toString());}
+    finally{if(mounted)setState(()=>busy=false);}
+  }
+  @override
+  Widget build(BuildContext context)=>PopScope(canPop:!busy,child:AlertDialog(
+    title:const Text('초대하기'),
+    content:SizedBox(width:400,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+      TextField(controller:email,autofocus:true,enabled:!busy,keyboardType:TextInputType.emailAddress,
+        decoration:const InputDecoration(labelText:'초대할 이메일'),onSubmitted:(_)=>send()),
+      const SizedBox(height:16),
+      DropdownButtonFormField<String>(initialValue:role,decoration:const InputDecoration(labelText:'멤버 타입'),
+        onChanged:busy?null:(value)=>setState(()=>role=value!),items:const[
+          DropdownMenuItem(value:'editor',child:Text('편집자')),
+          DropdownMenuItem(value:'viewer',child:Text('읽기 전용')),
+        ]),
+      if(error!=null)Padding(padding:const EdgeInsets.only(top:12),child:Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error))),
+      if(busy)const LinearProgressIndicator(),
+    ]))),
+    actions:[TextButton(onPressed:busy?null:()=>Navigator.pop(context),child:const Text('취소')),
+      FilledButton(onPressed:busy?null:send,child:Text(busy?'전송 중…':'초대메일 보내기'))],
+  ));
 }
 
 class DocumentHistoryPage extends StatefulWidget {

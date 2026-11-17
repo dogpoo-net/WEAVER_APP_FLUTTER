@@ -62,7 +62,7 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
           subtitle: Text(auth.identity!.email, textAlign: TextAlign.right),
           onTap: busy ? null : () { Navigator.pop(dialogContext); Navigator.push(context, MaterialPageRoute<void>(builder: (_) => ProfilePage(auth: auth))); }),
         ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.workspaces_outline),title:const Text('워크스페이스'),subtitle:Text(workspaceName??(guest?'비회원 작업공간':'내 워크스페이스')),trailing:const Icon(Icons.chevron_right),onTap:busy||onWorkspaces==null?null:() async { choosingWorkspace=true; try { await run(onWorkspaces); } finally { choosingWorkspace=false; } }),
-        if(signedIn)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.group_add_outlined),title:const Text('초대하기'),onTap:busy||onInvite==null?null:(){Navigator.pop(dialogContext);onInvite();}),
+        if(signedIn)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.group_add_outlined),title:const Text('멤버 관리'),onTap:busy||onInvite==null?null:(){Navigator.pop(dialogContext);onInvite();}),
         const Divider(),
         if (guest) const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.person_outline),
           title: Text('비회원 · 로컬 저장 전용'), subtitle: Text('클라우드 저장·가져오기는 로그인 후 사용할 수 있습니다. 저장한 로컬 데이터는 로그인 후에도 유지됩니다.')),

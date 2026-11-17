@@ -42,6 +42,7 @@ class SharingApi extends EmailAuthApi {
           {'id': 'invite', 'name': 'Team', 'role': 'viewer'},
         ],
       },
+      'invite' => {'token':'test-token','mailSent':true},
       'accept' => {'workspaceId': 'shared'},
       'history' => {
         'versions': [
@@ -122,7 +123,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('초대메일 보내기'), findsNothing);
-      expect(find.textContaining('소유자 포함 편집자 2명'), findsOneWidget);
+      expect(find.text('멤버 관리'), findsOneWidget);
+      await tester.tap(find.byTooltip('참여 안내'));await tester.pumpAndSettle();
+      expect(find.textContaining('읽기 전용 참여자는 제한없이 참여할 수 있습니다.'),findsOneWidget);
+      await tester.tap(find.text('확인'));await tester.pumpAndSettle();
       await tester.tap(find.text('수락'));
       await tester.pumpAndSettle();
       expect(selected, 'shared');
@@ -130,6 +134,24 @@ void main() {
       api.dispose();
     },
   );
+  testWidgets('owner invites through a compact modal while member page remains', (tester) async {
+    final api=SharingApi();
+    final sync=WorkspaceSync(WorkspaceStorage(await SharedPreferences.getInstance(),owner:'owner'),api,
+      workspaceId:'shared',isCurrent:()=>true);
+    await tester.pumpWidget(MaterialApp(home:SharingPage(sync:sync,role:'owner',onAccepted:(_)async{})));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField),findsNothing);
+    await tester.tap(find.text('초대하기'));await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog),findsOneWidget);
+    expect(tester.getSize(find.byType(TextField)).width,lessThan(600));
+    await tester.enterText(find.byType(TextField),'guest@example.com');
+    await tester.tap(find.text('초대메일 보내기'));await tester.pumpAndSettle();
+    expect(api.calls.where((call)=>call=='invite').length,1);
+    expect(find.byType(AlertDialog),findsNothing);
+    expect(find.text('멤버 관리'),findsOneWidget);
+    expect(find.text('초대 링크 복사'),findsOneWidget);
+    await tester.pumpWidget(const SizedBox());sync.dispose();api.dispose();
+  });
   testWidgets('History shows author, additions/deletions and changed lines', (
     tester,
   ) async {
