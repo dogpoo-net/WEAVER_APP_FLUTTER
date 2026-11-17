@@ -64,7 +64,12 @@ class _WorkspacePickerState extends State<WorkspacePicker>{
     finally{if(mounted)setState(()=>busy=false);}
   }
   Widget entry(Map row)=>ListTile(
-    title:Text(row['name']??'공유 워크스페이스'),subtitle:Text(roleLabel(row['role'])),
+    title:Text.rich(TextSpan(children:[
+      TextSpan(text:row['name']??'내 워크스페이스'),
+      if(row['role']!='owner' && (row['ownerName'] as String? ?? '').isNotEmpty)
+        TextSpan(text:'  ${row['ownerName']}',style:Theme.of(context).textTheme.bodySmall?.copyWith(
+          color:Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha:.8))),
+    ])),subtitle:Text(roleLabel(row['role'])),
     leading:row['workspaceId']==widget.selected?const Icon(Icons.check):const SizedBox(width:24),
     onTap:busy?null:()=>Navigator.pop(context,row['workspaceId']),
     trailing:PopupMenuButton<String>(tooltip:'워크스페이스 관리',enabled:!busy,

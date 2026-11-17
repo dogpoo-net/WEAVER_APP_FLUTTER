@@ -197,7 +197,7 @@ class _SharingPageState extends State<SharingPage> {
         for (final invite in received)
           ListTile(
             contentPadding: EdgeInsets.zero,
-            title: Text('${invite['name'] ?? '사용자'}의 워크스페이스'),
+            title: Text(invite['name'] ?? '내 워크스페이스'),
             subtitle: Text(roleLabel(invite['role'])),
             trailing: TextButton(
               onPressed: busy
