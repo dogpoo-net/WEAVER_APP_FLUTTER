@@ -1313,8 +1313,7 @@ class _Connections extends CustomPainter {
               .where((e) => !tagColors.containsKey(e.key)).map((e) => e.value);
           final start = tagColors.containsKey(id) ? exposedSideAnchor(card, above, tag.center) : card.center;
           if (start == null) continue;
-          final end = tagColors.containsKey(id)
-              ? Offset(tag.center.dx < card.center.dx ? tag.right : tag.left, tag.center.dy) : tag.center;
+          final end = tag.center;
           final points = [start, end];
           final path = Path()..moveTo(points.first.dx, points.first.dy);
           for (final point in points.skip(1)) { path.lineTo(point.dx, point.dy); }
