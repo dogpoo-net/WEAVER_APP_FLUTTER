@@ -21,6 +21,8 @@ GitHub의 이 저장소를 선택하고 최신 커밋을 가져오세요. 클라
 
 현재 범위와 다음 작업은 [작업 인계](docs/HANDOFF.md)를 참고하세요.
 
+음성 기능의 후속 구현은 [음성 녹음·텍스트 변환 계획](docs/voice-transcription-plan.md)을 참고하세요.
+
 ## GitHub Pages
 
 `.github/workflows/pages.yml`은 수동 실행 시 분석·테스트 후 웹 빌드를 GitHub Pages에 배포합니다. 푸시만으로는 GitHub Pages에 배포하지 않습니다. 저장소 Settings → Pages → Build and deployment → Source를 **GitHub Actions**로 지정하세요.
