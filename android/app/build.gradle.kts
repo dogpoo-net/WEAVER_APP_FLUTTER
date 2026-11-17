@@ -1,3 +1,4 @@
+import java.io.File
 import java.util.Properties
 
 plugins {
@@ -57,9 +58,9 @@ android {
             if (hasReleaseSigning) {
                 val keyPath = System.getenv("WEAVER_ANDROID_KEYSTORE")
                     ?: releaseKeyProperties.getProperty("storeFile")
-                val keyFile = java.io.File(keyPath)
+                val keyFile = File(keyPath)
                 storeFile = if (keyFile.isAbsolute) keyFile
-                    else java.io.File(releaseKeyPropertiesFile.parentFile, keyPath)
+                    else File(releaseKeyPropertiesFile.parentFile, keyPath)
                 storePassword = releaseKeyProperties.getProperty("storePassword")
                 keyAlias = releaseKeyProperties.getProperty("keyAlias")
                 keyPassword = releaseKeyProperties.getProperty("keyPassword")
