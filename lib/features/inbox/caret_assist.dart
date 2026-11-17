@@ -30,6 +30,7 @@ class CaretAssist extends StatefulWidget {
     this.onTag,
     this.enterSelectsVisible = false,
     this.arrowSelectsVisible = false,
+    this.fitContentWidth = false,
     this.showShortcutHint = false,
     this.useThoughtLabels = false,
     this.selectionAssist = false,
@@ -46,6 +47,7 @@ class CaretAssist extends StatefulWidget {
   final bool showWhenEmpty;
   final bool enterSelectsVisible;
   final bool arrowSelectsVisible;
+  final bool fitContentWidth;
   final bool showShortcutHint;
   @override
   State<CaretAssist> createState() => CaretAssistState();
@@ -493,7 +495,23 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       );
       final point = render.localToGlobal(caret.topLeft);
       final media = MediaQuery.of(context);
-      final width = (media.size.width - 24).clamp(0.0, 300.0);
+      final maxWidth = (media.size.width - 24).clamp(0.0, 300.0);
+      var width = maxWidth;
+      if (widget.fitContentWidth && _matches.isNotEmpty) {
+        var longest = 0.0;
+        for (final word in _matches) {
+          final title = _title(word);
+          final prefix = title.toLowerCase().startsWith(_query.toLowerCase()) ? _query.length.clamp(0, title.length) : 0;
+          final painter = TextPainter(text: TextSpan(
+            style: Theme.of(context).textTheme.labelLarge!.copyWith(fontSize:12,fontWeight:FontWeight.w500),
+            children:[TextSpan(text:title.substring(0,prefix),style:const TextStyle(fontWeight:FontWeight.w700)),TextSpan(text:title.substring(prefix))]),
+            textDirection:Directionality.of(context),textScaler:media.textScaler)..layout();
+          if(painter.width>longest)longest=painter.width;
+          painter.dispose();
+        }
+        // Badge horizontal padding (24) plus panel padding (16).
+        width=(longest.ceilToDouble()+40).clamp(0.0,maxWidth);
+      }
       final bottom =
           media.size.height -
           media.viewInsets.bottom -
@@ -528,10 +546,10 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
           : overlay.size.height - media.viewInsets.bottom;
       _mobileVisible = true;
       _overlayBuilder = (_) => Positioned(
-        left: _desktop ? left : 0,
+        left: _desktop ? left : widget.fitContentWidth ? 12 : 0,
         top: _desktop ? top : null,
         bottom: _desktop ? null : (overlay.size.height - bodyBottom).clamp(0.0, overlay.size.height),
-        width: _desktop ? width : media.size.width,
+        width: _desktop || widget.fitContentWidth ? width : media.size.width,
         child: TextFieldTapRegion(
           child: _desktop
               ? _panel(height)
@@ -561,7 +579,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: height),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (_selectionMode) Padding(padding: const EdgeInsets.fromLTRB(8, 8, 8, 0), child: TextField(
             key: const ValueKey('selection-link-filter'), controller: _selectionFilter, focusNode: _filterFocus,
             style: const TextStyle(fontSize: 12),

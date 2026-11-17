@@ -270,7 +270,7 @@ class _InviteDialogState extends State<_InviteDialog> {
     title:const Text('초대하기'),
     content:SizedBox(width:400,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
       CaretAssist(controller:email,focus:emailFocus,words:busy?const []:suggestions,
-        arrowSelectsVisible:true,onWord:choose,
+        arrowSelectsVisible:true,fitContentWidth:true,onWord:choose,
         child:TextField(controller:email,focusNode:emailFocus,autofocus:true,enabled:!busy,keyboardType:TextInputType.emailAddress,
           onChanged:search,decoration:const InputDecoration(labelText:'초대할 이메일',helperText:'이메일을 두 글자 이상 입력해주세요.'),onSubmitted:(_)=>send())),
       const SizedBox(height:16),
