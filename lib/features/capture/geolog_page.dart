@@ -63,12 +63,20 @@ class _GeologPageState extends State<GeologPage> {
       if(elements.records.containsKey(content))return '같은 내용의 생각이 이미 있습니다. 내용을 바꿔주세요.';
       return null;
     });
-    if(draft==null||!mounted||owner!=MediaStorage.activeOwner)return;
+    if(draft==null)return;
+    Future<void> discardAttachments() async {
+      for(final id in [...draft.photos.map((p)=>p.id),...draft.recordings.map((v)=>v.id)]){
+        try{await MediaStorage.delete(id,owner:owner);}catch(_){}
+      }
+    }
+    if(!mounted||owner!=MediaStorage.activeOwner){await discardAttachments();return;}
     final parsed=parseTaggedInput(draft.text);
     if(parsed.text.isEmpty || elements.records.containsKey(parsed.text)){
+      await discardAttachments();if(!mounted)return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('생각 내용을 입력해주세요. 같은 내용의 생각은 중복 생성할 수 없습니다.')));return;
     }
     final record=elements.add(draft.text)..location=draft.location;
+    record.photos.addAll(draft.photos);record.recordings.addAll(draft.recordings);
     final box=_filters.singleBox;
     if(box!=null&&!box.isUnclassified)moveThoughtToBox(record.id,box);
     widget.onChanged();elements.refreshVisibility();

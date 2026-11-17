@@ -106,6 +106,7 @@ void main() {
       expect(find.text('연결된 생각'), findsOneWidget);
       expect(find.text('참고 생각'), findsOneWidget);
       expect(tag, findsNothing);
+      if(blocks)expect(find.descendant(of:find.byKey(ValueKey('canvas-thought-${c.id}')),matching:find.text('#검토')),findsOneWidget);
       final layout = inBox ? box.layout : pageGraphLayout;
       expect((blocks ? layout.blockLayout : layout).hideTags, isTrue);
       await tester.tap(find.text('해시태그 숨기기'));

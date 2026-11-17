@@ -18,16 +18,23 @@ void main(){
   map.options.onTap!(const TapPosition(Offset.zero,Offset.zero),const LatLng(35,129));await tester.pump();
   gps.complete(ThoughtLocation(37,127,10,DateTime.now()));await tester.pumpAndSettle();
   expect(tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.single.point,const LatLng(35,129));
+  expect(find.text('지오로그 남기기'),findsOneWidget);
+  expect(find.byTooltip('음성 메모'),findsOneWidget);
+  expect(find.byTooltip('사진 업로드 (최대 5장)'),findsOneWidget);
+  expect(tester.getCenter(find.byTooltip('마커 색상')).dx,lessThan(tester.getCenter(find.byTooltip('현재 위치')).dx));
+  await tester.tap(find.byTooltip('마커 색상'));await tester.pumpAndSettle();
+  await tester.tap(find.byTooltip('녹색'));await tester.pumpAndSettle();
+  map.options.onTap!(const TapPosition(Offset.zero,Offset.zero),const LatLng(35,129));await tester.pump();
   await tester.enterText(find.byKey(const ValueKey('geolog-memo-input')),'지도에서 쓴 생각');await tester.pump();
   await tester.tap(find.text('저장'));await tester.pumpAndSettle();
-  expect(result!.text,'지도에서 쓴 생각');expect(result!.location.latitude,35);
+  expect(result!.text,'지도에서 쓴 생각');expect(result!.location.latitude,35);expect(result!.location.markerColor,0xFF008000);
  });
  testWidgets('location failure still permits manual selection without a composer',(tester)async{
   LocationEntry? result;
   await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()async{result=await showLocationEditor(context,locate:()async=>throw StateError('denied'));},child:const Text('열기'))))));
   await tester.tap(find.text('열기'));await tester.pumpAndSettle();
   expect(find.byType(TextField),findsNothing);
-  final save=tester.widget<FilledButton>(find.widgetWithText(FilledButton,'저장'));expect(save.onPressed,isNull);
+  final save=tester.widget<TextButton>(find.widgetWithText(TextButton,'저장'));expect(save.onPressed,isNull);
   tester.widget<FlutterMap>(find.byType(FlutterMap)).options.onTap!(const TapPosition(Offset.zero,Offset.zero),const LatLng(36,128));await tester.pump();
   await tester.tap(find.text('저장'));await tester.pumpAndSettle();
   expect(result!.location.longitude,128);
@@ -39,7 +46,7 @@ void main(){
   await tester.tap(find.text('상세'));await tester.pumpAndSettle();
   await tester.ensureVisible(find.byTooltip('위치 기록'));await tester.tap(find.byTooltip('위치 기록'));await tester.pumpAndSettle();
   tester.widget<FlutterMap>(find.byType(FlutterMap)).options.onTap!(const TapPosition(Offset.zero,Offset.zero),const LatLng(35,129));await tester.pump();
-  await tester.tap(find.widgetWithText(FilledButton,'저장').last);await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(TextButton,'저장').last);await tester.pumpAndSettle();
   expect(record.location!.latitude,37);
   await tester.tap(find.widgetWithText(FilledButton,'저장'));await tester.pumpAndSettle();
   expect(record.location!.latitude,35);
