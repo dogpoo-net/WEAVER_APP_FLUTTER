@@ -112,7 +112,6 @@ class ReadonlyWorkspace extends StatelessWidget {
                   ),
               ],
             ),
-            _canvas(snapshot, snapshot.graphLayout ?? GraphLayout()),
             _canvas(
               snapshot,
               (snapshot.graphLayout ?? GraphLayout()).blockLayout,

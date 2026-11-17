@@ -211,6 +211,8 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
 }
 
 enum ThoughtView { documents, boxes, diagram, page, photos, audio, geolog }
+// Keep the legacy diagram identifier for compatibility, but never mount it.
+const activeThoughtViews = [ThoughtView.documents, ThoughtView.boxes, ThoughtView.page, ThoughtView.photos, ThoughtView.audio, ThoughtView.geolog];
 
 class AllThoughtsPage extends StatefulWidget {
   const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.onDocument, this.onCreateDocument, this.onRefresh, this.onReloadResource, this.onDeleteBoxes, this.initialBox, this.initialView = ThoughtView.boxes});
@@ -247,17 +249,17 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     ensureUnclassifiedBox();
     widget.storage?.liveChanges.addListener(_liveChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _reload(); });
-    _tabPosition=AnimationController(vsync:this,upperBound:ThoughtView.values.length-1.0,value:widget.initialView.index.toDouble());
+    _tabPosition=AnimationController(vsync:this,upperBound:activeThoughtViews.length-1.0,value:activeThoughtViews.indexOf(_view).toDouble());
   }
   @override
   void dispose() { widget.storage?.liveChanges.removeListener(_liveChanged); _filters.dispose(); _tabPosition.dispose(); super.dispose(); }
-  late ThoughtView _view = widget.initialView;
+  late ThoughtView _view = widget.initialView == ThoughtView.diagram ? ThoughtView.page : widget.initialView;
   @override
   Widget build(BuildContext context) {
     final activeBox = widget.initialBox == null ? null : memoBoxes.where((b) => b.name == widget.initialBox!.name).firstOrNull;
-    final selector=SingleChildScrollView(key:const PageStorageKey('overview-tabs'),scrollDirection:Axis.horizontal,child:SizedBox(height:40,width:ThoughtView.values.length*104,child:Stack(children:[
+    final selector=SingleChildScrollView(key:const PageStorageKey('overview-tabs'),scrollDirection:Axis.horizontal,child:SizedBox(height:40,width:activeThoughtViews.length*104,child:Stack(children:[
       AnimatedBuilder(animation:_tabPosition,builder:(context,_)=>Positioned(left:_tabPosition.value*104,top:0,bottom:0,width:104,child:ColoredBox(key:const ValueKey('thought-tab-highlight'),color:Theme.of(context).colorScheme.secondaryContainer))),
-      Row(children:[for(final view in ThoughtView.values)SizedBox(width:104,height:40,child:Semantics(selected:view==_view,child:TextButton(style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),onPressed:(){if(_view==view)return;setState(()=>_view=view);_tabPosition.animateTo(view.index.toDouble(),duration:const Duration(milliseconds:200),curve:Curves.easeInOutCubic);_reload();},child:Text(switch(view){ThoughtView.documents=>'문서',ThoughtView.boxes=>'생각',ThoughtView.diagram=>'다이어그램',ThoughtView.page=>'메모상자',ThoughtView.photos=>'사진',ThoughtView.audio=>'음성',ThoughtView.geolog=>'지오로그'}))))])
+      Row(children:[for(final view in activeThoughtViews)SizedBox(width:104,height:40,child:Semantics(selected:view==_view,child:TextButton(style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),onPressed:(){if(_view==view)return;setState(()=>_view=view);_tabPosition.animateTo(activeThoughtViews.indexOf(view).toDouble(),duration:const Duration(milliseconds:200),curve:Curves.easeInOutCubic);_reload();},child:Text(switch(view){ThoughtView.documents=>'문서',ThoughtView.boxes=>'생각',ThoughtView.diagram=>'다이어그램',ThoughtView.page=>'메모상자',ThoughtView.photos=>'사진',ThoughtView.audio=>'음성',ThoughtView.geolog=>'지오로그'}))))])
     ])));
     if(_view==ThoughtView.documents)return DesktopMenuFrame(child:DocumentCollection(notes:widget.notes,selector:selector,storage:widget.storage,onOpen:widget.onDocument,onCreate:widget.onCreateDocument));
     if(_view==ThoughtView.photos || _view==ThoughtView.audio)return DesktopMenuFrame(child:AttachmentCollection(key:ValueKey(_view),audio:_view==ThoughtView.audio,selector:selector,filters:_filters,storage:widget.storage,onChanged:widget.onChanged));
@@ -265,7 +267,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
       viewSelector: selector, onChanged: () => widget.onChanged?.call())); }
     if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(storage:widget.storage,filters: _filters, notes: widget.notes, initialBox: activeBox,
       onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes)); }
-    return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey(_view), box: activeBox, blocks: _view == ThoughtView.page,
+    return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey(_view), box: activeBox, blocks: true,
       onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, onSave:widget.onSave, storage:widget.storage, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes));
   }
 }
