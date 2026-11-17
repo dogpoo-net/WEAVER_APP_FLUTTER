@@ -72,6 +72,21 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   bool _selectionMode = false, _movingSelection = false, _ctrlPressed = false, _shiftPressed = false;
   bool get _rangeSelection => _selectionMode || _ctrlPressed || _shiftPressed || _selectionStart != null;
   bool _controlSelection(KeyEvent event) {
+    if (mounted && _routeVisible && event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape &&
+        (_selectionMode || _selected.isNotEmpty || _selectionStart != null)) {
+      setState(() {
+        if (_movingSelection) {
+          for (final e in _selectionDragOrigins.entries) { _setSelectionPoint(e.key, e.value); }
+        }
+        _clearSelectionLift(); _selected.clear(); _selectionMode=false; _ctrlPressed=false; _shiftPressed=false;
+        _rangeAnchor=null; _rangeAnchorPoint=null; _selectionBeforeGesture.clear();
+        _selectionPointers.clear(); _selectionZoomBase=null; _selectionZoomDistance=null;
+        _selectionZoomAnchor=null; _selectionPinched=false;
+      });
+      _saveLayout(flush:true);
+      return true;
+    }
     final pressed = HardwareKeyboard.instance.isControlPressed;
     final shift = HardwareKeyboard.instance.isShiftPressed;
     if (mounted && (pressed != _ctrlPressed || shift != _shiftPressed)) setState(() { _ctrlPressed = pressed; _shiftPressed = shift; });
@@ -320,7 +335,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     }
   }
   void _flushLayout() {
-    if(!_canEdit)return;
+    // Keep the pre-drag merge baseline until all pointers are released. Publishing
+    // midway makes a delayed server snapshot look newer than the user's drop.
+    if(!_canEdit || _activeCanvasPointers.isNotEmpty)return;
     _layout.positions..clear()..addAll(_positions);
     _layout.tags..clear()..addAll(_tagPositions);
     _layout.viewport = _view.value.storage.toList();
@@ -666,6 +683,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_controlSelection);
+    _activeCanvasPointers.clear();
     _saveLayout(flush: true);
     widget.storage?.liveChanges.removeListener(_remoteLayoutChanged);
     widget.storage?.canvasInteracting=false;
@@ -1119,11 +1137,16 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           for (final tag in tags) Positioned(left: tagBounds(tagPositions['tag:$tag']!).left, top: tagBounds(tagPositions['tag:$tag']!).top,
             width: graphTagSize.width, height: graphTagSize.height,
             child: GestureDetector(key: ValueKey('graph-tag-$tag'), behavior: HitTestBehavior.opaque,
-              onPanUpdate: (d) => setState(() {
-                final p = _tagPositions['tag:$tag']! + d.delta;
-                _tagPositions['tag:$tag'] = Offset(p.dx.clamp(graphTagSize.width / 2, sceneWidth - graphTagSize.width / 2), p.dy.clamp(graphTagSize.height / 2, sceneHeight - graphTagSize.height / 2)); _saveLayout();
+              // Use the same recognizer as cards: a pan recognizer can lose to
+              // InteractiveViewer's scale recognizer and move the viewport instead.
+              onScaleStart: (_) {},
+              onScaleUpdate: (d) => setState(() {
+                if (d.pointerCount > 1) { _zoomCanvas(d.scale, d.focalPoint); return; }
+                if (_pinchBase != null) return;
+                final p = _tagPositions['tag:$tag']! + d.focalPointDelta / _view.value.getMaxScaleOnAxis();
+                _tagPositions['tag:$tag'] = Offset(p.dx.clamp(graphTagSize.width / 2 + 32, sceneWidth - graphTagSize.width / 2), p.dy.clamp(graphTagSize.height / 2 + 32, sceneHeight - graphTagSize.height / 2)); _saveLayout();
               }),
-              onPanEnd: (_) => _saveLayout(flush: true), onPanCancel: () => _saveLayout(flush: true),
+              onScaleEnd: (_) => _endPinch(),
               child: AnimatedScale(scale: _selectionLifted && _selected.contains('tag:$tag') ? 1.04 : 1, duration: const Duration(milliseconds: 100), child: Tooltip(message: '#$tag', child: Chip(side: BorderSide(color: Color(hashtagColors[tag] ?? 0xFF90A4AE), width: 2.5), label: Text('#$tag', maxLines: 1, overflow: TextOverflow.ellipsis),
               backgroundColor: Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: .3)))))),
           if (_rangeSelection || _selected.isNotEmpty) Positioned.fill(child: Listener(

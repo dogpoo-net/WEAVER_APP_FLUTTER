@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:weaver/features/inbox/workspace_storage.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/element_store.dart';
@@ -22,7 +24,26 @@ void main(){testWidgets('Ctrl marquee selects and moves a tag together with its 
  expect(shift.distance,greaterThan(40));expect(layout.tags['tag:검색']!-beforeTag,shift);
  await tester.tapAt(tester.getCenter(find.byKey(const ValueKey('graph-tag-검색'))));await tester.pumpAndSettle();
  expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'1');
- await tester.drag(find.byKey(const ValueKey('graph-tag-검색')),const Offset(80,0));await tester.pumpAndSettle();
+ await tester.dragFrom(tester.getCenter(find.byKey(const ValueKey('graph-tag-검색'))),const Offset(80,0));await tester.pumpAndSettle();
  expect(tester.takeException(),isNull);
  await tester.pumpWidget(const SizedBox());
-});}
+});
+ testWidgets('stale remote layout during tag drag cannot undo the final drop',(tester)async{
+ SharedPreferences.setMockInitialValues({});
+ final storage=WorkspaceStorage(await SharedPreferences.getInstance());
+ tester.view.physicalSize=const Size(1200,900);tester.view.devicePixelRatio=1;addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
+ elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();final a=elements.add('메모');a.tags.add('태그');
+ final layout=pageGraphLayout.blockLayout;
+ layout.positions[a.id]=const Offset(500,500);layout.tags['tag:태그']=const Offset(900,540);
+ layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,storage:storage,onChanged:(){})));await tester.pumpAndSettle();
+ final before=layout.tags['tag:태그']!;
+ final gesture=await tester.startGesture(tester.getCenter(find.byKey(const ValueKey('graph-tag-태그'))));
+ await gesture.moveBy(const Offset(20,0));await tester.pump();
+ await gesture.moveBy(const Offset(120,80));await tester.pump(const Duration(milliseconds:400));
+ layout.tags['tag:태그']=before;
+ storage.liveChanges.value++;
+ await gesture.up();await tester.pumpAndSettle();
+ expect((layout.tags['tag:태그']!-before).distance,greaterThan(60));
+ await tester.pumpWidget(const SizedBox());
+ });}

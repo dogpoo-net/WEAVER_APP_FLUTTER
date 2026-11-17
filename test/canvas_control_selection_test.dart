@@ -71,4 +71,23 @@ testWidgets('Shift range uses click strip, not the hidden full card bounds ($blo
  expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'2');
  await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);await tester.pumpWidget(const SizedBox());
 });
+testWidgets('Escape cancels selection mode and an unfinished group drag ($blocks)',(tester)async{
+ elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();final a=elements.add('선택 취소');
+ final layout=blocks?pageGraphLayout.blockLayout:pageGraphLayout;
+ layout.positions[a.id]=const Offset(500,500);layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,onChanged:(){})));await tester.pumpAndSettle();
+ await tester.tap(find.byType(Checkbox));await tester.pumpAndSettle();
+ final point=tester.getCenter(find.byKey(ValueKey('canvas-thought-${a.id}')));
+ await tester.tapAt(point);await tester.pumpAndSettle();
+ expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'1');
+ final before=layout.positions[a.id];
+ final gesture=await tester.startGesture(point);await gesture.moveBy(const Offset(20,0));await tester.pump();
+ await gesture.moveBy(const Offset(80,40));await tester.pump();
+ await tester.sendKeyEvent(LogicalKeyboardKey.escape);await tester.pump();await gesture.up();await tester.pumpAndSettle();
+ expect(tester.widget<Checkbox>(find.byType(Checkbox)).value,isFalse);
+ expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'');
+ expect(find.byKey(const ValueKey('canvas-selection')),findsNothing);
+ expect(layout.positions[a.id],before);
+ await tester.pumpWidget(const SizedBox());
+});
 }}
