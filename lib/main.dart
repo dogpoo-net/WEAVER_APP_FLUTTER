@@ -22,10 +22,13 @@ import 'features/inbox/element_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Register the complete Korean font before any editable text is rendered.
-  final font = FontLoader('NotoSansKR')
-    ..addFont(rootBundle.load('assets/fonts/NotoSansKR-Variable.ttf'));
-  await font.load();
+  // Web needs explicit registration for Korean editing. Native engines already
+  // load this declared font from FontManifest; avoid loading/registering it twice.
+  if (kIsWeb) {
+    final font = FontLoader('NotoSansKR')
+      ..addFont(rootBundle.load('assets/fonts/NotoSansKR-Variable.ttf'));
+    await font.load();
+  }
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks([
       'Noto Sans KR',

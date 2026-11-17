@@ -52,7 +52,9 @@ class EmailAuthApi {
         if (sessionToken != null) 'Authorization': 'Bearer $sessionToken',
         if (store.isWeb && _tab != null) 'X-Weaver-Tab': _tab!['id']!,
         if (store.isWeb && _tab != null) 'X-Weaver-Proof': _tab!['proof']!,
-      }, body: jsonEncode(body)).timeout(const Duration(seconds: 35));
+      }, body: jsonEncode(body)).timeout(action.endsWith('/refresh')
+          ? const Duration(seconds: 6)
+          : const Duration(seconds: 35));
       dynamic data;
       try { data = jsonDecode(utf8.decode(response.bodyBytes)); } on FormatException { /* Proxies and server errors can return HTML instead of JSON. */ }
       if (response.statusCode < 200 || response.statusCode >= 300) {

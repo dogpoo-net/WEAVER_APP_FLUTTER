@@ -1,4 +1,8 @@
 import 'support/test_server_auth.dart';
+import 'support/memory_session_store.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:weaver/features/auth/email_auth.dart';
 import 'package:weaver/features/sync/owned_workspace.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -30,7 +34,47 @@ class FakeGoogleClient implements GoogleAuthClient {
   @override
   Future<void> dispose() async { await events.close(); }
 }
+class SlowGoogleClient extends FakeGoogleClient {
+  final initialization = Completer<void>();
+  @override
+  Future<void> initialize() => initialization.future;
+}
 void main() {
+  testWidgets('slow Google setup does not block login page or guest entry', (tester) async {
+    final client = SlowGoogleClient();
+    await tester.pumpWidget(MyApp(emailApi: testServerAuth(), authClient: client));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(LoginPage), findsOneWidget);
+    final auth = GoogleAuthScope.maybeOf(tester.element(find.byType(LoginPage)))!;
+    expect(auth.busy, isFalse);
+    expect(auth.ready, isFalse);
+    await tester.tap(find.text('비회원으로 사용하기'));
+    await tester.pumpAndSettle();
+    expect(find.byType(InboxPage), findsOneWidget);
+    client.initialization.complete();
+    await tester.pump();
+    expect(auth.isGuest, isTrue);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('slow session restore releases startup and retains native credentials', (tester) async {
+    final pending = Completer<http.Response>();
+    final store = MemorySessionStore()..value = '{"refreshToken":"saved-token"}';
+    final api = EmailAuthApi(store: store, client: MockClient((_) => pending.future));
+    await tester.pumpWidget(MyApp(emailApi: api, authClient: FakeGoogleClient()));
+    await tester.pump();
+    expect(find.byType(LoginPage), findsNothing);
+    await tester.pump(const Duration(seconds: 7));
+    await tester.pumpAndSettle();
+    expect(find.byType(LoginPage), findsOneWidget);
+    expect(store.value, contains('saved-token'));
+    expect(find.text('로그인 상태 다시 확인'), findsOneWidget);
+    // A response arriving after the timeout must not accept a stale session.
+    pending.complete(http.Response('{"refreshToken":"late-token","accessToken":"late"}', 200));
+    await tester.pump();
+    expect(store.value, contains('saved-token'));
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('missing OAuth config gates workspace without modifying local data', (tester) async {
     SharedPreferences.setMockInitialValues({WorkspaceStorage.key: 'existing-data'});
     final storage = WorkspaceStorage(await SharedPreferences.getInstance());

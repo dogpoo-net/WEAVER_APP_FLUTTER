@@ -151,13 +151,13 @@ class GoogleAuthController extends ChangeNotifier {
         error = '로그인 상태를 복원하지 못했습니다. 연결 또는 기기 보안 저장소를 확인해주세요.';
       }
     } catch (_) { /* Invalid local markers require a real Google sign-in. */ }
-    if (!_disposed && !isGuest) await _initializeSdk();
+    if (!_disposed && !isGuest) unawaited(_initializeSdk());
   }
   Future<void>? _sdkInitializing;
   Future<void> _initializeSdk() => _sdkInitializing ??= _startSdk();
   Future<void> _startSdk() async {
     if (!client.configured) { _changed(); return; }
-    busy = true; _changed();
+    // SDK preparation must not block email, guest, or other social sign-in.
     _subscription = client.changes.listen((value) {
       if (value == null || _loggingOut || _disposed || isGuest) return;
       if (_emailSignedIn) { if (_googleLinkArmed) unawaited(_acceptGoogleLink(value)); return; }
@@ -176,8 +176,12 @@ class GoogleAuthController extends ChangeNotifier {
       _sessionWrite = write;
     }, onError: _failure);
     try { await client.initialize().timeout(const Duration(seconds: 10)); ready = true; }
-    catch (_) { error = 'Google 로그인을 준비하지 못했습니다. 연결 및 OAuth 설정을 확인해 주세요.'; }
-    finally { busy = false; _changed(); }
+    catch (_) {
+      if (!_disposed && !isGuest && identity == null && !busy) {
+        error ??= 'Google 로그인을 준비하지 못했습니다. 연결 및 OAuth 설정을 확인해 주세요.';
+      }
+    }
+    finally { _changed(); }
   }
   void _failure(Object exception) {
     busy = false;
