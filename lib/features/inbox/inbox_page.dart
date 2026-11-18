@@ -1226,7 +1226,6 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
               )),
               ...[
                 IconButton(key:const ValueKey('quick-important'),tooltip:'중요 생각',isSelected:_draftImportant,style:IconButton.styleFrom(minimumSize:const Size(36,36),maximumSize:const Size(36,36),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap,backgroundColor:_draftImportant?colors.secondaryContainer:null),onPressed:_captureSaving?null:()=>setState(()=>_draftImportant=!_draftImportant),icon:const Icon(Icons.priority_high,size:20)),
-                const SizedBox(width:4),
                 IconButton(key: const ValueKey('quick-location'),
                   tooltip: _locationBusy ? '위치 요청 취소' : _draftLocation == null ? '위치 기록' : '위치 기록 해제',
                   isSelected: _draftLocation != null,
@@ -1235,10 +1234,8 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
                   onPressed: _captureSaving ? null : () => _toggleLocation(!_locationBusy && _draftLocation == null),
                   selectedIcon: const Icon(Icons.location_on, size: 19),
                   icon: _locationBusy ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.location_on_outlined, size: 19)),
-                const SizedBox(width:4),
                 IconButton(tooltip: '음성 메모', style:IconButton.styleFrom(minimumSize:const Size(36,36),maximumSize:const Size(36,36),tapTargetSize:MaterialTapTargetSize.shrinkWrap), visualDensity: VisualDensity.standard, constraints: const BoxConstraints.tightFor(width: 36, height: 36), padding: EdgeInsets.zero,
                   onPressed: _captureSaving || _photoBusy ? null : _recordVoice, icon: const Icon(Icons.mic_none, size: 19)),
-                const SizedBox(width:4),
                 IconButton(key:const ValueKey('quick-photo-menu'),tooltip:'사진 업로드 (최대 5장)',
                   style:IconButton.styleFrom(minimumSize:const Size(36,36),maximumSize:const Size(36,36),tapTargetSize:MaterialTapTargetSize.shrinkWrap),
                   visualDensity:VisualDensity.standard,constraints:const BoxConstraints.tightFor(width:36,height:36),padding:EdgeInsets.zero,

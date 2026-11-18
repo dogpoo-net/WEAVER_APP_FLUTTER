@@ -448,11 +448,8 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               const Divider(key:ValueKey('element-attachments-divider'),height:9,thickness:1),
               Row(children:[
                 IconButton(key:const ValueKey('detail-important'),tooltip:'중요 생각',isSelected:_important,style:IconButton.styleFrom(backgroundColor:_important?Theme.of(context).colorScheme.secondaryContainer:null),onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_important=!_important),icon:const Icon(Icons.priority_high,size:20)),
-                const SizedBox(width:4),
                 IconButton(tooltip:'위치 기록',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.location_on_outlined,size:20)),
-                const SizedBox(width:4),
                 IconButton(tooltip:'음성 녹음',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const Icon(Icons.mic_none,size:20)),
-                const SizedBox(width:4),
                 IconButton(tooltip:'사진 업로드',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'photo'),icon:const Icon(Icons.add_photo_alternate_outlined,size:20)),
                 const Spacer(),
                 ValueListenableBuilder<Map<String,int>>(
