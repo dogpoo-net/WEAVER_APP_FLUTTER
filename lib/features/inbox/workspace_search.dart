@@ -50,8 +50,9 @@ class _WorkspaceSearchState extends State<WorkspaceSearch> {
     final results=searchWorkspace(widget.notes,elements.records.values,_query);
     return Scaffold(appBar:AppBar(centerTitle:false,titleSpacing:0,leadingWidth:44,title:const WorkspaceTitle('전체 보기'),actions:const[DesktopMenuAction()]),
       body:DesktopMenuBody(child:Column(children:[widget.selector,
-        Padding(padding:const EdgeInsets.all(12),child:TextField(key:const ValueKey('workspace-search'),controller:widget.controller,
-          decoration:const InputDecoration(hintText:'문서·생각·음성 변환 텍스트 검색',prefixIcon:Icon(Icons.search),isDense:true),
+        Padding(padding:const EdgeInsets.fromLTRB(12,4,12,0),child:TextField(key:const ValueKey('workspace-search'),controller:widget.controller,
+          style:TextStyle(fontSize:MediaQuery.sizeOf(context).width<1000?13:14),
+          decoration:const InputDecoration(hintText:'자료 검색',prefixIcon:Icon(Icons.search,size:18),prefixIconConstraints:BoxConstraints(minWidth:36,minHeight:36),contentPadding:EdgeInsets.symmetric(horizontal:12,vertical:8),isDense:true),
           onChanged:(value){_debounce?.cancel();_debounce=Timer(const Duration(milliseconds:200),(){if(mounted)setState(()=>_query=value);});})),
         if(_query.trim().isNotEmpty)Padding(padding:const EdgeInsets.symmetric(horizontal:12),child:Align(alignment:Alignment.centerLeft,child:Text('검색 결과 ${results.length}개'))),
         Expanded(child:results.isEmpty?Center(child:Text(_query.trim().isEmpty?'검색어를 입력해주세요.':'일치하는 자료가 없습니다.')):

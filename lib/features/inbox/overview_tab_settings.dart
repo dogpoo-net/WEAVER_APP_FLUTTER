@@ -39,7 +39,7 @@ Future<OverviewTabs?> showOverviewTabSettings(BuildContext context, OverviewTabs
       itemBuilder:(context,index){final name=order[index],enabled=!hidden.contains(name);
         return ListTile(key:ValueKey('tab-setting-$name'),dense:true,contentPadding:EdgeInsets.zero,
           leading:ReorderableDragStartListener(index:index,child:const Padding(padding:EdgeInsets.all(8),child:Icon(Icons.drag_handle))),
-          title:Text(label(name)),trailing:Switch(value:enabled,onChanged:enabled&&order.length-hidden.length==1?null:(value)=>setState((){if(value){hidden.remove(name);}else{hidden.add(name);}})));
+          title:Text(label(name)),trailing:Transform.scale(scale:.8,transformHitTests:false,child:Switch(value:enabled,onChanged:enabled&&order.length-hidden.length==1?null:(value)=>setState((){if(value){hidden.remove(name);}else{hidden.add(name);}}))));
       })),
     actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('취소')),
       FilledButton(onPressed:()=>Navigator.pop(context,OverviewTabs(order,hidden)),child:const Text('적용'))],
