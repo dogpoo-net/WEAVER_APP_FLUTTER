@@ -28,7 +28,7 @@ class ReadonlyWorkspace extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('읽기 전용 워크스페이스'),
-        actions:[IconButton(tooltip:'설정',icon:const Icon(Icons.settings_outlined),onPressed:()=>showThoughtSettings(context,storage.preferences,onWorkspaces:storage.openWorkspaces,workspaceName:storage.workspaceName,onInvite:storage.openSharing,onAdmin:storage.openAdmin,onPlan:storage.openPlan))],
+        actions:[IconButton(tooltip:'설정',icon:const Icon(Icons.settings_outlined),onPressed:()=>showThoughtSettings(context,storage.preferences,onWorkspaces:storage.openWorkspaces,workspaceName:storage.workspaceName,offline:storage.offlineMode,onAdmin:storage.openAdmin,onPlan:storage.openPlan))],
           bottom: const TabBar(
             isScrollable: true,
             tabs: [

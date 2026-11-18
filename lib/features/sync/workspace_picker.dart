@@ -87,7 +87,7 @@ class _WorkspacePickerState extends State<WorkspacePicker>{
         if(action=='members'){Navigator.pop(context);await widget.onManageMembers?.call(row);}
         else{await change(action,row);}
       },itemBuilder:(_)=>[
-        if(widget.onManageMembers!=null)const PopupMenuItem(value:'members',child:Text('멤버 관리')),
+        if(widget.onManageMembers!=null && !(row['role']=='owner' && (row['plan']=='free' || row['offline']==true)))const PopupMenuItem(value:'members',child:Text('멤버 관리')),
         if(row['role']=='owner')...const[
         PopupMenuItem(value:'rename-workspace',child:Text('이름변경')),
         PopupMenuItem(value:'delete-workspace',child:Text('삭제')),

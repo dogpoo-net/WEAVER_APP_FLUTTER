@@ -21,7 +21,7 @@ class _WorkspacePolicyPageState extends State<WorkspacePolicyPage>{
   @override Widget build(BuildContext context){
     final subscription=data?['subscription'] as Map? ?? {};final plan=data?['plan'] as Map? ?? {};
     final paid=plan['code']!=null&&plan['code']!='free';final cancelled=subscription['cancelAtEnd']==true||subscription['cancelAtEnd']==1;
-    return Scaffold(appBar:AppBar(title:const Text('계정 구독·워크스페이스')),body:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:720),child:ListView(padding:const EdgeInsets.all(16),children:[
+    return Scaffold(appBar:AppBar(title:const Text('구독 관리')),body:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:720),child:ListView(padding:const EdgeInsets.all(16),children:[
       if(busy)const LinearProgressIndicator(),if(error!=null)Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error)),
       Text('${plan['code']??'…'}',style:Theme.of(context).textTheme.titleLarge),
       if(subscription['periodEnd']!=null)Text('이용 기간 종료: ${DateTime.parse(subscription['periodEnd']).toLocal()}'),

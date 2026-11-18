@@ -117,7 +117,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         Map<String,dynamic> list;
         final catalogKey='weaver.catalog.$account';
         try{list=await widget.auth.emailApi.workspace('catalog', {});await widget.root.preferences.setString(catalogKey,jsonEncode(list));}
-        catch(e){if(e is EmailAuthFailure && (e.status==401 || e.status==403))rethrow;final cached=widget.root.preferences.getString(catalogKey);if(cached==null)rethrow;list=Map<String,dynamic>.from(jsonDecode(cached));list['workspaces']=(list['workspaces'] as List).where((r)=>r['role']=='owner'&&r['offline']==true).toList();if((list['workspaces'] as List).isEmpty)rethrow;notice='네트워크 연결 없이 이 기기의 오프라인 공간을 사용합니다.';}
+        catch(e){if(e is EmailAuthFailure && (e.status==401 || e.status==403))rethrow;final cached=widget.root.preferences.getString(catalogKey);if(cached==null)rethrow;list=Map<String,dynamic>.from(jsonDecode(cached));list['workspaces']=(list['workspaces'] as List).where((r)=>r['role']=='owner'&&r['offline']==true).toList();if((list['workspaces'] as List).isEmpty)rethrow;}
 
         if (!valid()) return;
         catalog = list['workspaces'] as List;
@@ -349,7 +349,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     final scopeKey='weaver.account.scopes.$account';await widget.root.preferences.setStringList(scopeKey,{...?widget.root.preferences.getStringList(scopeKey),local.owner!}.toList());
     await widget.root.preferences.setString('weaver.selected-workspace.$account',id);
     MediaStorage.activeOwner=local.owner;elements.clear();restoreWordColors({});
-    if(valid())setState((){storage=local;failure=null;notice='오프라인 모드 · 이 기기에만 저장됩니다.';});
+    if(valid())setState((){storage=local;failure=null;notice=null;});
   }
 
   Future<void> openAdmin()async{
