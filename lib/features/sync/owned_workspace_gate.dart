@@ -1,3 +1,4 @@
+import '../inbox/main_app_bar.dart';
 import '../inbox/memo_comments.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -444,7 +445,11 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
 
   Future<void> openNotification(Map<String,dynamic> item) async {
     if (!current) return;
-    if (item['kind']=='subscription') { await storage?.openPlan?.call(); return; }
+    if (item['kind']=='subscription') {
+      if(storage?.openPlan!=null){await storage!.openPlan!();}
+      else { await showDialog<void>(context:context,builder:(context)=>AlertDialog(title:Text(item['title'] as String? ?? '구독 알림'),content:Text(item['body'] as String? ?? ''),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('닫기'))])); }
+      return;
+    }
     final id=item['workspaceId'] as String?;
     if(id==null)return;
     await switchWorkspace(id,force:item['kind']=='invite');
@@ -506,7 +511,10 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
 
   @override
   Widget build(BuildContext context) {
-    if(emptyWorkspace && storage==null){return Scaffold(appBar:AppBar(title:const Text('워크스페이스'),actions:[if(isAdmin)IconButton(tooltip:'관리자 백오피스',onPressed:openAdmin,icon:const Icon(Icons.admin_panel_settings_outlined)),TextButton(onPressed:()=>widget.auth.signOut(),child:const Text('로그아웃'))]),body:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:480),child:ListView(shrinkWrap:true,padding:const EdgeInsets.all(24),children:[const Text('이용 가능한 워크스페이스가 없습니다.',textAlign:TextAlign.center),const SizedBox(height:12),TextField(key:const ValueKey('empty-workspace-name'),controller:_newWorkspaceName,enabled:!_creatingWorkspace,maxLength:80,textInputAction:TextInputAction.done,decoration:const InputDecoration(labelText:'워크스페이스 이름',isDense:true),onChanged:(_)=>setState((){}),onSubmitted:(_)=>_createFirstWorkspace()),const SizedBox(height:8),FilledButton(onPressed:_creatingWorkspace||_newWorkspaceName.text.trim().isEmpty?null:_createFirstWorkspace,child:const Text('워크스페이스 생성')),for(final invite in pendingInvites)ListTile(title:Text(invite['name']??'초대받은 워크스페이스'),trailing:TextButton(child:const Text('수락'),onPressed:()async{try{final result=await widget.auth.emailApi.workspace('accept',{'inviteId':invite['id']});if(current)await switchWorkspace(result['workspaceId'],force:true,relinquished:true);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}))]))));}
+    if(emptyWorkspace && storage==null){return Scaffold(appBar:MainAppBar(auth:widget.auth,onNotification:openNotification,leading:PopupMenuButton<String>(
+      tooltip:'메뉴 열기',icon:const Icon(Icons.grid_view_rounded),
+      onSelected:(action)async{switch(action){case 'workspaces':await chooseWorkspace();case 'admin':await openAdmin();case 'logout':await widget.auth.signOut();}},
+      itemBuilder:(_)=>[const PopupMenuItem(value:'workspaces',child:Text('워크스페이스 선택 · 복원')),if(isAdmin)const PopupMenuItem(value:'admin',child:Text('관리자 백오피스')),const PopupMenuItem(value:'logout',child:Text('로그아웃'))])),body:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:480),child:ListView(shrinkWrap:true,padding:const EdgeInsets.all(24),children:[const Text('이용 가능한 워크스페이스가 없습니다.',textAlign:TextAlign.center),const SizedBox(height:12),TextField(key:const ValueKey('empty-workspace-name'),controller:_newWorkspaceName,enabled:!_creatingWorkspace,maxLength:80,textInputAction:TextInputAction.done,decoration:const InputDecoration(labelText:'워크스페이스 이름',isDense:true),onChanged:(_)=>setState((){}),onSubmitted:(_)=>_createFirstWorkspace()),const SizedBox(height:8),FilledButton(onPressed:_creatingWorkspace||_newWorkspaceName.text.trim().isEmpty?null:_createFirstWorkspace,child:const Text('워크스페이스 생성')),for(final invite in pendingInvites)ListTile(title:Text(invite['name']??'초대받은 워크스페이스'),trailing:TextButton(child:const Text('수락'),onPressed:()async{try{final result=await widget.auth.emailApi.workspace('accept',{'inviteId':invite['id']});if(current)await switchWorkspace(result['workspaceId'],force:true,relinquished:true);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}))]))));}
     if (storage == null) {
       return Scaffold(
         body: Center(

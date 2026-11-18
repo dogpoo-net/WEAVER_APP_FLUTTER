@@ -1,4 +1,4 @@
-import '../sync/notification_inbox.dart';
+import 'main_app_bar.dart';
 import '../sync/workspace_events.dart';
 import 'overview_collections.dart';
 import 'memo_comments.dart';
@@ -8,7 +8,6 @@ import '../auth/google_auth.dart';
 import '../sync/workspace_backup.dart';
 import 'trash_page.dart';
 import 'thought_settings.dart';
-import '../auth/profile_page.dart';
 import '../capture/capture_models.dart';
 import '../capture/location_capture.dart';
 import '../capture/voice_dialog.dart';
@@ -1486,7 +1485,10 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     final rawMedia = MediaQuery.of(context);
     final media = rawMedia.copyWith(viewInsets: rawMedia.viewInsets.copyWith(bottom: effectiveKeyboardInset(rawMedia)));
     return MediaQuery(data: media, child: DesktopMenuFrame(child: Scaffold(
-      appBar: AppBar(
+      appBar: MainAppBar(
+        auth:GoogleAuthScope.maybeOf(context),
+        onNotification:widget.storage?.openNotification,
+        onTitle:MediaQuery.sizeOf(context).width >= 1000 ? () => navigateHome(context) : null,
         leading: AnimatedBuilder(animation: desktopMenu, builder: (context, _) =>
           MediaQuery.sizeOf(context).width >= 1000 && _menuVisible
             ? Padding(padding: const EdgeInsets.all(14), child: Image.asset(
@@ -1494,23 +1496,6 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
                 semanticLabel: '위버'))
             : IconButton(tooltip: '메뉴 열기', onPressed: _menu,
                 icon: const Icon(Icons.grid_view_rounded))),
-        actions: [
-          const KeyboardDismissAction(),
-          if (GoogleAuthScope.maybeOf(context)?.identity != null)
-            NotificationBell(key:ValueKey('notifications-${GoogleAuthScope.maybeOf(context)!.identity!.id}'),request:GoogleAuthScope.maybeOf(context)!.emailApi.workspace,onOpen:widget.storage?.openNotification),
-          if (GoogleAuthScope.maybeOf(context)?.identity != null)
-            IconButton(tooltip: '프로필', onPressed: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => ProfilePage(auth: GoogleAuthScope.maybeOf(context)!))), icon: ProfileAvatar(auth: GoogleAuthScope.maybeOf(context))),
-          const SizedBox(width: 12),
-        ],
-        title: GestureDetector(onTap: MediaQuery.sizeOf(context).width >= 1000 ? () => navigateHome(context) : null, child: Text(
-          'WEAVER',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 3,
-          ),
-        )),
-        centerTitle: false,
       ),
       body: DesktopMenuBody(child: SizedBox(key: _bodyKey, child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
