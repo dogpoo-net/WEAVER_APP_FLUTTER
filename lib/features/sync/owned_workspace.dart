@@ -181,7 +181,10 @@ class WorkspaceSync extends ChangeNotifier {
 
     return result;
   }
-  Future<bool> checkRemote() async {
+  Future<bool>? _statusRequest;
+  Future<bool> checkRemote() => _statusRequest ??= _checkRemote()
+      .whenComplete(() => _statusRequest = null);
+  Future<bool> _checkRemote() async {
     if(networkPending){await recoverNetwork();return false;}
     if(manualReview)return false;
     final leaseEpoch=_leaseEpoch;
@@ -438,7 +441,10 @@ class WorkspaceSync extends ChangeNotifier {
     storage.onChanged=schedule;storage.syncNow=flush;storage.syncDeleted=flushDeletions;storage.syncFolders=flushFolders;storage.refreshNow=refreshFromServer;storage.checkRemote=checkRemote;storage.syncContent=readOnly?null:()=>_enqueueFlush(false,contentOnly:true);storage.syncResource=(id)=>id.startsWith('canvas:')?flushCanvas():saveDocument(id);storage.reloadResource=reloadResource;storage.takeLease=takeLease;storage.inspectLease=inspectLease;storage.acquireLease=acquireLease;
     changed();if(storage.read()!=_lastSynced)schedule();
   }
-  Future<void> refreshFromServer() async {
+  Future<void>? _refreshRequest;
+  Future<void> refreshFromServer() => _refreshRequest ??= _refreshFromServer()
+      .whenComplete(() => _refreshRequest = null);
+  Future<void> _refreshFromServer() async {
     if(networkPending){await recoverNetwork();return;}
     while (_running != null) { await _running; }
     final previous = Map<String,Map<String,dynamic>>.from(base), oldCursor = cursor;

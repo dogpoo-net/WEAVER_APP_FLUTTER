@@ -235,7 +235,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   });
   String? _dragKey(Object data) {
     if (data is InlineLinkDragSource) return data.linkKey;
-    if (data is MemoDrag) return elements.records.values.where((record) => record.id == data.id).firstOrNull?.text;
+    if (data is MemoDrag) return elements.byId(data.id)?.text;
     return null;
   }
   Future<void> _dropLink(DragTargetDetails<Object> details) async {

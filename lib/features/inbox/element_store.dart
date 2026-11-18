@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'thought_colors.dart';
 import '../capture/voice_dialog.dart';
 import '../capture/attachment_picker.dart';
@@ -72,6 +73,32 @@ class ElementSource {
   final String text;
 }
 
+// Keep both keys in sync even when snapshot restore mutates records directly.
+class _ElementRecords extends MapBase<String, ElementRecord> {
+  final _values = <String, ElementRecord>{};
+  final byId = <String, ElementRecord>{};
+  @override Iterable<String> get keys => _values.keys;
+  @override Iterable<ElementRecord> get values => _values.values;
+  @override int get length => _values.length;
+  @override ElementRecord? operator [](Object? key) => _values[key];
+  @override void operator []=(String key, ElementRecord value) {
+    final previous = _values[key];
+    if (previous != null && identical(byId[previous.id], previous)) {
+      byId.remove(previous.id);
+    }
+    _values[key] = value;
+    byId[value.id] = value;
+  }
+  @override ElementRecord? remove(Object? key) {
+    final previous = _values.remove(key);
+    if (previous != null && identical(byId[previous.id], previous)) {
+      byId.remove(previous.id);
+    }
+    return previous;
+  }
+  @override void clear() { _values.clear(); byId.clear(); }
+}
+
 class ElementStore extends ChangeNotifier {
   void Function(String oldText, String newText)? onRenamed;
   String? update(String oldText, String input, {Iterable<String>? tags, int? labelColor, bool? hiddenFromSearch, bool? important, String? indexLabel, bool? labelOnLeft, int? indexLabelColor, List<ElementBinding>? inlineLinks}) {
@@ -134,7 +161,9 @@ class ElementStore extends ChangeNotifier {
   }
 
   final Map<String, ElementRecord> trash = {};
-  final Map<String, ElementRecord> records = {};
+  final _records = _ElementRecords();
+  Map<String, ElementRecord> get records => _records;
+  ElementRecord? byId(String id) => _records.byId[id];
   final Map<Object, List<ElementSource>> sources = {};
   ElementRecord add(String text, {bool replaceTags = false}) {
     final parsed = parseTaggedInput(text);

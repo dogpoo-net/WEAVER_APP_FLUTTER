@@ -19,11 +19,23 @@ class ThoughtLabel extends StatelessWidget {
   final ElementRecord record;
   final ValueChanged<bool> onHold;
   final bool active, movable;
+  // Bound memory use; direction and text scaling are part of the cache key.
+  static final _widths = <(String, TextDirection, TextScaler), double>{};
+  static bool _observingFonts = false;
   static double width(BuildContext context, String text) {
+    if (!_observingFonts) {
+      PaintingBinding.instance.systemFonts.addListener(_widths.clear);
+      _observingFonts = true;
+    }
+    final key = (text, Directionality.of(context), MediaQuery.textScalerOf(context));
+    final cached = _widths.remove(key);
+    if (cached != null) { _widths[key] = cached; return cached; }
     final painter = TextPainter(text: TextSpan(text: text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
       textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
     final width = painter.width + 20;
     painter.dispose();
+    if (_widths.length >= 2048) _widths.remove(_widths.keys.first);
+    _widths[key] = width;
     return width;
   }
   static double height(BuildContext context, String text) {

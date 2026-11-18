@@ -37,10 +37,11 @@ class RenderPackedBadges extends RenderBox with ContainerRenderObjectMixin<Rende
     final free=<Rect>[Rect.fromLTWH(0,0,width+6,double.infinity)];
     var bottom=0.0, hidden=false;
     var index=0;
+    var slotsSorted=true;
     for(var child=firstChild;child!=null;child=(child.parentData! as _Data).nextSibling) {
       child.layout(BoxConstraints(maxWidth:width),parentUsesSize:true);
       if(visible.isEmpty)limit=math.max(limit,child.size.height);
-      free.sort((a,b)=>a.top==b.top?a.left.compareTo(b.left):a.top.compareTo(b.top));
+      if(!slotsSorted){free.sort((a,b)=>a.top==b.top?a.left.compareTo(b.left):a.top.compareTo(b.top));slotsSorted=true;}
       final childSize=child.size;
       final slot=free.firstWhere((r)=>r.width+.01>=childSize.width+6 && r.height+.01>=childSize.height+6);
       if(index++<alwaysVisibleCount)limit=math.max(limit,slot.top+child.size.height);
@@ -59,7 +60,7 @@ class RenderPackedBadges extends RenderBox with ContainerRenderObjectMixin<Rende
         if(used.top>r.top)next.add(Rect.fromLTRB(r.left,r.top,r.right,used.top));
         if(used.bottom<r.bottom)next.add(Rect.fromLTRB(r.left,used.bottom,r.right,r.bottom));
       }
-      free.clear();
+      free.clear();slotsSorted=false;
       for(var i=0;i<next.length;i++){
         final r=next[i];
         if(r.width<.01||r.height<.01)continue;

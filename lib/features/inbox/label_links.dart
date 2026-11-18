@@ -15,7 +15,7 @@ class InlineLinkDrag implements InlineLinkDragSource {
 
 bool isInlineLink(String id) => id.startsWith('label:') || id.startsWith('url:') || id.startsWith('project:');
 ElementRecord? labelTarget(String id) => id.startsWith('label:')
-  ? elements.records.values.where((r) => r.id == id.substring(6)).firstOrNull : null;
+  ? elements.byId(id.substring(6)) : null;
 Iterable<WritingProject> get indexedProjects => elements.sources.keys.whereType<WritingProject>();
 WritingProject? projectTarget(String id) => id.startsWith('project:')
   ? indexedProjects.where((p) => p.id == id.substring(8)).firstOrNull : null;

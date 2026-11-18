@@ -289,10 +289,10 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
   }
 
   void _elementRenamed(String oldText, String newText) {
+    final records = {for (final record in elements.records.values) record.id: record.text};
     for (final note in _notes) {
       final paragraphs = note.project?.paragraphs ?? note.paragraphs;
       if (paragraphs != null) {
-        final records = {for (final record in elements.records.values) record.id: record.text};
         for (var i = 0; i < paragraphs.length; i++) {
           final paragraph = paragraphs[i];
           if (paragraph.bindings.isEmpty) continue;

@@ -1,6 +1,6 @@
 import 'label_links.dart';
 import 'thought_colors.dart';
-import 'memo_comments.dart';
+import 'memo_comment_count.dart';
 import '../capture/attachment_indicators.dart';
 import 'element_store.dart';
 import 'dart:math';
@@ -150,11 +150,10 @@ class WordBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return ValueListenableBuilder<Map<String,int>>(valueListenable:memoCommentCounts,builder:(context,counts,_)=>LayoutBuilder(builder: (context, constraints) {
+    return MemoCommentCount(id:tag?null:elements.records[word]?.id,builder:(context,commentCount)=>LayoutBuilder(builder: (context, constraints) {
     final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : MediaQuery.sizeOf(context).width - 24;
     final labelColor = tag ? Color(hashtagColors[word.replaceFirst('#', '')] ?? 0xFF90A4AE) : null;
     final record = tag ? null : elements.records[word];
-    final commentCount=record==null?0:counts[record.id]??0;
     final indicators = record != null && AttachmentIndicators.hasAttachments(record);
     final title = singleLine ? (displayText ?? word).replaceAll(RegExp(r'[\r\n]+'), ' ') : displayText ?? word;
     var prefixWidth = 0.0;
