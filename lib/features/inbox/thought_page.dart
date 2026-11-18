@@ -70,6 +70,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   final _liftBoxes = <MemoBox, Rect>{};
   bool _centered = false;
   bool _detailOpen = false;
+  String? _liftedThought;
   bool _selectionMode = false, _movingSelection = false, _ctrlPressed = false, _shiftPressed = false;
   bool get _rangeSelection => _selectionMode || _ctrlPressed || _shiftPressed || _selectionStart != null;
   bool _controlSelection(KeyEvent event) {
@@ -1123,6 +1124,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             child: ThoughtInteraction(key: ValueKey('canvas-thought-${record.id}'), size: _size(record.id), desktop: MediaQuery.sizeOf(context).width >= 760,
                 groupLifted: _selectionLifted && _selected.contains(record.id),
                 onLift: () => setState(() {
+                  _liftedThought = record.id;
                   _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
                 }),
                 onActiveChanged: (active) => setState(() { if (active) { _rememberStacks(); _thoughtDragOrigins.putIfAbsent(record.id, () => _positions[record.id]!); _dragStartStacks.putIfAbsent(record.id, () => alignedStackMembers(record.id, _positions,groups:_layout.stackGroups)); } _draggingId = active ? record.id : null; if (!active) { _hoverBox = null; _dropHighlights.clear(); } }),
@@ -1180,6 +1182,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                     _liftBoxes.clear(); _changed(); _saveLayout(flush: true);
                     return;
                   }
+                  // Ordinary dragging rearranges the current box. Only a long-press
+                  // lift may detach/reparent a memo or be rejected by a folder.
+                  // The captured region bounds can also precede the last drag frame.
+                  if (_liftedThought != record.id) { _saveLayout(flush: true); return; }
                   if (widget.blocks && folders.values.any((bounds) => bounds.contains(center)) &&
                       !regions.any((region) => _inside(region.bounds, center))) {
                     final origin = _thoughtDragOrigins[record.id];
@@ -1205,7 +1211,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   }
                   if (detached.isNotEmpty) _changed();
                   _saveLayout(flush: true);
-                }, onEnd: () { setState(() { if (_resizingThought == null) _closeMovedSlots(_thoughtDragOrigins); _resizingThought = null; _resizeNeighbors.clear(); _thoughtDragOrigins.remove(record.id); _dragStartStacks.remove(record.id); _dropHighlights.clear(); _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
+                }, onEnd: () { setState(() { _liftedThought = null; if (_resizingThought == null) _closeMovedSlots(_thoughtDragOrigins); _resizingThought = null; _resizeNeighbors.clear(); _thoughtDragOrigins.remove(record.id); _dragStartStacks.remove(record.id); _dropHighlights.clear(); _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
                 child: Card(margin: EdgeInsets.zero, color: wordBackgroundColor(context, record.text),
                   shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _dropHighlights.contains(record.id) || _draggingId == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) ? 3 : 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: _dropHighlights.contains(record.id) || _draggingId == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) || _draggingId == record.id ? 3 : 2)),
