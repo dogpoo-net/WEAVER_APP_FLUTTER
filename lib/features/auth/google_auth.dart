@@ -126,6 +126,10 @@ class GoogleAuthController extends ChangeNotifier {
   final SharedPreferences? preferences;
   final GoogleAuthClient client;
   GoogleIdentity? identity;
+  bool get desktopBrowserAuth => !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+  bool get googleAvailable => desktopBrowserAuth || client.configured;
+  bool get kakaoAvailable => desktopBrowserAuth || kakaoClient.configured;
+  bool get googleReady => desktopBrowserAuth || ready;
   bool ready = false, busy = false;
   String? error;
   bool _disposed = false, _loggingOut = false;
@@ -198,6 +202,7 @@ class GoogleAuthController extends ChangeNotifier {
     _changed();
   }
   Future<void> signIn() async {
+    if (desktopBrowserAuth) return signInWithBrowser('google');
     if (!ready || busy) return;
     busy = true; error = null; _changed();
     try {
@@ -288,6 +293,7 @@ class GoogleAuthController extends ChangeNotifier {
     _acceptEmail(data);
   }
   Future<void> signInWithKakao() async {
+    if (desktopBrowserAuth) return signInWithBrowser('kakao');
     if (busy || isGuest) return;
     final generation = ++_generation;
     busy = true; error = null; _changed();
@@ -345,7 +351,7 @@ class GoogleAuthController extends ChangeNotifier {
   }
   Future<bool> linkBrowser(String provider) => _link((_) async =>
     await emailApi.loginBrowser(provider, link: true) != null);
-  Future<bool> linkKakao() => _link((cancelled) async {
+  Future<bool> linkKakao() => desktopBrowserAuth ? linkBrowser('kakao') : _link((cancelled) async {
     final token = await kakaoClient.accessToken();
     if (token == null || cancelled.isCompleted || _disposed) return false;
     await emailApi.linkKakao(token);

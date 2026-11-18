@@ -180,7 +180,7 @@ class EmailAuthApi {
       final flow = await wait(post('session/$_platform/$provider/start', {'proof': proof, 'link': link}, sessionToken: accessToken));
       final url = flow['authorizeUrl'] as String;
       final target = Uri.parse(url);
-      if (target.scheme != 'https' || !{'nid.naver.com', 'github.com', 'gitlab.com'}.contains(target.host)) throw const EmailAuthFailure('로그인 주소를 확인하지 못했습니다.');
+      if (target.scheme != 'https' || !{'nid.naver.com', 'github.com', 'gitlab.com', 'accounts.google.com', 'kauth.kakao.com'}.contains(target.host)) throw const EmailAuthFailure('로그인 주소를 확인하지 못했습니다.');
       await wait(window.navigate(url));
       for (var i = 0; i < 300; i++) {
         final result = await wait(post('session/$_platform/$provider/finish', {'flow': flow['flow'] as String, 'proof': proof}, sessionToken: accessToken));

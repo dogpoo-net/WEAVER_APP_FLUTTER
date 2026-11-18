@@ -305,13 +305,13 @@ class _ProfilePageState extends State<ProfilePage> {
                     key: canUnlink('google') ? const ValueKey('unlink-google') : null,
                     onTap: !disabled && canUnlink('google') ? () => unlink('google') : null,
                   )
-                else if (auth.client.configured)
+                else if (auth.googleAvailable)
                   ListTile(
                     leading: const Image(image: AssetImage('assets/branding/social/google.png'), width: 24, height: 24),
                     title: const Text('Google'),
                     trailing: const Icon(Icons.link),
-                    enabled: !disabled && auth.ready,
-                    onTap: disabled || !auth.ready ? null : auth.startGoogleLink,
+                    enabled: !disabled && auth.googleReady,
+                    onTap: disabled || !auth.googleReady ? null : auth.desktopBrowserAuth ? () => link('google') : auth.startGoogleLink,
                   ),
                 for (final entry in const {
                   'github': 'GitHub',
@@ -333,12 +333,12 @@ class _ProfilePageState extends State<ProfilePage> {
                         : const Icon(Icons.link),
                     enabled:
                         !disabled &&
-                        (providers.contains(entry.key) || entry.key != 'kakao' || auth.kakaoClient.configured),
+                        (providers.contains(entry.key) || entry.key != 'kakao' || auth.kakaoAvailable),
                     onTap:
                         disabled ? null
                         : providers.contains(entry.key)
                           ? (canUnlink(entry.key) ? () => unlink(entry.key) : null)
-                          : (entry.key == 'kakao' && !auth.kakaoClient.configured)
+                          : (entry.key == 'kakao' && !auth.kakaoAvailable)
                             ? null : () => link(entry.key),
                   ),
                 const Divider(),
