@@ -53,7 +53,7 @@ class ThoughtFilters extends StatelessWidget {
       SizedBox(height: compact ? 30 : 38, child: Row(children: [
         const Icon(Icons.inventory_2_outlined, size: 18), const SizedBox(width: 8),
         Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
-          for (final item in memoBoxes) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
+          for (final item in [...memoBoxes.where((box) => !box.isUnclassified), ...memoBoxes.where((box) => box.isUnclassified)]) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
             box: item, onChanged: onChanged, child: _chip(item.name, ValueKey('thought-filter-box-${item.name}'), selection?.boxes.contains(item) ?? identical(box, item), () => onFilter(item, null), avatar: _color('${item.name} 상자 색상 변경', Color(item.color), () async {
                 final color = await pickHashtagColor(context, item.name, Color(item.color), prefix: '');
                 if (color != null && context.mounted) { item.color = color.toARGB32(); onChanged(); }

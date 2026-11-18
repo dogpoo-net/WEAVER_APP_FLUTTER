@@ -233,7 +233,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
       expansionAnimationStyle: const AnimationStyle(duration: Duration(milliseconds: 200), curve: Curves.easeInOutCubic),
       children: [for (final child in memoBoxFolders.where((f) => memoFolderParent(f) == folder)) _boxFolder(child),
-        for (var i = 0; i < memoBoxes.length; i++) if (memoBoxes[i].folder == folder) _item(_Kind.box, i, nested: true)],
+        for (var i = 0; i < memoBoxes.length; i++) if (!memoBoxes[i].isUnclassified && memoBoxes[i].folder == folder) _item(_Kind.box, i, nested: true)],
     )));
   }
   Widget _heading(_Kind kind) => Padding(padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 12, 4),
@@ -268,7 +268,9 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       if (folders.isNotEmpty && kind == _Kind.element) _target(kind, null, const ListTile(dense: true,
         leading: Icon(Icons.folder_open_outlined, size: 18), title: Text('미분류'))),
       for (var i = 0; i < items.length; i++)
-        if (placements[i] == null || !folders.contains(placements[i])) _item(kind, i),
+        if ((kind != _Kind.box || !memoBoxes[i].isUnclassified) && (placements[i] == null || !folders.contains(placements[i]))) _item(kind, i),
+      if (kind == _Kind.box) for (var i = 0; i < memoBoxes.length; i++)
+        if (memoBoxes[i].isUnclassified) _item(kind, i),
       if (items.isEmpty) Padding(padding: const EdgeInsets.all(16), child: Text('아직 ${_label(kind)}${kind == _Kind.paragraph ? '이' : '가'} 없어요')),
       if (kind == _Kind.box) _folderDrop(null, _target(kind, null, const SizedBox(height: 14, width: double.infinity), targetId: 'drop-box-outside')),
       if (kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.tag)
