@@ -57,12 +57,12 @@ class GraphLayout {
     'tags': {for (final e in tags.entries) e.key: [e.value.dx, e.value.dy]},
     'sizes': {for (final e in sizes.entries) e.key: [e.value.dx, e.value.dy]},
     'folderPositions': {for (final e in folderPositions.entries) e.key: [e.value.dx, e.value.dy]},
-    'viewport': viewport,
+    'viewport': viewport?.toList(),
     'query': query,
     'hideTags': hideTags,
     'stacked': stacked,
-    'layers': layers,
-    'stackGroups': stackGroups,
+    'layers': List.of(layers),
+    'stackGroups': Map.of(stackGroups),
   };
 
   static GraphLayout fromJson(dynamic data) {

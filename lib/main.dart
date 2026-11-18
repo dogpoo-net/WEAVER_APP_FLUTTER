@@ -1,3 +1,4 @@
+import 'features/storage/record_preferences.dart';
 import 'features/inbox/menu_display_preferences.dart';
 import 'features/sync/owned_workspace_gate.dart';
 import 'features/sync/owned_workspace.dart';
@@ -37,9 +38,14 @@ Future<void> main() async {
   });
   WorkspaceStorage? storage;
   try {
-    storage = WorkspaceStorage(await SharedPreferences.getInstance());
+    storage = WorkspaceStorage(await RecordPreferences.open(await SharedPreferences.getInstance()));
   } catch (_) {
-    /* Show storage availability in the workspace. */
+    runApp(MaterialApp(home: Scaffold(body: SafeArea(child: Center(child: Padding(
+      padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('기기의 저장 자료를 준비하지 못했습니다. 기존 자료는 삭제하지 않았습니다. 저장 공간을 확인한 뒤 다시 시도해주세요.'),
+        const SizedBox(height: 16), TextButton(onPressed: main, child: const Text('다시 시도')),
+      ])))))));
+    return;
   }
   runApp(MyApp(storage: storage));
 }

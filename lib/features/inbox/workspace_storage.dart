@@ -1,3 +1,4 @@
+import '../storage/record_preferences.dart';
 import '../capture/voice_transcription.dart';
 import '../sync/workspace_events.dart';
 import '../capture/capture_models.dart';
@@ -87,18 +88,19 @@ class WorkspaceSnapshot {
             'photos': r.photos.map((photo) => photo.toJson()).toList(),
             'deletedAt': r.deletedAt?.toIso8601String(),
           };
-  static String encode(List<Note> notes) => jsonEncode({
+  static String encode(List<Note> notes) => jsonEncode(data(notes));
+  static Map<String,dynamic> data(List<Note> notes) => {
     'version': 1,
     'graphLayout': pageGraphLayout.toJson(),
-    'memoBoxFolders': memoBoxFolders,
-    'memoBoxFolderParents': memoBoxFolderParents,
+    'memoBoxFolders': List.of(memoBoxFolders),
+    'memoBoxFolderParents': Map.of(memoBoxFolderParents),
     'memoBoxes': [for (final box in memoBoxes) {'name': box.name, 'isUnclassified': box.isUnclassified, 'color': box.color, 'folder': box.folder, 'ids': box.elementIds.toList(), 'layout': box.layout.toJson()}],
-    'folders': projectFolders,
-    'paragraphFolders': paragraphFolders,
-    'elementFolders': elementFolders,
-    'hashtagFolders': hashtagFolders,
-    'hashtagColors': hashtagColors,
-    'hashtagFolderAssignments': hashtagFolderAssignments,
+    'folders': List.of(projectFolders),
+    'paragraphFolders': List.of(paragraphFolders),
+    'elementFolders': List.of(elementFolders),
+    'hashtagFolders': List.of(hashtagFolders),
+    'hashtagColors': Map.of(hashtagColors),
+    'hashtagFolderAssignments': Map.of(hashtagFolderAssignments),
     'elements': elements.records.values.map(recordJson).toList(),
     'trash': elements.trash.values.map(recordJson).toList(),
     'colors': exportWordColors(),
@@ -120,7 +122,7 @@ class WorkspaceSnapshot {
                     'id': n.project!.id,
                     'documentLinks': n.project!.documentLinks.map((link) => link.toJson()).toList(),
                     'folder': n.project!.folder,
-                    'words': n.project!.words,
+                    'words': List.of(n.project!.words),
                     'document': n.project!.document,
                     'tags': n.project!.tags.toList(),
                     'paragraphs': n.project!.paragraphs.map(paragraph).toList(),
@@ -128,7 +130,7 @@ class WorkspaceSnapshot {
           },
         )
         .toList(),
-  });
+  };
   static WorkspaceSnapshot decode(String json) {
     if (json.length > 10000000) throw const FormatException('Backup too large');
     final data = jsonDecode(json) as Map<String, dynamic>;
@@ -485,6 +487,22 @@ class WorkspaceStorage {
     });
     _pending = task;
     return task;
+  }
+
+  Future<void> writeSnapshot(List<Note> notes) {
+    final snapshot=WorkspaceSnapshot.data(notes);
+    final graphs=<String,dynamic>{'page':snapshot['graphLayout'],'boxes':{
+      for(final box in snapshot['memoBoxes'] as List)box['name']:box['layout'],
+    }};
+    final prefs=preferences;
+    if(prefs is! RecordPreferences)return write(jsonEncode(snapshot),graphLayouts:jsonEncode(graphs));
+    final task=_pending.catchError((Object _){}).then((_)async{
+      await writable();
+      final changed=await prefs.setJson(workspaceKey,snapshot,previousKey:'$workspaceKey.previous');
+      final layoutsChanged=await prefs.setJson(layoutsKey,graphs);
+      if(changed || layoutsChanged)onChanged?.call();
+    });
+    _pending=task;return task;
   }
 
   /// Both strings must describe the same captured workspace. Supplying layouts

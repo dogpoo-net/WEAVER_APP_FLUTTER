@@ -429,8 +429,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     if (widget.storage == null || _restoreBlocked) return;
     try {
       for (final note in _notes.where((n) => n.project != null)) { note.content = note.project!.content; }
-      await widget.storage!.write(WorkspaceSnapshot.encode(_notes),
-        graphLayouts: encodeGraphLayouts({for (final box in memoBoxes) box.name: box.layout}));
+      await widget.storage!.writeSnapshot(_notes);
       _scheduleContentSync();
       if (mounted && _storageError != null) setState(() => _storageError = null);
     } catch (_) {
