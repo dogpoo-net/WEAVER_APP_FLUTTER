@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'workspace_deletion_dialog.dart';
+import 'subscription_date.dart';
 
 class AdminBackofficePage extends StatefulWidget {
   const AdminBackofficePage({super.key,required this.request});
@@ -65,15 +66,15 @@ class _SubscriptionEdit extends StatefulWidget{
  @override State<_SubscriptionEdit> createState()=>_SubscriptionEditState();
 }
 class _SubscriptionEditState extends State<_SubscriptionEdit>{
- late String plan=widget.row['plan']??'free';late final end=TextEditingController(text:(widget.row['subscription'] as Map)['periodEnd']??'');
+ late String plan=widget.row['plan']??'free';late final end=TextEditingController(text:subscriptionEndDate((widget.row['subscription'] as Map)['periodEnd'] as String?));
  late bool cancel=(widget.row['subscription'] as Map)['cancelAtEnd']==true||(widget.row['subscription'] as Map)['cancelAtEnd']==1;
  String? error;
  @override void dispose(){end.dispose();super.dispose();}
  @override Widget build(BuildContext context)=>AlertDialog(title:const Text('계정 구독 상태 변경'),content:SizedBox(width:420,child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
   DropdownButtonFormField<String>(initialValue:plan,decoration:const InputDecoration(labelText:'플랜'),items:const[DropdownMenuItem(value:'free',child:Text('Free')),DropdownMenuItem(value:'standard',child:Text('Standard')),DropdownMenuItem(value:'pro',child:Text('Pro'))],onChanged:(v)=>setState(()=>plan=v!)),
-  if(plan!='free')...[TextField(controller:end,decoration:const InputDecoration(labelText:'종료일 (시간대 포함)',hintText:'2026-12-31T23:59:59+09:00')),CheckboxListTile(contentPadding:EdgeInsets.zero,value:cancel,onChanged:(v)=>setState(()=>cancel=v!),title:const Text('기간 종료 시 취소 예약'))],
+  if(plan!='free')...[TextField(controller:end,keyboardType:TextInputType.number,inputFormatters:const[SubscriptionDateFormatter()],decoration:const InputDecoration(labelText:'종료일',hintText:'yyyy-mm-dd',helperText:'선택한 날짜까지 이용할 수 있습니다. (한국 시간 기준)')),CheckboxListTile(contentPadding:EdgeInsets.zero,value:cancel,onChanged:(v)=>setState(()=>cancel=v!),title:const Text('기간 종료 시 취소 예약'))],
   const Text('이 계정의 모든 소유 공간에 적용됩니다. Free 변경은 즉시 적용되며 소유 공간은 오프라인 모드로 전환됩니다. 기존 서버 자료는 삭제하지 않습니다. 실제 결제·환불은 수행하지 않습니다.'),if(error!=null)Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error)),
- ])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('취소')),TextButton(onPressed:(){final value=DateTime.tryParse(end.text.trim());if(plan!='free'&&(value==null||!RegExp(r'(Z|[+-]\d{2}:\d{2})$').hasMatch(end.text.trim())||!value.isAfter(DateTime.now()))){setState(()=>error='시간대가 포함된 미래 종료일을 입력해주세요.');return;}Navigator.pop(context,{'plan':plan,'periodEnd':value?.toUtc().toIso8601String(),'cancel':cancel});},child:const Text('적용'))]);
+ ])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('취소')),TextButton(onPressed:(){final value=subscriptionExpiry(end.text.trim());if(plan!='free'&&(value==null||!value.isAfter(DateTime.now()))){setState(()=>error='오늘 이후의 올바른 종료일을 yyyy-mm-dd 형식으로 입력해주세요.');return;}Navigator.pop(context,{'plan':plan,'periodEnd':value?.toUtc().toIso8601String(),'cancel':cancel});},child:const Text('적용'))]);
 }
 class _AdminMembers extends StatefulWidget{
  const _AdminMembers({required this.request,required this.id,required this.members});final WorkspaceRequest request;final String id;final List<dynamic> members;
