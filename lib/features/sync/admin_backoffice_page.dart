@@ -7,12 +7,32 @@ class AdminBackofficePage extends StatefulWidget {
   @override State<AdminBackofficePage> createState()=>_AdminBackofficePageState();
 }
 class _AdminBackofficePageState extends State<AdminBackofficePage>{
-  final search=TextEditingController();List<dynamic> users=[],spaces=[],audit=[];Map? account,accountPolicy;
+  final search=TextEditingController();List<dynamic> spaces=[],audit=[];Map? account,accountPolicy;
   bool busy=false;String? error;
   @override void initState(){super.initState();run(find);}
   @override void dispose(){search.dispose();super.dispose();}
   Future<void> run(Future<void> Function() action)async{if(busy)return;setState((){busy=true;error=null;});try{await action();}catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>busy=false);}}
-  Future<void> find()async{final result=await widget.request('admin/users',{'query':search.text.trim()});if(mounted)setState(()=>users=result['users'] as List);}
+  Future<void> find({bool showResults=false})async{
+    final result=await widget.request('admin/users',{'query':search.text.trim()});
+    if(!mounted || !showResults)return;
+    final users=result['users'] as List;
+    final id=await showDialog<String>(context:context,builder:(context)=>AlertDialog(
+      title:const Text('계정 검색 결과'),
+      content:SizedBox(width:480,child:ConstrainedBox(
+        constraints:BoxConstraints(maxHeight:MediaQuery.sizeOf(context).height*.6),
+        child:users.isEmpty?const Text('검색 결과가 없습니다.'):ListView.builder(
+          shrinkWrap:true,itemCount:users.length,itemBuilder:(_,index){final user=users[index];return ListTile(
+            dense:true,contentPadding:EdgeInsets.zero,
+            title:Text(user['name']??user['email']),subtitle:Text(user['email']),
+            trailing:Text(user['platformRole']=='admin'?'관리자':'일반'),
+            selected:user['id']==account?['id'],onTap:()=>Navigator.pop(context,user['id'] as String),
+          );},
+        ),
+      )),
+      actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('닫기'))],
+    ));
+    if(id!=null && mounted)await select(id);
+  }
   Future<void> select(String id)async{final result=await widget.request('admin/account',{'userId':id});if(mounted)setState((){account=result['account'] as Map;accountPolicy=result['accountPolicy'] as Map?;spaces=result['workspaces'] as List;});}
   Future<bool> confirm(String text)async=>await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('관리자 변경 확인'),content:Text(text),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('취소')),TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('변경'))]))==true;
   Future<void> subscription(Map row)async{
@@ -27,14 +47,13 @@ class _AdminBackofficePageState extends State<AdminBackofficePage>{
     appBar:AppBar(automaticallyImplyLeading:false,title:const Text('관리자 백오피스'),actions:[TextButton.icon(onPressed:busy?null:()=>Navigator.pop(context),icon:const Icon(Icons.logout),label:const Text('나가기'))]),
     body:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1000),child:ListView(padding:const EdgeInsets.all(16),children:[
       if(busy)const LinearProgressIndicator(),if(error!=null)Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error)),
-      TextField(controller:search,enabled:!busy,decoration:InputDecoration(labelText:'계정 이메일 검색',suffixIcon:IconButton(onPressed:busy?null:()=>run(find),icon:const Icon(Icons.search))),onSubmitted:(_)=>run(find)),
-      for(final user in users)ListTile(dense:true,title:Text(user['name']??user['email']),subtitle:Text(user['email']),trailing:Text(user['platformRole']=='admin'?'관리자':'일반'),selected:user['id']==account?['id'],onTap:busy?null:()=>run(()=>select(user['id']))),
+      TextField(controller:search,enabled:!busy,decoration:InputDecoration(labelText:'계정 이메일 검색',suffixIcon:IconButton(onPressed:busy?null:()=>run(()=>find(showResults:true)),icon:const Icon(Icons.search))),onSubmitted:(_)=>run(()=>find(showResults:true))),
       if(account!=null)...[const Divider(),Text('${account!['name']??''} · ${account!['email']}',style:Theme.of(context).textTheme.titleMedium),
         ListTile(contentPadding:EdgeInsets.zero,title:const Text('계정 권한'),trailing:DropdownButton<String>(value:account!['platformRole'],items:const[DropdownMenuItem(value:'user',child:Text('일반 사용자')),DropdownMenuItem(value:'admin',child:Text('관리자'))],onChanged:busy?null:(role)=>run(()async{if(role==null||role==account!['platformRole']||!await confirm('이 계정의 권한을 ${role=='admin'?'관리자':'일반 사용자'}로 변경할까요?'))return;await widget.request('admin/account-role',{'userId':account!['id'],'role':role});await select(account!['id']);await find();}))),
         const Text('구독은 이 계정이 소유한 모든 워크스페이스에 적용됩니다.'),
         TextButton(onPressed:busy?null:()=>run(()=>subscription({'plan':(accountPolicy?['plan'] as Map?)?['code']??'free','subscription':accountPolicy?['subscription']??{}})),child:const Text('계정 플랜·구독 상태 변경')),
         if(spaces.isEmpty)const Padding(padding:EdgeInsets.all(12),child:Text('소유한 워크스페이스가 없습니다.')),
-        for(final row in spaces)Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(row['name']??'워크스페이스',style:Theme.of(context).textTheme.titleMedium),Text('${row['plan']} · ${row['archivedAt']==null?'활성':'삭제 보관 중'}'),if((row['subscription'] as Map)['periodEnd']!=null)Text('종료: ${(row['subscription'] as Map)['periodEnd']}'),Wrap(spacing:8,children:[TextButton(onPressed:busy?null:()=>run(()=>members(row)),child:const Text('멤버 권한 관리'))])]))),
+        for(final row in spaces)Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(row['name']??'워크스페이스',style:Theme.of(context).textTheme.titleMedium),Text(row['archivedAt']==null?'활성':'삭제 보관 중'),Wrap(spacing:8,children:[TextButton(onPressed:busy?null:()=>run(()=>members(row)),child:const Text('멤버 권한 관리'))])]))),
       ],
       const Divider(),TextButton.icon(icon:const Icon(Icons.mic_outlined),label:const Text('음성 인식 모델 설정'),onPressed:busy?null:()=>run(()async{final settings=await widget.request('admin/audio-settings',{});if(!context.mounted)return;await showDialog<void>(context:context,builder:(_)=>_AudioSettings(request:widget.request,initial:settings));})),TextButton(onPressed:busy?null:()=>run(()async{final result=await widget.request('admin/audit',{});if(mounted)setState(()=>audit=result['events'] as List);}),child:const Text('최근 관리자·정책 변경 이력')),
       for(final row in audit)ListTile(dense:true,title:Text('${row['action']} · ${row['targetId']}'),subtitle:Text('${row['createdAt']} · ${row['actorId']??'탈퇴 계정'}\n${row['details']}')),
