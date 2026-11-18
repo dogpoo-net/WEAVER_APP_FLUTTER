@@ -409,15 +409,28 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _persist() async {
+  Future<void>? _persistPending;
+  bool _persistAgain = false;
+  Future<void> _persist() {
+    _persistAgain = true;
+    return _persistPending ??= Future<void>(() async {
+      try {
+        do {
+          _persistAgain = false;
+          await _persistOnce();
+        } while (_persistAgain);
+      } finally {
+        _persistPending = null;
+      }
+    });
+  }
+  Future<void> _persistOnce() async {
     desktopMenu.refresh();
     if (widget.storage == null || _restoreBlocked) return;
     try {
       for (final note in _notes.where((n) => n.project != null)) { note.content = note.project!.content; }
-      final workspaceSave = widget.storage!.write(WorkspaceSnapshot.encode(_notes));
-      final layoutSave = _persistLayouts();
-      await workspaceSave;
-      await layoutSave;
+      await widget.storage!.write(WorkspaceSnapshot.encode(_notes),
+        graphLayouts: encodeGraphLayouts({for (final box in memoBoxes) box.name: box.layout}));
       _scheduleContentSync();
       if (mounted && _storageError != null) setState(() => _storageError = null);
     } catch (_) {

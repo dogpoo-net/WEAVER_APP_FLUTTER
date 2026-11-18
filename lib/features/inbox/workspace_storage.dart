@@ -350,6 +350,8 @@ class WorkspaceStorage {
   Future<void> writeDocumentDraft(String id,Map<String,dynamic>? draft){
     final encoded=jsonEncode(draft==null?{'saved':1}:{...draft,'saved':0});
     final task=_pending.catchError((Object _){}).then((_)async{
+      if (suspended) throw StateError('Workspace is no longer active');
+      if (preferences.getString(scoped('document.draft.$id')) == encoded) return;
       await writable();
       if(!await preferences.setString(scoped('document.draft.$id'),encoded))throw StateError('Document draft save failed');
       documentDraftChanges.value++;
@@ -439,6 +441,7 @@ class WorkspaceStorage {
   String? readTheme() => preferences.getString(themeKey);
   Future<void> writeTheme(String data) {
     final task = _pending.catchError((Object _) {}).then((_) async {
+      if (preferences.getString(themeKey) == data) return;
       if (!await preferences.setString(themeKey, data)) throw StateError('Theme save failed');
     });
     _pending = task;
@@ -484,16 +487,22 @@ class WorkspaceStorage {
     return task;
   }
 
-  Future<void> write(String data) {
+  /// Both strings must describe the same captured workspace. Supplying layouts
+  /// avoids decoding and re-encoding the entire snapshot in writeGraphLayouts.
+  Future<void> write(String data, {String? graphLayouts}) {
     final task = _pending.catchError((Object _) {}).then((_) async {
       await writable();
       final old = preferences.getString(workspaceKey);
-      if(old==data)return;
-      if (old != null && !await preferences.setString('$workspaceKey.previous', old)) {
+      if(old==data && (graphLayouts == null || preferences.getString(layoutsKey) == graphLayouts))return;
+      if (old != data && old != null && !await preferences.setString('$workspaceKey.previous', old)) {
         throw StateError('Backup failed');
       }
-      if (!await preferences.setString(workspaceKey, data)) {
+      if (old != data && !await preferences.setString(workspaceKey, data)) {
         throw StateError('Save failed');
+      }
+      if (graphLayouts != null && preferences.getString(layoutsKey) != graphLayouts &&
+          !await preferences.setString(layoutsKey, graphLayouts)) {
+        throw StateError('Graph save failed');
       }
       onChanged?.call();
     });
