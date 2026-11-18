@@ -103,7 +103,7 @@ class ReadonlyWorkspace extends StatelessWidget {
                                 clip.id,
                                 owner: storage.owner,
                               ),
-                              durationMs: clip.durationMs, transcript:clip.transcript,
+                              durationMs: clip.durationMs, transcript:clip.transcript,transcription:clip.transcription,
                             ),
                         ],
                       ),

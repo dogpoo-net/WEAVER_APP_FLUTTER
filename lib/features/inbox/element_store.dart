@@ -1,3 +1,4 @@
+import '../capture/voice_transcription.dart';
 import 'dart:collection';
 import 'thought_colors.dart';
 import '../capture/voice_dialog.dart';
@@ -45,6 +46,7 @@ class ElementRecord {
   final List<VoiceAttachment> recordings = [];
   final List<PhotoAttachment> photos = [];
   bool important = false;
+  bool voiceTextPending = false;
   bool hiddenFromSearch = false;
   int? labelColor;
   String indexLabel = '';
@@ -115,6 +117,7 @@ class ElementStore extends ChangeNotifier {
     if (indexLabel != null) record.indexLabel = indexLabel.replaceAll(RegExp(r'\s+'), ' ').trim();
     if (labelOnLeft != null) record.labelOnLeft = labelOnLeft;
     if (indexLabelColor != null) record.indexLabelColor = indexLabelColor;
+    if(parsed.text!=oldText)record.voiceTextPending=false;
     record.text = parsed.text;
     if (labelColor != null) record.labelColor = labelColor;
     if (important != null) record.important = important;
@@ -236,10 +239,18 @@ Future<void> showElementMetadata(BuildContext context, String word, {VoidCallbac
   final record = elements.records[word];
   if (record == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('다른 기기에서 삭제된 생각입니다.'))); return; }
   word = record.text;
-  await showDialog<void>(
-    context: context,
-    builder: (_) => _ElementMetadata(word: word, onSaved: onSaved),
-  );
+  final owner=MediaStorage.activeOwner;
+  voiceBodyEditors.update(record.id,(n)=>n+1,ifAbsent:()=>1);
+  try{
+    await showDialog<void>(context:context,builder:(_)=>_ElementMetadata(word:word,onSaved:onSaved));
+  }finally{
+    final remaining=(voiceBodyEditors[record.id]??1)-1;
+    if(remaining==0){voiceBodyEditors.remove(record.id);}else{voiceBodyEditors[record.id]=remaining;}
+    final latest=elements.byId(record.id);
+    if(owner==MediaStorage.activeOwner && latest!=null && fillVoiceBody(latest)){
+      try{await saveWorkspaceContent?.call();}catch(_){/* Keep local text for the normal sync retry. */}
+    }
+  }
 }
 
 class _ElementMetadata extends StatefulWidget {
@@ -457,14 +468,11 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                   icon: const Icon(Icons.location_on_outlined, size: 18), label: const Text('지도 보기')))),
                   IconButton(tooltip:'위치 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_locationEdits[element.id]=null),icon:const Icon(Icons.delete_outline)),
                 ])),
-              for(final audio in _audioUploads[element.id]??<VoiceDraft>[])Row(children:[
-                Expanded(child:VoicePlayer(key:ObjectKey(audio),load:()async=>audio.bytes,durationMs:audio.durationMs,transcript:audio.transcript,textStyle:Theme.of(context).textTheme.labelLarge)),
-                IconButton(tooltip:'음성 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState((){_audioUploads[element.id]!.clear();_removedAudio[element.id]=element.recordings.map((a)=>a.id).toSet();}),icon:const Icon(Icons.delete_outline)),
-              ]),
-              for (final clip in _audioFor(element)) Row(children:[Expanded(child:VoicePlayer(key: ValueKey(clip.id),
-                load: () => MediaStorage.read(clip.id), durationMs: clip.durationMs, transcript:clip.transcript,textStyle:Theme.of(context).textTheme.labelLarge)),
-                IconButton(tooltip:'음성 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_removedAudio.putIfAbsent(element.id,()=>{}).add(clip.id)),icon:const Icon(Icons.delete_outline)),
-              ]),
+              for(final audio in _audioUploads[element.id]??<VoiceDraft>[])VoicePlayer(key:ObjectKey(audio),load:()async=>audio.bytes,durationMs:audio.durationMs,transcript:audio.transcript,transcription:audio.transcription,textStyle:Theme.of(context).textTheme.labelLarge,
+                trailing:IconButton(tooltip:'음성 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState((){_audioUploads[element.id]!.clear();_removedAudio[element.id]=element.recordings.map((a)=>a.id).toSet();}),icon:const Icon(Icons.delete_outline))),
+              for(final clip in _audioFor(element))VoicePlayer(key:ValueKey(clip.id),load:()=>MediaStorage.read(clip.id),durationMs:clip.durationMs,transcript:clip.transcript,transcription:clip.transcription,textStyle:Theme.of(context).textTheme.labelLarge,
+                onTranscribe:_canAttach && voiceAudioRequest!=null?()async{try{await retrySavedVoice(element.id,clip.id);}finally{if(mounted)setState((){});}}:null,
+                trailing:IconButton(tooltip:'음성 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_removedAudio.putIfAbsent(element.id,()=>{}).add(clip.id)),icon:const Icon(Icons.delete_outline))),
               if(_photosFor(element).isNotEmpty||(_photoUploads[element.id]?.isNotEmpty??false))Padding(padding:const EdgeInsets.symmetric(vertical:8),child:PhotoGallery(
                 photos:_photosFor(element),
                 onDelete:_attachmentBusy||!_canAttach?null:(photo)=>setState(()=>_removedPhotos.putIfAbsent(element.id,()=>{}).add(photo.id)),
@@ -522,7 +530,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                 final id='photo-$stamp-${written.length}';written.add(id);await MediaStorage.write(id,photo.bytes,owner:_mediaOwner);photos.add(PhotoAttachment(id,photo.name));
               }
               for(final audio in _audioUploads[element.id]??<VoiceDraft>[]){
-                final id='voice-$stamp-${written.length}';written.add(id);await MediaStorage.write(id,audio.bytes,owner:_mediaOwner);voices.add(VoiceAttachment(id,audio.durationMs,transcript:audio.transcript));
+                final id='voice-$stamp-${written.length}';written.add(id);await MediaStorage.write(id,audio.bytes,owner:_mediaOwner);voices.add(attachVoiceDraft(id,audio));
               }
               if(!mounted||_mediaOwner!=MediaStorage.activeOwner||elements.records[word]?.id!=element.id)throw StateError('편집 화면이나 워크스페이스가 변경되었습니다.');
               if(_photosFor(elements.records[word]!).length+photos.length>5)throw StateError('사진은 최대 5장까지 저장할 수 있습니다.');

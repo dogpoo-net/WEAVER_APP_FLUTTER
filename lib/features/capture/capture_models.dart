@@ -21,9 +21,20 @@ class ThoughtLocation {
   }
 }
 
+/// In-memory work survives closing the recorder; only the resulting text is persisted.
+class VoiceTranscriptionJob {
+  String? text;
+  final attachmentIds=<String>{};
+  late Future<void> completion;
+}
+
 class VoiceAttachment {
-  const VoiceAttachment(this.id, this.durationMs, {this.transcript = ''});
-  final String transcript;
+  // Preserve the public transcript argument while exposing live job results.
+  // ignore: prefer_initializing_formals
+  const VoiceAttachment(this.id, this.durationMs, {String transcript = '', this.transcription}) : _transcript=transcript;
+  final String _transcript;
+  final VoiceTranscriptionJob? transcription;
+  String get transcript => transcription?.text ?? _transcript;
   final String id;
   final int durationMs;
   Map<String, dynamic> toJson() => {'id': id, 'durationMs': durationMs, if (transcript.isNotEmpty) 'transcript': transcript};
@@ -35,8 +46,11 @@ class VoiceAttachment {
 }
 
 class VoiceDraft {
-  const VoiceDraft(this.bytes, this.durationMs, {this.transcript = ''});
-  final String transcript;
+  // ignore: prefer_initializing_formals
+  const VoiceDraft(this.bytes, this.durationMs, {String transcript = '', this.transcription}) : _transcript=transcript;
+  final String _transcript;
+  final VoiceTranscriptionJob? transcription;
+  String get transcript => transcription?.text ?? _transcript;
   final Uint8List bytes;
   final int durationMs;
 }

@@ -147,7 +147,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       if (voice != null) {
         final id = 'voice-$stamp';
         written.add(id); await MediaStorage.write(id, voice.bytes,owner:widget.storage?.owner);
-        _savedVoice = VoiceAttachment(id, voice.durationMs, transcript:voice.transcript);
+        _savedVoice = attachVoiceDraft(id, voice);
       }
       for (var i = 0; i < _photoDrafts.length; i++) {
         final photo = _photoDrafts[i], id = 'photo-$stamp-$i';
@@ -828,6 +828,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     }
     _draft.completeLinks();
     final cleaned = cleanLinkedInput(_draft);
+    final voiceOnly=cleaned.text.trim().isEmpty && _voiceDraft!=null && _photoDrafts.isEmpty && _draftLocation==null;
     var body = cleaned.text;
     if (body.trim().isEmpty && _hasCapture) {
       final title = attachmentMemoText(DateTime.now(), photos: _photoDrafts.isNotEmpty, audio: _voiceDraft != null, location: _draftLocation != null);
@@ -851,6 +852,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     } else {
       record = elements.addLinked(input, cleaned.links, tags);
     }
+    if(voiceOnly)record.voiceTextPending=true;
     record.important = _draftImportant;
     if (_draftLocation != null || _editing != null) record.location = _draftLocation;
     if (_savedVoice != null) record.recordings.add(_savedVoice!);
@@ -872,6 +874,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('기록함에 담았어요. 다음 생각도 남겨보세요.')));
+    fillVoiceBody(record);
     _saveAndSync().catchError((Object e) { if(mounted)_captureError(e.toString()); });
     if (_desktopQuickMemo) { _focus.requestFocus(); } else { dismissKeyboard(); }
     return true;
@@ -1281,7 +1284,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 12),
           if (_voiceDraft case final voice?) Row(children: [
-            Expanded(child: VoicePlayer(key: ObjectKey(voice), load: () async => voice.bytes, durationMs: voice.durationMs, transcript:voice.transcript)),
+            Expanded(child: VoicePlayer(key: ObjectKey(voice), load: () async => voice.bytes, durationMs: voice.durationMs, transcript:voice.transcript,transcription:voice.transcription)),
             IconButton(tooltip: '녹음 첨부 제거', onPressed: _captureSaving ? null : () => setState(() => _voiceDraft = null), icon: const Icon(Icons.close, size: 18)),
           ]),
           if (_photoDrafts.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 8), child: Wrap(spacing: 6, runSpacing: 6, children: [

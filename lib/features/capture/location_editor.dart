@@ -1,3 +1,4 @@
+import 'voice_transcription.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -152,7 +153,7 @@ class _LocationEditorState extends State<LocationEditor> {
         final id = 'voice-$stamp';
         written.add(id);
         await MediaStorage.write(id, voice!.bytes, owner: owner);
-        recordings.add(VoiceAttachment(id, voice!.durationMs, transcript:voice!.transcript));
+        recordings.add(attachVoiceDraft(id, voice!));
       }
       for (var i = 0; i < photos.length; i++) {
         final id = 'photo-$stamp-$i';
@@ -431,7 +432,7 @@ class _LocationEditorState extends State<LocationEditor> {
                                 Expanded(
                                   child: VoicePlayer(
                                     load: () async => voice!.bytes,
-                                    durationMs: voice!.durationMs, transcript:voice!.transcript,
+                                    durationMs: voice!.durationMs, transcript:voice!.transcript,transcription:voice!.transcription,
                                   ),
                                 ),
                                 IconButton(

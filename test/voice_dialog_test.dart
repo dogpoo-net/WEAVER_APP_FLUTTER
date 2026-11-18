@@ -62,6 +62,31 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
+  testWidgets('attach stays enabled during conversion and completion survives dismissal',(tester)async{
+    final response=Completer<Map<String,dynamic>>();VoiceDraft? result;
+    voiceAudioRequest=(action,body)async{if(action=='audio/policy')return {'enabled':true,'allowed':true,'maxRecordingSeconds':60};return response.future;};
+    await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()async{result=await showVoiceRecorder(context);},child:const Text('열기'))))));
+    await tester.tap(find.text('열기'));await tester.pumpAndSettle();
+    await tester.tap(find.text('녹음 시작'));await tester.pumpAndSettle();
+    recorder.audio.add(Uint8List(PcmClipBuilder.maxBytes));await tester.pump();await tester.pump(const Duration(milliseconds:100));
+    expect(find.text('텍스트로 변환하고 있습니다…'),findsOneWidget);
+    expect(find.text('텍스트 변환 다시 시도'),findsNothing);
+    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton,'메모에 첨부')).onPressed,isNotNull);
+    await tester.tap(find.text('메모에 첨부'));await tester.pumpAndSettle();
+    expect(result,isNotNull);expect(result!.transcript,isEmpty);
+    response.complete({'text':'늦게 도착한 결과'});await tester.pumpAndSettle();
+    expect(result!.transcript,'늦게 도착한 결과');expect(tester.takeException(),isNull);
+  });
+  testWidgets('recorder retry appears only after transcription fails',(tester)async{
+    voiceAudioRequest=(action,body)async{if(action=='audio/policy')return {'enabled':true,'allowed':true,'maxRecordingSeconds':60};throw StateError('offline');};
+    await tester.pumpWidget(const MaterialApp(home:Scaffold(body:VoiceRecorderDialog())));await tester.pumpAndSettle();
+    expect(find.text('텍스트 변환 다시 시도'),findsNothing);
+    await tester.tap(find.text('녹음 시작'));await tester.pumpAndSettle();
+    recorder.audio.add(Uint8List(PcmClipBuilder.maxBytes));await tester.pumpAndSettle();
+    expect(find.text('텍스트 변환 다시 시도'),findsOneWidget);
+    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton,'메모에 첨부')).onPressed,isNotNull);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('thought detail opens recorder instead of audio file picker',(tester)async{
     elements.clear();final thought=elements.add('녹음할 생각');
     await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()=>showElementMetadata(context,thought.text),child:const Text('상세'))))));

@@ -79,6 +79,7 @@ class WorkspaceSnapshot {
             'folder': r.folder,
             'hiddenFromSearch': r.hiddenFromSearch,
             'important': r.important,
+            if(r.voiceTextPending)'voiceTextPending':true,
             if (r.labelColor != null) 'labelColor': r.labelColor,
             'indexLabel': r.indexLabel, 'labelOnLeft': r.labelOnLeft, 'indexLabelColor': r.indexLabelColor,
             'location': r.location?.toJson(),
@@ -170,6 +171,7 @@ class WorkspaceSnapshot {
        ..folder = r['folder'] as String?
        ..hiddenFromSearch = (r['hiddenFromSearch'] as bool?) ?? false
        ..important = r['important'] == true
+       ..voiceTextPending = r['voiceTextPending'] == true
        ..labelColor = r['labelColor'] is int ? r['labelColor'] as int : null
        ..indexLabel = (r['indexLabel'] as String? ?? '').replaceAll(RegExp(r'\s+'), ' ').trim()
        ..labelOnLeft = r['labelOnLeft'] == true
