@@ -181,6 +181,7 @@ class WorkspaceSync extends ChangeNotifier {
     return result;
   }
   Future<bool> checkRemote() async {
+    if(manualReview)return false;
     final leaseEpoch=_leaseEpoch;
     late final Map<String,dynamic> result;
     try{result=await request('status',{'documentLeases':observedLeases});}
@@ -410,6 +411,7 @@ class WorkspaceSync extends ChangeNotifier {
   Future<void> flush() async {await flushCanvas();await _enqueueFlush(false);}
   Future<void> flushDeletions() => _enqueueFlush(true);
   Future<void> _enqueueFlush(bool deletionsOnly, {bool foldersOnly = false, bool contentOnly=false, String? resource}) async {
+    if(manualReview)return;
     // Capture explicit saves before waiting for an in-flight server read.
     await storage.flush();
     final requestedSnapshot=storage.read();

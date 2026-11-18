@@ -24,7 +24,7 @@ void main(){
   for(final item in splitWorkspace(snapshot('server')).values){api.items[itemKey(item['kind'],item['id'])]={...item,'payload':jsonEncode(item['value']),'revision':1,'deleted':false};}
   final engine=WorkspaceSync(storage,api,workspaceId:'workspace',isCurrent:()=>true);await engine.beginReview();
   await tester.pumpWidget(MaterialApp(home:WorkspaceSyncReviewPage(engine:engine,source:storage)));await tester.pumpAndSettle();
-  expect(api.requests,isEmpty);
+  await engine.flush();expect(await engine.checkRemote(),false);expect(api.requests,isEmpty);
   for(final chip in find.widgetWithText(ChoiceChip,'로컬 변경 버리고 서버 사용').evaluate().toList()){
     await tester.ensureVisible(find.byWidget(chip.widget));await tester.tap(find.byWidget(chip.widget));await tester.pumpAndSettle();
   }
