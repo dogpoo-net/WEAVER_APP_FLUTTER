@@ -185,14 +185,31 @@ class GoogleAuthController extends ChangeNotifier {
   }
   void _failure(Object exception) {
     busy = false;
-    error = exception is GoogleSignInException && exception.code == GoogleSignInExceptionCode.canceled
-        ? null : 'Google 로그인에 실패했습니다. 다시 시도해 주세요.';
+    // Android CredentialManager also reports OAuth configuration failures as
+    // canceled after account selection. Never turn those into a silent no-op.
+    if(exception is GoogleSignInException){
+      debugPrint('Google sign-in failure code: ${exception.code.name}');
+      error = exception.code == GoogleSignInExceptionCode.canceled
+          ? 'Google 로그인이 완료되지 않았습니다. 직접 취소하지 않았다면 앱의 로그인 설정을 확인해야 합니다.'
+          : exception.code == GoogleSignInExceptionCode.clientConfigurationError
+              ? 'Google 로그인 설정을 확인하지 못했습니다. 관리자에게 문의해주세요.'
+              : 'Google 로그인에 실패했습니다. 다시 시도해 주세요.';
+    }else{error = 'Google 로그인에 실패했습니다. 다시 시도해 주세요.';}
     _changed();
   }
   Future<void> signIn() async {
     if (!ready || busy) return;
     busy = true; error = null; _changed();
-    try { await client.signIn(); } catch (e) { _failure(e); }
+    try {
+      await client.signIn();
+      // The SDK publishes the account through an asynchronous stream. Keep the
+      // progress indicator until its server-session exchange has completed.
+      await Future<void>.delayed(Duration.zero);
+      await _sessionWrite;
+      if(!_disposed && !isGuest && identity==null && error==null){
+        error='Google 인증 결과를 받지 못했습니다. 다시 시도해주세요.';
+      }
+    } catch (e) { _failure(e); }
     finally { busy = false; _changed(); }
   }
   Future<void> useGuest() async {

@@ -1,3 +1,4 @@
+import 'package:google_sign_in/google_sign_in.dart' show GoogleSignInException, GoogleSignInExceptionCode;
 import 'support/test_server_auth.dart';
 import 'support/memory_session_store.dart';
 import 'package:http/http.dart' as http;
@@ -20,12 +21,14 @@ class FakeGoogleClient implements GoogleAuthClient {
   final bool configured;
   final events = StreamController<GoogleIdentity?>.broadcast();
   bool fail = false;
+  Object? failure;
   @override
   Stream<GoogleIdentity?> get changes => events.stream;
   @override
   Future<void> initialize() async {}
   @override
   Future<void> signIn() async {
+    if(failure!=null)throw failure!;
     if (fail) throw StateError('Network failure');
     events.add(const GoogleIdentity(id: 'test-user', email: 'test@example.com', idToken: 'test-token'));
   }
@@ -39,7 +42,32 @@ class SlowGoogleClient extends FakeGoogleClient {
   @override
   Future<void> initialize() => initialization.future;
 }
+class PendingGoogleApi extends EmailAuthApi {
+ PendingGoogleApi():super(store:MemorySessionStore(isWeb:false));
+ final entered=Completer<void>(), release=Completer<Map<String,dynamic>>();
+ @override Future<Map<String,dynamic>?> restore()async=>null;
+ @override Future<Map<String,dynamic>> loginGoogle(String? token,{String? accessToken}){entered.complete();return release.future;}
+ @override Future<Map<String,dynamic>> profile(String action, [Map<String,Object?> body=const {}])async=>{};
+}
 void main() {
+ test('Google progress continues until server session exchange finishes',()async{
+  final client=FakeGoogleClient(),api=PendingGoogleApi();
+  final auth=GoogleAuthController(client,emailApi:api);await auth.initialize();
+  await Future<void>.delayed(Duration.zero);expect(auth.ready,isTrue);
+  final login=auth.signIn();await api.entered.future;await Future<void>.delayed(Duration.zero);
+  expect(auth.busy,isTrue);expect(auth.identity,isNull);
+  api.release.complete({'id':'user','email':'user@example.com','expiresIn':1800});
+  await login;expect(auth.busy,isFalse);expect(auth.identity?.id,'email:user');
+  auth.dispose();
+ });
+ testWidgets('SDK cancellation is visible instead of silently returning to login',(tester)async{
+  final client=FakeGoogleClient()..failure=const GoogleSignInException(code:GoogleSignInExceptionCode.canceled);
+  await tester.pumpWidget(MyApp(emailApi:testServerAuth(),authClient:client));await tester.pumpAndSettle();
+  await tester.tap(find.text('Google로 로그인'));await tester.pumpAndSettle();
+  expect(find.textContaining('Google 로그인이 완료되지 않았습니다.'),findsOneWidget);
+  expect(find.byType(LoginPage),findsOneWidget);await tester.pumpWidget(const SizedBox());
+ });
+
   testWidgets('slow Google setup does not block login page or guest entry', (tester) async {
     final client = SlowGoogleClient();
     await tester.pumpWidget(MyApp(emailApi: testServerAuth(), authClient: client));
