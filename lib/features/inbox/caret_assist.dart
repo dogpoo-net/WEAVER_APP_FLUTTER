@@ -31,6 +31,7 @@ class CaretAssist extends StatefulWidget {
     this.enterSelectsVisible = false,
     this.arrowSelectsVisible = false,
     this.fitContentWidth = false,
+    this.anchorBelowField = false,
     this.showShortcutHint = false,
     this.useThoughtLabels = false,
     this.selectionAssist = false,
@@ -48,6 +49,7 @@ class CaretAssist extends StatefulWidget {
   final bool enterSelectsVisible;
   final bool arrowSelectsVisible;
   final bool fitContentWidth;
+  final bool anchorBelowField;
   final bool showShortcutHint;
   @override
   State<CaretAssist> createState() => CaretAssistState();
@@ -81,9 +83,9 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   TextEditingValue? _manualValue;
   TextEditingValue? _autoCheckedValue;
   final _badgeKeys = <String, GlobalKey>{};
-  bool get _desktop =>
+  bool get _desktop => widget.anchorBelowField || (
       MediaQuery.sizeOf(context).width >= 760 &&
-      MediaQuery.viewInsetsOf(context).bottom == 0;
+      MediaQuery.viewInsetsOf(context).bottom == 0);
   String _title(String word) => widget.useThoughtLabels ? assistTargetTitle(word) : word;
   void _choose(String word) async {
     _controlling = false;
@@ -493,7 +495,9 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
               : value.text.length,
         ),
       );
-      final point = render.localToGlobal(caret.topLeft);
+      final field = _anchor.currentContext?.findRenderObject();
+      final fieldBottom = widget.anchorBelowField && field is RenderBox && field.hasSize ? field.localToGlobal(Offset(0,field.size.height)) : null;
+      final point = fieldBottom ?? render.localToGlobal(caret.topLeft);
       final media = MediaQuery.of(context);
       final maxWidth = (media.size.width - 24).clamp(0.0, 300.0);
       var width = maxWidth;
@@ -527,7 +531,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
           ? (bottom - safeTop).clamp(50.0, 180.0)
           : mobileAssistHeight(media);
       final preferredTop = _desktop
-          ? render.localToGlobal(caret.bottomLeft).dy + 4
+          ? (fieldBottom?.dy ?? render.localToGlobal(caret.bottomLeft).dy) + 4
           : bottom - height;
       final top = preferredTop.clamp(
         safeTop,

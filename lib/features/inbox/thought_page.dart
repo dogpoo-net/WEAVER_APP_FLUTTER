@@ -447,7 +447,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _positions..clear()..addAll(_layout.positions);
       _tagPositions..clear()..addAll(_layout.tags);
       _targetLayout.copyFrom(_layout,includeBlocks:false);
-      _publishedLayout=GraphLayout.fromJson(_layout.toJson());
+      // Local publication is not a server acknowledgement. Keep the remote
+      // baseline until a live snapshot confirms this move.
     }
     (widget.onLayoutChanged ?? widget.onChanged)();
   }

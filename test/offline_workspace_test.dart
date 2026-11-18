@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'owned_workspace_test.dart' show DeltaApi;
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,6 +17,33 @@ class MemoryMedia implements BackupMedia{
 String snapshot(String name)=>jsonEncode({'version':1,'elements':[],'trash':[],'notes':[],'colors':{},'folders':[name]});
 void main(){
  setUp(()=>SharedPreferences.setMockInitialValues({}));
+ test('offline publish rejects conflicting geometry and keeps baseline and local copy',()async{
+  final prefs=await SharedPreferences.getInstance(),local=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'offline');
+  String layout(int x)=>jsonEncode({'version':1,'elements':[],'trash':[],'notes':[],'colors':{},'memoBoxes':[{'name':'box','color':0,'ids':[],'layout':{'positions':{'memo':[x,20]}}}]});
+  await local.write(layout(2));await prefs.setString(OfflineWorkspace.baseline(local),layout(1));
+  expect(()=>OfflineWorkspace.delta(local,splitWorkspace(layout(3))),throwsA(isA<Exception>()));
+  expect(local.read(),layout(2));expect(prefs.getString(OfflineWorkspace.baseline(local)),layout(1));
+  expect(OfflineWorkspace.delta(local,splitWorkspace(layout(2))),isEmpty);
+ });
+ test('offline delta does not remove server-only items',()async{
+  final prefs=await SharedPreferences.getInstance(),local=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'offline');
+  await local.write(snapshot('local'));await prefs.setString(OfflineWorkspace.baseline(local),snapshot('old'));
+  final remote=splitWorkspace(snapshot('old'))..addAll(splitWorkspace(snapshot('server-addition')));
+  final delta=OfflineWorkspace.delta(local,remote);
+  expect(delta.any((item)=>item['id']=='server-addition'),false);
+ });
+ test('online return refreshes stale canvas without uploading it and preserves recovery',()async{
+  final prefs=await SharedPreferences.getInstance();final online=WorkspaceStorage(prefs,owner:'online'),local=WorkspaceStorage(prefs,owner:'offline');
+  String layout(int x)=>jsonEncode({'version':1,'elements':[],'trash':[],'notes':[],'colors':{},'memoBoxes':[{'name':'box','color':0,'ids':[],'layout':{'positions':{'memo':[x,20]}}}]});
+  final api=DeltaApi();
+  void remote(int x){api.rev++;for(final item in splitWorkspace(layout(x)).values){api.items[itemKey(item['kind'],item['id'])]={...item,'payload':jsonEncode(item['value']),'deleted':false,'revision':api.rev};}}
+  remote(1);final first=WorkspaceSync(online,api,isCurrent:()=>true);await first.initialize();first.dispose();
+  await online.write(layout(2));await local.write(layout(2));await prefs.setString(online.scoped('canvas.outbox.v1'),'old pending operation');await OfflineWorkspace.preserveRecovery(local,online);
+  remote(3);final sync=WorkspaceSync(online,api,isCurrent:()=>true);await sync.initialize(serverCanvas:true);await sync.flushCanvas();
+  expect(jsonDecode(online.read()!)['memoBoxes'][0]['layout']['positions']['memo'],[3,20]);expect(api.requests,isEmpty);expect(prefs.getString(online.scoped('canvas.outbox.v1')),isNull);
+  final recovery=jsonDecode(prefs.getString(local.scoped('offline-recovery'))!);expect(recovery['online'],layout(2));expect(recovery['offline'],layout(2));
+  sync.dispose();api.dispose();
+ });
  test('file import only replaces selected local workspace, not another account or space',()async{
   final prefs=await SharedPreferences.getInstance();
   final a=WorkspaceStorage(prefs,owner:OfflineWorkspace.owner('account-a','space-a'));

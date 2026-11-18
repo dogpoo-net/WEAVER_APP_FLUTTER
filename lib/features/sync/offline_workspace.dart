@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../auth/email_auth.dart';
 import '../inbox/workspace_storage.dart';
 import '../capture/media_storage.dart';
 import 'owned_workspace.dart';
@@ -6,7 +7,27 @@ import 'owned_workspace.dart';
 class OfflineWorkspace {
   static String owner(String account,String id)=>'$account@offline:$id';
   static String baseline(WorkspaceStorage storage)=>storage.scoped('offline-baseline');
-  static bool hasChanges(WorkspaceStorage local)=>local.read()!=null&&local.read()!=local.preferences.getString(baseline(local));
+  static String activeKey(WorkspaceStorage local)=>local.scoped('offline-active');
+  static bool hasChanges(WorkspaceStorage local){
+    if(local.read()==null)return false;
+    final before=splitWorkspace(local.preferences.getString(baseline(local))),after=splitWorkspace(local.read());
+    return {...before.keys,...after.keys}.any((key)=>!localCanvasView(after[key]??before[key])&&!sameItem(before[key],after[key]));
+  }
+  static Future<void> preserveRecovery(WorkspaceStorage local,WorkspaceStorage online)async{
+    final key=local.scoped('offline-recovery');
+    // Keep the first available recovery copy until explicitly dealt with.
+    if(local.preferences.containsKey(key))return;
+    final saved=await local.preferences.setString(key,jsonEncode({
+      'savedAt':DateTime.now().toUtc().toIso8601String(),
+      'offline':local.read(),'baseline':local.preferences.getString(baseline(local)),
+      'online':online.read(),'onlinePrevious':online.preferences.getString('${online.workspaceKey}.previous'),
+      'onlineBeforeImport':online.preferences.getString('${online.workspaceKey}.beforeImport'),
+      'offlineBeforeImport':local.preferences.getString('${local.workspaceKey}.beforeImport'),
+      'onlineCanvasOutbox':online.preferences.getString(online.scoped('canvas.outbox.v1')),
+      'onlineGraphs':online.readGraphLayouts(),'offlineGraphs':local.readGraphLayouts(),
+    }));
+    if(!saved)throw const EmailAuthFailure('복구용 로컬 사본을 보관하지 못했습니다. 자료를 변경하지 않았습니다.');
+  }
   static Future<void> copyMedia(String raw,String? from,String? to)async{
     final snapshot=WorkspaceSnapshot.decode(raw);
     for(final record in [...snapshot.records,...snapshot.trashRecords]){
@@ -24,21 +45,30 @@ class OfflineWorkspace {
     await local.preferences.setString(baseline(local),raw);
   }
   static List<Map<String,dynamic>> delta(WorkspaceStorage local,Map<String,Map<String,dynamic>> remote){
-    final before=splitWorkspace(local.preferences.getString(baseline(local))),after=splitWorkspace(local.read());
-    return [for(final key in {...before.keys,...after.keys})if(!sameItem(before[key],after[key])){
-      ...(after[key]??before[key]!),
-      'deleted':!after.containsKey(key),'baseRevision':remote[key]?['revision']??0,
-      if((after[key]??before[key])?['kind']=='list:memoBoxes')'previousValue':remote[key]?['value'],
-    }];
+    final baselineRaw=local.preferences.getString(baseline(local));
+    if(baselineRaw==null)throw const EmailAuthFailure('오프라인 작업 전 자료가 없어 안전하게 비교할 수 없습니다. 서버와 로컬 자료를 그대로 보관했습니다.');
+    final before=splitWorkspace(baselineRaw),after=splitWorkspace(local.read());
+    final changes=<Map<String,dynamic>>[];
+    for(final key in {...before.keys,...after.keys}){
+      if(localCanvasView(after[key]??before[key]) || sameItem(before[key],after[key]) || sameItem(after[key],remote[key]))continue;
+      if(!sameItem(before[key],remote[key]))throw const EmailAuthFailure('서버와 오프라인에서 같은 자료가 변경되었습니다. 덮어쓰지 않았으며 오프라인 자료는 이 기기에 보관했습니다.');
+      changes.add({...(after[key]??before[key]!),
+        'deleted':!after.containsKey(key),'baseRevision':remote[key]?['revision']??0,
+        if((after[key]??before[key])?['kind']=='list:memoBoxes')'previousValue':before[key]?['value'],
+      });
+    }
+    return changes;
   }
+
   static Future<void> publish(WorkspaceStorage local,WorkspaceSync engine)async{
     await local.flush();
+    await preserveRecovery(local,engine.storage);
     final result=await engine.request('read',{'since':0});
     final remote=<String,Map<String,dynamic>>{};
     for(final row in result['changes'] as List){final item=Map<String,dynamic>.from(row);item['value']=item['payload']==null?null:jsonDecode(item['payload']);remote[itemKey(item['kind'],item['id'])]=item;}
     final changes=delta(local,remote),raw=local.read()!;
     await engine.uploadMedia(raw,sourceOwner:local.owner);
-    if(changes.isNotEmpty)await engine.request('save',{'since':result['revision'],'changes':changes});
+    if(changes.isNotEmpty)await engine.request('save',{'since':result['revision'],'changes':changes,'offlineReconcile':true});
     await engine.discardLocalAndPull();
     await local.preferences.setString(baseline(local),raw);
   }

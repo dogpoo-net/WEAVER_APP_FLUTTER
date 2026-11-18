@@ -1,12 +1,12 @@
 import 'package:flutter/services.dart';
 
-// An inclusive Korean calendar date is stored as an exclusive UTC instant.
+// Store the final microsecond of the selected Korean calendar date.
 DateTime? subscriptionExpiry(String date) {
   if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date)) return null;
   final parts = date.split('-').map(int.parse).toList();
   final day = DateTime.utc(parts[0], parts[1], parts[2]);
   if (day.year != parts[0] || day.month != parts[1] || day.day != parts[2]) return null;
-  return day.add(const Duration(days: 1)).subtract(const Duration(hours: 9));
+  return DateTime.utc(parts[0],parts[1],parts[2],23,59,59,999,999).subtract(const Duration(hours: 9));
 }
 
 String subscriptionEndDate(String? instant) {

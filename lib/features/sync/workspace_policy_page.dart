@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'workspace_deletion_dialog.dart';
+import 'subscription_date.dart';
 
 class WorkspacePolicyPage extends StatefulWidget {
   const WorkspacePolicyPage({super.key,required this.request,required this.workspaceId,required this.owner});
@@ -24,7 +25,7 @@ class _WorkspacePolicyPageState extends State<WorkspacePolicyPage>{
     return Scaffold(appBar:AppBar(title:const Text('구독 관리')),body:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:720),child:ListView(padding:const EdgeInsets.all(16),children:[
       if(busy)const LinearProgressIndicator(),if(error!=null)Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error)),
       Text('${plan['code']??'…'}',style:Theme.of(context).textTheme.titleLarge),
-      if(subscription['periodEnd']!=null)Text('이용 기간 종료: ${DateTime.parse(subscription['periodEnd']).toLocal()}'),
+      if(subscription['periodEnd']!=null)Text('이용 기간 종료: ${subscriptionEndDate(subscription['periodEnd'] as String)} 23:59:59 (한국 시간)'),
       if(paid)Text(cancelled?'구독 취소 예약됨 · 종료일까지 유료 기능 유지':'유료 이용 기간 중'),
       Text('저장 용량: ${data?['bytes']??0} bytes / ${plan['storage_limit']??'플랜 한도 미정'}'),
       Text('문서 수: ${data?['documents']??0} / ${plan['document_limit']??'한도 미정'}'),

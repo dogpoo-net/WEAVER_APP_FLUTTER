@@ -381,6 +381,7 @@ class WorkspaceStorage {
   Future<void> Function()? importFile;
   Future<void> Function()? openAdmin;
   Future<void> Function()? openPlan;
+  Future<void> Function()? openSyncReview;
   Future<void> Function()? openWorkspaces;
   String? workspaceName;
   Map<String,dynamic>? Function(String,String)? itemMetadata;

@@ -1080,6 +1080,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     final choice = await showDialog<int>(
       context: context,
       builder: (_) => WorkspaceMenu(
+        showSyncReview:widget.storage?.openSyncReview!=null,
         viewState: _menuViewState,
         projects: projects.map((n) => n.title).toList(),
         projectIds: projects.map((n) => n.project!.id).toList(),
@@ -1126,6 +1127,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
   ) async {
     if (!mounted || choice == null || choice == -1) return;
     if (choice == WorkspaceMenu.home) { await navigateHome(context); if (mounted && !Navigator.of(context).canPop()) { try { await _refreshForBrowse(); } catch (e) { if (mounted) _captureError('서버 변경을 확인하지 못했습니다. $e'); } } return; }
+    if (choice == WorkspaceMenu.syncReview) { await widget.storage?.openSyncReview?.call(); return; }
     if (choice == WorkspaceMenu.settings) { await showThoughtSettings(context, widget.storage?.preferences, onUpload: _uploadBackup, onDownload: _downloadBackup, onReset: _reset, offline:widget.storage?.offlineMode??false,onExportFile:widget.storage?.exportFile,onImportFile:widget.storage?.importFile,onAdmin:widget.storage?.openAdmin, onPlan:widget.storage?.openPlan, onWorkspaces:widget.storage?.openWorkspaces, workspaceName:widget.storage?.workspaceName, onSignIn: () async {
       if (_draft.text.trim().isNotEmpty || _hasCapture) throw const BackupFailure('작성 중인 메모를 저장한 뒤 로그인해주세요.');
       if (_captureSaving || _locationBusy || _photoBusy) throw const BackupFailure('메모와 첨부 처리 완료 후 다시 시도해주세요.');
@@ -1420,6 +1422,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
 
   Widget _desktopSidebar(BuildContext context) => SafeArea(top: false,
               child: WorkspaceMenu(
+                showSyncReview:widget.storage?.openSyncReview!=null,
                 viewState: _menuViewState,
                 embedded: true,
                 onFloat: () { setState(() => _menuVisible = false); _menu(); },

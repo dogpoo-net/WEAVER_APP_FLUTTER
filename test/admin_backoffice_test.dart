@@ -3,6 +3,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/sync/admin_backoffice_page.dart';
 import 'package:weaver/features/sync/workspace_deletion_dialog.dart';
 void main(){
+ testWidgets('account search assists by name below input without a dialog',(tester)async{
+  final queries=<String>[];
+  await tester.pumpWidget(MaterialApp(home:AdminBackofficePage(request:(action,body)async{
+    if(action=='admin/users'){queries.add(body['query'] as String);return {'users':[{'id':'u','name':'캔디','email':'candy@example.com','platformRole':'user'}]};}
+    return {'account':{'id':'u','name':'캔디','email':'candy@example.com','platformRole':'user'},'accountPolicy':{'plan':{'code':'free'}},'workspaces':[]};
+  })));
+  await tester.pumpAndSettle();
+  await tester.enterText(find.widgetWithText(TextField,'이메일 또는 이름 검색'),'캔디');await tester.pump(const Duration(milliseconds:300));await tester.pumpAndSettle();
+  expect(queries.last,'캔디');expect(find.byType(AlertDialog),findsNothing);
+  final option=find.byKey(const ValueKey('suggestion-캔디 · candy@example.com'));expect(option,findsOneWidget);
+  expect(tester.getTopLeft(option).dy,greaterThan(tester.getBottomLeft(find.byType(TextField)).dy));
+  await tester.tap(option);await tester.pumpAndSettle();expect(find.text('계정 권한'),findsOneWidget);
+ });
  testWidgets('admin exit returns to prior workspace without logging out',(tester)async{
   await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(child:const Text('기존 워크스페이스'),onPressed:()=>Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>AdminBackofficePage(request:(action,body)async=>{'users':[]}))))))));
   await tester.tap(find.text('기존 워크스페이스'));await tester.pumpAndSettle();expect(find.text('관리자 백오피스'),findsOneWidget);

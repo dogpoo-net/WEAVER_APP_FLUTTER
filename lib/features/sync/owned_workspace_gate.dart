@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'offline_workspace.dart';
 import 'workspace_file_transfer.dart';
+import 'workspace_sync_review.dart';
 
 import 'package:flutter/material.dart';
 
@@ -149,6 +150,9 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         final row=catalog.firstWhere((row)=>row['workspaceId']==workspaceId);
         if(role=='owner'&&row['offline']==true){await openOffline(owned,target,workspaceId,valid);return;}
 
+        final offline=owned.scope(OfflineWorkspace.owner(account,workspaceId));
+        final returningOffline=(offline.read()!=null && offline.preferences.getBool(OfflineWorkspace.activeKey(offline))!=false) || OfflineWorkspace.hasChanges(offline);
+        if(returningOffline)await OfflineWorkspace.preserveRecovery(offline,target);
         final engine = WorkspaceSync(
           target,
           widget.auth.emailApi,
@@ -157,15 +161,15 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
           isCurrent: valid,
         );
         sync = engine;
-        await engine.initialize();
+        await engine.initialize(serverCanvas:returningOffline);
         if (!valid()) return;
         if (!engine.ready && target.read() == null) {
           throw StateError(engine.error ?? '서버 자료를 불러오지 못했습니다.');
         }
-        final offline=owned.scope(OfflineWorkspace.owner(account,workspaceId));
+        if(engine.ready&&returningOffline)await offline.preferences.setBool(OfflineWorkspace.activeKey(offline),false);
         if(engine.ready&&role=='owner'&&!quotaReadOnly&&OfflineWorkspace.hasChanges(offline)&&mounted){
-          final publish=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('오프라인 작업을 서버에 반영할까요?'),content:const Text('이 기기에서 변경한 항목을 서버에 반영합니다. 같은 항목의 서버 내용은 오프라인 내용으로 교체될 수 있습니다. 나중에를 선택하면 오프라인 자료는 별도로 보관됩니다.'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('나중에')),TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('반영'))]));
-          if(publish==true){try{await OfflineWorkspace.publish(offline,engine);}catch(e){notice='오프라인 자료를 반영하지 못했습니다. 이 기기에 보관했습니다. $e';}}
+          final publish=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('오프라인 작업을 서버에 반영할까요?'),content:const Text('이 기기에서 변경한 항목을 서버에 반영합니다. 서버와 같은 항목이 변경되었다면 덮어쓰지 않고 오프라인 자료를 보관합니다. 나중에를 선택하면 오프라인 자료는 별도로 보관됩니다.'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('나중에')),TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('비교하기'))]));
+          if(publish==true){try{await reviewSync(target,engine,source:offline);}catch(e){notice='오프라인 자료를 반영하지 못했습니다. 이 기기에 보관했습니다. $e';}}
         }
         if (engine.ready && workspaceId == primaryWorkspace && role=='owner' && !quotaReadOnly) {
           var claim = await owned.pendingClaim();
@@ -214,7 +218,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         target.workspaceName=catalog.firstWhere((row)=>row['workspaceId']==workspaceId)['name'] as String?;
         target.openWorkspaces=chooseWorkspace;
         target.openAdmin=isAdmin?openAdmin:null;
-        if(role=='owner'&&!quotaReadOnly)attachFiles(target,engine);
+        if(role=='owner'&&!quotaReadOnly){attachFiles(target,engine);target.openSyncReview=()=>reviewSync(target,engine);}
         target.openPlan=()=>Navigator.of(context).push<void>(MaterialPageRoute(builder:(_)=>WorkspacePolicyPage(request:widget.auth.emailApi.workspace,workspaceId:workspaceId,owner:role=='owner'))).then((_)async{if(current)await switchWorkspace(workspaceId,force:true);});
         target.documentLease = engine.documentLease;
         engine.addListener(refresh);
@@ -325,6 +329,21 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     }
   }
 
+  Future<void> reviewSync(WorkspaceStorage target,WorkspaceSync engine,{WorkspaceStorage? source})async{
+    if(target.hasUnsavedInput?.call()==true){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('작성 중인 입력을 로컬에 저장한 뒤 비교해주세요.')));return;}
+    await engine.beginReview();
+    try{
+      final offline=OwnedWorkspaces(widget.root).scope(OfflineWorkspace.owner(account,engine.workspaceId!));
+      final onlineItems=splitWorkspace(target.read());
+      final onlinePending={...onlineItems.keys,...engine.base.keys}.any((key)=>!localCanvasView(onlineItems[key]??engine.base[key])&&!sameItem(onlineItems[key],engine.base[key]));
+      // Resolve current online drafts first; an offline review must not discard them.
+      final selectedSource=source??(onlinePending?target:OfflineWorkspace.hasChanges(offline)?offline:target);
+      if(!mounted||!current)return;
+      final applied=await Navigator.of(context).push<bool>(MaterialPageRoute(builder:(_)=>WorkspaceSyncReviewPage(engine:engine,source:selectedSource)));
+      if(applied==true&&current){target.applyServerSnapshot?.call();if(mounted)setState(()=>epoch++);}
+    }finally{engine.endReview();}
+  }
+
   void attachFiles(WorkspaceStorage target,WorkspaceSync? engine){
     Future<void> guard()async{if(target.hasUnsavedInput?.call()==true)throw StateError('작성 중인 내용을 먼저 저장해주세요.');await engine?.settle();await target.flush();}
     target.exportFile=()async{await guard();await exportWorkspaceFile(target);};
@@ -337,6 +356,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
       await OfflineWorkspace.seed(local,source);
     }
     if(!valid())return;
+    await local.preferences.setBool(OfflineWorkspace.activeKey(local),true);
     sync?.dispose();sync=null;local.currentUserId=userId;local.offlineMode=true;
     local.workspaceName=catalog.firstWhere((r)=>r['workspaceId']==id)['name'];
     local.openWorkspaces=chooseWorkspace;local.openAdmin=isAdmin?openAdmin:null;

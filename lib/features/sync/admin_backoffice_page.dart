@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../inbox/caret_assist.dart';
 import 'workspace_deletion_dialog.dart';
 import 'subscription_date.dart';
 
@@ -10,29 +12,29 @@ class AdminBackofficePage extends StatefulWidget {
 class _AdminBackofficePageState extends State<AdminBackofficePage>{
   final search=TextEditingController();List<dynamic> spaces=[],audit=[];Map? account,accountPolicy;
   bool busy=false;String? error;
+  final searchFocus=FocusNode();Timer? searchTimer;int searchVersion=0;
+  Map<String,String> suggestions={};
   @override void initState(){super.initState();run(find);}
-  @override void dispose(){search.dispose();super.dispose();}
+  @override void dispose(){searchTimer?.cancel();searchFocus.dispose();search.dispose();super.dispose();}
   Future<void> run(Future<void> Function() action)async{if(busy)return;setState((){busy=true;error=null;});try{await action();}catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>busy=false);}}
-  Future<void> find({bool showResults=false})async{
-    final result=await widget.request('admin/users',{'query':search.text.trim()});
-    if(!mounted || !showResults)return;
-    final users=result['users'] as List;
-    final id=await showDialog<String>(context:context,builder:(context)=>AlertDialog(
-      title:const Text('계정 검색 결과'),
-      content:SizedBox(width:480,child:ConstrainedBox(
-        constraints:BoxConstraints(maxHeight:MediaQuery.sizeOf(context).height*.6),
-        child:users.isEmpty?const Text('검색 결과가 없습니다.'):ListView.builder(
-          shrinkWrap:true,itemCount:users.length,itemBuilder:(_,index){final user=users[index];return ListTile(
-            dense:true,contentPadding:EdgeInsets.zero,
-            title:Text(user['name']??user['email']),subtitle:Text(user['email']),
-            trailing:Text(user['platformRole']=='admin'?'관리자':'일반'),
-            selected:user['id']==account?['id'],onTap:()=>Navigator.pop(context,user['id'] as String),
-          );},
-        ),
-      )),
-      actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('닫기'))],
-    ));
-    if(id!=null && mounted)await select(id);
+  Future<void> find()async{await widget.request('admin/users',{'query':search.text.trim()});}
+  void searchAccounts(String value){
+    searchTimer?.cancel();final version=++searchVersion;
+    setState((){suggestions={};error=null;});
+    if(value.trim().isEmpty)return;
+    searchTimer=Timer(const Duration(milliseconds:250),()async{
+      try{
+        final result=await widget.request('admin/users',{'query':value.trim()});
+        if(!mounted||version!=searchVersion)return;
+        setState(()=>suggestions={for(final user in (result['users'] as List).take(5))'${user['name']??''} · ${user['email']}':user['id'] as String});
+      }catch(e){if(mounted&&version==searchVersion)setState(()=>error=e.toString());}
+    });
+  }
+  Future<void> chooseAccount(String label)async{
+    final id=suggestions[label];if(id==null||busy)return;
+    searchTimer?.cancel();searchVersion++;
+    setState(()=>suggestions={});searchFocus.unfocus();
+    await run(()=>select(id));
   }
   Future<void> select(String id)async{final result=await widget.request('admin/account',{'userId':id});if(mounted)setState((){account=result['account'] as Map;accountPolicy=result['accountPolicy'] as Map?;spaces=result['workspaces'] as List;});}
   Future<bool> confirm(String text)async=>await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('관리자 변경 확인'),content:Text(text),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('취소')),TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('변경'))]))==true;
@@ -48,7 +50,11 @@ class _AdminBackofficePageState extends State<AdminBackofficePage>{
     appBar:AppBar(automaticallyImplyLeading:false,title:const Text('관리자 백오피스'),actions:[TextButton.icon(onPressed:busy?null:()=>Navigator.pop(context),icon:const Icon(Icons.logout),label:const Text('나가기'))]),
     body:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1000),child:ListView(padding:const EdgeInsets.all(16),children:[
       if(busy)const LinearProgressIndicator(),if(error!=null)Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error)),
-      TextField(controller:search,enabled:!busy,decoration:InputDecoration(labelText:'계정 이메일 검색',suffixIcon:IconButton(onPressed:busy?null:()=>run(()=>find(showResults:true)),icon:const Icon(Icons.search))),onSubmitted:(_)=>run(()=>find(showResults:true))),
+      CaretAssist(controller:search,focus:searchFocus,words:busy?const []:suggestions.keys.toList(),onWord:chooseAccount,
+        arrowSelectsVisible:true,enterSelectsVisible:true,fitContentWidth:true,anchorBelowField:true,
+        child:TextField(controller:search,focusNode:searchFocus,enabled:!busy,onChanged:searchAccounts,
+          decoration:InputDecoration(labelText:'이메일 또는 이름 검색',suffixIcon:IconButton(onPressed:busy?null:()=>searchAccounts(search.text),icon:const Icon(Icons.search))),
+          onSubmitted:(_)=>searchAccounts(search.text))),
       if(account!=null)...[const Divider(),Text('${account!['name']??''} · ${account!['email']}',style:Theme.of(context).textTheme.titleMedium),
         ListTile(contentPadding:EdgeInsets.zero,title:const Text('계정 권한'),trailing:DropdownButton<String>(value:account!['platformRole'],items:const[DropdownMenuItem(value:'user',child:Text('일반 사용자')),DropdownMenuItem(value:'admin',child:Text('관리자'))],onChanged:busy?null:(role)=>run(()async{if(role==null||role==account!['platformRole']||!await confirm('이 계정의 권한을 ${role=='admin'?'관리자':'일반 사용자'}로 변경할까요?'))return;await widget.request('admin/account-role',{'userId':account!['id'],'role':role});await select(account!['id']);await find();}))),
         const Text('구독은 이 계정이 소유한 모든 워크스페이스에 적용됩니다.'),

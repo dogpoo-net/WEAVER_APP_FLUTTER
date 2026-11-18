@@ -218,6 +218,9 @@ class WorkspaceSync extends ChangeNotifier {
   Future<void>? _running;
   String? _lastSynced;
   void changed(){if(!_disposed)notifyListeners();}
+  bool manualReview=false;
+  Future<void> beginReview()async{manualReview=true;_canvasTimer?.cancel();await settle();await storage.flush();}
+  void endReview(){manualReview=false;schedule();}
   Timer? _canvasTimer;
   String get _canvasOutbox=>storage.scoped('canvas.outbox.v1');
   bool get _canvasPending {
@@ -227,7 +230,7 @@ class WorkspaceSync extends ChangeNotifier {
   }
   void schedule(){
     changed();
-    if(_disposed || readOnly || !_canvasPending)return;
+    if(manualReview || _disposed || readOnly || !_canvasPending)return;
     storage.canvasSaveState.value='저장 중';
     _canvasTimer?.cancel();
     _canvasTimer=Timer(const Duration(milliseconds:750),_autoCanvas);
@@ -242,7 +245,7 @@ class WorkspaceSync extends ChangeNotifier {
   Future<void> flushCanvas()async{
     _canvasTimer?.cancel();
     while(_running!=null){await _running;}
-    if(_disposed || readOnly || !isCurrent())return;
+    if(manualReview || _disposed || readOnly || !isCurrent())return;
     try{await (_running=_flushCanvas().whenComplete(()=>_running=null));}
     catch(_){if(!_disposed)_canvasTimer=Timer(const Duration(seconds:5),_autoCanvas);rethrow;}
     if(_canvasPending)schedule();
@@ -328,7 +331,8 @@ class WorkspaceSync extends ChangeNotifier {
       }
     }
   }
-  Future<void> initialize({int ignoredPendingSaves=0}) async {
+  Future<void> initialize({int ignoredPendingSaves=0,bool serverCanvas=false}) async {
+    if(manualReview)return;
     loadBase();
     final beforeRead=splitWorkspace(storage.read());
     try {
@@ -345,12 +349,13 @@ class WorkspaceSync extends ChangeNotifier {
       // A server response must not undo edits made while it was in flight,
       // or an explicit save already waiting behind this read.
       for(final key in {...beforeRead.keys,...local.keys,...previousBase.keys}){
-        if((!readOnly && sharedCanvasItem(local[key]??previousBase[key]) && !sameItem(local[key],previousBase[key])) || localCanvasView(local[key]) || !sameItem(local[key],beforeRead[key]) || (_pendingSaves>ignoredPendingSaves && !sameItem(local[key],previousBase[key]))){
+        if((!serverCanvas && !readOnly && sharedCanvasItem(local[key]??previousBase[key]) && !sameItem(local[key],previousBase[key])) || localCanvasView(local[key]) || !sameItem(local[key],beforeRead[key]) || (_pendingSaves>ignoredPendingSaves && !sameItem(local[key],previousBase[key]))){
           if(local[key]==null){displayed.remove(key);}else{displayed[key]=local[key]!;}
         }
       }
       final raw=joinWorkspace(displayed);await ensureMedia(raw);
       await storage.replaceFromBackup(raw);
+      if(serverCanvas)await storage.preferences.remove(_canvasOutbox);
       _lastSynced=joinWorkspace(base);
       await saveBase();_observedRevision=result['revision'] as int;ready=true;error=null;
     }catch(e){error=e.toString();}
@@ -521,9 +526,9 @@ class WorkspaceSync extends ChangeNotifier {
     }catch(_){base=previous;cursor=previousCursor;_lastSynced=previousSnapshot;rethrow;}
     await owned.finishClaim(claim);error=null;changed();
   }
-  Future<void> discardLocalAndPull() async {
+  Future<void> discardLocalAndPull({bool discardCanvasOutbox=false}) async {
     final result=await request('read',{'since':0});base.clear();accept(result);final raw=joinWorkspace(base);await ensureMedia(raw);
-    await storage.replaceFromBackup(raw);_lastSynced=raw;await saveBase();ready=true;error=null;changed();
+    await storage.replaceFromBackup(raw);if(discardCanvasOutbox)await storage.preferences.remove(_canvasOutbox);_lastSynced=raw;await saveBase();ready=true;error=null;changed();
   }
   Future<void> removeCleanCache() async {
     await storage.flush();if(storage.read()==_lastSynced){final raw=storage.read();await storage.clear();await storage.preferences.remove(storage.syncKey);
