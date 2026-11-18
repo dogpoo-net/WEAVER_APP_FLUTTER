@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:weaver/features/inbox/thought_interaction.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
@@ -47,12 +48,14 @@ void main(){
  layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
  await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));await tester.pumpAndSettle();
  await tester.tap(find.byType(Checkbox));await tester.pump();
+ await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
  if(selectedUpper){
  await tester.tapAt(tester.getTopLeft(find.byKey(ValueKey('canvas-thought-${upper.id}')))+const Offset(40,16));await tester.pump();
  }
  for(final record in [driver,distant]){
  await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${record.id}'))));await tester.pump();
  }
+ await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
  expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,selectedUpper?'3':'2');
  final interaction=tester.widget<ThoughtInteraction>(find.byKey(ValueKey('canvas-thought-${driver.id}')));
  interaction.onResizeStart!();
@@ -77,8 +80,10 @@ void main(){
  layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
  await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));await tester.pumpAndSettle();
  await tester.tap(find.byType(Checkbox));await tester.pump();
+ await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
  await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${a.id}'))));await tester.pump();
  await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${b.id}'))));await tester.pump();
+ await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
  expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'2');
  final oldA=layout.positions[a.id]!,oldB=layout.positions[b.id]!;
  final handle=find.descendant(of:find.byKey(ValueKey('canvas-thought-${a.id}')),matching:find.byKey(ValueKey('resize-$side')));

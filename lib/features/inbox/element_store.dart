@@ -384,7 +384,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               const SizedBox(height: 8),
               CaretAssist(controller: _editor, focus: _editorFocus, useThoughtLabels: true, selectionAssist: true,
                 words: labelAssistTargets().where((word) => word != _word).toList(), tags: {...elements.tags, ..._tags}.toList(),
-                showWhenEmpty: false, enterSelectsVisible: true,
+                showWhenEmpty: false, explicitSelectionOnly: true,
                 onWord: (word) async { await insertAssistedLink(context, _editor, word); if (mounted) _editorFocus.requestFocus(); },
                 onTag: (tag) {
                   final token = tagPrefix(_editor.value); if (token.isEmpty) return;

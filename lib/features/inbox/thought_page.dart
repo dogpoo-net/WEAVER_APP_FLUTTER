@@ -69,6 +69,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   MemoBox? _hoverBox;
   final _liftBoxes = <MemoBox, Rect>{};
   bool _centered = false;
+  bool _detailOpen = false;
   bool _selectionMode = false, _movingSelection = false, _ctrlPressed = false, _shiftPressed = false;
   bool get _rangeSelection => _selectionMode || _ctrlPressed || _shiftPressed || _selectionStart != null;
   bool _controlSelection(KeyEvent event) {
@@ -1125,7 +1126,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
                 }),
                 onActiveChanged: (active) => setState(() { if (active) { _rememberStacks(); _thoughtDragOrigins.putIfAbsent(record.id, () => _positions[record.id]!); _dragStartStacks.putIfAbsent(record.id, () => alignedStackMembers(record.id, _positions,groups:_layout.stackGroups)); } _draggingId = active ? record.id : null; if (!active) { _hoverBox = null; _dropHighlights.clear(); } }),
-                onTap: () { _rangeAnchor=record.id; showElementMetadata(context, record.text); },
+                onTap: () async {
+                  if (_detailOpen) return;
+                  if (_selectionMode) { _toggleSelection(false); return; }
+                  _rangeAnchor=record.id; _detailOpen=true;
+                  try { await showElementMetadata(context, record.text); }
+                  finally { _detailOpen=false; }
+                },
                 onMove: (delta) => setState(() { final previous = _positions[record.id]!; final p = previous + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
                   if (_liftBoxes.isEmpty) _displaceNeighbors({record.id});
                   _rememberStacks();
@@ -1274,6 +1281,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onLongPressCancel:_cancelSelectionLift,
             onTapUp: (d) => setState(() {
               final hit = _hitSelection(d.localPosition, records);
+              if (_selectionMode && _selected.isNotEmpty && !_ctrlPressed && !_shiftPressed && (hit == null || !_selected.contains(hit))) {
+                _toggleSelection(false); return;
+              }
               if (hit == null) { _selected.clear(); _rangeAnchor=null; _rangeAnchorPoint=null; }
               else if (_shiftPressed && _rangeAnchor != null && nodeRects.containsKey(_rangeAnchor)) {
                 final range = Rect.fromPoints(_rangeAnchorPoint ?? _selectionBounds(_rangeAnchor!).center, d.localPosition).inflate(.5);

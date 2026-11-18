@@ -29,6 +29,7 @@ class CaretAssist extends StatefulWidget {
     this.tags = const [],
     this.onTag,
     this.enterSelectsVisible = false,
+    this.explicitSelectionOnly = false,
     this.arrowSelectsVisible = false,
     this.fitContentWidth = false,
     this.anchorBelowField = false,
@@ -48,6 +49,7 @@ class CaretAssist extends StatefulWidget {
   final GlobalKey? mobileViewportKey;
   final bool showWhenEmpty;
   final bool enterSelectsVisible;
+  final bool explicitSelectionOnly;
   final bool arrowSelectsVisible;
   final bool fitContentWidth;
   final bool anchorBelowField;
@@ -436,7 +438,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     }
     final checked = _autoCheckedValue;
     final changed = checked == null || checked.text != value.text || checked.selection != value.selection;
-    if (autoSelect && changed && (!_tagMode || !value.composing.isValid || value.composing.isCollapsed)) {
+    if (!widget.explicitSelectionOnly && autoSelect && changed && (!_tagMode || !value.composing.isValid || value.composing.isCollapsed)) {
       _autoCheckedValue = value;
       final exact = query.isEmpty ? -1 : _matches.indexWhere((word) => (_tagMode ? word.substring(1).toLowerCase() == query.toLowerCase() : _title(word) == query));
       if (exact >= 0) {

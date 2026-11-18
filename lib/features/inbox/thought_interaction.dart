@@ -29,6 +29,7 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
   Size _clamp(double w, double h) => Size(w.clamp(170, 640), h.clamp(76, 520));
   Widget _handle(String name, MouseCursor cursor, bool left, bool top, bool horizontal, bool vertical) =>
     MouseRegion(cursor: cursor, child: GestureDetector(key: ValueKey('resize-$name'), behavior: HitTestBehavior.opaque,
+      onTap: () {}, // Border clicks must not open the card underneath.
       onDoubleTap: widget.fitSize == null ? null : () {
         final fitted = widget.fitSize!(horizontal, vertical);
         final next = _clamp(horizontal ? fitted.width : widget.size.width,
