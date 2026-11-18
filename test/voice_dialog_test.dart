@@ -1,3 +1,4 @@
+import 'package:weaver/features/capture/voice_transcription.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'dart:async';
 import 'dart:typed_data';
@@ -8,6 +9,7 @@ import 'package:weaver/features/capture/capture_models.dart';
 import 'package:weaver/features/capture/voice_dialog.dart';
 
 class FakeRecorder extends RecordPlatform {
+  @override Future<bool> isEncoderSupported(String id,AudioEncoder encoder) async => false;
   bool permitted = true;
   int stops = 0, cancellations = 0;
   final audio = StreamController<Uint8List>();
@@ -42,7 +44,24 @@ void main() {
   late RecordPlatform original;
   late FakeRecorder recorder;
   setUp(() { original = RecordPlatform.instance; recorder = FakeRecorder(); RecordPlatform.instance = recorder; });
-  tearDown(() { RecordPlatform.instance = original; });
+  tearDown(() { RecordPlatform.instance = original; voiceAudioRequest=null; });
+  for(final subscribed in [false,true]){
+    testWidgets('automatic transcription follows account entitlement ($subscribed)',(tester)async{
+      var calls=0;VoiceDraft? result;
+      voiceAudioRequest=(action,body)async{
+        if(action=='audio/policy')return {'allowed':subscribed,'enabled':subscribed,'maxRecordingSeconds':subscribed?3600:60};
+        calls++;return {'text':'자동 변환 결과'};
+      };
+      await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()async{result=await showVoiceRecorder(context);},child:const Text('열기'))))));
+      await tester.tap(find.text('열기'));await tester.pumpAndSettle();
+      await tester.tap(find.text('녹음 시작'));await tester.pumpAndSettle();
+      recorder.audio.add(Uint8List(PcmClipBuilder.maxBytes));await tester.pumpAndSettle();
+      expect(calls,subscribed?1:0);
+      await tester.tap(find.text('메모에 첨부'));await tester.pumpAndSettle();
+      expect(result!.transcript,subscribed?'자동 변환 결과':'');expect(result!.durationMs,60000);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
   testWidgets('thought detail opens recorder instead of audio file picker',(tester)async{
     elements.clear();final thought=elements.add('녹음할 생각');
     await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()=>showElementMetadata(context,thought.text),child:const Text('상세'))))));

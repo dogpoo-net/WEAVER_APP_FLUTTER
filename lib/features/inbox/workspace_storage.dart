@@ -1,3 +1,4 @@
+import '../capture/voice_transcription.dart';
 import '../sync/workspace_events.dart';
 import '../capture/capture_models.dart';
 import 'graph_layout.dart';
@@ -378,6 +379,7 @@ class WorkspaceStorage {
   Future<void> Function()? refreshNow;
   Future<void> Function()? pullNow;
   Future<void> Function()? openSharing;
+  AudioRequest? audioRequest;
   bool offlineMode=false;
   Future<void> Function()? exportFile;
   Future<void> Function()? importFile;

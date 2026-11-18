@@ -233,6 +233,12 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
             }
           }
         }
+        target.audioRequest=(action,body)async{
+          if(!valid())throw StateError('워크스페이스가 변경되었습니다.');
+          final result=await widget.auth.emailApi.workspace(action,{...body,'workspaceId':workspaceId});
+          if(!valid())throw StateError('워크스페이스가 변경되었습니다.');
+          return result;
+        };
         target.workspaceName=catalog.firstWhere((row)=>row['workspaceId']==workspaceId)['name'] as String?;
         target.openWorkspaces=chooseWorkspace;
         target.openNotification=openNotification;
@@ -385,6 +391,12 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     if(!valid())return;
     await local.preferences.setBool(OfflineWorkspace.activeKey(local),true);
     sync?.dispose();sync=null;local.currentUserId=userId;local.offlineMode=true;
+    local.audioRequest=(action,body)async{
+      if(!valid())throw StateError('워크스페이스가 변경되었습니다.');
+      final result=await widget.auth.emailApi.workspace(action,{...body,'workspaceId':id});
+      if(!valid())throw StateError('워크스페이스가 변경되었습니다.');
+      return result;
+    };
     local.workspaceName=catalog.firstWhere((r)=>r['workspaceId']==id)['name'];
     local.openNotification=openNotification;
     local.openWorkspaces=chooseWorkspace;local.openAdmin=isAdmin?openAdmin:null;

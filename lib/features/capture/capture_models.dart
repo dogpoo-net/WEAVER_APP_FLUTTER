@@ -35,7 +35,8 @@ class VoiceAttachment {
 }
 
 class VoiceDraft {
-  const VoiceDraft(this.bytes, this.durationMs);
+  const VoiceDraft(this.bytes, this.durationMs, {this.transcript = ''});
+  final String transcript;
   final Uint8List bytes;
   final int durationMs;
 }

@@ -458,11 +458,11 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                   IconButton(tooltip:'위치 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_locationEdits[element.id]=null),icon:const Icon(Icons.delete_outline)),
                 ])),
               for(final audio in _audioUploads[element.id]??<VoiceDraft>[])Row(children:[
-                Expanded(child:VoicePlayer(key:ObjectKey(audio),load:()async=>audio.bytes,durationMs:audio.durationMs,textStyle:Theme.of(context).textTheme.labelLarge)),
+                Expanded(child:VoicePlayer(key:ObjectKey(audio),load:()async=>audio.bytes,durationMs:audio.durationMs,transcript:audio.transcript,textStyle:Theme.of(context).textTheme.labelLarge)),
                 IconButton(tooltip:'음성 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState((){_audioUploads[element.id]!.clear();_removedAudio[element.id]=element.recordings.map((a)=>a.id).toSet();}),icon:const Icon(Icons.delete_outline)),
               ]),
               for (final clip in _audioFor(element)) Row(children:[Expanded(child:VoicePlayer(key: ValueKey(clip.id),
-                load: () => MediaStorage.read(clip.id), durationMs: clip.durationMs,textStyle:Theme.of(context).textTheme.labelLarge)),
+                load: () => MediaStorage.read(clip.id), durationMs: clip.durationMs, transcript:clip.transcript,textStyle:Theme.of(context).textTheme.labelLarge)),
                 IconButton(tooltip:'음성 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_removedAudio.putIfAbsent(element.id,()=>{}).add(clip.id)),icon:const Icon(Icons.delete_outline)),
               ]),
               if(_photosFor(element).isNotEmpty||(_photoUploads[element.id]?.isNotEmpty??false))Padding(padding:const EdgeInsets.symmetric(vertical:8),child:PhotoGallery(
@@ -522,7 +522,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                 final id='photo-$stamp-${written.length}';written.add(id);await MediaStorage.write(id,photo.bytes,owner:_mediaOwner);photos.add(PhotoAttachment(id,photo.name));
               }
               for(final audio in _audioUploads[element.id]??<VoiceDraft>[]){
-                final id='voice-$stamp-${written.length}';written.add(id);await MediaStorage.write(id,audio.bytes,owner:_mediaOwner);voices.add(VoiceAttachment(id,audio.durationMs));
+                final id='voice-$stamp-${written.length}';written.add(id);await MediaStorage.write(id,audio.bytes,owner:_mediaOwner);voices.add(VoiceAttachment(id,audio.durationMs,transcript:audio.transcript));
               }
               if(!mounted||_mediaOwner!=MediaStorage.activeOwner||elements.records[word]?.id!=element.id)throw StateError('편집 화면이나 워크스페이스가 변경되었습니다.');
               if(_photosFor(elements.records[word]!).length+photos.length>5)throw StateError('사진은 최대 5장까지 저장할 수 있습니다.');

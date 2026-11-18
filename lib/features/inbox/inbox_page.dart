@@ -1,3 +1,4 @@
+import '../capture/voice_transcription.dart';
 import 'main_app_bar.dart';
 import '../sync/workspace_events.dart';
 import 'overview_collections.dart';
@@ -146,7 +147,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       if (voice != null) {
         final id = 'voice-$stamp';
         written.add(id); await MediaStorage.write(id, voice.bytes,owner:widget.storage?.owner);
-        _savedVoice = VoiceAttachment(id, voice.durationMs);
+        _savedVoice = VoiceAttachment(id, voice.durationMs, transcript:voice.transcript);
       }
       for (var i = 0; i < _photoDrafts.length; i++) {
         final photo = _photoDrafts[i], id = 'photo-$stamp-$i';
@@ -242,6 +243,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     saveWorkspaceContent = _saveAndSync;
     workspaceMemoAuthor=(id)=>overviewAuthor(widget.storage,'list:elements',id);
     if(widget.storage?.comments==null)memoCommentCounts.value={};
+    voiceAudioRequest=widget.storage?.audioRequest;
     memoCommentRequest=widget.storage?.comments;memoCommentsWritable=widget.storage?.commentsWritable??false;
     widget.storage?.applyServerSnapshot=_applyRemoteSnapshot;
     desktopMenu.visible = true;
@@ -568,7 +570,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     if(openWorkspaceDocument == _openDocumentById)openWorkspaceDocument=null;
     if(refreshWorkspaceForRead == _refreshForBrowse)refreshWorkspaceForRead=null;
-    if(saveWorkspaceContent == _saveAndSync){saveWorkspaceContent=null;workspaceMemoAuthor=null;memoCommentRequest=null;memoCommentsWritable=false;}
+    if(saveWorkspaceContent == _saveAndSync){saveWorkspaceContent=null;workspaceMemoAuthor=null;voiceAudioRequest=null;memoCommentRequest=null;memoCommentsWritable=false;}
     WidgetsBinding.instance.addPostFrameCallback((_) => desktopMenu.detach(this));
     elements.removeListener(_elementDeleted);
     elements.onRenamed = null;
@@ -1279,7 +1281,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 12),
           if (_voiceDraft case final voice?) Row(children: [
-            Expanded(child: VoicePlayer(key: ObjectKey(voice), load: () async => voice.bytes, durationMs: voice.durationMs)),
+            Expanded(child: VoicePlayer(key: ObjectKey(voice), load: () async => voice.bytes, durationMs: voice.durationMs, transcript:voice.transcript)),
             IconButton(tooltip: '녹음 첨부 제거', onPressed: _captureSaving ? null : () => setState(() => _voiceDraft = null), icon: const Icon(Icons.close, size: 18)),
           ]),
           if (_photoDrafts.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 8), child: Wrap(spacing: 6, runSpacing: 6, children: [

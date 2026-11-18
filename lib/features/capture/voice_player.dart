@@ -5,9 +5,10 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
 class VoicePlayer extends StatefulWidget {
-  const VoicePlayer({super.key, required this.load, required this.durationMs,this.textStyle});
+  const VoicePlayer({super.key, required this.load, required this.durationMs,this.textStyle,this.transcript=''});
   final Future<Uint8List?> Function() load;
   final int durationMs;
+  final String transcript;
   final TextStyle? textStyle;
   @override
   State<VoicePlayer> createState() => _VoicePlayerState();
@@ -57,6 +58,7 @@ class _VoicePlayerState extends State<VoicePlayer> {
         icon: _busy ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(_playing ? Icons.stop : Icons.play_arrow)),
       Text(widget.durationMs==0?'음성 파일':'음성 메모 · ${(widget.durationMs / 1000).ceil()}초', style: widget.textStyle ?? Theme.of(context).textTheme.bodySmall),
     ]),
+    if(widget.transcript.isNotEmpty)ExpansionTile(tilePadding:EdgeInsets.zero,title:const Text('변환된 텍스트',style:TextStyle(fontSize:12)),children:[Align(alignment:Alignment.centerLeft,child:SelectableText(widget.transcript))]),
     if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12)),
   ]);
 }
