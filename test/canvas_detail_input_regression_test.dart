@@ -44,6 +44,21 @@ void main() {
   expect(find.byType(AlertDialog),findsNothing);
   await tester.pumpWidget(const SizedBox());
  });
+ testWidgets('mobile detail assist stays above the software keyboard and is tappable',(tester)async{
+  tester.view.physicalSize=const Size(390,844);tester.view.devicePixelRatio=1;
+  tester.view.viewInsets=const FakeViewPadding(bottom:300);
+  addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);addTearDown(tester.view.resetViewInsets);
+  elements.clear();elements.add('본문');elements.add('후보').tags.add('독서');
+  await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()=>showElementMetadata(context,'본문'),child:const Text('열기'))))));
+  await tester.tap(find.text('열기'));await tester.pumpAndSettle();
+  await tester.enterText(find.byKey(const ValueKey('element-editor')),'본문 #독');await tester.pumpAndSettle();
+  final popup=find.byKey(const ValueKey('assist-popup'));expect(popup,findsOneWidget);
+  expect(tester.getBottomLeft(popup).dy,lessThanOrEqualTo(544));
+  await tester.tap(find.descendant(of:popup,matching:find.text('#독서')));await tester.pumpAndSettle();
+  expect(tester.widget<TextField>(find.byKey(const ValueKey('element-editor'))).controller!.text.trim(),'본문');
+  expect(find.text('#독서'),findsOneWidget);
+  await tester.pumpWidget(const SizedBox());
+ });
  for(final query in ['독','독서']) {
  testWidgets('unselected hashtag Enter preserves typed IME text ($query)',(tester)async{
   final c=TextEditingController(),f=FocusNode();String? chosen;

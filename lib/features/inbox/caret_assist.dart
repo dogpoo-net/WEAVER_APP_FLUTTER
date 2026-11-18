@@ -502,7 +502,8 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       final field = _anchor.currentContext?.findRenderObject();
       final fieldBottom = widget.anchorBelowField && field is RenderBox && field.hasSize ? field.localToGlobal(Offset(0,field.size.height)) : null;
       final point = fieldBottom ?? render.localToGlobal(caret.topLeft);
-      final media = MediaQuery.of(context);
+      // Dialog removes descendant viewInsets; overlay coordinates still include the keyboard.
+      final media = MediaQuery.of(Overlay.of(context).context);
       final maxWidth = (media.size.width - 24).clamp(0.0, 300.0);
       var width = maxWidth;
       if (widget.fitContentWidth && _matches.isNotEmpty) {

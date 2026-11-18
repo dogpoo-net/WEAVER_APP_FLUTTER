@@ -6,9 +6,11 @@ import 'package:weaver/main.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
 
-Future<void> confirmLinkTitle(WidgetTester tester) async {
+Future<void> confirmLinkTitle(WidgetTester tester, {String title = '독서'}) async {
   final input = find.byKey(const ValueKey('link-title-input'));
   if (input.evaluate().isEmpty) return;
+  // Memo links require a nonempty title; an empty confirmation stays in the dialog.
+  await tester.enterText(input, title);
   await tester.tap(find.text('확인')); await tester.pumpAndSettle();
 }
 void main() {
@@ -77,9 +79,9 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
       await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
-      await confirmLinkTitle(tester);
+      await confirmLinkTitle(tester, title: text.endsWith('첫') ? '첫생각' : '다른생각');
       await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
-      await confirmLinkTitle(tester);
+      await confirmLinkTitle(tester, title: text.endsWith('첫') ? '첫생각' : '다른생각');
       expect(tester.widget<TextField>(field).controller!.text, text.endsWith('첫') ? '본문 첫생각' : '본문 다른생각');
       expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
     }
