@@ -1,3 +1,4 @@
+import 'menu_display_preferences.dart';
 import '../../app_theme.dart';
 import '../sync/workspace_backup.dart';
 import '../auth/google_auth.dart';
@@ -80,6 +81,17 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
         if(offline)const ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.offline_bolt_outlined),title:Text('오프라인 모드'),subtitle:Text('이 기기에만 저장됩니다.')),
         if(onExportFile!=null)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.file_upload_outlined),title:const Text('데이터 내보내기'),onTap:busy?null:()=>run(onExportFile)),
         if(onImportFile!=null)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.file_download_outlined),title:const Text('데이터 가져오기'),onTap:busy?null:()=>run(onImportFile)),
+        ListTile(contentPadding: EdgeInsets.zero, title: Text('항목 수 숨기기', style: Theme.of(context).textTheme.bodySmall),
+          onTap: busy ? null : () => run(() async {
+            final hidden = !hideMenuCounts.value;
+            if (preferences != null && !await preferences.setBool(hideMenuCountsPreference, hidden)) throw StateError('Settings save failed');
+            hideMenuCounts.value = hidden;
+          }),
+          trailing: SizedBox(width: 44, height: 36, child: Transform.scale(scale: .75, child: Switch(value: hideMenuCounts.value,
+            onChanged: busy ? null : (hidden) => run(() async {
+              if (preferences != null && !await preferences.setBool(hideMenuCountsPreference, hidden)) throw StateError('Settings save failed');
+              hideMenuCounts.value = hidden;
+            }))))),
         ListTile(contentPadding: EdgeInsets.zero, title: Text('닫힌 생각 숨기기', style: Theme.of(context).textTheme.bodySmall),
           onTap: busy ? null : () => changeVisibility(!showClosedThoughts),
           trailing: SizedBox(width: 44, height: 36, child: Transform.scale(scale: .75, child: Switch(value: !showClosedThoughts,

@@ -1,3 +1,4 @@
+import 'menu_display_preferences.dart';
 import 'element_store.dart' as store;
 import 'label_links.dart';
 import 'memo_boxes.dart';
@@ -118,12 +119,12 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   }
   final _tagCounts = <String, int>{};
   final _activeThoughtIds = <String>{};
-  Widget _countedTitle(String label, int count, String key, {TextStyle? style}) => Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+  Widget _countedTitle(String label, int count, String key, {TextStyle? style}) => ValueListenableBuilder<bool>(valueListenable: hideMenuCounts, builder: (context, hidden, _) => Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
     Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: style)),
-    const SizedBox(width: 6),
+    if (!hidden) ...[const SizedBox(width: 6),
     Text('$count', key: ValueKey(key), style: TextStyle(fontSize: 13,
-      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .55))),
-  ]);
+      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .55)))],
+  ]));
   Widget _item(_Kind kind, int index, {bool nested = false}) {
     final name = _items(kind)[index];
     final label = kind == _Kind.tag ? '#$name' : name.replaceAll(RegExp(r'[\r\n]+'), ' ');
