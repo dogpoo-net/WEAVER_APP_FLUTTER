@@ -1,3 +1,4 @@
+import 'network_recovery.dart';
 import 'workspace_events.dart';
 import 'document_merge.dart';
 import 'dart:async';
@@ -181,6 +182,7 @@ class WorkspaceSync extends ChangeNotifier {
     return result;
   }
   Future<bool> checkRemote() async {
+    if(networkPending){await recoverNetwork();return false;}
     if(manualReview)return false;
     final leaseEpoch=_leaseEpoch;
     late final Map<String,dynamic> result;
@@ -219,6 +221,69 @@ class WorkspaceSync extends ChangeNotifier {
   Future<void>? _running;
   String? _lastSynced;
   void changed(){if(!_disposed)notifyListeners();}
+  String get recoveryKey=>storage.scoped('network-recovery-base');
+  bool get networkPending=>storage.preferences.containsKey(recoveryKey);
+  bool needsRecoveryReview=false,_recovering=false;
+  Timer? _networkTimer;
+  Map<String,Map<String,dynamic>> get recoveryBase {
+    final raw=storage.preferences.getString(recoveryKey);
+    return raw==null?base:{for(final e in (jsonDecode(raw) as Map).entries)e.key as String:Map<String,dynamic>.from(e.value as Map)};
+  }
+  Future<void> enterNetworkOffline()async{
+    if(_disposed||!isCurrent())return;
+    if(!networkPending && !await storage.preferences.setString(recoveryKey,jsonEncode(base)))throw StateError('오프라인 기준 저장 실패');
+    storage.offlineMode=true;error=null;_canvasTimer?.cancel();
+    storage.canvasSaveState.value='오프라인 · 이 기기에 저장됨';
+    _networkTimer??=Timer.periodic(const Duration(seconds:10),(_)=>recoverNetwork());
+    changed();
+  }
+  Future<void> completeNetworkRecovery()async{
+    await storage.preferences.remove(recoveryKey);storage.offlineMode=false;needsRecoveryReview=false;
+    _networkTimer?.cancel();_networkTimer=null;error=null;storage.canvasSaveState.value='저장됨';changed();schedule();
+  }
+  Future<void> recoverNetwork()async{
+    if(_disposed||!isCurrent()||!networkPending||_recovering||manualReview||storage.canvasInteracting||storage.hasUnsavedInput?.call()==true)return;
+    if(needsRecoveryReview){changed();return;}
+    _recovering=true;
+    try{
+      await settle();await storage.flush();
+      final result=await request('read',{'since':0});
+      if(_disposed||!isCurrent()||storage.canvasInteracting||storage.hasUnsavedInput?.call()==true)return;
+      await storage.flush();final snapshot=storage.read();final local=splitWorkspace(snapshot);
+      final remote=<String,Map<String,dynamic>>{};
+      for(final raw in result['changes'] as List){final item=Map<String,dynamic>.from(raw);item['value']=item['payload']==null?null:jsonDecode(item.remove('payload'));remote[itemKey(item['kind'],item['id'])]=item;}
+      final plan=NetworkRecoveryPlan(recoveryBase,local,remote);
+      if(plan.conflicts.isNotEmpty){needsRecoveryReview=true;storage.canvasSaveState.value='동기화 확인 필요';changed();return;}
+      var latest=result;
+      if(plan.changes.isNotEmpty&&!readOnly){
+        await uploadMedia(joinWorkspace({for(final c in plan.changes)if(c['deleted']!=true)itemKey(c['kind'],c['id']):c}));
+        if(storage.read()!=snapshot)return;
+        latest=await request('save',{'since':result['revision'],'offlineReconcile':true,'changes':plan.changes});
+        for(final raw in latest['changes'] as List){final item=Map<String,dynamic>.from(raw);item['value']=item['payload']==null?null:jsonDecode(item.remove('payload'));remote[itemKey(item['kind'],item['id'])]=item;}
+      }
+      // Edits made while the acknowledgement was in flight stay local for the next pass.
+      await storage.flush();final current=splitWorkspace(storage.read());
+      final displayed=NetworkRecoveryPlan(local,current,remote).merged;
+      if(storage.canvasInteracting||storage.hasUnsavedInput?.call()==true)return;
+      await ensureMedia(joinWorkspace(remote));
+      await storage.flush();
+      if(storage.read()!=joinWorkspace(current)&&!const DeepCollectionEquality().equals(splitWorkspace(storage.read()),current))return;
+      if(storage.canvasInteracting||storage.hasUnsavedInput?.call()==true)return;
+      if(_disposed||!isCurrent())return;
+      await storage.replaceFromBackup(joinWorkspace(displayed));
+      base=remote;cursor=latest['revision'] as int;_lastSynced=joinWorkspace(base);await saveBase();
+      await storage.preferences.remove(_canvasOutbox);
+      storage.applyServerSnapshot?.call();ready=true;
+      if(!const DeepCollectionEquality().equals(current,local)){
+        await storage.preferences.setString(recoveryKey,jsonEncode(base));return;
+      }
+      await completeNetworkRecovery();
+    }catch(e){
+      if(e is EmailAuthFailure&&e.status==409){needsRecoveryReview=true;storage.canvasSaveState.value='동기화 확인 필요';}
+      else if(e is! EmailAuthFailure||!e.networkUnavailable){error=e.toString();}
+      changed();
+    }finally{_recovering=false;}
+  }
   bool manualReview=false;
   Future<void> beginReview()async{manualReview=true;_canvasTimer?.cancel();await settle();await storage.flush();}
   void endReview(){manualReview=false;schedule();}
@@ -231,7 +296,7 @@ class WorkspaceSync extends ChangeNotifier {
   }
   void schedule(){
     changed();
-    if(manualReview || _disposed || readOnly || !_canvasPending)return;
+    if(networkPending || manualReview || _disposed || readOnly || !_canvasPending)return;
     storage.canvasSaveState.value='저장 중';
     _canvasTimer?.cancel();
     _canvasTimer=Timer(const Duration(milliseconds:750),_autoCanvas);
@@ -246,12 +311,13 @@ class WorkspaceSync extends ChangeNotifier {
   Future<void> flushCanvas()async{
     _canvasTimer?.cancel();
     while(_running!=null){await _running;}
-    if(manualReview || _disposed || readOnly || !isCurrent())return;
+    if(networkPending || manualReview || _disposed || readOnly || !isCurrent())return;
     try{await (_running=_flushCanvas().whenComplete(()=>_running=null));}
-    catch(_){if(!_disposed)_canvasTimer=Timer(const Duration(seconds:5),_autoCanvas);rethrow;}
+    catch(_){if(networkPending)return;if(!_disposed)_canvasTimer=Timer(const Duration(seconds:5),_autoCanvas);rethrow;}
     if(_canvasPending)schedule();
   }
   Future<void> _flushCanvas()async{
+    if(networkPending)return;
     try{
       await storage.flush();
       final pending=storage.preferences.getString(_canvasOutbox);
@@ -296,7 +362,10 @@ class WorkspaceSync extends ChangeNotifier {
   Future<Map<String,dynamic>> request(String action,Map<String,Object?> body) async {
     if(_disposed || !isCurrent())throw const EmailAuthFailure('계정이 변경되었습니다.');
     if(readOnly && {'save','claim','media/write','document-lease','comments/write'}.contains(action))throw const EmailAuthFailure('읽기 전용 워크스페이스입니다.');
-    final result=await api.workspace(action,{...body,if(workspaceId!=null)'workspaceId':workspaceId});
+    if(networkPending && !_recovering && !manualReview && {'save','claim','media/write','comments/write'}.contains(action))throw const EmailAuthFailure('오프라인 변경을 먼저 동기화해주세요.');
+    late Map<String,dynamic> result;
+    try{result=await api.workspace(action,{...body,if(workspaceId!=null)'workspaceId':workspaceId});}
+    on EmailAuthFailure catch(e){if(e.networkUnavailable)await enterNetworkOffline();rethrow;}
     if(_disposed || !isCurrent())throw const EmailAuthFailure('계정이 변경되었습니다.');
     if(result['commentCounts'] is Map){final counts=(result['commentCounts'] as Map).map((key,value)=>MapEntry(key.toString(),(value as num).toInt()));if(!mapEquals(counts,memoCommentCounts.value))memoCommentCounts.value=counts;}
     return result;
@@ -336,7 +405,9 @@ class WorkspaceSync extends ChangeNotifier {
     if(manualReview)return;
     loadBase();
     final beforeRead=splitWorkspace(storage.read());
+    final initialBase=Map<String,Map<String,dynamic>>.from(base),wasPending=networkPending;
     try {
+      if(networkPending){await enterNetworkOffline();throw const EmailAuthFailure('오프라인 변경을 보관 중입니다.');}
       Map<String,dynamic> result;
       try{result=await request('read',{'since':cursor});}
       on EmailAuthFailure catch(e){if(e.status!=409)rethrow;result=await request('read',{'since':0});base.clear();}
@@ -359,7 +430,7 @@ class WorkspaceSync extends ChangeNotifier {
       if(serverCanvas)await storage.preferences.remove(_canvasOutbox);
       _lastSynced=joinWorkspace(base);
       await saveBase();_observedRevision=result['revision'] as int;ready=true;error=null;
-    }catch(e){error=e.toString();}
+    }catch(e){if(networkPending&&!wasPending){base=initialBase;await storage.preferences.setString(recoveryKey,jsonEncode(base));}error=networkPending?null:e.toString();}
     storage.canvasWritable=!readOnly;storage.syncCanvas=flushCanvas;
     storage.itemMetadata=(kind,id)=>base[itemKey(kind,id)];
     storage.comments=request;storage.commentsWritable=!readOnly;
@@ -368,6 +439,7 @@ class WorkspaceSync extends ChangeNotifier {
     changed();if(storage.read()!=_lastSynced)schedule();
   }
   Future<void> refreshFromServer() async {
+    if(networkPending){await recoverNetwork();return;}
     while (_running != null) { await _running; }
     final previous = Map<String,Map<String,dynamic>>.from(base), oldCursor = cursor;
     final oldSnapshot = _lastSynced;
@@ -375,11 +447,13 @@ class WorkspaceSync extends ChangeNotifier {
     if (error != null) { base = previous; cursor = oldCursor; _lastSynced = oldSnapshot; throw EmailAuthFailure(error!); }
   }
   Future<void> saveDocument(String id)async{
+    if(networkPending){await storage.flush();return;}
     await storage.flush();
     while(_running!=null){await _running;}
-    await (_running=_saveDocument(id).whenComplete(()=>_running=null));
+    try{await (_running=_saveDocument(id).whenComplete(()=>_running=null));}catch(_){if(!networkPending)rethrow;}
   }
   Future<void> _saveDocument(String id)async{
+    if(networkPending)return;
     storage.lastSaveReplaced=false;
     final local=splitWorkspace(storage.read());
     final entry=local.entries.where((e)=>e.value['kind']=='list:notes'&&editResource(e.value)==id).firstOrNull;
@@ -411,7 +485,7 @@ class WorkspaceSync extends ChangeNotifier {
   Future<void> flush() async {await flushCanvas();await _enqueueFlush(false);}
   Future<void> flushDeletions() => _enqueueFlush(true);
   Future<void> _enqueueFlush(bool deletionsOnly, {bool foldersOnly = false, bool contentOnly=false, String? resource}) async {
-    if(manualReview)return;
+    if(networkPending||manualReview){await storage.flush();return;}
     // Capture explicit saves before waiting for an in-flight server read.
     await storage.flush();
     final requestedSnapshot=storage.read();
@@ -419,11 +493,11 @@ class WorkspaceSync extends ChangeNotifier {
     try {
       while (_running != null) { await _running; }
       await (_running = _flush(deletionsOnly: deletionsOnly, foldersOnly: foldersOnly, contentOnly:contentOnly, resource:resource, requestedSnapshot:requestedSnapshot).whenComplete(() => _running = null));
-      if(error!=null)throw EmailAuthFailure(error!);
+      if(error!=null&&!networkPending)throw EmailAuthFailure(error!);
     } finally {_pendingSaves--; }
   }
   Future<void> _flush({bool deletionsOnly = false, bool foldersOnly = false, bool contentOnly=false, String? resource, String? requestedSnapshot}) async {
-    if(_disposed || !isCurrent())return;
+    if(networkPending||_disposed || !isCurrent())return;
     storage.lastSaveReplaced=false;busy=true;changed();
     try {
       await storage.flush();
@@ -494,7 +568,7 @@ class WorkspaceSync extends ChangeNotifier {
       if(e is EmailAuthFailure && e.status==409){
         await initialize(ignoredPendingSaves:1);
         if(error==null){storage.lastSaveReplaced=true;storage.applyServerSnapshot?.call();}
-      }else{error=e.toString();}
+      }else{error=networkPending?null:e.toString();}
     }
     finally {busy=false;changed();if(!_disposed && error==null && storage.read()!=_lastSynced)schedule();}
   }
@@ -536,5 +610,5 @@ class WorkspaceSync extends ChangeNotifier {
     await storage.flush();if(storage.read()==_lastSynced){final raw=storage.read();await storage.clear();await storage.preferences.remove(storage.syncKey);
       if(raw!=null){final snapshot=WorkspaceSnapshot.decode(raw);for(final r in [...snapshot.records,...snapshot.trashRecords]){for(final id in [...r.photos.map((p)=>p.id),...r.recordings.map((c)=>c.id)]){try{await MediaStorage.delete(id,owner:storage.owner);}catch(_){}await storage.preferences.remove(storage.scoped('media-sent.$id'));}}}}
   }
-  @override void dispose(){memoCommentCounts.value={};_disposed=true;_canvasTimer?.cancel();storage.syncCanvas=null;storage.comments=null;storage.commentsWritable=false;storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.watchRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;storage.inspectLease=null;storage.acquireLease=null;super.dispose();}
+  @override void dispose(){memoCommentCounts.value={};_disposed=true;_networkTimer?.cancel();_canvasTimer?.cancel();storage.syncCanvas=null;storage.comments=null;storage.commentsWritable=false;storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.watchRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;storage.inspectLease=null;storage.acquireLease=null;super.dispose();}
 }

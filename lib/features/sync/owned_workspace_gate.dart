@@ -118,7 +118,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         Map<String,dynamic> list;
         final catalogKey='weaver.catalog.$account';
         try{list=await widget.auth.emailApi.workspace('catalog', {});await widget.root.preferences.setString(catalogKey,jsonEncode(list));}
-        catch(e){if(e is EmailAuthFailure && (e.status==401 || e.status==403))rethrow;final cached=widget.root.preferences.getString(catalogKey);if(cached==null)rethrow;list=Map<String,dynamic>.from(jsonDecode(cached));list['workspaces']=(list['workspaces'] as List).where((r)=>r['role']=='owner'&&r['offline']==true).toList();if((list['workspaces'] as List).isEmpty)rethrow;}
+        catch(e){if(e is! EmailAuthFailure||!e.networkUnavailable)rethrow;final cached=widget.root.preferences.getString(catalogKey);if(cached==null)rethrow;list=Map<String,dynamic>.from(jsonDecode(cached));}
 
         if (!valid()) return;
         catalog = list['workspaces'] as List;
@@ -161,6 +161,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
           isCurrent: valid,
         );
         sync = engine;
+        _recoveryPrompted=false;
         await engine.initialize(serverCanvas:returningOffline);
         if (!valid()) return;
         if (!engine.ready && target.read() == null) {
@@ -218,7 +219,8 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         target.workspaceName=catalog.firstWhere((row)=>row['workspaceId']==workspaceId)['name'] as String?;
         target.openWorkspaces=chooseWorkspace;
         target.openAdmin=isAdmin?openAdmin:null;
-        if(role=='owner'&&!quotaReadOnly){attachFiles(target,engine);target.openSyncReview=()=>reviewSync(target,engine);}
+        if(role=='owner'&&!quotaReadOnly)attachFiles(target,engine);
+        if(role!='viewer'&&!quotaReadOnly)target.openSyncReview=()=>reviewSync(target,engine);
         target.openPlan=()=>Navigator.of(context).push<void>(MaterialPageRoute(builder:(_)=>WorkspacePolicyPage(request:widget.auth.emailApi.workspace,workspaceId:workspaceId,owner:role=='owner'))).then((_)async{if(current)await switchWorkspace(workspaceId,force:true);});
         target.documentLease = engine.documentLease;
         engine.addListener(refresh);
@@ -305,7 +307,14 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
 
   String? _shownSyncError;
   bool _shownSyncBusy=false;
+  bool _recoveryPrompted=false;
   void refresh() {
+    final engine=sync,target=storage;
+    if(engine!=null&&!engine.networkPending)_recoveryPrompted=false;
+    if(current && engine?.needsRecoveryReview==true && target!=null && !_recoveryPrompted && target.hasUnsavedInput?.call()!=true){
+      _recoveryPrompted=true;
+      WidgetsBinding.instance.addPostFrameCallback((_)async{if(current&&identical(sync,engine)){try{await reviewSync(target,engine!,source:target);}catch(e){if(current)setState(()=>notice='동기화 확인이 필요합니다. $e');}}});
+    }
     final error=sync?.error,busy=sync?.busy??false;
     // The body does not depend on save progress. Rebuild only when the error
     // banner (or its retry button) actually changes.
@@ -337,10 +346,10 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
       final onlineItems=splitWorkspace(target.read());
       final onlinePending={...onlineItems.keys,...engine.base.keys}.any((key)=>!localCanvasView(onlineItems[key]??engine.base[key])&&!sameItem(onlineItems[key],engine.base[key]));
       // Resolve current online drafts first; an offline review must not discard them.
-      final selectedSource=source??(onlinePending?target:OfflineWorkspace.hasChanges(offline)?offline:target);
+      final selectedSource=source??(engine.networkPending?target:onlinePending?target:OfflineWorkspace.hasChanges(offline)?offline:target);
       if(!mounted||!current)return;
       final applied=await Navigator.of(context).push<bool>(MaterialPageRoute(builder:(_)=>WorkspaceSyncReviewPage(engine:engine,source:selectedSource)));
-      if(applied==true&&current){target.applyServerSnapshot?.call();if(mounted)setState(()=>epoch++);}
+      if(applied==true&&current){if(engine.networkPending)await engine.completeNetworkRecovery();target.applyServerSnapshot?.call();if(mounted)setState(()=>epoch++);}
     }finally{engine.endReview();}
   }
 

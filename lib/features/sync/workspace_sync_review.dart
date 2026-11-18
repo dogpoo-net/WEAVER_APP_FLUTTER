@@ -1,3 +1,4 @@
+import 'network_recovery.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../inbox/workspace_storage.dart';
@@ -63,7 +64,13 @@ class _WorkspaceSyncReviewPageState extends State<WorkspaceSyncReviewPage>{
       for(final raw in result['changes'] as List){final item=Map<String,dynamic>.from(raw);item['value']=item['payload']==null?null:jsonDecode(item['payload']);next[itemKey(item['kind'],item['id'])]=item;}
       if(!mounted)return;
       local=splitWorkspace(widget.source.read());remote=next;revision=result['revision'] as int;
-      differences=syncDifferences(local,remote);choices.clear();loaded=true;
+      choices.clear();
+      if(widget.engine.networkPending){
+        final plan=NetworkRecoveryPlan(widget.engine.recoveryBase,local,remote);
+        local=plan.merged;differences=syncDifferences(local,remote);
+        for(final d in differences){if(!d.keys.any(plan.conflicts.contains))choices[d.id]=true;}
+      }else{differences=syncDifferences(local,remote);}
+      loaded=true;
     }catch(e){if(mounted)error=e.toString();}finally{if(mounted)setState(()=>busy=false);}
   }
   String preview(SyncDifference difference,Map<String,Map<String,dynamic>> items){

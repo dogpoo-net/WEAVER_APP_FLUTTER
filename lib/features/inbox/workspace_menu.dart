@@ -284,6 +284,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       for (final tag in record.tags) { _tagCounts.update(tag, (count) => count + 1, ifAbsent: () => 1); }
     }
     final content = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (!widget.embedded) const SizedBox(height: 8),
       Row(children: [
         Expanded(child: TextButton(
           style: TextButton.styleFrom(
@@ -333,10 +334,10 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         ]),
       ))),
       const Divider(indent: 16, endIndent: 16),
-      if(widget.showSyncReview)ListTile(dense:true,leading:const Icon(Icons.sync,size:18),title:const Text('동기화'),onTap:()=>_select(WorkspaceMenu.syncReview)),
-      ListTile(dense: true, leading: const Icon(Icons.delete_outline, size: 18), title: const Text('휴지통'),
+      if(widget.showSyncReview)ListTile(dense:true,minTileHeight:36,minVerticalPadding:0,visualDensity:const VisualDensity(vertical:-2),leading:const Icon(Icons.sync,size:18),title:const Text('동기화'),onTap:()=>_select(WorkspaceMenu.syncReview)),
+      ListTile(dense: true, minTileHeight:36,minVerticalPadding:0,visualDensity:const VisualDensity(vertical:-2), leading: const Icon(Icons.delete_outline, size: 18), title: const Text('휴지통'),
         onTap: () => _select(WorkspaceMenu.trash)),
-      ListTile(dense: true, leading: const Icon(Icons.settings_outlined, size: 18), title: const Text('설정'),
+      ListTile(dense: true, minTileHeight:36,minVerticalPadding:0,visualDensity:const VisualDensity(vertical:-2), leading: const Icon(Icons.settings_outlined, size: 18), title: const Text('설정'),
         onTap: () => _select(WorkspaceMenu.settings)),
     ]);
     if (widget.embedded) return Material(child: SizedBox(width: 280, child: content));

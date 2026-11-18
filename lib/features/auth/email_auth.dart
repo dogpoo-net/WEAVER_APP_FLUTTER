@@ -9,9 +9,10 @@ import 'session_peer.dart';
 import 'oauth_window.dart';
 
 class EmailAuthFailure implements Exception {
-  const EmailAuthFailure(this.message, {this.status});
+  const EmailAuthFailure(this.message, {this.status, this.networkUnavailable=false});
   final String message;
   final int? status;
+  final bool networkUnavailable;
   bool get unauthorized => status == 401;
   @override String toString() => message;
 }
@@ -64,7 +65,7 @@ class EmailAuthApi {
       if(data is! Map)throw const EmailAuthFailure('서버 응답 형식이 올바르지 않습니다. 저장한 로컬 자료는 유지됩니다.');
       return Map<String, dynamic>.from(data);
     } on EmailAuthFailure { rethrow; }
-    catch (_) { throw const EmailAuthFailure('서버에 연결하지 못했습니다. 연결을 확인하고 다시 시도해주세요.'); }
+    catch (_) { throw const EmailAuthFailure('서버에 연결하지 못했습니다. 연결을 확인하고 다시 시도해주세요.', networkUnavailable:true); }
   }
   Future<void> _load() async {
     final raw = await store.read();
