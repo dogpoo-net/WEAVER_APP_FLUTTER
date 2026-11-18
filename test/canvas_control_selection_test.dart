@@ -24,9 +24,8 @@ void main(){for(final blocks in [false,true]){testWidgets('Ctrl drag selects wit
  expect(shift.distance,greaterThan(40));expect(layout.positions[b.id]!-startB,shift);
  expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'2');
  await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${a.id}'))));await tester.pumpAndSettle();
- expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'1');
- await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${b.id}'))));await tester.pumpAndSettle();
  expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'');
+ expect(tester.widget<Checkbox>(find.byType(Checkbox)).value,isFalse);
  expect(find.byType(AlertDialog),findsNothing);
  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
  await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${a.id}'))));await tester.pump();
@@ -79,7 +78,9 @@ testWidgets('Escape cancels selection mode and an unfinished group drag ($blocks
  await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,onChanged:(){})));await tester.pumpAndSettle();
  await tester.tap(find.byType(Checkbox));await tester.pumpAndSettle();
  final point=tester.getCenter(find.byKey(ValueKey('canvas-thought-${a.id}')));
+ await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
  await tester.tapAt(point);await tester.pumpAndSettle();
+ await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
  expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'1');
  final before=layout.positions[a.id];
  final gesture=await tester.startGesture(point);await gesture.moveBy(const Offset(20,0));await tester.pump();

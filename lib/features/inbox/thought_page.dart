@@ -1036,7 +1036,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       if(_canEdit)MemoBoxActions(filters:_filters,onCreate:_createBox,onCreateThought:_create,onDelete:_removeCanvasBoxes,preserveThoughts:true),
       PopupMenuButton<String>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: (value) {if(value=='all'){setState(() => _centered=false);}else if(_canEdit){_resetArrangement(value=='stack');}},
         itemBuilder: (_) => const [PopupMenuItem(value:'all',child:Text('전체 보기')),PopupMenuItem(value: 'spread', child: Text('펼쳐보기')), PopupMenuItem(value: 'stack', child: Text('겹쳐보기'))]),
-      IconButton(tooltip: '저장 (Ctrl+S)', onPressed: _canEdit?_saveCanvas:null, icon: const Icon(Icons.save_outlined)),
+      if (!widget.blocks) IconButton(tooltip: '저장 (Ctrl+S)', onPressed: _canEdit?_saveCanvas:null, icon: const Icon(Icons.save_outlined)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('사용 안내'),
           content: const Text('생각·태그를 드래그해 배치하세요. 생각을 누르면 수정할 수 있습니다. 라벨을 누르는 동안 해당 생각을 앞으로 볼 수 있습니다.'),
@@ -1290,7 +1290,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onLongPressCancel:_cancelSelectionLift,
             onTapUp: (d) => setState(() {
               final hit = _hitSelection(d.localPosition, records);
-              if (_selected.isNotEmpty && !_ctrlPressed && !_shiftPressed && (hit == null || !_selected.contains(hit))) {
+              if (!_ctrlPressed && !_shiftPressed && (_selectionMode || _selected.isNotEmpty)) {
                 _toggleSelection(false); return;
               }
               if (hit == null) { _selected.clear(); _rangeAnchor=null; _rangeAnchorPoint=null; }

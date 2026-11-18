@@ -38,8 +38,7 @@ void main() {
   Navigator.of(tester.element(find.byKey(const ValueKey('element-editor')))).pop();await tester.pumpAndSettle();
   await tester.tap(find.byType(Checkbox));await tester.pumpAndSettle();
   await tester.tapAt(tester.getCenter(card));await tester.pumpAndSettle();
-  expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'1');
-  await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${b.id}'))));await tester.pumpAndSettle();
+  expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'');
   expect(tester.widget<Checkbox>(find.byType(Checkbox)).value,false);
   expect(find.byType(AlertDialog),findsNothing);
   await tester.pumpWidget(const SizedBox());
