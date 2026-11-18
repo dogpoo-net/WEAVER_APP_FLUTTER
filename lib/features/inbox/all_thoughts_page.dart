@@ -1,3 +1,5 @@
+import 'workspace_search.dart';
+import 'overview_tab_settings.dart';
 import 'hashtags.dart';
 import 'grid_columns_preference.dart';
 import 'memo_comments.dart';
@@ -125,7 +127,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
         (_photosOnly && record.photos.isNotEmpty) ||
         (_audioOnly && record.recordings.isNotEmpty)) &&
       _filters.matches(record) &&
-      (record.indexLabel.toLowerCase().contains(_query.toLowerCase()) || record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.toLowerCase().contains(_query.toLowerCase().replaceFirst(RegExp(r'^#'), ''))))).toList();
+      (record.indexLabel.toLowerCase().contains(_query.toLowerCase()) || record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.toLowerCase().contains(_query.toLowerCase().replaceFirst(RegExp(r'^#'), ''))))).toList()..sort(compareThoughtPriority);
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
     final grid = LayoutBuilder(builder: (context, bounds) {
       final available = math.min(1000.0, math.max(0.0, bounds.maxWidth - 24));
@@ -147,7 +149,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
             textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context))..layout();
           final width = painter.width; painter.dispose(); return width;
         });
-        final iconCount = (record.photos.isNotEmpty ? 1 : 0) + (record.recordings.isNotEmpty ? 1 : 0) + (record.location != null ? 1 : 0);
+        final iconCount = (record.photos.isNotEmpty ? 1 : 0) + (record.recordings.isNotEmpty ? 1 : 0) + (record.location != null ? 1 : 0) + (record.important ? 1 : 0);
         final count=memoCommentCounts.value[record.id]??0;
         final width = (textWidth + 8 + (iconCount>0||count>0?17:0)).clamp(math.min(16.0, maxWidth), maxWidth).toDouble();
         items.add((record: record, width: width));
@@ -209,9 +211,9 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
   }
 }
 
-enum ThoughtView { documents, boxes, diagram, page, photos, audio, geolog }
+enum ThoughtView { search, documents, boxes, diagram, page, photos, audio, geolog }
 // Keep the legacy diagram identifier for compatibility, but never mount it.
-const activeThoughtViews = [ThoughtView.documents, ThoughtView.boxes, ThoughtView.page, ThoughtView.photos, ThoughtView.audio, ThoughtView.geolog];
+const activeThoughtViews = [ThoughtView.search, ThoughtView.documents, ThoughtView.boxes, ThoughtView.page, ThoughtView.photos, ThoughtView.audio, ThoughtView.geolog];
 
 class AllThoughtsPage extends StatefulWidget {
   const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.onDocument, this.onCreateDocument, this.onRefresh, this.onReloadResource, this.onDeleteBoxes, this.initialBox, this.initialView = ThoughtView.boxes});
@@ -240,6 +242,37 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('서버 변경을 확인하지 못했습니다. 기기의 자료를 표시합니다. $e'))); }
     finally { if (mounted) { final names = _filters.boxes.map((b) => b.name).toSet(); _filters.boxes..clear()..addAll(memoBoxes.where((b) => names.contains(b.name))); setState(() { _loading = false; }); } }
   }
+  final _searchController = TextEditingController();
+  List<ThoughtView> _tabOrder = List.of(activeThoughtViews);
+  final _hiddenTabs = <ThoughtView>{};
+  bool _tabsReady = false;
+  List<ThoughtView> get _visibleTabs => _tabOrder.where((v)=>!_hiddenTabs.contains(v)).toList();
+  Future<void> _loadTabs() async {
+    final settings = await loadOverviewTabs(activeThoughtViews.map((v)=>v.name).toList());
+    if (!mounted) return;
+    setState(() {
+      _tabOrder = settings.order.map((name)=>ThoughtView.values.byName(name)).toList();
+      _hiddenTabs.addAll(settings.hidden.map((name)=>ThoughtView.values.byName(name)));
+      if (!_visibleTabs.contains(_view)) _view = _visibleTabs.first;
+      _tabPosition.value = _visibleTabs.indexOf(_view).toDouble();
+      _tabsReady = true;
+    });
+  }
+  Future<void> _configureTabs() async {
+    final next = await showOverviewTabSettings(context, OverviewTabs(_tabOrder.map((v)=>v.name).toList(), _hiddenTabs.map((v)=>v.name).toSet()), thoughtViewLabel);
+    if (next == null || !mounted) return;
+    try { await saveOverviewTabs(next); } catch (_) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('탭 설정을 저장하지 못했습니다.')));
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _tabOrder = next.order.map((name)=>ThoughtView.values.byName(name)).toList();
+      _hiddenTabs..clear()..addAll(next.hidden.map((name)=>ThoughtView.values.byName(name)));
+      if (!_visibleTabs.contains(_view)) _view = _visibleTabs.first;
+      _tabPosition.value = _visibleTabs.indexOf(_view).toDouble();
+    });
+  }
   late final AnimationController _tabPosition;
   late final _filters = ThoughtFilterSelection(initialBox: widget.initialBox);
   @override
@@ -249,17 +282,35 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     widget.storage?.liveChanges.addListener(_liveChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _reload(); });
     _tabPosition=AnimationController(vsync:this,upperBound:activeThoughtViews.length-1.0,value:activeThoughtViews.indexOf(_view).toDouble());
+    _loadTabs();
   }
   @override
-  void dispose() { widget.storage?.liveChanges.removeListener(_liveChanged); _filters.dispose(); _tabPosition.dispose(); super.dispose(); }
+  void dispose() { widget.storage?.liveChanges.removeListener(_liveChanged); _filters.dispose(); _tabPosition.dispose(); _searchController.dispose(); super.dispose(); }
   late ThoughtView _view = widget.initialView == ThoughtView.diagram ? ThoughtView.page : widget.initialView;
   @override
   Widget build(BuildContext context) {
+    if (!_tabsReady) return const DesktopMenuFrame(child:Scaffold(appBar:null,body:DesktopMenuBody(child:SizedBox.shrink())));
     final activeBox = widget.initialBox == null ? null : memoBoxes.where((b) => b.name == widget.initialBox!.name).firstOrNull;
-    final selector=SingleChildScrollView(key:const PageStorageKey('overview-tabs'),scrollDirection:Axis.horizontal,child:SizedBox(height:40,width:activeThoughtViews.length*104,child:Stack(children:[
-      AnimatedBuilder(animation:_tabPosition,builder:(context,_)=>Positioned(left:_tabPosition.value*104,top:0,bottom:0,width:104,child:ColoredBox(key:const ValueKey('thought-tab-highlight'),color:Theme.of(context).colorScheme.secondaryContainer))),
-      Row(children:[for(final view in activeThoughtViews)SizedBox(width:104,height:40,child:Semantics(selected:view==_view,child:TextButton(style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),onPressed:(){if(_view==view)return;setState(()=>_view=view);_tabPosition.animateTo(activeThoughtViews.indexOf(view).toDouble(),duration:const Duration(milliseconds:200),curve:Curves.easeInOutCubic);_reload();},child:Text(switch(view){ThoughtView.documents=>'문서',ThoughtView.boxes=>'생각',ThoughtView.diagram=>'다이어그램',ThoughtView.page=>'메모상자',ThoughtView.photos=>'사진',ThoughtView.audio=>'음성',ThoughtView.geolog=>'지오로그'}))))])
-    ])));
+    final selector = SingleChildScrollView(
+      key: const PageStorageKey('overview-tabs'), scrollDirection: Axis.horizontal,
+      child: SizedBox(height:40, width:(_visibleTabs.length+1)*104, child:Stack(children:[
+        AnimatedBuilder(animation:_tabPosition,builder:(context,_)=>Positioned(
+          left:_tabPosition.value*104,top:0,bottom:0,width:104,
+          child:ColoredBox(key:const ValueKey('thought-tab-highlight'),color:Theme.of(context).colorScheme.secondaryContainer))),
+        Row(children:[
+          for(final view in _visibleTabs) SizedBox(width:104,height:40,child:Semantics(
+            selected:view==_view,child:TextButton(
+              style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),
+              onPressed:(){if(_view==view)return;setState(()=>_view=view);
+                _tabPosition.animateTo(_visibleTabs.indexOf(view).toDouble(),duration:const Duration(milliseconds:200),curve:Curves.easeInOutCubic);_reload();},
+              child:Text(thoughtViewLabel(view.name))))),
+          SizedBox(width:104,height:40,child:TextButton(key:const ValueKey('overview-tab-settings'),
+            style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),onPressed:_configureTabs,
+            child:const Tooltip(message:'탭 설정',child:Icon(Icons.settings_outlined,size:20)))),
+        ]),
+      ])),
+    );
+    if(_view==ThoughtView.search)return DesktopMenuFrame(child:WorkspaceSearch(notes:widget.notes,selector:selector,controller:_searchController,onDocument:widget.onDocument));
     if(_view==ThoughtView.documents)return DesktopMenuFrame(child:DocumentCollection(notes:widget.notes,selector:selector,storage:widget.storage,onOpen:widget.onDocument,onCreate:widget.onCreateDocument));
     if(_view==ThoughtView.photos || _view==ThoughtView.audio)return DesktopMenuFrame(child:AttachmentCollection(key:ValueKey(_view),audio:_view==ThoughtView.audio,selector:selector,filters:_filters,storage:widget.storage,onChanged:widget.onChanged));
     if (_view == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(filters: _filters, box: activeBox,
@@ -272,3 +323,5 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
       onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, onSave:widget.onSave, storage:widget.storage, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes));
   }
 }
+
+String thoughtViewLabel(String name) => switch (ThoughtView.values.byName(name)) { ThoughtView.search=>'검색', ThoughtView.documents=>'문서', ThoughtView.boxes=>'생각', ThoughtView.diagram=>'다이어그램', ThoughtView.page=>'메모상자', ThoughtView.photos=>'사진', ThoughtView.audio=>'음성', ThoughtView.geolog=>'지오로그' };

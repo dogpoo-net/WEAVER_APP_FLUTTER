@@ -22,14 +22,15 @@ class ThoughtLocation {
 }
 
 class VoiceAttachment {
-  const VoiceAttachment(this.id, this.durationMs);
+  const VoiceAttachment(this.id, this.durationMs, {this.transcript = ''});
+  final String transcript;
   final String id;
   final int durationMs;
-  Map<String, dynamic> toJson() => {'id': id, 'durationMs': durationMs};
+  Map<String, dynamic> toJson() => {'id': id, 'durationMs': durationMs, if (transcript.isNotEmpty) 'transcript': transcript};
   factory VoiceAttachment.fromJson(dynamic json) {
     final id = json['id'] as String, duration = json['durationMs'] as int;
     if (id.isEmpty || duration < 0 || duration > 86400000) throw const FormatException('Invalid voice attachment');
-    return VoiceAttachment(id, duration);
+    return VoiceAttachment(id, duration, transcript: json['transcript'] as String? ?? '');
   }
 }
 

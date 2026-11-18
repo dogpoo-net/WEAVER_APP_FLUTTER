@@ -17,10 +17,10 @@ void main(){
   await tester.enterText(find.byKey(const ValueKey('documents-search')),'검색용');await tester.pump();expect(find.text('계획'),findsOneWidget);
   await tester.enterText(find.byKey(const ValueKey('documents-search')),'없는 검색어');await tester.pump();expect(find.text('일치하는 문서가 없습니다.'),findsOneWidget);
  });
- testWidgets('Document opens as a reader and takes a lease only when editing',(tester)async{
+ testWidgets('Document opens as a reader and editing uses merge without a lease',(tester)async{
   var leases=0;final p=WritingProject([],[],name:'문서')..document='======열람======\n읽는 본문';
   await tester.pumpWidget(MaterialApp(home:ProjectPage(project:p,onLease:(_,token,release)async{if(!release)leases++;return {'acquired':true};})));await tester.pumpAndSettle();expect(find.byType(ProjectDocumentEditor),findsNothing);expect(leases,0);
-  await tester.tap(find.byTooltip('문서 수정'));await tester.pumpAndSettle();expect(find.byKey(const ValueKey('project-document')),findsOneWidget);expect(leases,1);await tester.pumpWidget(const SizedBox());
+  await tester.tap(find.byTooltip('문서 수정'));await tester.pumpAndSettle();expect(find.byKey(const ValueKey('project-document')),findsOneWidget);expect(leases,0);await tester.pumpWidget(const SizedBox());
  });
  testWidgets('Narrow tabs scroll to audio; view options and owner thought are available',(tester)async{
   tester.view.physicalSize=const Size(390,844);tester.view.devicePixelRatio=1;addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);

@@ -77,6 +77,7 @@ class WorkspaceSnapshot {
             'inlineLinks': r.inlineLinks.map((link) => link.toJson()).toList(),
             'folder': r.folder,
             'hiddenFromSearch': r.hiddenFromSearch,
+            'important': r.important,
             if (r.labelColor != null) 'labelColor': r.labelColor,
             'indexLabel': r.indexLabel, 'labelOnLeft': r.labelOnLeft, 'indexLabelColor': r.indexLabelColor,
             'location': r.location?.toJson(),
@@ -167,6 +168,7 @@ class WorkspaceSnapshot {
       )..inlineLinks = bindings({'text': text, 'bindings': r['inlineLinks']})
        ..folder = r['folder'] as String?
        ..hiddenFromSearch = (r['hiddenFromSearch'] as bool?) ?? false
+       ..important = r['important'] == true
        ..labelColor = r['labelColor'] is int ? r['labelColor'] as int : null
        ..indexLabel = (r['indexLabel'] as String? ?? '').replaceAll(RegExp(r'\s+'), ' ').trim()
        ..labelOnLeft = r['labelOnLeft'] == true
@@ -380,6 +382,7 @@ class WorkspaceStorage {
   Future<void> Function()? exportFile;
   Future<void> Function()? importFile;
   Future<void> Function()? openAdmin;
+  Future<void> Function(Map<String,dynamic>)? openNotification;
   Future<void> Function()? openPlan;
   Future<void> Function()? openSyncReview;
   Future<void> Function()? openWorkspaces;

@@ -1,3 +1,4 @@
+import '../inbox/memo_comments.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'offline_workspace.dart';
@@ -218,6 +219,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         }
         target.workspaceName=catalog.firstWhere((row)=>row['workspaceId']==workspaceId)['name'] as String?;
         target.openWorkspaces=chooseWorkspace;
+        target.openNotification=openNotification;
         target.openAdmin=isAdmin?openAdmin:null;
         if(role=='owner'&&!quotaReadOnly)attachFiles(target,engine);
         if(role!='viewer'&&!quotaReadOnly)target.openSyncReview=()=>reviewSync(target,engine);
@@ -368,6 +370,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     await local.preferences.setBool(OfflineWorkspace.activeKey(local),true);
     sync?.dispose();sync=null;local.currentUserId=userId;local.offlineMode=true;
     local.workspaceName=catalog.firstWhere((r)=>r['workspaceId']==id)['name'];
+    local.openNotification=openNotification;
     local.openWorkspaces=chooseWorkspace;local.openAdmin=isAdmin?openAdmin:null;
     local.openPlan=()=>Navigator.of(context).push<void>(MaterialPageRoute(builder:(_)=>WorkspacePolicyPage(request:widget.auth.emailApi.workspace,workspaceId:id,owner:true))).then((_)async{if(current)await switchWorkspace(id,force:true);});
     if(!quotaReadOnly)attachFiles(local,null);
@@ -422,6 +425,20 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
       },
     ));
     if(current && (id!=null || !catalog.any((row)=>row['workspaceId']==selected)))await switchWorkspace(id, force:true,relinquished: !catalog.any((row)=>row['workspaceId']==selected));
+  }
+
+  Future<void> openNotification(Map<String,dynamic> item) async {
+    if (!current) return;
+    if (item['kind']=='subscription') { await storage?.openPlan?.call(); return; }
+    final id=item['workspaceId'] as String?;
+    if(id==null)return;
+    await switchWorkspace(id,force:item['kind']=='invite');
+    if(!mounted||!current||selected!=id||storage==null)return;
+    if(item['kind']=='comment') {
+      await WidgetsBinding.instance.endOfFrame;
+      if(!mounted)return;
+      await showMemoComments(context,item['targetId'] as String);
+    }
   }
 
   Future<void> switchWorkspace(String? id,{bool force=false,bool relinquished=false}) async {

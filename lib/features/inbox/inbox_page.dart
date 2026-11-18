@@ -1,3 +1,4 @@
+import '../sync/notification_inbox.dart';
 import '../sync/workspace_events.dart';
 import 'overview_collections.dart';
 import 'memo_comments.dart';
@@ -72,6 +73,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
   final _draft = LabelTextController();
   final _draftTags = <String>{};
   ThoughtLocation? _draftLocation;
+  bool _draftImportant = false;
   VoiceDraft? _voiceDraft;
   final _photoDrafts = <PhotoDraft>[];
   VoiceAttachment? _savedVoice;
@@ -79,7 +81,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
   bool _locationBusy = false, _captureSaving = false, _photoBusy = false;
   int _locationGeneration = 0;
   void _clearCapture() {
-    _locationGeneration++; _draftLocation = null; _locationBusy = false;
+    _draftImportant = false; _locationGeneration++; _draftLocation = null; _locationBusy = false;
     _voiceDraft = null; _photoDrafts.clear(); _savedVoice = null; _savedPhotos.clear();
   }
   void _captureError(String message) {
@@ -848,6 +850,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     } else {
       record = elements.addLinked(input, cleaned.links, tags);
     }
+    record.important = _draftImportant;
     if (_draftLocation != null || _editing != null) record.location = _draftLocation;
     if (_savedVoice != null) record.recordings.add(_savedVoice!);
     record.photos.addAll(_savedPhotos);
@@ -1065,6 +1068,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     setState(() {
       _clearCapture();
       _draftLocation = elements.records[note.content.trim()]?.location;
+      _draftImportant = elements.records[note.content.trim()]?.important ?? false;
       _editing = note;
       final tags = elements.records[note.content.trim()]?.tags ?? <String>{};
       _draftTags.clear();
@@ -1217,6 +1221,8 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
                 style: Theme.of(context).textTheme.titleMedium,
               )),
               ...[
+                IconButton(key:const ValueKey('quick-important'),tooltip:'중요 생각',isSelected:_draftImportant,style:IconButton.styleFrom(minimumSize:const Size(36,36),maximumSize:const Size(36,36),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap,backgroundColor:_draftImportant?colors.secondaryContainer:null),onPressed:_captureSaving?null:()=>setState(()=>_draftImportant=!_draftImportant),icon:const Icon(Icons.priority_high,size:20)),
+                const SizedBox(width:4),
                 IconButton(key: const ValueKey('quick-location'),
                   tooltip: _locationBusy ? '위치 요청 취소' : _draftLocation == null ? '위치 기록' : '위치 기록 해제',
                   isSelected: _draftLocation != null,
@@ -1307,10 +1313,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     final query = _query.toLowerCase().replaceFirst('#', '');
     final records = elements.records.values.where((record) => canBrowseThought(record) &&
       (record.indexLabel.toLowerCase().contains(_query.toLowerCase()) || record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.contains(query))))
-      .toList()..sort((a, b) {
-        final closed = (a.hiddenFromSearch ? 1 : 0).compareTo(b.hiddenFromSearch ? 1 : 0);
-        return closed != 0 ? closed : b.createdAt.compareTo(a.createdAt);
-      });
+      .toList()..sort(compareThoughtPriority);
     final paragraphs = visible.where((note) => note.paragraphs != null && note.project == null).toList();
     final projects = visible.where((note) => note.project != null).toList();
     final moreStyle = TextButton.styleFrom(textStyle: const TextStyle(fontSize: 11),
@@ -1367,7 +1370,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
             ),
           ),
         if (_query.isEmpty) ClipRect(child: PackedBadges(
-          key: const ValueKey('recent-memo-badges'), maxRows: _memoRows,
+          key: const ValueKey('recent-memo-badges'), maxRows: _memoRows, alwaysVisibleCount:records.where((r)=>r.important).length,
           onOverflowChanged: (overflow) { if (mounted && _memoHasMore != overflow) setState(() => _memoHasMore = overflow); },
           children: badges))
         else PackedBadges(children: badges),
@@ -1493,6 +1496,8 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
                 icon: const Icon(Icons.grid_view_rounded))),
         actions: [
           const KeyboardDismissAction(),
+          if (GoogleAuthScope.maybeOf(context)?.identity != null)
+            NotificationBell(key:ValueKey('notifications-${GoogleAuthScope.maybeOf(context)!.identity!.id}'),request:GoogleAuthScope.maybeOf(context)!.emailApi.workspace,onOpen:widget.storage?.openNotification),
           if (GoogleAuthScope.maybeOf(context)?.identity != null)
             IconButton(tooltip: '프로필', onPressed: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => ProfilePage(auth: GoogleAuthScope.maybeOf(context)!))), icon: ProfileAvatar(auth: GoogleAuthScope.maybeOf(context))),
           const SizedBox(width: 12),

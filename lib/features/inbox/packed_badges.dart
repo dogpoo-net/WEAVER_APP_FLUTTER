@@ -5,23 +5,25 @@ import 'package:flutter/widgets.dart';
 /// Packs badges into available rectangles rather than giving each row the
 /// height of its tallest badge. Short badges can stack beside multiline ones.
 class PackedBadges extends MultiChildRenderObjectWidget {
-  const PackedBadges({super.key, required super.children, this.maxRows, this.onOverflowChanged});
+  const PackedBadges({super.key, required super.children, this.maxRows, this.alwaysVisibleCount = 0, this.onOverflowChanged});
   final int? maxRows;
+  final int alwaysVisibleCount;
   final ValueChanged<bool>? onOverflowChanged;
-  @override RenderObject createRenderObject(BuildContext context) => RenderPackedBadges(Directionality.of(context), maxRows, onOverflowChanged, math.max(30, MediaQuery.textScalerOf(context).scale(12) * 1.5 + 10));
+  @override RenderObject createRenderObject(BuildContext context) => RenderPackedBadges(Directionality.of(context), maxRows, onOverflowChanged, math.max(30, MediaQuery.textScalerOf(context).scale(12) * 1.5 + 10), alwaysVisibleCount:alwaysVisibleCount);
   @override void updateRenderObject(BuildContext context, covariant RenderPackedBadges renderObject) {
     final direction=Directionality.of(context),height=math.max(30.0,MediaQuery.textScalerOf(context).scale(12)*1.5+10);
-    final changed=renderObject.direction!=direction||renderObject.rows!=maxRows||renderObject.rowHeight!=height;
-    renderObject..direction=direction..rows=maxRows..rowHeight=height..onOverflowChanged=onOverflowChanged;
+    final changed=renderObject.direction!=direction||renderObject.rows!=maxRows||renderObject.alwaysVisibleCount!=alwaysVisibleCount||renderObject.rowHeight!=height;
+    renderObject..direction=direction..rows=maxRows..alwaysVisibleCount=alwaysVisibleCount..rowHeight=height..onOverflowChanged=onOverflowChanged;
     if(changed)renderObject.markNeedsLayout();
   }
 }
 class _Data extends ContainerBoxParentData<RenderBox> {}
 class RenderPackedBadges extends RenderBox with ContainerRenderObjectMixin<RenderBox,_Data>, RenderBoxContainerDefaultsMixin<RenderBox,_Data> {
-  RenderPackedBadges(this.direction,this.rows,this.onOverflowChanged,this.rowHeight);
+  RenderPackedBadges(this.direction,this.rows,this.onOverflowChanged,this.rowHeight,{this.alwaysVisibleCount=0});
   double rowHeight;
   TextDirection direction;
   int? rows;
+  int alwaysVisibleCount;
   ValueChanged<bool>? onOverflowChanged;
   bool? overflow;
   final visible=<RenderBox>[];
@@ -34,13 +36,15 @@ class RenderPackedBadges extends RenderBox with ContainerRenderObjectMixin<Rende
     // lies outside the viewport so a full-width badge still fits.
     final free=<Rect>[Rect.fromLTWH(0,0,width+6,double.infinity)];
     var bottom=0.0, hidden=false;
+    var index=0;
     for(var child=firstChild;child!=null;child=(child.parentData! as _Data).nextSibling) {
       child.layout(BoxConstraints(maxWidth:width),parentUsesSize:true);
       if(visible.isEmpty)limit=math.max(limit,child.size.height);
       free.sort((a,b)=>a.top==b.top?a.left.compareTo(b.left):a.top.compareTo(b.top));
       final childSize=child.size;
       final slot=free.firstWhere((r)=>r.width+.01>=childSize.width+6 && r.height+.01>=childSize.height+6);
-      if(slot.top+child.size.height>limit+.01){hidden=true;break;}
+      if(index++<alwaysVisibleCount)limit=math.max(limit,slot.top+child.size.height);
+      if(slot.top+child.size.height>limit+.01){hidden=true;continue;}
       final x=slot.left,y=slot.top,w=child.size.width,h=child.size.height;
       (child.parentData! as _Data).offset=Offset(direction==TextDirection.rtl?width-x-w:x,y);
       visible.add(child);bottom=math.max(bottom,y+h);

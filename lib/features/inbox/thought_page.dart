@@ -1000,10 +1000,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   Widget _build(BuildContext context) {
     final ranks = {for (var i = 0; i < _layout.layers.length; i++) _layout.layers[i]: i};
-    final records = _records..sort((a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0));
+    final records = _records..sort((a, b) {
+      final priority=(a.important?1:0).compareTo(b.important?1:0);
+      return priority!=0?priority:(ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0);
+    });
     if (_frontThought != null) {
       final front = records.where((r) => r.id == _frontThought).firstOrNull;
-      if (front != null) { records.remove(front); records.add(front); }
+      if (front != null) { records.remove(front); final firstImportant=records.indexWhere((r)=>r.important); records.insert(!front.important&&firstImportant>=0?firstImportant:records.length,front); }
     }
     final thoughtBounds=[for(final record in records)_bounds(record.id)];
     final coveredThoughts={for(final i in coveredCanvasItems(thoughtBounds))records[i].id};

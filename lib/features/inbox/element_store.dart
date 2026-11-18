@@ -43,6 +43,7 @@ class ElementRecord {
   ThoughtLocation? location;
   final List<VoiceAttachment> recordings = [];
   final List<PhotoAttachment> photos = [];
+  bool important = false;
   bool hiddenFromSearch = false;
   int? labelColor;
   String indexLabel = '';
@@ -73,7 +74,7 @@ class ElementSource {
 
 class ElementStore extends ChangeNotifier {
   void Function(String oldText, String newText)? onRenamed;
-  String? update(String oldText, String input, {Iterable<String>? tags, int? labelColor, bool? hiddenFromSearch, String? indexLabel, bool? labelOnLeft, int? indexLabelColor, List<ElementBinding>? inlineLinks}) {
+  String? update(String oldText, String input, {Iterable<String>? tags, int? labelColor, bool? hiddenFromSearch, bool? important, String? indexLabel, bool? labelOnLeft, int? indexLabelColor, List<ElementBinding>? inlineLinks}) {
     final parsed = inlineLinks == null ? parseTaggedInput(input) : TaggedInput(input.trim(), {...?tags});
     if (parsed.text.isEmpty) return '생각 내용을 입력해주세요.';
     final record = records[oldText];
@@ -89,6 +90,7 @@ class ElementStore extends ChangeNotifier {
     if (indexLabelColor != null) record.indexLabelColor = indexLabelColor;
     record.text = parsed.text;
     if (labelColor != null) record.labelColor = labelColor;
+    if (important != null) record.important = important;
     if (hiddenFromSearch != null) record.hiddenFromSearch = hiddenFromSearch;
     record.tags
       ..clear()
@@ -231,7 +233,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   bool _movingTags = false;
   late String _word;
   int? _labelColor;
-  late bool _closed;
+  late bool _closed, _important;
   String? _error;
   final _photoUploads=<String,List<PhotoDraft>>{};
   final _audioUploads=<String,List<VoiceDraft>>{};
@@ -270,7 +272,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     _labelEditor = TextEditingController(text: record.indexLabel);
     _labelOnLeft = record.labelOnLeft; _indexLabelColor = record.indexLabelColor;
     _tags = Set.of(record.tags);
-    _labelColor = record.labelColor; _closed = record.hiddenFromSearch;
+    _labelColor = record.labelColor; _closed = record.hiddenFromSearch; _important = record.important;
     _editor = LabelTextController(record.text, record.inlineLinks)..addListener(_extractTags);
   }
 
@@ -406,6 +408,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               )),
               const Divider(key:ValueKey('element-attachments-divider'),height:9,thickness:1),
               Row(children:[
+                IconButton(key:const ValueKey('detail-important'),tooltip:'중요 생각',isSelected:_important,style:IconButton.styleFrom(backgroundColor:_important?Theme.of(context).colorScheme.secondaryContainer:null),onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_important=!_important),icon:const Icon(Icons.priority_high,size:20)),
                 IconButton(tooltip:'위치 기록',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.location_on_outlined,size:20)),
                 const SizedBox(width:4),
                 IconButton(tooltip:'음성 녹음',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const Icon(Icons.mic_none,size:20)),
@@ -498,7 +501,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               for(final id in written){try{await MediaStorage.delete(id,owner:_mediaOwner);}catch(_){}}
               if(mounted)setState((){_attachmentBusy=false;_error='첨부 저장에 실패했습니다. $e';});return;
             }
-            final error = elements.update(word, cleaned.text, inlineLinks: cleaned.links, tags: {..._tags, ...cleaned.tags}, labelColor: _labelColor, hiddenFromSearch: _closed, indexLabel: _labelEditor.text, labelOnLeft: _labelOnLeft, indexLabelColor: _indexLabelColor);
+            final error = elements.update(word, cleaned.text, inlineLinks: cleaned.links, tags: {..._tags, ...cleaned.tags}, labelColor: _labelColor, hiddenFromSearch: _closed, important: _important, indexLabel: _labelEditor.text, labelOnLeft: _labelOnLeft, indexLabelColor: _indexLabelColor);
             if (error != null) {
               for(final id in written){await MediaStorage.delete(id,owner:_mediaOwner);}
               if(mounted)setState(() { _attachmentBusy=false;_error = error; });
@@ -571,4 +574,12 @@ class ElementText extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DocumentMarkup(text: text,
     links: elements.records[text]?.inlineLinks ?? const [], style: style, formatting: false);
+}
+
+/// Important thoughts first; newest thoughts first within each priority.
+int compareThoughtPriority(ElementRecord a, ElementRecord b) {
+  final priority = (b.important ? 1 : 0).compareTo(a.important ? 1 : 0);
+  if (priority != 0) return priority;
+  final date = b.createdAt.compareTo(a.createdAt);
+  return date != 0 ? date : a.id.compareTo(b.id);
 }
