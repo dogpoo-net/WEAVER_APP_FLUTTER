@@ -54,6 +54,21 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
   int invitations = 0;
   bool handledInvite = false, erasingAccount = false;
   bool emptyWorkspace=false,isAdmin=false,quotaReadOnly=false;
+  final _newWorkspaceName = TextEditingController();
+  bool _creatingWorkspace = false;
+  Future<void> _createFirstWorkspace() async {
+    final name = _newWorkspaceName.text.trim();
+    if (_creatingWorkspace || name.isEmpty || !current) return;
+    setState(() => _creatingWorkspace = true);
+    try {
+      final result = await widget.auth.emailApi.workspace('create-workspace', {'name': name});
+      if (current) await switchWorkspace(result['workspaceId'] as String, force:true, relinquished:true);
+    } catch (e) {
+      if (mounted && current) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('워크스페이스를 생성하지 못했습니다. $e')));
+    } finally {
+      if (mounted) setState(() => _creatingWorkspace = false);
+    }
+  }
   List<dynamic> pendingInvites=[];
   bool get current =>
       mounted &&
@@ -479,6 +494,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
   @override
   void dispose() {
     generation++;
+    _newWorkspaceName.dispose();
     sync?.removeListener(refresh);
     sync?.dispose();
     MediaStorage.activeOwner = null;
@@ -490,7 +506,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
 
   @override
   Widget build(BuildContext context) {
-    if(emptyWorkspace && storage==null){return Scaffold(appBar:AppBar(title:const Text('워크스페이스'),actions:[if(isAdmin)IconButton(tooltip:'관리자 백오피스',onPressed:openAdmin,icon:const Icon(Icons.admin_panel_settings_outlined)),TextButton(onPressed:()=>widget.auth.signOut(),child:const Text('로그아웃'))]),body:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:480),child:ListView(shrinkWrap:true,padding:const EdgeInsets.all(24),children:[const Text('이용 가능한 워크스페이스가 없습니다.',textAlign:TextAlign.center),const SizedBox(height:12),FilledButton(onPressed:chooseWorkspace,child:const Text('워크스페이스 선택 · 만들기 · 복원')),for(final invite in pendingInvites)ListTile(title:Text(invite['name']??'초대받은 워크스페이스'),trailing:TextButton(child:const Text('수락'),onPressed:()async{try{final result=await widget.auth.emailApi.workspace('accept',{'inviteId':invite['id']});if(current)await switchWorkspace(result['workspaceId'],force:true,relinquished:true);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}))]))));}
+    if(emptyWorkspace && storage==null){return Scaffold(appBar:AppBar(title:const Text('워크스페이스'),actions:[if(isAdmin)IconButton(tooltip:'관리자 백오피스',onPressed:openAdmin,icon:const Icon(Icons.admin_panel_settings_outlined)),TextButton(onPressed:()=>widget.auth.signOut(),child:const Text('로그아웃'))]),body:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:480),child:ListView(shrinkWrap:true,padding:const EdgeInsets.all(24),children:[const Text('이용 가능한 워크스페이스가 없습니다.',textAlign:TextAlign.center),const SizedBox(height:12),TextField(key:const ValueKey('empty-workspace-name'),controller:_newWorkspaceName,enabled:!_creatingWorkspace,maxLength:80,textInputAction:TextInputAction.done,decoration:const InputDecoration(labelText:'워크스페이스 이름',isDense:true),onChanged:(_)=>setState((){}),onSubmitted:(_)=>_createFirstWorkspace()),const SizedBox(height:8),FilledButton(onPressed:_creatingWorkspace||_newWorkspaceName.text.trim().isEmpty?null:_createFirstWorkspace,child:const Text('워크스페이스 생성')),for(final invite in pendingInvites)ListTile(title:Text(invite['name']??'초대받은 워크스페이스'),trailing:TextButton(child:const Text('수락'),onPressed:()async{try{final result=await widget.auth.emailApi.workspace('accept',{'inviteId':invite['id']});if(current)await switchWorkspace(result['workspaceId'],force:true,relinquished:true);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}))]))));}
     if (storage == null) {
       return Scaffold(
         body: Center(
