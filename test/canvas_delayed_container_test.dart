@@ -10,16 +10,19 @@ import 'package:weaver/features/inbox/thought_interaction.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
 void main(){
- for(final kind in ['thought','box','folder']){
+ for(final kind in ['thought','box','folder','pointer','pointerBox','pointerFolder']){
  testWidgets('delayed snapshot after $kind drop cannot roll back local geometry',(tester)async{
   SharedPreferences.setMockInitialValues({});final storage=WorkspaceStorage(await SharedPreferences.getInstance());
   elements.clear();memoBoxes.clear();memoBoxFolders.clear();memoBoxFolderParents.clear();pageGraphLayout=GraphLayout();
   final record=elements.add('움직인 생각');
-  if(kind!='thought')memoBoxes.add(MemoBox('상자',ids:[record.id],folder:kind=='folder'?'폴더':null));
-  if(kind=='folder')memoBoxFolders.add('폴더');
+  if(kind!='thought'&&kind!='pointer')memoBoxes.add(MemoBox('상자',ids:[record.id],folder:(kind=='folder'||kind=='pointerFolder')?'폴더':null));
+  if(kind=='folder'||kind=='pointerFolder')memoBoxFolders.add('폴더');
   final layout=pageGraphLayout.blockLayout;layout.positions[record.id]=const Offset(600,500);
   await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,storage:storage,onChanged:(){})));await tester.pumpAndSettle();
   final before=layout.positions[record.id]!;
+  if(kind=='pointer'){await tester.drag(find.byKey(ValueKey('canvas-thought-${record.id}')),const Offset(130,70));}
+  if(kind=='pointerBox'){await tester.drag(find.byKey(const ValueKey('box-drag-header-상자')),const Offset(130,70));}
+  if(kind=='pointerFolder'){await tester.dragFrom(tester.getTopLeft(find.byKey(const ValueKey('folder-region-폴더')))+const Offset(50,20),const Offset(130,70));}
   if(kind=='thought'){final node=tester.widget<ThoughtInteraction>(find.byKey(ValueKey('canvas-thought-${record.id}')));node.onMove(const Offset(130,70));node.onEnd();}
   if(kind=='box'){final box=tester.widget<MemoBoxRegion>(find.byKey(const ValueKey('box-region-상자')));box.onDrag!(const Offset(130,70));box.onDragEnd!();}
   if(kind=='folder'){final folder=tester.widget<MemoFolderRegion>(find.byKey(const ValueKey('folder-region-폴더')));folder.onMove(const Offset(130,70));folder.onEnd();}

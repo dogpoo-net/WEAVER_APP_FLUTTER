@@ -763,7 +763,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void _pointerFinished(int pointer){
     _activeCanvasPointers.remove(pointer);
     widget.storage?.canvasInteracting=_activeCanvasPointers.isNotEmpty;
-    if(_activeCanvasPointers.isEmpty)scheduleMicrotask((){if(mounted){_saveLayout(flush:true);_remoteLayoutChanged();}});
+    // A pointer release publishes locally; it must not acknowledge that publication
+    // as a server snapshot, or the next delayed snapshot can undo the drag.
+    if(_activeCanvasPointers.isEmpty)scheduleMicrotask((){if(mounted){_saveLayout(flush:true);}});
   }
   void _storeChanged() { if (mounted && _routeVisible && _appActive) setState(_sync); }
   void _changed() { widget.onChanged(); setState(_sync); }
@@ -1288,7 +1290,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onLongPressCancel:_cancelSelectionLift,
             onTapUp: (d) => setState(() {
               final hit = _hitSelection(d.localPosition, records);
-              if (_selectionMode && _selected.isNotEmpty && !_ctrlPressed && !_shiftPressed && (hit == null || !_selected.contains(hit))) {
+              if (_selected.isNotEmpty && !_ctrlPressed && !_shiftPressed && (hit == null || !_selected.contains(hit))) {
                 _toggleSelection(false); return;
               }
               if (hit == null) { _selected.clear(); _rangeAnchor=null; _rangeAnchorPoint=null; }

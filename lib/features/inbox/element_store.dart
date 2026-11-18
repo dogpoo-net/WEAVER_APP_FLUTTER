@@ -200,9 +200,6 @@ final elements = ElementStore();
 
 Future<void> showElementMetadata(BuildContext context, String word, {VoidCallback? onSaved}) async {
   final id = elements.records[word]?.id;
-  final host = context.findAncestorStateOfType<_ElementMetadataState>() ??
-    (context is StatefulElement && context.state is _ElementMetadataState ? context.state as _ElementMetadataState : null);
-  if (host != null) { host._navigate(word); return; }
   try { await refreshWorkspaceForRead?.call(); }
   catch (e) { if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('서버 변경을 확인하지 못했습니다. 기기의 자료를 표시합니다. $e'))); }
   if (!context.mounted) return;
@@ -277,26 +274,6 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     _editor = LabelTextController(record.text, record.inlineLinks)..addListener(_extractTags);
   }
 
-  final _drafts = <String, ({String text, Set<String> tags, List<ElementBinding> links, String label, bool left, int labelColor, int? color, bool closed})>{};
-  void _navigate(String word) {
-    if(_attachmentBusy)return;
-    final record = elements.records[word];
-    if (record == null || word == _word) return;
-    _drafts[_word] = (text: _editor.text, tags: Set.of(_tags), links: List.of(_editor.bindings),
-      label: _labelEditor.text, left: _labelOnLeft, labelColor: _indexLabelColor, color: _labelColor, closed: _closed);
-    final draft = _drafts[word];
-    _movingTags = true;
-    setState(() {
-      _word = word; _error = null;
-      _editor.loadDocument(draft?.text ?? record.text, draft?.links ?? record.inlineLinks);
-      _tags..clear()..addAll(draft?.tags ?? record.tags);
-      _labelEditor.text = draft?.label ?? record.indexLabel;
-      _labelOnLeft = draft?.left ?? record.labelOnLeft; _indexLabelColor = draft?.labelColor ?? record.indexLabelColor;
-      _labelColor = draft == null ? record.labelColor : draft.color; _closed = draft?.closed ?? record.hiddenFromSearch;
-    });
-    _movingTags = false;
-    if (_contentScroll.hasClients) _contentScroll.jumpTo(0);
-  }
   void _extractTags() {
     if (_movingTags) return;
     final completed = takeCompletedParagraphTags(_editor.value, consumeLineBreak: true, protected: _editor.bindings.map((b) => TextRange(start: b.start, end: b.end)));

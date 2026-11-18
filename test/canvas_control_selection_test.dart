@@ -26,10 +26,11 @@ void main(){for(final blocks in [false,true]){testWidgets('Ctrl drag selects wit
  await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${a.id}'))));await tester.pumpAndSettle();
  expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'1');
  await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${b.id}'))));await tester.pumpAndSettle();
- expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'1');
+ expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'');
  expect(find.byType(AlertDialog),findsNothing);
  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
  await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${a.id}'))));await tester.pump();
+ await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${b.id}'))));await tester.pump();
  await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
  expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data,'2');
  final canvas=tester.renderObject<RenderBox>(find.byKey(const ValueKey('canvas-selection')));

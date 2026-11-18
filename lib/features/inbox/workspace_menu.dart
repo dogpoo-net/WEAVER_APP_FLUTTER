@@ -117,7 +117,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     });
   }
   final _tagCounts = <String, int>{};
-  Widget _countedTitle(String label, int count, String key, {TextStyle? style}) => Row(children: [
+  Widget _countedTitle(String label, int count, String key, {TextStyle? style}) => Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
     Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: style)),
     const SizedBox(width: 6),
     Text('$count', key: ValueKey(key), style: TextStyle(fontSize: 13,
