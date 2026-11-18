@@ -117,6 +117,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     });
   }
   final _tagCounts = <String, int>{};
+  final _activeThoughtIds = <String>{};
   Widget _countedTitle(String label, int count, String key, {TextStyle? style}) => Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
     Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: style)),
     const SizedBox(width: 6),
@@ -131,7 +132,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       minVerticalPadding: 2,
       minTileHeight: 40,
       visualDensity: const VisualDensity(vertical: -3),
-      title: kind == _Kind.tag ? _countedTitle(label, _tagCounts[name] ?? 0, 'tag-count-$name', style: const TextStyle(fontSize: 13)) : Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+      title: kind == _Kind.tag ? _countedTitle(label, _tagCounts[name] ?? 0, 'tag-count-$name', style: const TextStyle(fontSize: 13)) : kind == _Kind.box ? _countedTitle(label, memoBoxes[index].elementIds.where(_activeThoughtIds.contains).length, 'box-count-$index', style: const TextStyle(fontSize: 13)) : Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
         style: nested || kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.box ? const TextStyle(fontSize: 13) : null),
       trailing: kind == _Kind.tag ? IconButton(
         tooltip: '#$name 색상 변경',
@@ -213,7 +214,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('폴더 변경을 동기화하지 못했습니다. $e'))); }
   }, itemBuilder: (_) => [PopupMenuItem(value: 'delete', enabled: widget.onDeleteFolder != null, child: const Text('폴더 삭제'))]);
   Widget _boxFolder(String folder) {
-    final label = Row(children: [const Icon(Icons.folder_outlined, size: 20), const SizedBox(width: 8), Expanded(child: Text(folder))]);
+    final label = Row(children: [const Icon(Icons.folder_outlined, size: 20), const SizedBox(width: 8), Expanded(child: _countedTitle(folder, memoBoxes.where((box) => !box.isUnclassified && box.folder != null && memoFolderContains(folder, box.folder!)).length, 'box-folder-count-$folder'))]);
     final feedback = Material(child: Padding(padding: const EdgeInsets.all(12), child: Text(folder)));
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
     final title = desktop
@@ -277,6 +278,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   }
   @override
   Widget build(BuildContext context) {
+    _activeThoughtIds..clear()..addAll(store.elements.records.values.map((record) => record.id));
     _tagCounts.clear();
     for (final record in store.elements.records.values) {
       for (final tag in record.tags) { _tagCounts.update(tag, (count) => count + 1, ifAbsent: () => 1); }
