@@ -1,3 +1,4 @@
+import '../inbox/overview_tab_activity.dart';
 import 'location_editor.dart';
 import 'media_storage.dart';
 import '../inbox/memo_comments.dart';
@@ -26,7 +27,7 @@ class GeologPage extends StatefulWidget {
   @override
   State<GeologPage> createState() => _GeologPageState();
 }
-class _GeologPageState extends State<GeologPage> {
+class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<GeologPage> {
   final _map = MapController();
   String _query = '';
   late final _filters = widget.filters ?? ThoughtFilterSelection(initialBox: widget.box);
@@ -34,7 +35,7 @@ class _GeologPageState extends State<GeologPage> {
   int _mapRevision = 0;
   @override
   void initState() { super.initState(); _filters.addListener(_changed); elements.addListener(_changed); }
-  void _changed() { if (mounted) setState(() {}); }
+  void _changed() { if (mounted && tabActive) setState(() {}); }
   List<ElementRecord> get _scope => elements.records.values.toList();
   List<ElementRecord> get _records => _scope.where((r) => canBrowseThought(r) && r.location != null &&
     _filters.matches(r) &&

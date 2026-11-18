@@ -1,3 +1,4 @@
+import 'overview_tab_activity.dart';
 import 'package:flutter/material.dart';
 import 'memo_comments.dart';
 
@@ -8,7 +9,7 @@ class MemoCommentCount extends StatefulWidget {
   final Widget Function(BuildContext, int) builder;
   @override State<MemoCommentCount> createState() => _MemoCommentCountState();
 }
-class _MemoCommentCountState extends State<MemoCommentCount> {
+class _MemoCommentCountState extends State<MemoCommentCount> with RetainedOverviewTab<MemoCommentCount> {
   int get current => memoCommentCounts.value[widget.id] ?? 0;
   late int count;
   @override void initState() {
@@ -17,7 +18,9 @@ class _MemoCommentCountState extends State<MemoCommentCount> {
   }
   void changed() {
     final next = current;
-    if (next != count) setState(() => count = next);
+    if (next != count) {
+      if(tabActive){setState(() => count = next);}else{count = next;}
+    }
   }
   @override void didUpdateWidget(covariant MemoCommentCount oldWidget) {
     super.didUpdateWidget(oldWidget); count = current;

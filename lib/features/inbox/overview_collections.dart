@@ -1,3 +1,4 @@
+import 'overview_tab_activity.dart';
 import 'grid_columns_preference.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -45,14 +46,14 @@ class AttachmentCollection extends StatefulWidget {
  final bool audio;final Widget selector;final ThoughtFilterSelection filters;final WorkspaceStorage? storage;final VoidCallback? onChanged;
  @override State<AttachmentCollection> createState()=>_AttachmentCollectionState();
 }
-class _AttachmentCollectionState extends State<AttachmentCollection>{
+class _AttachmentCollectionState extends State<AttachmentCollection> with RetainedOverviewTab<AttachmentCollection>{
  bool details=false;
  GridColumnsPreference get _columnsPreference=>widget.audio?audioGridColumns:photoGridColumns;
  late int? columns=_columnsPreference.value;
  late bool _columnsReady=_columnsPreference.loaded;
  Future<void> _loadColumns()async{try{await _columnsPreference.load();}catch(_){/* Use device default if preferences are unavailable. */}if(mounted)setState((){columns=_columnsPreference.value;_columnsReady=true;});}
  void _setColumns(int value){setState(()=>columns=value);_columnsPreference.save(value).catchError((Object error){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('열 개수를 기기에 저장하지 못했습니다.')));});}
- void refresh(){if(mounted)setState((){});}
+ void refresh(){if(mounted && tabActive)setState((){});}
  @override void initState(){super.initState();_loadColumns();elements.addListener(refresh);widget.filters.addListener(refresh);}
  @override void dispose(){elements.removeListener(refresh);widget.filters.removeListener(refresh);super.dispose();}
  String duration(int ms){if(ms==0)return '시간 미확인';final seconds=(ms/1000).ceil();return '${seconds~/60}:${(seconds%60).toString().padLeft(2,'0')}';}

@@ -1,3 +1,4 @@
+import 'overview_tab_activity.dart';
 import 'workspace_search.dart';
 import 'overview_tab_settings.dart';
 import 'hashtags.dart';
@@ -39,7 +40,7 @@ class ThoughtBoxView extends StatefulWidget {
   State<ThoughtBoxView> createState() => _AllThoughtsPageState();
 }
 
-class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
+class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware, RetainedOverviewTab<ThoughtBoxView> {
   String _query = '';
   final _textWidths = <String, double>{};
   bool _photosOnly = false, _audioOnly = false;
@@ -82,7 +83,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware {
     _changed();await saveWorkspaceContent?.call();await widget.storage?.syncFolders?.call();
   }
   ModalRoute<dynamic>? _route;
-  void _refresh() { _textWidths.clear(); if (mounted) setState(() {}); }
+  void _refresh() { _textWidths.clear(); if (mounted && tabActive) setState(() {}); }
   @override
   void initState() { super.initState(); _loadViewMode(); _filters.addListener(_refresh); elements.addListener(_refresh); memoCommentCounts.addListener(_refresh); }
   @override
@@ -286,6 +287,19 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
   }
   @override
   void dispose() { widget.storage?.liveChanges.removeListener(_liveChanged); _filters.dispose(); _tabPosition.dispose(); _searchController.dispose(); super.dispose(); }
+  int _cacheEpoch = 0;
+  final _cachedTabs = <ThoughtView, Widget>{};
+  final _recentTabs = <ThoughtView>[];
+  @override void didUpdateWidget(covariant AllThoughtsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.storage, widget.storage)) {
+      oldWidget.storage?.liveChanges.removeListener(_liveChanged);
+      widget.storage?.liveChanges.addListener(_liveChanged);
+      _cachedTabs.clear(); _recentTabs.clear(); _cacheEpoch++;
+      _searchController.clear(); _filters.boxes.clear(); _filters.tags.clear();
+      if(widget.initialBox!=null)_filters.boxes.add(widget.initialBox!);
+    }
+  }
   late ThoughtView _view = widget.initialView == ThoughtView.diagram ? ThoughtView.page : widget.initialView;
   @override
   Widget build(BuildContext context) {
@@ -294,7 +308,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     final selector = SingleChildScrollView(
       key: const PageStorageKey('overview-tabs'), scrollDirection: Axis.horizontal,
       child: SizedBox(height:40, width:(_visibleTabs.length+1)*104, child:Stack(children:[
-        AnimatedBuilder(animation:_tabPosition,builder:(context,_)=>Positioned(
+        AnimatedBuilder(animation:_tabPosition,builder:(context,_)=>!OverviewTabActivity.of(context)?const SizedBox.shrink():Positioned(
           left:_tabPosition.value*104,top:0,bottom:0,width:104,
           child:ColoredBox(key:const ValueKey('thought-tab-highlight'),color:Theme.of(context).colorScheme.secondaryContainer))),
         Row(children:[
@@ -310,16 +324,30 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
         ]),
       ])),
     );
-    if(_view==ThoughtView.search)return DesktopMenuFrame(child:WorkspaceSearch(notes:widget.notes,selector:selector,controller:_searchController,onDocument:widget.onDocument));
-    if(_view==ThoughtView.documents)return DesktopMenuFrame(child:DocumentCollection(notes:widget.notes,selector:selector,storage:widget.storage,onOpen:widget.onDocument,onCreate:widget.onCreateDocument));
-    if(_view==ThoughtView.photos || _view==ThoughtView.audio)return DesktopMenuFrame(child:AttachmentCollection(key:ValueKey(_view),audio:_view==ThoughtView.audio,selector:selector,filters:_filters,storage:widget.storage,onChanged:widget.onChanged));
-    if (_view == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(filters: _filters, box: activeBox,
+    _cachedTabs.removeWhere((view, _) => !_visibleTabs.contains(view));
+    _recentTabs.removeWhere((view) => !_cachedTabs.containsKey(view));
+    _recentTabs.remove(_view); _recentTabs.add(_view);
+    _cachedTabs[_view] = _buildTab(_view, selector, activeBox);
+    final capacity = MediaQuery.sizeOf(context).shortestSide < 600 ? 3 : activeThoughtViews.length;
+    while (_cachedTabs.length > capacity) { _cachedTabs.remove(_recentTabs.removeAt(0)); }
+    return Stack(fit:StackFit.expand,children:[
+      for(final view in activeThoughtViews) if(_cachedTabs.containsKey(view))
+        OverviewTabActivity(key:ValueKey('retained-$_cacheEpoch-${widget.storage?.owner}-${view.name}'),active:view==_view,
+          child:Offstage(offstage:view!=_view,child:TickerMode(enabled:view==_view,
+            child:PrimaryScrollController.none(child:ExcludeFocus(excluding:view!=_view,child:HeroMode(enabled:view==_view,child:_cachedTabs[view]!)))))),
+    ]);
+  }
+  Widget _buildTab(ThoughtView view, Widget selector, MemoBox? activeBox) {
+    if(view==ThoughtView.search)return DesktopMenuFrame(child:WorkspaceSearch(notes:widget.notes,selector:selector,controller:_searchController,onDocument:widget.onDocument));
+    if(view==ThoughtView.documents)return DesktopMenuFrame(child:DocumentCollection(notes:widget.notes,selector:selector,storage:widget.storage,onOpen:widget.onDocument,onCreate:widget.onCreateDocument));
+    if(view==ThoughtView.photos || view==ThoughtView.audio)return DesktopMenuFrame(child:AttachmentCollection(key:ValueKey(view),audio:view==ThoughtView.audio,selector:selector,filters:_filters,storage:widget.storage,onChanged:widget.onChanged));
+    if (view == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(filters: _filters, box: activeBox,
       viewSelector: selector, onChanged: () => widget.onChanged?.call())); }
-    if (_view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(storage:widget.storage,filters: _filters, notes: widget.notes, initialBox: activeBox,
+    if (view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(storage:widget.storage,filters: _filters, notes: widget.notes, initialBox: activeBox,
       onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes)); }
     // A menu box selects a filter, not a different canvas. All entry routes
     // must read/write the workspace layout so tab changes preserve placement.
-    return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey(_view), blocks: true,
+    return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey(view), blocks: true,
       onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, onSave:widget.onSave, storage:widget.storage, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes));
   }
 }

@@ -1,3 +1,4 @@
+import 'overview_tab_activity.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -42,13 +43,13 @@ class WorkspaceSearch extends StatefulWidget {
   final Future<void> Function(Note)? onDocument;
   @override State<WorkspaceSearch> createState()=>_WorkspaceSearchState();
 }
-class _WorkspaceSearchState extends State<WorkspaceSearch> {
+class _WorkspaceSearchState extends State<WorkspaceSearch> with RetainedOverviewTab<WorkspaceSearch> {
   Timer? _debounce;
   late String _query = widget.controller.text;
   final _scroll = ScrollController();
   int _limit = 20;
   List<WorkspaceSearchResult>? _results;
-  void _refresh(){if(mounted)setState(()=>_results=null);}
+  void _refresh(){_results=null;if(mounted && tabActive)setState((){});}
   void _loadMore(){
     if(_scroll.hasClients && _scroll.position.extentAfter < 200 && _limit < (_results?.length ?? 0)) {
       setState(()=>_limit=math.min(_limit+20,_results!.length));

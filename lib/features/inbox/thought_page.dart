@@ -1,3 +1,4 @@
+import 'overview_tab_activity.dart';
 import 'memo_comment_count.dart';
 import 'canvas_link_text.dart';
 import 'canvas_stack_edit.dart';
@@ -45,7 +46,7 @@ class ThoughtPage extends StatefulWidget {
   @override
   State<ThoughtPage> createState() => _ThoughtPageState();
 }
-class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, RouteAware {
+class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, RouteAware, RetainedOverviewTab<ThoughtPage> {
   final _sceneKey = GlobalKey();
   final _emptyBoxBounds = <MemoBox, Rect>{};
   final _positions = <String, Offset>{};
@@ -53,7 +54,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   String _query = '';
   late final _filters = widget.filters ?? ThoughtFilterSelection(initialBox: widget.box);
   MemoBox? get _filterBox => _filters.singleBox;
-  void _filterChanged() { if (mounted) setState(() { _centered = false; _sync(); }); }
+  void _filterChanged() { if (mounted && tabActive) setState(() { _centered = false; _sync(); }); }
   bool _hideTags = false;
   final _view = TransformationController();
   Timer? _saveTimer;
@@ -76,7 +77,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   bool _selectionMode = false, _movingSelection = false, _ctrlPressed = false, _shiftPressed = false;
   bool get _rangeSelection => _selectionMode || _ctrlPressed || _shiftPressed || _selectionStart != null;
   bool _controlSelection(KeyEvent event) {
-    if (mounted && _routeVisible && event is KeyDownEvent &&
+    if(!tabActive || !_routeVisible)return false;
+    if (mounted && tabActive && _routeVisible && event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.escape &&
         (_selectionMode || _selected.isNotEmpty || _selectionStart != null)) {
       setState(() {
@@ -476,6 +478,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       if (route != null) workspaceRouteObserver.subscribe(this, route);
     }
   }
+  @override void onTabPaused() {
+    _ctrlPressed = false; _shiftPressed = false;
+    _saveLayout(flush: true);
+  }
+  @override void onTabResumed() {
+    _remoteLayoutChanged();
+  }
   @override
   void didPushNext() {
     _routeVisible = false;
@@ -484,7 +493,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   @override
   void didPopNext() {
     _routeVisible = true;
-    if (mounted) setState(_sync);
+    if (mounted && tabActive) setState(_sync);
   }
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -492,7 +501,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     if (!_appActive) {
       _ctrlPressed = false; _shiftPressed = false;
       _saveLayout(flush: true);
-    } else if (mounted && _routeVisible) {
+    } else if (mounted && tabActive && _routeVisible) {
       setState(_sync);
     }
   }
@@ -762,7 +771,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     if (mounted && box != null) _changed();
   }
   void _remoteLayoutChanged(){
-    if(!mounted || _activeCanvasPointers.isNotEmpty)return;
+    if(!mounted || !tabActive || _activeCanvasPointers.isNotEmpty)return;
     _layout.positions..clear()..addAll(_positions);
     _layout.tags..clear()..addAll(_tagPositions);
     _layout.mergeRemote(_targetLayout,_publishedLayout);
@@ -778,7 +787,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     // as a server snapshot, or the next delayed snapshot can undo the drag.
     if(_activeCanvasPointers.isEmpty)scheduleMicrotask((){if(mounted){_saveLayout(flush:true);}});
   }
-  void _storeChanged() { if (mounted && _routeVisible && _appActive) setState(_sync); }
+  void _storeChanged() { if (mounted && tabActive && _routeVisible && _appActive) setState(_sync); }
   void _changed() { widget.onChanged(); setState(_sync); }
   Future<void> _create() async {
     var draft = '';
@@ -796,7 +805,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_controlSelection);
     _activeCanvasPointers.clear();
-    _saveLayout(flush: true);
+    if(tabActive)_saveLayout(flush: true);
     widget.storage?.liveChanges.removeListener(_remoteLayoutChanged);
     widget.storage?.canvasInteracting=false;
     _saveTimer?.cancel();
