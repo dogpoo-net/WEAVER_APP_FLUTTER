@@ -1,3 +1,4 @@
+import 'element_store.dart' as store;
 import 'label_links.dart';
 import 'memo_boxes.dart';
 import 'dart:async';
@@ -115,6 +116,13 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       if (delta != 0) _scroll.jumpTo((_scroll.offset + delta).clamp(0.0, _scroll.position.maxScrollExtent));
     });
   }
+  final _tagCounts = <String, int>{};
+  Widget _countedTitle(String label, int count, String key, {TextStyle? style}) => Row(children: [
+    Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: style)),
+    const SizedBox(width: 6),
+    Text('$count', key: ValueKey(key), style: TextStyle(fontSize: 13,
+      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .55))),
+  ]);
   Widget _item(_Kind kind, int index, {bool nested = false}) {
     final name = _items(kind)[index];
     final label = kind == _Kind.tag ? '#$name' : name.replaceAll(RegExp(r'[\r\n]+'), ' ');
@@ -123,7 +131,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       minVerticalPadding: 2,
       minTileHeight: 40,
       visualDensity: const VisualDensity(vertical: -3),
-      title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+      title: kind == _Kind.tag ? _countedTitle(label, _tagCounts[name] ?? 0, 'tag-count-$name', style: const TextStyle(fontSize: 13)) : Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
         style: nested || kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.box ? const TextStyle(fontSize: 13) : null),
       trailing: kind == _Kind.tag ? IconButton(
         tooltip: '#$name 색상 변경',
@@ -248,7 +256,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       if (kind != _Kind.box) for (final folder in folders) _target(kind, folder, ExpansionTile(
         key: ValueKey('${kind.name}-$folder-${_viewState.collapseRevision}'),
         initiallyExpanded: _viewState.expandedFolders.contains('${kind.name}-$folder'),
-        onExpansionChanged: (value) => _expanded('${kind.name}-$folder', value), leading: const Icon(Icons.folder_outlined), title: Text(folder), trailing: _folderActions(kind, folder),
+        onExpansionChanged: (value) => _expanded('${kind.name}-$folder', value), leading: const Icon(Icons.folder_outlined), title: kind == _Kind.tag ? _countedTitle(folder, placements.where((p) => p == folder).length, 'tag-folder-count-$folder') : Text(folder), trailing: _folderActions(kind, folder),
         childrenPadding: const EdgeInsetsDirectional.only(start: 16),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
         collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
@@ -269,6 +277,10 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   }
   @override
   Widget build(BuildContext context) {
+    _tagCounts.clear();
+    for (final record in store.elements.records.values) {
+      for (final tag in record.tags) { _tagCounts.update(tag, (count) => count + 1, ifAbsent: () => 1); }
+    }
     final content = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
         Expanded(child: TextButton(
