@@ -73,9 +73,12 @@ class _WorkspacePickerState extends State<WorkspacePicker>{
       if(row['role']!='owner' && (row['ownerName'] as String? ?? '').isNotEmpty)
         TextSpan(text:'  ${row['ownerName']}',style:Theme.of(context).textTheme.bodySmall?.copyWith(
           color:Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha:.8))),
-    ])),subtitle:Text(roleLabel(row['role'])),
+    ])),subtitle:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
+      Text(roleLabel(row['role'])),
+      if(row['sharingSuspended']==true)Text(switch(row['subscriptionEndReason']){'cancelled'=>'구독 취소','expired'=>'구독 기한 만료',_=>'소유자 무료 플랜'},style:TextStyle(color:Theme.of(context).colorScheme.error)),
+    ]),
     leading:row['workspaceId']==widget.selected?const Icon(Icons.check, size:18):const SizedBox(width:18),
-    onTap:busy?null:()=>Navigator.pop(context,row['workspaceId']),
+    onTap:busy||row['sharingSuspended']==true?null:()=>Navigator.pop(context,row['workspaceId']),
     trailing:PopupMenuButton<String>(tooltip:'워크스페이스 관리',enabled:!busy,
       icon: const Icon(Icons.more_vert, size: 20),
       padding: EdgeInsets.zero,

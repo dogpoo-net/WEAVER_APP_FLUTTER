@@ -123,7 +123,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         catalog = list['workspaces'] as List;
         primaryWorkspace = list['defaultWorkspaceId'] as String?;
         isAdmin=list['isAdmin']==true;pendingInvites=list['invitations'] as List;
-        if(catalog.isEmpty){
+        if(!catalog.any((row)=>row['sharingSuspended']!=true)){
           sync?.removeListener(refresh);sync?.dispose();sync=null;storage?.suspended=true;MediaStorage.activeOwner=null;
           await widget.root.preferences.remove('weaver.selected-workspace.$account');
           if(valid())setState((){storage=null;selected=null;emptyWorkspace=true;failure=null;});
@@ -134,8 +134,8 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         selected ??= widget.root.preferences.getString(
           'weaver.selected-workspace.$account',
         );
-        if (!catalog.any((row) => row['workspaceId'] == selected)) {
-          selected = list['defaultWorkspaceId'] as String? ?? catalog.first['workspaceId'] as String;
+        if (!catalog.any((row) => row['workspaceId'] == selected && row['sharingSuspended']!=true)) {
+          selected = list['defaultWorkspaceId'] as String? ?? catalog.firstWhere((row)=>row['sharingSuspended']!=true)['workspaceId'] as String;
         }
         role =
             catalog.firstWhere((row) => row['workspaceId'] == selected)['role']
@@ -363,8 +363,11 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     final id=await showDialog<String>(context:context,builder:(context)=>WorkspacePicker(
       workspaces:catalog,selected:selected,
       onManageMembers:(row)async{
-        final engine=sync;if(!current||engine==null)return;
+        if(!current)return;
         final workspaceId=row['workspaceId'] as String;
+        final temporary=sync==null;
+        final engine=sync??WorkspaceSync(OwnedWorkspaces(widget.root).scope('$account@workspace:$workspaceId'),widget.auth.emailApi,workspaceId:workspaceId,readOnly:true,isCurrent:()=>current);
+        try{
         await Navigator.of(this.context).push<void>(MaterialPageRoute(builder:(_)=>SharingPage(
           sync:engine,role:row['role'],workspaceId:workspaceId,
           requestOverride:(action,body)async{
@@ -373,6 +376,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
             if(!current)throw StateError('계정이 변경되었습니다.');return result;
           },onAccepted:(id)=>switchWorkspace(id,force:true),
         )));
+        }finally{if(temporary)engine.dispose();}
       },
       request:(action,body)async{
         if((action=='delete-workspace'||action=='leave-workspace')&&body['workspaceId']==selected){
@@ -440,7 +444,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
 
   @override
   Widget build(BuildContext context) {
-    if(emptyWorkspace && storage==null){return Scaffold(appBar:AppBar(title:const Text('워크스페이스'),actions:[if(isAdmin)IconButton(tooltip:'관리자 백오피스',onPressed:openAdmin,icon:const Icon(Icons.admin_panel_settings_outlined)),TextButton(onPressed:()=>widget.auth.signOut(),child:const Text('로그아웃'))]),body:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:480),child:ListView(shrinkWrap:true,padding:const EdgeInsets.all(24),children:[const Text('이용 가능한 워크스페이스가 없습니다.',textAlign:TextAlign.center),const SizedBox(height:12),FilledButton(onPressed:chooseWorkspace,child:const Text('워크스페이스 만들기 · 복원')),for(final invite in pendingInvites)ListTile(title:Text(invite['name']??'초대받은 워크스페이스'),trailing:TextButton(child:const Text('수락'),onPressed:()async{try{final result=await widget.auth.emailApi.workspace('accept',{'inviteId':invite['id']});if(current)await switchWorkspace(result['workspaceId'],force:true,relinquished:true);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}))]))));}
+    if(emptyWorkspace && storage==null){return Scaffold(appBar:AppBar(title:const Text('워크스페이스'),actions:[if(isAdmin)IconButton(tooltip:'관리자 백오피스',onPressed:openAdmin,icon:const Icon(Icons.admin_panel_settings_outlined)),TextButton(onPressed:()=>widget.auth.signOut(),child:const Text('로그아웃'))]),body:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:480),child:ListView(shrinkWrap:true,padding:const EdgeInsets.all(24),children:[const Text('이용 가능한 워크스페이스가 없습니다.',textAlign:TextAlign.center),const SizedBox(height:12),FilledButton(onPressed:chooseWorkspace,child:const Text('워크스페이스 선택 · 만들기 · 복원')),for(final invite in pendingInvites)ListTile(title:Text(invite['name']??'초대받은 워크스페이스'),trailing:TextButton(child:const Text('수락'),onPressed:()async{try{final result=await widget.auth.emailApi.workspace('accept',{'inviteId':invite['id']});if(current)await switchWorkspace(result['workspaceId'],force:true,relinquished:true);}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}))]))));}
     if (storage == null) {
       return Scaffold(
         body: Center(
