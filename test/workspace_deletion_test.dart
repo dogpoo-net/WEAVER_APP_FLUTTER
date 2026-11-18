@@ -7,7 +7,7 @@ void main(){
  final calls=<String>[];Map<String,Object?>? deletion;bool? result;
  await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(child:const Text('열기'),onPressed:()async{
  result=await showDialog<bool>(context:context,builder:(_)=>WorkspaceDeletionDialog(id:'w',request:(action,body)async{
- calls.add(action);if(action=='delete-workspace-preview')return {'requiresEmail':used};
+ calls.add(action);if(action=='delete-workspace-preview')return {'requiresEmail':used,'retentionDays':used?30:0};
  if(action=='delete-workspace')deletion=body;return {};
  }));
  })))));
@@ -18,7 +18,7 @@ void main(){
  expect(find.textContaining('30일'),findsOneWidget);
  await tester.tap(find.text('소유자 이메일로 인증메일 보내기'));await tester.pumpAndSettle();
  await tester.enterText(find.byType(TextField),'12345678');await tester.pump();await tester.tap(find.text('인증 후 삭제'));
- }else{expect(find.byType(TextField),findsNothing);await tester.tap(find.text('삭제'));}
+ }else{expect(find.textContaining('보관 없이 즉시 영구 삭제'),findsOneWidget);expect(find.byType(TextField),findsNothing);await tester.tap(find.text('삭제'));}
  await tester.pumpAndSettle();expect(result,true);expect(deletion?['workspaceId'],'w');expect(deletion?['code'],used?'12345678':null);
  });}
  testWidgets('restore refreshes archived and active lists',(tester)async{
