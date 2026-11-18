@@ -20,7 +20,7 @@ class _WorkspacePickerState extends State<WorkspacePicker>{
     final controller=TextEditingController(text:initial??'');
     try{return await showDialog<String>(context:context,builder:(context)=>AlertDialog(
       title:Text(initial==null?'워크스페이스 추가':'이름 변경'),
-      content:SizedBox(width:360,child:TextField(controller:controller,autofocus:true,maxLength:80,
+      content:SizedBox(width:360,child:TextField(controller:controller,autofocus:true,maxLength:50,
         decoration:const InputDecoration(labelText:'워크스페이스 이름'),
         onSubmitted:(value){if(value.trim().isNotEmpty)Navigator.pop(context,value.trim());})),
       actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('취소')),
