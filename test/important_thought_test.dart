@@ -1,3 +1,4 @@
+import 'package:weaver/features/capture/attachment_indicators.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,6 +8,13 @@ import 'package:weaver/features/inbox/workspace_storage.dart';
 import 'package:weaver/features/inbox/packed_badges.dart';
 void main(){
  setUp((){elements.clear();SharedPreferences.setMockInitialValues({});});
+ testWidgets('importance is the first indicator before comments in both layouts',(tester)async{
+  final record=ElementRecord('중요')..important=true;
+  for(final vertical in [true,false]){
+   await tester.pumpWidget(MaterialApp(home:Scaffold(body:AttachmentIndicators(record:record,commentCount:3,vertical:vertical))));
+   expect(tester.widgetList<Icon>(find.byType(Icon)).map((i)=>i.icon),[Icons.priority_high,Icons.chat_bubble_outline]);
+  }
+ });
  test('important status round trips and sorts ahead of newer ordinary thoughts',(){
   final old=ElementRecord.restored('old','중요',DateTime(2020))..important=true;
   final newer=ElementRecord.restored('new','일반',DateTime(2026));
