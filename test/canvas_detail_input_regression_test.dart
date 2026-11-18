@@ -10,7 +10,7 @@ import 'package:weaver/features/inbox/thought_page.dart';
 import 'package:weaver/features/inbox/thought_interaction.dart';
 import 'package:weaver/features/inbox/caret_assist.dart';
 void main() {
- testWidgets('pending detail read opens only one dialog; resize click never opens detail; outside selection exits', (tester) async {
+ testWidgets('detail opens immediately without fetching and opens only one dialog; resize click never opens detail; outside selection exits', (tester) async {
   tester.view.physicalSize=const Size(1200,900);tester.view.devicePixelRatio=1;
   addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
   elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();
@@ -34,8 +34,8 @@ void main() {
   final read=Completer<void>(); var requests=0;
   refreshWorkspaceForRead=(){requests++;return read.future;};addTearDown(()=>refreshWorkspaceForRead=null);
   final interaction=tester.widget<ThoughtInteraction>(card);
-  interaction.onTap();interaction.onTap();expect(requests,1);
-  read.complete();await tester.pumpAndSettle();expect(find.byKey(const ValueKey('element-editor')),findsOneWidget);
+  interaction.onTap();interaction.onTap();expect(requests,0);
+  await tester.pumpAndSettle();expect(read.isCompleted,isFalse);read.complete();expect(find.byKey(const ValueKey('element-editor')),findsOneWidget);
   final editor=find.byKey(const ValueKey('element-editor'));
   await tester.enterText(editor,'본문 #독자');await tester.pumpAndSettle();
   await tester.sendKeyEvent(LogicalKeyboardKey.enter);await tester.pump();

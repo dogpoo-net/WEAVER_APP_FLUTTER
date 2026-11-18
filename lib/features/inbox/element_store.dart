@@ -201,11 +201,10 @@ class ElementStore extends ChangeNotifier {
 final elements = ElementStore();
 
 Future<void> showElementMetadata(BuildContext context, String word, {VoidCallback? onSaved}) async {
-  final id = elements.records[word]?.id;
-  try { await refreshWorkspaceForRead?.call(); }
-  catch (e) { if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('서버 변경을 확인하지 못했습니다. 기기의 자료를 표시합니다. $e'))); }
+  // Live workspace sync already maintains the local snapshot. Opening a
+  // detail must not wait for an extra save/refresh round trip.
   if (!context.mounted) return;
-  final record = id == null ? elements.records[word] : elements.records.values.where((r) => r.id == id).firstOrNull;
+  final record = elements.records[word];
   if (record == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('다른 기기에서 삭제된 생각입니다.'))); return; }
   word = record.text;
   await showDialog<void>(

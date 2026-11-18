@@ -16,13 +16,14 @@ void main(){
   saveWorkspaceContent=(){saves++;return pending.future;};
   addTearDown((){refreshWorkspaceForRead=null;saveWorkspaceContent=null;elements.clear();});
   await tester.pumpWidget(const MaterialApp(home:ThoughtBoxView(notes:[])));await tester.pumpAndSettle();
-  await tester.tap(find.byType(WordBadge).first);await tester.pumpAndSettle();
+  await tester.tap(find.byWidgetPredicate((w)=>w is WordBadge && w.word=='수정 전'));await tester.pumpAndSettle();
+  expect(reads,0);
   final before=reads;
   await tester.enterText(find.widgetWithText(TextField,'생각 내용'),'수정 후');
   await tester.tap(find.widgetWithText(FilledButton,'저장'));
   await tester.pump();await tester.pump(const Duration(milliseconds:300));
   expect(saves,1);expect(reads,before);expect(pending.isCompleted,false);
-  expect(tester.widget<WordBadge>(find.byType(WordBadge).first).word,'수정 후');
+  expect(find.byWidgetPredicate((w)=>w is WordBadge && w.word=='수정 후'),findsOneWidget);
   expect(elements.records.keys.first,'수정 후');
   expect(elements.records.containsKey('수정 후'),true);
   pending.complete();await tester.pumpAndSettle();
