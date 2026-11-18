@@ -267,6 +267,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     ...memoFolderRegions({for (final box in _allRegionBoxes) if (_boxBounds(box) != null) box: _boxBounds(box)!}, _layout.folderPositions),
     ..._frozenFolders,
   } : {};
+  void _moveSelectedTags(Offset shift) {
+    for (final id in _selected.where(_tagPositions.containsKey)) {
+      _tagPositions[id] = _tagPositions[id]! + shift;
+    }
+  }
   void _moveFolder(String name, Offset shift) {
     for (final box in memoBoxes.where((box) => box.folder != null && memoFolderContains(name, box.folder!))) { _moveBox(box, shift); }
     for (final folder in memoBoxFolders.where((folder) => memoFolderContains(name, folder))) {
@@ -303,7 +308,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final delta = scene.globalToLocal(pointer) - scene.globalToLocal(_folderLiftPointer!);
     _folderLiftPointer = pointer;
     final shift = Offset(math.max(delta.dx, 32 - bounds.left), math.max(delta.dy, 32 - bounds.top));
-    setState(() { _moveFolder(name, shift); _folderLiftShift += shift; });
+    setState(() { _moveFolder(name, shift); _moveSelectedTags(shift); _folderLiftShift += shift; });
     _saveLayout();
   }
   void _finishFolderLift(String name, Offset pointer) {
@@ -317,7 +322,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     var changed = false;
     setState(() {
       if (blocked) {
-        _moveFolder(name, -_folderLiftShift);
+        _moveFolder(name, -_folderLiftShift); _moveSelectedTags(-_folderLiftShift);
       } else {
         final targets = folders.entries.where((e) => canMoveMemoFolder(name, e.key) && e.value.contains(point)).toList()
           ..sort((a, b) => memoFolderDepth(b.key).compareTo(memoFolderDepth(a.key)));
@@ -331,7 +336,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         }
       }
       _liftedFolder = null; _folderLiftPointer = null; _frozenFolders.clear();
+      final beforeRelease = _folderGeometry()[name]?.topLeft;
       for (String? folder = name; folder != null; folder = memoFolderParent(folder)) { _releaseFolder(folder); }
+      if (beforeRelease != null) _moveSelectedTags(_folderGeometry()[name]!.topLeft - beforeRelease);
     });
     if (changed) widget.onChanged();
     if (blocked) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('폴더는 메모상자에 넣을 수 없습니다. 폴더 안이나 빈 곳에 놓아주세요.')));
@@ -372,8 +379,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         }
       }
       _liftedBox = null; _boxLiftPointer = null; _frozenFolders.clear();
+      final beforeRelease = _boxBounds(box)?.topLeft;
       _releaseBox(box);
       for (String? parent = box.folder; parent != null; parent = memoFolderParent(parent)) { _releaseFolder(parent); }
+      if (beforeRelease != null) _moveSelectedTags(_boxBounds(box)!.topLeft - beforeRelease);
     });
     if (changed) widget.onChanged();
     _saveLayout(flush: true);
@@ -390,7 +399,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void _dragBox(MemoBox box, Offset delta) {
     final bounds = _boxBounds(box);
     if (bounds == null) return;
-    _moveBox(box, Offset(math.max(delta.dx, 32 - bounds.left), math.max(delta.dy, 32 - bounds.top)));
+    final shift = Offset(math.max(delta.dx, 32 - bounds.left), math.max(delta.dy, 32 - bounds.top));
+    _moveBox(box, shift); _moveSelectedTags(shift);
     _saveLayout();
   }
 
@@ -1100,7 +1110,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onEnd: () {
               if (_draggedFolder == folder.key) {
                 setState(() {
+                  final beforeRelease = _folderGeometry()[folder.key]?.topLeft;
                   for (String? name = folder.key; name != null; name = memoFolderParent(name)) { _releaseFolder(name); }
+                  if (beforeRelease != null) _moveSelectedTags(_folderGeometry()[folder.key]!.topLeft - beforeRelease);
                   _draggedFolder = null;
                 });
               }
@@ -1109,7 +1121,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               if (_pinchBase != null) return;
               _draggedFolder = folder.key;
               final shift = Offset(math.max(delta.dx, 32 - folder.value.left), math.max(delta.dy, 32 - folder.value.top));
-              _moveFolder(folder.key, shift); _saveLayout();
+              _moveFolder(folder.key, shift); _moveSelectedTags(shift); _saveLayout();
             })),
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds,showLabel:false, highlighted: identical(_hoverBox, region.box) || identical(_liftedBox, region.box), rectangular: widget.blocks,
             onLiftStart: (pointer) => _liftBox(region.box, pointer),
@@ -1149,6 +1161,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   final center = _bounds(record.id).center;
                   _hoverBox = regions.where((r) => !r.box.elementIds.contains(record.id) && _inside(r.bounds, center)).firstOrNull?.box;
                   _saveLayout(); }),
+                onBorderTap: () { if (!_ctrlPressed && !_shiftPressed && (_selectionMode || _selected.isNotEmpty)) _toggleSelection(false); },
                 onResizeStart: () => _beginResize(record.id),
                 fitSize: (horizontal,vertical)=>_fitThought(record,horizontal,vertical),
                 onAutoResize: (size,shift)=>_resizeThought(record.id,size,shift,snap:false),
@@ -1359,16 +1372,16 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           child: IntrinsicWidth(child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(mainAxisSize: MainAxisSize.min, children: [
               IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '레이어 위로', icon: const Icon(Icons.arrow_upward, size: 18), onPressed: () {
-                setState(() { moveThoughtLayers(_layout.layers, _selected, up: false); reorderStackPositions(_positions, _selected, up: true,groups:_layout.stackGroups); }); _saveLayout(flush: true);
+                setState(() { moveThoughtLayers(_layout.layers, _selected, up: false); reorderStackPositions(_positions, _selected, up: true,groups:_layout.stackGroups); alignStackLayers(_layout.layers, _positions, _layout.stackGroups); }); _saveLayout(flush: true);
               }),
               IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '레이어 아래로', icon: const Icon(Icons.arrow_downward, size: 18), onPressed: () {
-                setState(() { moveThoughtLayers(_layout.layers, _selected, up: true); reorderStackPositions(_positions, _selected, up: false,groups:_layout.stackGroups); }); _saveLayout(flush: true);
+                setState(() { moveThoughtLayers(_layout.layers, _selected, up: true); reorderStackPositions(_positions, _selected, up: false,groups:_layout.stackGroups); alignStackLayers(_layout.layers, _positions, _layout.stackGroups); }); _saveLayout(flush: true);
               }),
             ]),
             if (_selected.length > 1) TextButton.icon(
               style: TextButton.styleFrom(minimumSize: const Size(0, 24), padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.standard, textStyle: const TextStyle(fontSize: 11)),
               icon: const Icon(Icons.swap_vert, size: 15), label: const Text('순서 반전'), onPressed: () {
-                setState(() { reverseThoughtLayers(_layout.layers, _selected); reorderStackPositions(_positions, _selected,groups:_layout.stackGroups); }); _saveLayout(flush: true);
+                setState(() { reverseThoughtLayers(_layout.layers, _selected); reorderStackPositions(_positions, _selected,groups:_layout.stackGroups); alignStackLayers(_layout.layers, _positions, _layout.stackGroups); }); _saveLayout(flush: true);
               }),
           ])),
         )),

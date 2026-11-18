@@ -178,3 +178,20 @@ class CanvasBoundaryPainter extends CustomPainter {
   @override
   bool shouldRepaint(CanvasBoundaryPainter oldDelegate) => oldDelegate.color != color || oldDelegate.scale != scale;
 }
+
+/// Keep a stack's paint order consistent with its vertical slots. Unrelated
+/// cards retain their layer slots, even when interleaved with stack members.
+void alignStackLayers(List<String> layers, Map<String, Offset> positions,
+    Map<String, String> groups) {
+  final remaining = positions.keys.toSet();
+  while (remaining.isNotEmpty) {
+    final group = alignedStackMembers(remaining.first, positions, groups: groups);
+    remaining.removeAll(group);
+    final ordered = layers.where(group.contains).toList()
+      ..sort((a, b) => positions[a]!.dy.compareTo(positions[b]!.dy));
+    var index = 0;
+    for (var i = 0; i < layers.length; i++) {
+      if (group.contains(layers[i])) layers[i] = ordered[index++];
+    }
+  }
+}

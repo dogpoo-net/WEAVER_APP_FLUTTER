@@ -23,6 +23,14 @@ void main() {
   final card=find.byKey(ValueKey('canvas-thought-${a.id}'));
   await tester.tap(find.descendant(of:card,matching:find.byKey(const ValueKey('resize-right'))));await tester.pumpAndSettle();
   expect(find.byType(AlertDialog),findsNothing);
+  await tester.pump(const Duration(milliseconds:350));
+  await tester.tap(find.byType(Checkbox).first); await tester.pump();
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft); await tester.pump();
+  await tester.tapAt(tester.getCenter(card)); await tester.pump();
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft); await tester.pump();
+  await tester.tap(find.descendant(of:card,matching:find.byKey(const ValueKey('resize-right')))); await tester.pump(const Duration(milliseconds:350)); await tester.pumpAndSettle();
+  expect(tester.widget<Checkbox>(find.byType(Checkbox).first).value, isFalse);
+  expect(find.byType(AlertDialog),findsNothing);
   final read=Completer<void>(); var requests=0;
   refreshWorkspaceForRead=(){requests++;return read.future;};addTearDown(()=>refreshWorkspaceForRead=null);
   final interaction=tester.widget<ThoughtInteraction>(card);

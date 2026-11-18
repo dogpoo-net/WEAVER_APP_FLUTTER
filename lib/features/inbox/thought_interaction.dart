@@ -4,7 +4,7 @@ class ThoughtInteraction extends StatefulWidget {
   static const hitPadding = 0.0;
   const ThoughtInteraction({super.key, required this.size, required this.child,
     required this.onMove, required this.onResize, required this.onDrop, required this.onEnd,
-    required this.onTap, required this.desktop, this.onLift, this.onActiveChanged, this.onResizeStart, this.groupLifted = false, this.fitSize, this.onAutoResize});
+    required this.onTap, required this.desktop, this.onBorderTap, this.onLift, this.onActiveChanged, this.onResizeStart, this.groupLifted = false, this.fitSize, this.onAutoResize});
   final Size size;
   final Size Function(bool horizontal, bool vertical)? fitSize;
   final void Function(Size size, Offset shift)? onAutoResize;
@@ -14,7 +14,7 @@ class ThoughtInteraction extends StatefulWidget {
   final VoidCallback onEnd, onTap;
   final bool desktop;
   final bool groupLifted;
-  final VoidCallback? onLift, onResizeStart;
+  final VoidCallback? onLift, onResizeStart, onBorderTap;
   final ValueChanged<bool>? onActiveChanged;
   @override
   State<ThoughtInteraction> createState() => _ThoughtInteractionState();
@@ -29,7 +29,7 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
   Size _clamp(double w, double h) => Size(w.clamp(170, 640), h.clamp(76, 520));
   Widget _handle(String name, MouseCursor cursor, bool left, bool top, bool horizontal, bool vertical) =>
     MouseRegion(cursor: cursor, child: GestureDetector(key: ValueKey('resize-$name'), behavior: HitTestBehavior.opaque,
-      onTap: () {}, // Border clicks must not open the card underneath.
+      onTap: widget.onBorderTap ?? () {}, // Never open details from a resize border.
       onDoubleTap: widget.fitSize == null ? null : () {
         final fitted = widget.fitSize!(horizontal, vertical);
         final next = _clamp(horizontal ? fitted.width : widget.size.width,
