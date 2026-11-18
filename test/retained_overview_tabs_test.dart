@@ -44,6 +44,30 @@ void main(){
   scroll.jumpTo(0);await tester.pump();expect(find.text('생각: 새 자료'),findsOneWidget);
   await tester.pumpWidget(const SizedBox());
  });
+ testWidgets('overview reopens last selected tab but explicit routes take precedence',(tester)async{
+  await tester.pumpWidget(const MaterialApp(home:AllThoughtsPage(notes:[])));
+  await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(TextButton,'문서'));await tester.pumpAndSettle();
+  await tester.pumpWidget(const SizedBox());
+  await tester.pumpWidget(const MaterialApp(home:AllThoughtsPage(notes:[])));
+  await tester.pumpAndSettle();
+  expect(find.byType(DocumentCollection),findsOneWidget);
+  await tester.pumpWidget(const SizedBox());
+  await tester.pumpWidget(const MaterialApp(home:AllThoughtsPage(notes:[],initialView:ThoughtView.search)));
+  await tester.pumpAndSettle();
+  expect(find.byType(WorkspaceSearch),findsOneWidget);
+  await tester.pumpWidget(const SizedBox());
+ });
+ testWidgets('hidden remembered tab falls back to visible tab',(tester)async{
+  SharedPreferences.setMockInitialValues({
+   'weaver.overviewLastTab.v1':'documents',
+   'weaver.overviewTabs.v1':'{"order":["search","documents"],"hidden":["documents"]}',
+  });
+  await tester.pumpWidget(const MaterialApp(home:AllThoughtsPage(notes:[])));
+  await tester.pumpAndSettle();
+  expect(find.byType(WorkspaceSearch),findsOneWidget);
+  await tester.pumpWidget(const SizedBox());
+ });
  testWidgets('mobile retains only three visited tabs',(tester)async{
   tester.view.physicalSize=const Size(400,800);tester.view.devicePixelRatio=1;
   addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);

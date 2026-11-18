@@ -217,7 +217,7 @@ enum ThoughtView { search, documents, boxes, diagram, page, photos, audio, geolo
 const activeThoughtViews = [ThoughtView.search, ThoughtView.documents, ThoughtView.boxes, ThoughtView.page, ThoughtView.photos, ThoughtView.audio, ThoughtView.geolog];
 
 class AllThoughtsPage extends StatefulWidget {
-  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.onDocument, this.onCreateDocument, this.onRefresh, this.onReloadResource, this.onDeleteBoxes, this.initialBox, this.initialView = ThoughtView.boxes});
+  const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.onDocument, this.onCreateDocument, this.onRefresh, this.onReloadResource, this.onDeleteBoxes, this.initialBox, this.initialView});
   final List<Note> notes;
   final VoidCallback? onChanged, onLayoutChanged;
   final WorkspaceStorage? storage;
@@ -228,7 +228,7 @@ class AllThoughtsPage extends StatefulWidget {
   final Future<void> Function(Set<String>)? onDeleteBoxes;
   final Future<void> Function()? onSave;
   final MemoBox? initialBox;
-  final ThoughtView initialView;
+  final ThoughtView? initialView;
   @override
   State<AllThoughtsPage> createState() => _ThoughtViewsState();
 }
@@ -250,8 +250,13 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
   List<ThoughtView> get _visibleTabs => _tabOrder.where((v)=>!_hiddenTabs.contains(v)).toList();
   Future<void> _loadTabs() async {
     final settings = await loadOverviewTabs(activeThoughtViews.map((v)=>v.name).toList());
+    String? remembered;
+    try { remembered = (await SharedPreferences.getInstance()).getString('weaver.overviewLastTab.v1'); } catch (_) {}
     if (!mounted) return;
     setState(() {
+      if (widget.initialView == null && widget.initialBox == null) {
+        for (final view in activeThoughtViews) { if (view.name == remembered) _view = view; }
+      }
       _tabOrder = settings.order.map((name)=>ThoughtView.values.byName(name)).toList();
       _hiddenTabs.addAll(settings.hidden.map((name)=>ThoughtView.values.byName(name)));
       if (!_visibleTabs.contains(_view)) _view = _visibleTabs.first;
@@ -273,6 +278,14 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
       if (!_visibleTabs.contains(_view)) _view = _visibleTabs.first;
       _tabPosition.value = _visibleTabs.indexOf(_view).toDouble();
     });
+  }
+  Future<void> _tabWrite = Future.value();
+  void _rememberTab() {
+    final name = _view.name;
+    _tabWrite = _tabWrite.then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('weaver.overviewLastTab.v1', name);
+    }).catchError((Object _) {});
   }
   late final AnimationController _tabPosition;
   late final _filters = ThoughtFilterSelection(initialBox: widget.initialBox);
@@ -300,7 +313,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
       if(widget.initialBox!=null)_filters.boxes.add(widget.initialBox!);
     }
   }
-  late ThoughtView _view = widget.initialView == ThoughtView.diagram ? ThoughtView.page : widget.initialView;
+  late ThoughtView _view = widget.initialView == ThoughtView.diagram ? ThoughtView.page : (widget.initialView ?? ThoughtView.boxes);
   @override
   Widget build(BuildContext context) {
     if (!_tabsReady) return const DesktopMenuFrame(child:Scaffold(appBar:null,body:DesktopMenuBody(child:SizedBox.shrink())));
@@ -315,7 +328,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
           for(final view in _visibleTabs) SizedBox(width:104,height:40,child:Semantics(
             selected:view==_view,child:TextButton(
               style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),
-              onPressed:(){if(_view==view)return;setState(()=>_view=view);
+              onPressed:(){if(_view==view)return;setState(()=>_view=view);_rememberTab();
                 _tabPosition.animateTo(_visibleTabs.indexOf(view).toDouble(),duration:const Duration(milliseconds:200),curve:Curves.easeInOutCubic);_reload();},
               child:Text(thoughtViewLabel(view.name))))),
           SizedBox(width:104,height:40,child:TextButton(key:const ValueKey('overview-tab-settings'),
