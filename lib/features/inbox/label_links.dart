@@ -68,6 +68,22 @@ TextStyle inlineLinkStyle(BuildContext context, String id, {bool hovered = false
     decorationStyle: memo ? TextDecorationStyle.dotted : TextDecorationStyle.solid,
     decorationThickness: 1, fontWeight: FontWeight.normal);
 }
+/// Display-only links: no recognizers, hover callbacks, or navigation.
+TextSpan passiveLinkedText(BuildContext context, String text, Iterable<ElementBinding> links) {
+  if (links.isEmpty) return TextSpan(text: text);
+  final spans = <InlineSpan>[];
+  var offset = 0;
+  final ordered = links.toList()..sort((a, b) => a.start.compareTo(b.start));
+  for (final link in ordered) {
+    if (link.start < offset || link.end <= link.start || link.end > text.length) continue;
+    if (link.start > offset) spans.add(TextSpan(text: text.substring(offset, link.start)));
+    spans.add(TextSpan(text: text.substring(link.start, link.end), style: inlineLinkStyle(context, link.id)));
+    offset = link.end;
+  }
+  if (offset < text.length) spans.add(TextSpan(text: text.substring(offset)));
+  return TextSpan(children: spans);
+}
+
 /// A partially entered alias; only the target after the pipe is searched.
 ({int start, String display, String query})? pendingLabelLink(TextEditingValue value) {
   if (!value.selection.isValid || !value.selection.isCollapsed) return null;

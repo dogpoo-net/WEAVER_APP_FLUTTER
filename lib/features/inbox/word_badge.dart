@@ -1,3 +1,4 @@
+import 'label_links.dart';
 import 'thought_colors.dart';
 import 'memo_comments.dart';
 import '../capture/attachment_indicators.dart';
@@ -168,7 +169,7 @@ class WordBadge extends StatelessWidget {
       TextSpan(style: const TextStyle(fontWeight: FontWeight.w700), children: [
         _badgeExcerpt(context, title, query, (maxWidth - 24 - prefixWidth).clamp(0.0, double.infinity)),
       ]),
-    ]) : fullText ? TextSpan(text: title) : _badgeExcerpt(context, title, query, maxWidth - 24);
+    ]) : fullText ? (record != null && title == record.text ? passiveLinkedText(context, title, record.inlineLinks) : TextSpan(text: title)) : _badgeExcerpt(context, title, query, maxWidth - 24);
     final badgeTextStyle=Theme.of(context).textTheme.labelLarge!.copyWith(fontSize:dense?11:12,fontWeight:FontWeight.w500);
     final hasMetadata=indicators||commentCount>0;
     final body=Text.rich(label,textAlign:TextAlign.start,
