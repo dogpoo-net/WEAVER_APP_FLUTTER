@@ -271,14 +271,17 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   Widget build(BuildContext context) {
     final content = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
-        Expanded(child: ListTile(
-          dense: true, visualDensity: const VisualDensity(vertical: -2),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-          minLeadingWidth: 20, horizontalTitleGap: 16,
-          titleTextStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
-          leading: const Icon(Icons.home_outlined, size: 20),
-          title: const Text('기록함'),
-          onTap: () => _select(WorkspaceMenu.home),
+        Expanded(child: TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.onSurface,
+            minimumSize: const Size(0, 28), maximumSize: const Size(double.infinity, 28),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: const StadiumBorder(),
+            textStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+          ),
+          onPressed: () => _select(WorkspaceMenu.home),
+          child: const Row(children: [Icon(Icons.home_outlined, size: 20), SizedBox(width: 16), Text('기록함')]),
         )),
         IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
         iconSize: 18, padding: const EdgeInsets.all(5),
@@ -286,6 +289,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       )), child: Padding(padding: const EdgeInsets.only(right: 4),
         child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.end, children: [
+        if (widget.embedded ? widget.onFloat != null : widget.onPin != null)
         IconButton(tooltip: widget.embedded ? '메뉴 고정 해제' : '메뉴 고정하기',
           onPressed: widget.embedded ? widget.onFloat : widget.onPin,
           icon: Icon(widget.embedded ? Icons.push_pin : Icons.push_pin_outlined)),
