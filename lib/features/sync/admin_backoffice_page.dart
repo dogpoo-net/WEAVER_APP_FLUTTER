@@ -51,7 +51,7 @@ class _AdminBackofficePageState extends State<AdminBackofficePage>{
     body:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1000),child:ListView(padding:const EdgeInsets.all(16),children:[
       if(busy)const LinearProgressIndicator(),if(error!=null)Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error)),
       CaretAssist(controller:search,focus:searchFocus,words:busy?const []:suggestions.keys.toList(),onWord:chooseAccount,
-        arrowSelectsVisible:true,enterSelectsVisible:true,fitContentWidth:true,anchorBelowField:true,
+        arrowSelectsVisible:true,enterSelectsVisible:true,fitContentWidth:true,anchorBelowField:true,externalSuggestions:true,
         child:TextField(controller:search,focusNode:searchFocus,enabled:!busy,onChanged:searchAccounts,
           decoration:InputDecoration(labelText:'이메일 또는 이름 검색',suffixIcon:IconButton(onPressed:busy?null:()=>searchAccounts(search.text),icon:const Icon(Icons.search))),
           onSubmitted:(_)=>searchAccounts(search.text))),

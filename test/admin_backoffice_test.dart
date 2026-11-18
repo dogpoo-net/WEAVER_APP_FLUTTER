@@ -10,8 +10,8 @@ void main(){
     return {'account':{'id':'u','name':'캔디','email':'candy@example.com','platformRole':'user'},'accountPolicy':{'plan':{'code':'free'}},'workspaces':[]};
   })));
   await tester.pumpAndSettle();
-  await tester.enterText(find.widgetWithText(TextField,'이메일 또는 이름 검색'),'캔디');await tester.pump(const Duration(milliseconds:300));await tester.pumpAndSettle();
-  expect(queries.last,'캔디');expect(find.byType(AlertDialog),findsNothing);
+  await tester.enterText(find.widgetWithText(TextField,'이메일 또는 이름 검색'),'디');await tester.pump(const Duration(milliseconds:300));await tester.pumpAndSettle();
+  expect(queries.last,'디');expect(find.byType(AlertDialog),findsNothing);
   final option=find.byKey(const ValueKey('suggestion-캔디 · candy@example.com'));expect(option,findsOneWidget);
   expect(tester.getTopLeft(option).dy,greaterThan(tester.getBottomLeft(find.byType(TextField)).dy));
   await tester.tap(option);await tester.pumpAndSettle();expect(find.text('계정 권한'),findsOneWidget);

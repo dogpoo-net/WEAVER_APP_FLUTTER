@@ -32,6 +32,7 @@ class CaretAssist extends StatefulWidget {
     this.arrowSelectsVisible = false,
     this.fitContentWidth = false,
     this.anchorBelowField = false,
+    this.externalSuggestions = false,
     this.showShortcutHint = false,
     this.useThoughtLabels = false,
     this.selectionAssist = false,
@@ -50,6 +51,7 @@ class CaretAssist extends StatefulWidget {
   final bool arrowSelectsVisible;
   final bool fitContentWidth;
   final bool anchorBelowField;
+  final bool externalSuggestions;
   final bool showShortcutHint;
   @override
   State<CaretAssist> createState() => CaretAssistState();
@@ -424,7 +426,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     }
     if (_query != query || _tagMode != tagMode) _selected = 0;
     _tagMode = tagMode; _query = query;
-    _matches = tagMode ? wordSuggestions(widget.tags, query).map((tag) => '#$tag').toList() : (widget.useThoughtLabels ? widget.words.where((word) => assistTargetMatches(word, query)).toList() : wordSuggestions(widget.words, query));
+    _matches = widget.externalSuggestions ? List.of(widget.words) : tagMode ? wordSuggestions(widget.tags, query).map((tag) => '#$tag').toList() : (widget.useThoughtLabels ? widget.words.where((word) => assistTargetMatches(word, query)).toList() : wordSuggestions(widget.words, query));
     if (_selected >= _matches.length) _selected = 0;
     final manual = _manualSelection;
     if (manual != null) {
