@@ -23,8 +23,22 @@ def icon(path, size, maskable=False, source=SOURCE):
     ], check=True)
 
 parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--android-splash-only', action='store_true', help='Generate Android splash assets from the web loading logo')
 parser.add_argument('--android-only', action='store_true', help='Generate only Android launcher icons')
 args = parser.parse_args()
+def android_splash():
+    for density, scale in {'mdpi': 1, 'hdpi': 1.5, 'xhdpi': 2, 'xxhdpi': 3, 'xxxhdpi': 4}.items():
+        for name, canvas in [('launch_image', 192), ('launch_icon', 288)]:
+            # Android 12 clips the icon to a circle: keep artwork within 192dp.
+            subprocess.run(['magick', str(ROOT / 'web/icons/loading-logo.png'),
+                '-filter', 'Lanczos', '-resize', f'{round(192*scale)}x{round(192*scale)}',
+                '-background', 'none', '-gravity', 'center', '-extent', f'{round(canvas*scale)}x{round(canvas*scale)}',
+                '-strip', str(ROOT / f'android/app/src/main/res/drawable-{density}/{name}.png')], check=True)
+
+if args.android_splash_only:
+    android_splash()
+    raise SystemExit(0)
+
 for density, size in {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}.items():
     icon(f'android/app/src/main/res/mipmap-{density}/ic_launcher.png', size, source=ANDROID_SOURCE)
 if args.android_only:
@@ -42,8 +56,6 @@ for entry in json.loads((ROOT / catalog / 'Contents.json').read_text())['images'
     icon(catalog / entry['filename'], size)
 
 # Native launch screens: 192 logical pixels, plus Android 12 safe-area artwork.
-for density, scale in {'mdpi': 1, 'hdpi': 1.5, 'xhdpi': 2, 'xxhdpi': 3, 'xxxhdpi': 4}.items():
-    icon(f'android/app/src/main/res/drawable-{density}/launch_image.png', round(192 * scale))
-    icon(f'android/app/src/main/res/drawable-{density}/launch_icon.png', round(288 * scale), maskable=True)
+android_splash()
 for scale, suffix in [(1, ''), (2, '@2x'), (3, '@3x')]:
     icon(f'ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage{suffix}.png', 192 * scale)

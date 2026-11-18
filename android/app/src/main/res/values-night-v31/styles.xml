@@ -2,7 +2,7 @@
 <resources>
     <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">@drawable/launch_background</item>
-        <item name="android:windowSplashScreenBackground">@android:color/white</item>
+        <item name="android:windowSplashScreenBackground">@color/weaver_launch_background</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/launch_icon</item>
     </style>
 </resources>
