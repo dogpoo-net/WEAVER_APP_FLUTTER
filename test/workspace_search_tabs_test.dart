@@ -9,6 +9,26 @@ import 'package:weaver/features/inbox/project_page.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/capture/capture_models.dart';
 void main(){
+ testWidgets('empty search shows newest records and appends twenty on scroll',(tester)async{
+  elements.clear();final controller=TextEditingController();addTearDown(controller.dispose);addTearDown(elements.clear);
+  for(var i=0;i<45;i++){
+    final record=ElementRecord.restored('id$i','memo $i',DateTime(2026,1,1).add(Duration(minutes:i)));
+    elements.records[record.text]=record;
+  }
+  await tester.pumpWidget(MaterialApp(home:WorkspaceSearch(notes:const[],selector:const SizedBox(),controller:controller)));
+  final finder=find.byKey(const ValueKey('workspace-search-results'));
+  int count()=>tester.widget<ListView>(finder).childrenDelegate.estimatedChildCount!;
+  expect(count(),39);expect(find.text('생각: memo 44'),findsOneWidget);
+  final scroll=tester.widget<ListView>(finder).controller!;
+  scroll.jumpTo(scroll.position.maxScrollExtent);await tester.pump();
+  expect(count(),79);
+  scroll.jumpTo(scroll.position.maxScrollExtent);await tester.pump();expect(count(),89);
+  await tester.enterText(find.byKey(const ValueKey('workspace-search')),'memo');
+  await tester.pump(const Duration(milliseconds:250));expect(count(),39);expect(scroll.offset,0);
+  final sorted=searchWorkspace(const[],elements.records.values,'');
+  expect(sorted.first.record!.id,'id44');expect(sorted.last.record!.id,'id0');
+  await tester.pumpWidget(const SizedBox());
+ });
  setUp((){SharedPreferences.setMockInitialValues({});elements.clear();});
  test('searches documents, thoughts and saved transcripts, excluding trash',(){
   final p=WritingProject([],[],name:'계획')..document='서울 회의';
@@ -16,9 +36,9 @@ void main(){
   final r=elements.add('서울 일정')..recordings.add(const VoiceAttachment('v',1000,transcript:'서울 회의 녹음'));
   final deleted=ElementRecord('서울 삭제')..deletedAt=DateTime.now();
   final results=searchWorkspace([note],[r,deleted],'서울');
-  expect(results.map((r)=>r.kind),['문서','생각','음성']);
+  expect(results.map((r)=>r.kind),unorderedEquals(['문서','생각','음성']));
   expect(searchWorkspace([note],[r],'회의 서울').length,2);
-  expect(searchWorkspace([note],[r],'  '),isEmpty);
+  expect(searchWorkspace([note],[r],'  ').length,3);
   expect(VoiceAttachment.fromJson(r.recordings.single.toJson()).transcript,'서울 회의 녹음');
   expect(VoiceAttachment.fromJson({'id':'old','durationMs':1000}).transcript,'');
  });
