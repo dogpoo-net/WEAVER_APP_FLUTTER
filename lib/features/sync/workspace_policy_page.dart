@@ -39,7 +39,7 @@ class _WorkspacePolicyPageState extends State<WorkspacePolicyPage>{
     final paid=plan['code']!=null&&plan['code']!='free';final cancelled=subscription['cancelAtEnd']==true||subscription['cancelAtEnd']==1;
     return Scaffold(appBar:AppBar(title:const Text('구독 관리')),body:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:720),child:ListView(padding:const EdgeInsets.all(16),children:[
       if(busy)const LinearProgressIndicator(),if(error!=null)Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error)),
-      Row(children:[Expanded(child:Text('구독 중: $planName',style:Theme.of(context).textTheme.titleLarge?.copyWith(fontSize:26))),info('구독 관리','구독은 소유자의 모든 공간에 적용됩니다. Free 2개(오프라인), Standard 10개, Pro 무제한입니다. 실제 결제는 아직 연결되지 않았습니다. 이용 기간이 끝나면 Free로 전환되며 기존 자료는 삭제하지 않습니다.')]),
+      Row(children:[Expanded(child:Text(planName,style:Theme.of(context).textTheme.titleLarge?.copyWith(fontSize:28))),info('구독 관리','구독은 소유자의 모든 공간에 적용됩니다. Free 2개(오프라인), Standard 10개, Pro 무제한입니다. 실제 결제는 아직 연결되지 않았습니다. 이용 기간이 끝나면 Free로 전환되며 기존 자료는 삭제하지 않습니다.')]),
       if(subscription['periodEnd']!=null)Text('이용 기간 종료: ${subscriptionEndDate(subscription['periodEnd'] as String)} 23:59:59 (한국 시간)'),
       if(paid&&cancelled)const Text('구독 취소 예약됨 · 종료일까지 유료 기능 유지'),
       Text('저장 용량: ${subscriptionStorageSize((data?['bytes'] as num?)??0)} / ${limit is num?subscriptionStorageSize(limit):'플랜 한도 미정'}'),
