@@ -5,11 +5,12 @@ import 'label_links.dart';
 
 /// Canvas links use text hit testing, leaving card dragging to the parent.
 class CanvasLinkText extends StatefulWidget {
-  const CanvasLinkText({super.key, required this.text, required this.links, required this.enabled, this.style});
+  const CanvasLinkText({super.key, required this.text, required this.links, required this.enabled, this.style, this.onLinkHover});
   final String text;
   final List<ElementBinding> links;
   final bool enabled;
   final TextStyle? style;
+  final ValueChanged<String?>? onLinkHover;
   @override
   State<CanvasLinkText> createState() => _CanvasLinkTextState();
 }
@@ -22,8 +23,19 @@ class _CanvasLinkTextState extends State<CanvasLinkText> {
     _opening = true;
     try { await openInlineLink(context, id); } finally { _opening = false; }
   }
+  void _clearHoverLater() {
+    if (_hovered == null) return;
+    _hovered = null;
+    final callback = widget.onLinkHover;
+    WidgetsBinding.instance.addPostFrameCallback((_) => callback?.call(null));
+  }
   @override
-  void dispose() { for (final tap in _taps.values) { tap.dispose(); } super.dispose(); }
+  void didUpdateWidget(covariant CanvasLinkText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled || widget.text != oldWidget.text || !identical(widget.links, oldWidget.links)) _clearHoverLater();
+  }
+  @override
+  void dispose() { _clearHoverLater(); for (final tap in _taps.values) { tap.dispose(); } super.dispose(); }
   @override
   Widget build(BuildContext context) {
     final active = <String>{};
@@ -43,8 +55,8 @@ class _CanvasLinkTextState extends State<CanvasLinkText> {
       final style = inlineLinkStyle(context, link.id, hovered: hovered);
       children.add(TextSpan(text: widget.text.substring(link.start, link.end),
         style: hovered ? style.copyWith(decorationStyle: TextDecorationStyle.solid) : style,
-        onEnter: widget.enabled ? (_) { if (mounted) setState(() => _hovered = key); } : null,
-        onExit: widget.enabled ? (_) { if (mounted && _hovered == key) setState(() => _hovered = null); } : null,
+        onEnter: widget.enabled ? (_) { if (mounted) setState(() => _hovered = key); widget.onLinkHover?.call(link.id); } : null,
+        onExit: widget.enabled ? (_) { if (mounted && _hovered == key) { setState(() => _hovered = null); widget.onLinkHover?.call(null); } } : null,
         recognizer: tap, mouseCursor: widget.enabled ? SystemMouseCursors.click : MouseCursor.defer));
       offset = link.end;
     }

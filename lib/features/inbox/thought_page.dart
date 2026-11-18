@@ -69,6 +69,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   final _dragStartStacks = <String, Set<String>>{};
   final _dropHighlights = <String>{};
   final _thoughtDragOrigins = <String, Offset>{};
+  String? _linkHoverSource, _linkHoverTarget;
+  void _hoverMemoLink(String source, String? link) {
+    if (!mounted) return;
+    if (link == null && _linkHoverSource != source) return;
+    final target = link != null && link.startsWith('label:') ? link.substring(6) : null;
+    if (_linkHoverSource == source && _linkHoverTarget == target) return;
+    setState(() { _linkHoverSource = link == null ? null : source; _linkHoverTarget = target; });
+  }
   MemoBox? _hoverBox;
   final _liftBoxes = <MemoBox, Rect>{};
   bool _centered = false;
@@ -1242,12 +1250,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   _saveLayout(flush: true);
                 }, onEnd: () { setState(() { _liftedThought = null; if (_resizingThought == null) _closeMovedSlots(_thoughtDragOrigins); _resizingThought = null; _resizeNeighbors.clear(); _thoughtDragOrigins.remove(record.id); _dragStartStacks.remove(record.id); _dropHighlights.clear(); _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
                 child: Card(margin: EdgeInsets.zero, color: wordBackgroundColor(context, record.text),
-                  shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _dropHighlights.contains(record.id) || _draggingId == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) ? 3 : 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
-                    color: _dropHighlights.contains(record.id) || _draggingId == record.id ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) || _draggingId == record.id ? 3 : 2)),
+                  shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _dropHighlights.contains(record.id) || _draggingId == record.id || (!_rangeSelection && _selected.isEmpty && _linkHoverTarget == record.id) ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) ? 3 : 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
+                    color: _dropHighlights.contains(record.id) || _draggingId == record.id || (!_rangeSelection && _selected.isEmpty && _linkHoverTarget == record.id) ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) || _draggingId == record.id ? 3 : 2)),
                   child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Expanded(child: Padding(padding: const EdgeInsets.all(8), child: MemoCommentCount(id:record.id,builder:(context,commentCount)=>Row(crossAxisAlignment:coveredThoughts.contains(record.id)?CrossAxisAlignment.start:CrossAxisAlignment.center,children:[
                       if(AttachmentIndicators.hasAttachments(record)||commentCount>0)...[FittedBox(fit:BoxFit.scaleDown,child:AttachmentIndicators(record:record,commentCount:commentCount)),const SizedBox(width:4)],
-                      Expanded(child:CanvasLinkText(text:record.text,links:record.inlineLinks,enabled:MediaQuery.sizeOf(context).width >= 760 && !_rangeSelection && _selected.isEmpty,style:TextStyle(color:wordColor(context,record.text)))),
+                      Expanded(child:CanvasLinkText(text:record.text,links:record.inlineLinks,onLinkHover:(link)=>_hoverMemoLink(record.id,link),enabled:MediaQuery.sizeOf(context).width >= 760 && !_rangeSelection && _selected.isEmpty,style:TextStyle(color:wordColor(context,record.text)))),
                     ])))),
                     if ((widget.blocks || (_layout.stacked && !_hideTags)) && record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 8, 8), child: Align(alignment: Alignment.centerLeft,
                       child: Text(record.tags.map((tag) => '#$tag').join('  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)))),
