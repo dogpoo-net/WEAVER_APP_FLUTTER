@@ -18,7 +18,7 @@ void main(){
  expect(find.textContaining('30일'),findsOneWidget);
  await tester.tap(find.text('소유자 이메일로 인증메일 보내기'));await tester.pumpAndSettle();
  await tester.enterText(find.byType(TextField),'12345678');await tester.pump();await tester.tap(find.text('인증 후 삭제'));
- }else{expect(find.textContaining('보관 없이 즉시 영구 삭제'),findsOneWidget);expect(find.byType(TextField),findsNothing);await tester.tap(find.text('삭제'));}
+ }else{expect(find.text('변경 이력이 없는 워크스페이스입니다. 삭제하시겠어요?'),findsOneWidget);expect(find.byType(TextField),findsNothing);await tester.tap(find.text('삭제'));}
  await tester.pumpAndSettle();expect(result,true);expect(deletion?['workspaceId'],'w');expect(deletion?['code'],used?'12345678':null);
  });}
  testWidgets('restore refreshes archived and active lists',(tester)async{

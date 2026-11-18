@@ -36,7 +36,7 @@ class _WorkspaceDeletionDialogState extends State<WorkspaceDeletionDialog>{
   @override Widget build(BuildContext context)=>PopScope(canPop:!busy,child:AlertDialog(
     title:const Text('워크스페이스 삭제'),
     content:SizedBox(width:400,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
-      Text(requiresEmail&&retentionDays==0?'소유자의 이메일 인증 후 즉시 영구 삭제됩니다. 참여자 모두의 문서·메모·첨부파일이 삭제되며 복원할 수 없습니다.':requiresEmail?'소유자의 이메일 인증이 필요합니다. 삭제 후 30일간 보관되며, 그동안 유료 구독 중인 소유자가 복원할 수 있습니다. 30일 후 자료와 첨부파일은 영구 삭제됩니다.':retentionDays==0?'변경 이력이 없는 워크스페이스입니다. 이메일 인증 및 30일 보관 없이 즉시 영구 삭제되며 복원할 수 없습니다. 이 기기에만 있는 오프라인 자료는 별도 파일로 보관해주세요.':'이메일 인증 없이 삭제할 수 있습니다. 삭제 후 30일간 보관되며, 유료 구독 중인 소유자가 복원할 수 있습니다. 이 기기에만 있는 오프라인 자료는 별도 파일로 보관해주세요.'),
+      Text(requiresEmail&&retentionDays==0?'소유자의 이메일 인증 후 즉시 영구 삭제됩니다. 참여자 모두의 문서·메모·첨부파일이 삭제되며 복원할 수 없습니다.':requiresEmail?'소유자의 이메일 인증이 필요합니다. 삭제 후 30일간 보관되며, 그동안 유료 구독 중인 소유자가 복원할 수 있습니다. 30일 후 자료와 첨부파일은 영구 삭제됩니다.':retentionDays==0?'변경 이력이 없는 워크스페이스입니다. 삭제하시겠어요?':'이메일 인증 없이 삭제할 수 있습니다. 삭제 후 30일간 보관되며, 유료 구독 중인 소유자가 복원할 수 있습니다. 이 기기에만 있는 오프라인 자료는 별도 파일로 보관해주세요.'),
       if(requiresEmail)...[
         TextButton(onPressed:busy?null:send,child:Text(sent?'인증메일 다시 보내기':'소유자 이메일로 인증메일 보내기')),
         if(sent)const Text('소유자 이메일로 인증코드를 보냈습니다. 10분 안에 입력해주세요.'),
