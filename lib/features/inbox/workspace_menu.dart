@@ -295,39 +295,51 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       for (final tag in record.tags) { _tagCounts.update(tag, (count) => count + 1, ifAbsent: () => 1); }
     }
     final narrowMenu = MediaQuery.sizeOf(context).width < 760;
+    final showPin = widget.embedded ? widget.onFloat != null : widget.onPin != null;
+    final navigationStyle = TextButton.styleFrom(
+      foregroundColor: Theme.of(context).colorScheme.onSurface,
+      minimumSize: const Size(0, 34),
+      visualDensity: VisualDensity.standard,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      shape: const StadiumBorder(),
+      textStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+    );
+    Widget navigationButton(String label, IconData icon, int destination, {double end = 16}) =>
+        TextButton(
+          style: navigationStyle.copyWith(
+            padding: WidgetStatePropertyAll(EdgeInsetsDirectional.fromSTEB(16, 4, end, 4)),
+          ),
+          onPressed: () => _select(destination),
+          child: Row(children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: 16),
+            Expanded(child: Text(label)),
+          ]),
+        );
     final content = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (!widget.embedded && !narrowMenu) const SizedBox(height: 8),
-      Row(children: [
-        Expanded(child: TextButton(
-          style: TextButton.styleFrom(
-            foregroundColor: Theme.of(context).colorScheme.onSurface,
-            minimumSize: const Size(0, 28), maximumSize: const Size(double.infinity, 28),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+      Stack(fit: StackFit.passthrough, children: [
+        navigationButton('기록함', Icons.home_outlined, WorkspaceMenu.home, end: showPin ? 92 : 64),
+        PositionedDirectional(top: 0, bottom: 0, end: 4, child: Center(
+          child: IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
+            iconSize: 18, padding: const EdgeInsets.all(5),
+            minimumSize: const Size(28, 28), maximumSize: const Size(28, 28),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            shape: const StadiumBorder(),
-            textStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
-          ),
-          onPressed: () => _select(WorkspaceMenu.home),
-          child: const Row(children: [Icon(Icons.home_outlined, size: 20), SizedBox(width: 16), Text('기록함')]),
+          )), child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (showPin)
+              IconButton(tooltip: widget.embedded ? '메뉴 고정 해제' : '메뉴 고정하기',
+                onPressed: widget.embedded ? widget.onFloat : widget.onPin,
+                icon: Icon(widget.embedded ? Icons.push_pin : Icons.push_pin_outlined)),
+            IconButton(tooltip: '모두 접기', icon: const Icon(Icons.unfold_less),
+              onPressed: () => setState(() {
+                _viewState.expandedFolders.clear(); _viewState.collapseRevision++;
+              })),
+            IconButton(tooltip: '메뉴 닫기', icon: const Icon(Icons.close),
+              onPressed: widget.embedded ? widget.onHide : () => Navigator.pop(context)),
+          ])),
         )),
-        IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
-        iconSize: 18, padding: const EdgeInsets.all(5),
-        minimumSize: const Size(28, 28), maximumSize: const Size(28, 28),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      )), child: Padding(padding: const EdgeInsets.only(right: 4),
-        child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.end, children: [
-        if (widget.embedded ? widget.onFloat != null : widget.onPin != null)
-        IconButton(tooltip: widget.embedded ? '메뉴 고정 해제' : '메뉴 고정하기',
-          onPressed: widget.embedded ? widget.onFloat : widget.onPin,
-          icon: Icon(widget.embedded ? Icons.push_pin : Icons.push_pin_outlined)),
-        IconButton(tooltip: '모두 접기', icon: const Icon(Icons.unfold_less),
-          onPressed: () => setState(() {
-            _viewState.expandedFolders.clear(); _viewState.collapseRevision++;
-          })),
-        IconButton(tooltip: '메뉴 닫기', icon: const Icon(Icons.close),
-          onPressed: widget.embedded ? widget.onHide : () => Navigator.pop(context)),
-      ])))]),
-      ListTile(dense: true, visualDensity: const VisualDensity(vertical: -2), contentPadding: const EdgeInsets.symmetric(horizontal: 16), minLeadingWidth: 20, horizontalTitleGap: 16, titleTextStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14), leading: const Icon(Icons.bubble_chart_outlined, size: 20), title: const Text('전체 보기'), onTap: () => _select(WorkspaceMenu.allThoughts)),
+      ]),
+      navigationButton('전체 보기', Icons.bubble_chart_outlined, WorkspaceMenu.allThoughts),
       const Divider(indent: 16, endIndent: 16),
       Expanded(child: SizedBox(key: _viewport, child: Scrollbar(controller: _scroll,
         child: CustomScrollView(controller: _scroll, key: const ValueKey('menu-projects'), slivers: [
