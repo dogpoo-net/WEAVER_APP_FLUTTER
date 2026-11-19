@@ -12,3 +12,10 @@ Updated at the user's request on 2026-11-17 (Asia/Seoul).
 
 The Android build started for the startup fix was cancelled at the user's request.
 The startup fix was deployed to the web; it has not been delivered as an app update.
+
+The web build versions Dart JS and CanvasKit separately by content under
+`/_immutable/`. Include `deploy/nginx/weaver-cache.conf` in the Weaver nginx
+server block when deploying this change. The root and SPA fallback should serve
+`/index.html` through the exact index location so the browser revalidates it.
+Publish the new immutable files before replacing the bootstrap and index.
+Keep previous immutable files available for tabs still running an older build.
