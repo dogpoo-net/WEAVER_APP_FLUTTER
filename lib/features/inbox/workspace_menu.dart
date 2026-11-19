@@ -209,8 +209,8 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   Widget _folderActions(_Kind kind, String folder) => PopupMenuButton<String>(
     tooltip: '$folder 폴더 관리',
     style: IconButton.styleFrom(
-      minimumSize: const Size.square(40),
-      fixedSize: const Size.square(40),
+      minimumSize: const Size.square(32),
+      fixedSize: const Size.square(32),
       padding: EdgeInsets.zero,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     ),
@@ -235,7 +235,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       key: ValueKey('box-$folder-${_viewState.collapseRevision}'),
       initiallyExpanded: _viewState.expandedFolders.contains('box-$folder'),
       onExpansionChanged: (value) => _expanded('box-$folder', value), title: title, trailing: _folderActions(_Kind.box, folder),
-      minTileHeight: 46,
+      minTileHeight: 38,
       childrenPadding: const EdgeInsetsDirectional.only(start: 16),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
       collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
@@ -244,19 +244,27 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         for (var i = 0; i < memoBoxes.length; i++) if (!memoBoxes[i].isUnclassified && memoBoxes[i].folder == folder) _item(_Kind.box, i, nested: true)],
     )));
   }
-  Widget _heading(_Kind kind) => Padding(padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 12, 2),
-    child: Row(children: [
+  Widget _heading(_Kind kind) => Padding(padding: const EdgeInsetsDirectional.fromSTEB(20, 2, 12, 2),
+    child: IconButtonTheme(
+      data: IconButtonThemeData(style: IconButton.styleFrom(
+        minimumSize: const Size.square(32),
+        fixedSize: const Size.square(32),
+        padding: EdgeInsets.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
+      )),
+      child: Row(children: [
       Expanded(child: Text(_label(kind), style: Theme.of(context).textTheme.labelMedium)),
-      if (kind == _Kind.box) IconButton(tooltip: '메모상자 만들기', iconSize: 18, visualDensity: VisualDensity.compact, icon: const Icon(Icons.add), onPressed: () => _select(WorkspaceMenu.createBox)),
+      if (kind == _Kind.box) IconButton(tooltip: '메모상자 만들기', iconSize: 18, icon: const Icon(Icons.add), onPressed: () => _select(WorkspaceMenu.createBox)),
       if (kind == _Kind.project || kind == _Kind.paragraph) IconButton(tooltip: kind == _Kind.project ? '문서 생성' : '문단 추가', visualDensity: VisualDensity.compact,
         iconSize: 18, onPressed: () => _select(kind == _Kind.project ? WorkspaceMenu.createProject : WorkspaceMenu.createParagraph), icon: const Icon(Icons.add)),
       IconButton(tooltip: kind == _Kind.project ? '폴더 만들기' : '${_label(kind)} 폴더 만들기',
-        visualDensity: VisualDensity.compact, iconSize: 18,
+        iconSize: 18,
         onPressed: () => _select(switch (kind) {
           _Kind.box => WorkspaceMenu.createBoxFolder, _Kind.project => WorkspaceMenu.createFolder, _Kind.tag => WorkspaceMenu.createTagFolder,
           _Kind.paragraph => WorkspaceMenu.createParagraphFolder, _Kind.element => WorkspaceMenu.createElementFolder,
         }), icon: const Icon(Icons.create_new_folder_outlined)),
-    ]));
+    ])));
   List<Widget> _section(_Kind kind) {
     final folders = _folders(kind), items = _items(kind);
     final placements = _placements[kind]!;
@@ -266,7 +274,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         key: ValueKey('${kind.name}-$folder-${_viewState.collapseRevision}'),
         initiallyExpanded: _viewState.expandedFolders.contains('${kind.name}-$folder'),
         onExpansionChanged: (value) => _expanded('${kind.name}-$folder', value), leading: const Icon(Icons.folder_outlined), title: kind == _Kind.tag ? _countedTitle(folder, placements.where((p) => p == folder).length, 'tag-folder-count-$folder') : Text(folder), trailing: _folderActions(kind, folder),
-        minTileHeight: 46,
+        minTileHeight: 38,
         childrenPadding: const EdgeInsetsDirectional.only(start: 16),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
         collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
@@ -280,10 +288,10 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         if ((kind != _Kind.box || !memoBoxes[i].isUnclassified) && (placements[i] == null || !folders.contains(placements[i]))) _item(kind, i),
       if (kind == _Kind.box) for (var i = 0; i < memoBoxes.length; i++)
         if (memoBoxes[i].isUnclassified) _item(kind, i),
-      if (items.isEmpty) Padding(padding: const EdgeInsets.all(16), child: Text('아직 ${_label(kind)}${kind == _Kind.paragraph ? '이' : '가'} 없어요')),
-      if (kind == _Kind.box) _folderDrop(null, _target(kind, null, const SizedBox(height: 14, width: double.infinity), targetId: 'drop-box-outside')),
+      if (items.isEmpty) Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), child: Text('아직 ${_label(kind)}${kind == _Kind.paragraph ? '이' : '가'} 없어요')),
+      if (kind == _Kind.box) _folderDrop(null, _target(kind, null, const SizedBox(height: 8, width: double.infinity), targetId: 'drop-box-outside')),
       if (kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.tag)
-        _target(kind, null, const SizedBox(height: 14, width: double.infinity),
+        _target(kind, null, const SizedBox(height: 8, width: double.infinity),
           targetId: kind == _Kind.tag ? 'drop-tag-unfiled' : 'drop-${kind.name}-outside'),
     ];
   }
@@ -345,7 +353,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         child: CustomScrollView(controller: _scroll, key: const ValueKey('menu-projects'), slivers: [
           for (final kind in _Kind.values.where((kind) => kind != _Kind.element && kind != _Kind.paragraph)) SliverMainAxisGroup(slivers: [
             if (kind != _Kind.project) SliverToBoxAdapter(child: Divider(
-              key: ValueKey('section-divider-${kind.name}'), height: 13, thickness: 1, indent: 20, endIndent: 20,
+              key: ValueKey('section-divider-${kind.name}'), height: 7, thickness: 1, indent: 20, endIndent: 20,
               color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .45))),
             SliverPersistentHeader(pinned: true, delegate: _SectionHeading(kind: kind.name,
               backgroundColor: widget.embedded ? Theme.of(context).colorScheme.surface
@@ -387,7 +395,7 @@ class _SectionHeading extends SliverPersistentHeaderDelegate {
   final Color backgroundColor;
   final Widget child;
   @override
-  double get minExtent => 48;
+  double get minExtent => 36;
   @override
   double get maxExtent => minExtent;
   @override
