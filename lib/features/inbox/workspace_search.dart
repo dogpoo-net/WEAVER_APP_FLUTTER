@@ -47,24 +47,43 @@ class _WorkspaceSearchState extends State<WorkspaceSearch> with RetainedOverview
   Timer? _debounce;
   late String _query = widget.controller.text;
   final _scroll = ScrollController();
-  int _limit = 20;
+  static const _pageSize = 20;
+  int _limit = _pageSize;
+  bool _appendScheduled = false;
   List<WorkspaceSearchResult>? _results;
   int? _totalCount;
   void _refresh(){_results=null;_totalCount=null;if(mounted && tabActive)setState((){});}
-  void _loadMore(){
-    if(_scroll.hasClients && _scroll.position.extentAfter < 200 && _limit < (_results?.length ?? 0)) {
-      setState(()=>_limit=math.min(_limit+20,_results!.length));
-    }
+  bool _onScroll(ScrollNotification notification) {
+    if (notification.depth != 0 || !tabActive || _appendScheduled) return false;
+    final delta = switch (notification) {
+      ScrollUpdateNotification(:final scrollDelta) => scrollDelta ?? 0,
+      OverscrollNotification(:final overscroll) => overscroll,
+      _ => 0,
+    };
+    if (delta <= 0 || notification.metrics.extentAfter > 1 ||
+        _limit >= (_results?.length ?? 0)) return false;
+
+    _appendScheduled = true;
+    final query = _query;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _appendScheduled = false;
+      if (!mounted || !tabActive || query != _query || !_scroll.hasClients) return;
+      final count = _results?.length ?? 0;
+      if (_limit < count && _scroll.position.extentAfter <= 1) {
+        setState(() => _limit = math.min(_limit + _pageSize, count));
+      }
+    });
+    return false;
   }
   void _search(String value){
     if(!mounted)return;
     if(_scroll.hasClients)_scroll.jumpTo(0);
-    setState((){_query=value;_limit=20;_results=null;});
+    setState((){_query=value;_limit=_pageSize;_results=null;});
   }
   @override void didUpdateWidget(covariant WorkspaceSearch oldWidget){
     super.didUpdateWidget(oldWidget);_results=null;_totalCount=null;
   }
-  @override void initState(){super.initState();elements.addListener(_refresh);_scroll.addListener(_loadMore);}
+  @override void initState(){super.initState();elements.addListener(_refresh);}
   @override void dispose(){_debounce?.cancel();elements.removeListener(_refresh);_scroll.dispose();super.dispose();}
   int _countSearchableItems() {
     var count = widget.notes.where((note) => note.project != null).length;
@@ -88,7 +107,11 @@ class _WorkspaceSearchState extends State<WorkspaceSearch> with RetainedOverview
           ? '검색 결과 ${results.length}개 / 전체 ${total}개'
           : '자료 ${total}개'),
         Expanded(child:results.isEmpty?Center(child:Text(_query.trim().isEmpty?'아직 자료가 없습니다.':'일치하는 자료가 없습니다.')):
-          ListView.separated(key:const ValueKey('workspace-search-results'),controller:_scroll,itemCount:math.min(_limit,results.length),padding:const EdgeInsets.fromLTRB(12,8,12,12),separatorBuilder:(_,i)=>const Divider(height:1),itemBuilder:(context,i){
+          NotificationListener<ScrollNotification>(
+            onNotification: _onScroll,
+            child: ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              key: const ValueKey('workspace-search-results'),controller:_scroll,itemCount:math.min(_limit,results.length),padding:const EdgeInsets.fromLTRB(12,8,12,12),separatorBuilder:(_,i)=>const Divider(height:1),itemBuilder:(context,i){
             final item=results[i];
             final body=excerpt(item.body);
             final at=body.toLowerCase().indexOf(_query.trim().toLowerCase());
@@ -98,7 +121,7 @@ class _WorkspaceSearchState extends State<WorkspaceSearch> with RetainedOverview
               title:Text('${item.kind}: ${item.title}',maxLines:1,overflow:TextOverflow.ellipsis),
               subtitle:Text(preview,maxLines:3,overflow:TextOverflow.ellipsis),
               onTap:()async{if(item.note!=null){if(widget.onDocument!=null){await widget.onDocument!(item.note!);}else{await Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>ProjectPage(project:item.note!.project!)));}}else{await showElementMetadata(context,item.record!.text);} _refresh();});
-          })),
+          }))),
       ])));
   }
 }
