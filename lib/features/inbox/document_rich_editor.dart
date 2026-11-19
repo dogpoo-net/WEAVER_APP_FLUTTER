@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 
 import 'document_syntax.dart';
@@ -187,6 +188,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
         .toList();
     final group = <String>[];
     bool? protected;
+    bool? codeRun;
     var offset = 0;
     void finish() {
       if (group.isEmpty) return;
@@ -205,8 +207,10 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
           line.contains('[[') ||
           documentFootnoteReference.hasMatch(line) ||
           documentEditorComment.hasMatch(line);
-      if (isProtected != protected) finish();
+      final isCodeRun = !isProtected && editableCodeLines.contains(offset);
+      if (isProtected != protected || isCodeRun != codeRun) finish();
       protected = isProtected;
+      codeRun = isCodeRun;
       group.add(line);
       offset = end + 1;
     }
@@ -250,9 +254,43 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     final sourceLines = section.source.split('\n');
     final updated = [
       ...sourceLines.take(start),
-      ...next.getRange(start, newEnd),
+      for (var i = start; i < newEnd; i++)
+        _carryCodeLanguage(next[i], sourceLines, before, i, start, oldEnd),
       ...sourceLines.skip(oldEnd),
     ].join('\n');
+    section.projected = next;
+    _updateSection(section, updated);
+  }
+
+  String _carryCodeLanguage(
+    String line,
+    List<String> source,
+    List<String> prior,
+    int index,
+    int start,
+    int oldEnd,
+  ) {
+    if (!line.startsWith('<code>')) return line;
+    final candidates = [
+      if (oldEnd > start) index.clamp(start, oldEnd - 1),
+      if (start > 0) start - 1,
+      if (oldEnd < prior.length) oldEnd,
+    ];
+    for (final candidate in candidates) {
+      if (!prior[candidate].startsWith('<code>')) continue;
+      final language = documentCodeLanguage(source[candidate]);
+      return language == null ? line : _withCodeLanguage(line, language);
+    }
+    return line;
+  }
+
+  void _updateSection(
+    _Section section,
+    String updated, {
+    int? patchStart,
+    int? patchEnd,
+    String? replacement,
+  }) {
     var offset = 0;
     for (final other in _sections) {
       if (identical(other, section)) break;
@@ -260,14 +298,46 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     }
     final previousLength = section.source.length;
     section.source = updated;
-    section.projected = next;
     if (mounted) setState(() {});
-    if (_appendSectionOnEdit) {
+    if (_appendSectionOnEdit && identical(section, _sections.last)) {
       _appendSectionOnEdit = false;
       widget.onPatch(offset - 1, offset - 1, '\n$updated');
     } else {
-      widget.onPatch(offset, offset + previousLength, updated);
+      widget.onPatch(
+        offset + (patchStart ?? 0),
+        offset + (patchEnd ?? previousLength),
+        replacement ?? updated,
+      );
     }
+  }
+
+  void _changeProtectedLanguage(_Section section, int start, String value) {
+    final current = documentCodeOpening.matchAsPrefix(section.source, start);
+    if (current == null) return;
+    final end = current.end;
+    final opening = _codeOpeningFor(value);
+    if (section.source.substring(start, end) == opening) return;
+    _updateSection(
+      section,
+      section.source.replaceRange(start, end, opening),
+      patchStart: start,
+      patchEnd: end,
+      replacement: opening,
+    );
+  }
+
+  void _changeQuillLanguage(
+    _Section section,
+    int first,
+    int last,
+    String value,
+  ) {
+    final lines = section.source.split('\n');
+    for (var i = first; i <= last; i++) {
+      lines[i] = _withCodeLanguage(lines[i], value);
+    }
+    final updated = lines.join('\n');
+    if (updated != section.source) _updateSection(section, updated);
   }
 
   @override
@@ -345,10 +415,14 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                       ),
                 ],
                 onLinkHover: widget.onLinkHover,
+                onLanguage: (start, language) =>
+                    _changeProtectedLanguage(section, start, language),
               )
             : _QuillEditorBlock(
                 section: section,
                 firstLine: firstLine,
+                onLanguage: (first, last, language) =>
+                    _changeQuillLanguage(section, first, last, language),
                 key: section.key,
               ),
       );
@@ -361,75 +435,82 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(
-            children: [
-              _formatButton('코드 블록', Icons.code, quill.Attribute.codeBlock),
-              _formatButton(
-                '번호 목록',
-                Icons.format_list_numbered,
-                quill.Attribute.ol,
-              ),
-              _formatButton(
-                '글머리표',
-                Icons.format_list_bulleted,
-                quill.Attribute.ul,
-              ),
-              _formatButton('굵게', Icons.format_bold, quill.Attribute.bold),
-              _formatButton('기울임', Icons.format_italic, quill.Attribute.italic),
-              _formatButton(
-                '밑줄',
-                Icons.format_underlined,
-                quill.Attribute.underline,
-              ),
-              _formatButton(
-                '취소선',
-                Icons.strikethrough_s,
-                quill.Attribute.strikeThrough,
-              ),
-              PopupMenuButton<int>(
-                tooltip: '제목 단계',
-                icon: const Icon(Icons.title),
-                itemBuilder: (_) => [
-                  const PopupMenuItem(value: 0, child: Text('본문')),
-                  for (var level = 1; level <= 5; level++)
-                    PopupMenuItem(value: level, child: Text('제목 $level')),
-                ],
-                onSelected: (level) {
-                  final section = _active;
-                  if (section == null) return;
-                  section.controller!.formatSelection(
-                    quill.HeaderAttribute(level: level == 0 ? null : level),
-                  );
-                  section.focus!.requestFocus();
-                },
-              ),
-              if (headings.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: _gutterWidth),
+            child: Wrap(
+              children: [
+                _formatButton('코드 블록', Icons.code, quill.Attribute.codeBlock),
+                _formatButton(
+                  '번호 목록',
+                  Icons.format_list_numbered,
+                  quill.Attribute.ol,
+                ),
+                _formatButton(
+                  '글머리표',
+                  Icons.format_list_bulleted,
+                  quill.Attribute.ul,
+                ),
+                _formatButton('굵게', Icons.format_bold, quill.Attribute.bold),
+                _formatButton(
+                  '기울임',
+                  Icons.format_italic,
+                  quill.Attribute.italic,
+                ),
+                _formatButton(
+                  '밑줄',
+                  Icons.format_underlined,
+                  quill.Attribute.underline,
+                ),
+                _formatButton(
+                  '취소선',
+                  Icons.strikethrough_s,
+                  quill.Attribute.strikeThrough,
+                ),
                 PopupMenuButton<int>(
-                  tooltip: '목차',
-                  icon: const Icon(Icons.list),
+                  tooltip: '제목 단계',
+                  icon: const Icon(Icons.title),
                   itemBuilder: (_) => [
-                    for (var i = 0; i < headings.length; i++)
-                      PopupMenuItem(value: i, child: Text(headings[i].title)),
+                    const PopupMenuItem(value: 0, child: Text('본문')),
+                    for (var level = 1; level <= 5; level++)
+                      PopupMenuItem(value: level, child: Text('제목 $level')),
                   ],
-                  onSelected: (index) {
-                    final entry = headings[index];
-                    final target = entry.section.key.currentContext;
-                    if (target != null) Scrollable.ensureVisible(target);
-                    final controller = entry.section.controller;
-                    if (controller == null) return;
-                    controller.updateSelection(
-                      TextSelection.collapsed(
-                        offset: entry.offset.clamp(
-                          0,
-                          controller.document.length - 1,
-                        ),
-                      ),
-                      quill.ChangeSource.local,
+                  onSelected: (level) {
+                    final section = _active;
+                    if (section == null) return;
+                    section.controller!.formatSelection(
+                      quill.HeaderAttribute(level: level == 0 ? null : level),
                     );
-                    entry.section.focus!.requestFocus();
+                    section.focus!.requestFocus();
                   },
                 ),
-            ],
+                if (headings.isNotEmpty)
+                  PopupMenuButton<int>(
+                    tooltip: '목차',
+                    icon: const Icon(Icons.list),
+                    itemBuilder: (_) => [
+                      for (var i = 0; i < headings.length; i++)
+                        PopupMenuItem(value: i, child: Text(headings[i].title)),
+                    ],
+                    onSelected: (index) {
+                      final entry = headings[index];
+                      final target = entry.section.key.currentContext;
+                      if (target != null) Scrollable.ensureVisible(target);
+                      final controller = entry.section.controller;
+                      if (controller == null) return;
+                      controller.updateSelection(
+                        TextSelection.collapsed(
+                          offset: entry.offset.clamp(
+                            0,
+                            controller.document.length - 1,
+                          ),
+                        ),
+                        quill.ChangeSource.local,
+                      );
+                      entry.section.focus!.requestFocus();
+                    },
+                  ),
+              ],
+            ),
           ),
           Expanded(
             child: Stack(
@@ -477,6 +558,41 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
 
 const _gutterWidth = 42.0;
 
+String _codeOpeningFor(String value) {
+  final language = value.trim();
+  return language.isEmpty ? '<code>' : '<code lang="$language">';
+}
+
+String _withCodeLanguage(String line, String language) {
+  final opening = documentCodeOpening.matchAsPrefix(line);
+  return opening == null
+      ? line
+      : _codeOpeningFor(language) + line.substring(opening.end);
+}
+
+class _CodeLanguageInput extends StatelessWidget {
+  const _CodeLanguageInput({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) => TextFormField(
+    initialValue: value,
+    onChanged: onChanged,
+    inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'["<>\r\n]'))],
+    decoration: const InputDecoration(
+      labelText: '언어',
+      hintText: '예: python',
+      isDense: true,
+      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+    ),
+  );
+}
+
 TextStyle _lineNumberStyle(BuildContext context) =>
     Theme.of(context).textTheme.bodySmall!
         .copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
@@ -486,14 +602,16 @@ class _QuillEditorBlock extends StatelessWidget {
     super.key,
     required this.section,
     required this.firstLine,
+    required this.onLanguage,
   });
   final _Section section;
   final int firstLine;
+  final void Function(int first, int last, String value) onLanguage;
 
   @override
   Widget build(BuildContext context) {
     final controller = section.controller!;
-    return Stack(
+    final editor = Stack(
       key: section.gutterOrigin,
       children: [
         Padding(
@@ -537,6 +655,48 @@ class _QuillEditorBlock extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ListenableBuilder(
+          listenable: controller,
+          builder: (context, _) {
+            final lines = section.projected;
+            final plain = controller.document.toPlainText();
+            final offset = controller.selection.extentOffset.clamp(
+              0,
+              plain.length,
+            );
+            final row = '\n'.allMatches(plain.substring(0, offset)).length;
+            bool isCode(int index) =>
+                index >= 0 &&
+                index < lines.length &&
+                lines[index].startsWith('<code>');
+            if (!isCode(row)) return const SizedBox.shrink();
+            var first = row, last = row;
+            final source = section.source.split('\n');
+            final language = documentCodeLanguage(source[row]);
+            while (isCode(first - 1) &&
+                documentCodeLanguage(source[first - 1]) == language) {
+              first--;
+            }
+            while (isCode(last + 1) &&
+                documentCodeLanguage(source[last + 1]) == language) {
+              last++;
+            }
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(_gutterWidth + 12, 0, 12, 4),
+              child: _CodeLanguageInput(
+                key: ValueKey(first),
+                value: language ?? '',
+                onChanged: (value) => onLanguage(first, last, value),
+              ),
+            );
+          },
+        ),
+        editor,
       ],
     );
   }
@@ -605,11 +765,13 @@ class _ProtectedDocumentSource extends StatelessWidget {
     required this.source,
     required this.links,
     required this.onLinkHover,
+    required this.onLanguage,
   });
   final int firstLine;
   final String source;
   final List<ElementBinding> links;
   final ValueChanged<String?> onLinkHover;
+  final void Function(int start, String value) onLanguage;
 
   @override
   Widget build(BuildContext context) {
@@ -676,12 +838,15 @@ class _ProtectedDocumentSource extends StatelessWidget {
     }
 
     var offset = 0;
+    var blockIndex = 0;
     for (final block in documentCodeBlocks(source)) {
       addLines(offset, block.start);
       final raw = block.group(0)!;
       final code = documentCodeBody(raw);
       final language = documentCodeLanguage(raw);
       final opening = documentCodeOpening.matchAsPrefix(raw)!;
+      final openingStart = block.start;
+      final languageInputKey = ValueKey(blockIndex++);
       final firstCodeLine = line + (raw.startsWith('\n', opening.end) ? 1 : 0);
       final codeLineCount = '\n'.allMatches(code).length + 1;
       children.add(
@@ -691,12 +856,7 @@ class _ProtectedDocumentSource extends StatelessWidget {
             SizedBox(
               width: _gutterWidth,
               child: Padding(
-                padding: EdgeInsets.only(
-                  right: 8,
-                  top:
-                      14 +
-                      (language == null ? 0 : DocumentCodeBlock.languageHeight),
-                ),
+                padding: const EdgeInsets.only(right: 8, top: 52),
                 child: Text(
                   List.generate(
                     codeLineCount,
@@ -715,8 +875,16 @@ class _ProtectedDocumentSource extends StatelessWidget {
                   horizontal: 12,
                   vertical: 2,
                 ),
-                child: SelectionArea(
-                  child: DocumentCodeBlock(code, language: language),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _CodeLanguageInput(
+                      key: languageInputKey,
+                      value: language ?? '',
+                      onChanged: (value) => onLanguage(openingStart, value),
+                    ),
+                    SelectionArea(child: DocumentCodeBlock(code)),
+                  ],
                 ),
               ),
             ),
