@@ -25,17 +25,23 @@ String overviewAuthor(WorkspaceStorage? storage,String kind,String id){
 }
 String excerpt(String text)=>text.replaceAll(RegExp(r'[=*_`<>]'),'').replaceAll(RegExp(r'\s+'),' ').trim();
 class OverviewItemCount extends StatelessWidget {
- const OverviewItemCount(this.label, {super.key});
- final String label;
+  const OverviewItemCount(this.label, {super.key, this.inset = 12});
+  static const double rowHeight = 36;
+  final String label;
+  final double inset;
 
- @override
- Widget build(BuildContext context) => Padding(
-   padding: const EdgeInsets.symmetric(horizontal: 12),
-   child: Align(
-     alignment: Alignment.centerLeft,
-     child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
-   ),
- );
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.symmetric(horizontal: inset),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: rowHeight),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        heightFactor: 1,
+        child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
+      ),
+    ),
+  );
 }
 
 class DocumentCollection extends StatefulWidget {

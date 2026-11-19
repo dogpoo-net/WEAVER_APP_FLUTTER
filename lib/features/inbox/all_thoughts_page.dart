@@ -138,12 +138,13 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware, Retai
       _filters.matches(record) &&
       (record.indexLabel.toLowerCase().contains(_query.toLowerCase()) || record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.toLowerCase().contains(_query.toLowerCase().replaceFirst(RegExp(r'^#'), ''))))).toList()..sort(compareThoughtPriority);
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
+    final countLabel = _query.isEmpty && _filters.isEmpty ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개';
     final grid = LayoutBuilder(builder: (context, bounds) {
       final available = math.min(1000.0, math.max(0.0, bounds.maxWidth - 24));
       if(_square){
         final defaultColumns = MediaQuery.sizeOf(context).shortestSide >= 600 || desktop ? 6 : 2;
         final columns=(_squareColumns ?? defaultColumns).clamp(1, math.max(1,(available/80).floor())).toInt();
-        return Column(children:[Padding(padding:const EdgeInsets.symmetric(horizontal:12),child:IconButtonTheme(data:IconButtonThemeData(style:IconButton.styleFrom(minimumSize:const Size(36,36),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap)),child:Row(children:[Expanded(child:Text(_query.isEmpty && _filters.isEmpty ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개',style:Theme.of(context).textTheme.bodyMedium)),
+        return Column(children:[Padding(padding:const EdgeInsets.symmetric(horizontal:12),child:IconButtonTheme(data:IconButtonThemeData(style:IconButton.styleFrom(minimumSize:const Size(36,36),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap)),child:Row(children:[Expanded(child:OverviewItemCount(countLabel, inset: 0)),
           IconButton(tooltip:'확대',onPressed:columns>1?()=>_setSquareColumns(columns-1):null,icon:const Icon(Icons.zoom_in)),
           Text('$columns열'),IconButton(tooltip:'축소',onPressed:columns<math.max(1,(available/80).floor())?()=>_setSquareColumns(columns+1):null,icon:const Icon(Icons.zoom_out)),
         ]))),Expanded(child:records.isEmpty?Center(child:Text(allRecords.isEmpty?'아직 생각이 없어요.':_filterBox!=null&&_query.isEmpty?'이 상자에 담긴 메모가 없어요.':'일치하는 생각이 없어요.')):GridView.builder(key:const ValueKey('thought-square-grid'),padding:const EdgeInsets.fromLTRB(12,8,12,12),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:columns,crossAxisSpacing:8,mainAxisSpacing:8),itemCount:records.length,itemBuilder:(_,i)=>_tile(records[i],desktop,width:(available-8*(columns-1))/columns)))]);
@@ -177,7 +178,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware, Retai
             Widget child;
             if (index == 0) {
               child = IconButtonTheme(data:IconButtonThemeData(style:IconButton.styleFrom(minimumSize:const Size(36,36),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap)),child:Row(children: [
-                Expanded(child: Text(_query.isEmpty && _filters.isEmpty ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개', style: Theme.of(context).textTheme.bodyMedium)),
+                Expanded(child: OverviewItemCount(countLabel, inset: 0)),
                 if (!desktop) ...[
                   IconButton(tooltip: '확대', onPressed: _columns > 1 ? () => setState(() => _columns--) : null, icon: const Icon(Icons.zoom_in)),
                   Text('${(200 / _columns).round()}%', style: Theme.of(context).textTheme.bodyMedium),
