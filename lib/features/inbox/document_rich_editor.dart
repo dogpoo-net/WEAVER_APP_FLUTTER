@@ -14,7 +14,8 @@ const _marks = {
 /// Project a supported source line into Quill inserts, without updating source.
 List<Map<String, Object>> _decodeLine(String line) {
   final heading = projectHeading.firstMatch(line);
-  final text = heading?.group(2) ?? line;
+  final marker = heading == null ? documentListMarker.firstMatch(line) : null;
+  final text = heading?.group(2) ?? (marker == null ? line : line.substring(marker.end));
   final ops = <Map<String, Object>>[];
   void insert(String value, Map<String, Object> attrs) {
     if (value.isNotEmpty)
@@ -39,7 +40,10 @@ List<Map<String, Object>> _decodeLine(String line) {
   }
 
   inline(text, const {});
-  insert('\n', {if (heading != null) 'header': 7 - heading.group(1)!.length});
+  insert('\n', {
+    if (heading != null) 'header': 7 - heading.group(1)!.length,
+    if (marker != null) 'list': marker.group(2) == null ? 'bullet' : 'ordered',
+  });
   return ops;
 }
 
@@ -47,6 +51,7 @@ List<String> _encodeLines(quill.Document doc) {
   final lines = <String>[];
   final text = StringBuffer();
   var active = <String>[];
+  var number = 0;
   for (final op in doc.toDelta().toJson()) {
     final insert = op['insert'];
     if (insert is! String) continue;
@@ -77,7 +82,10 @@ List<String> _encodeLines(quill.Document doc) {
             header is int && header >= 1 && header <= 5 && text.isNotEmpty
             ? '=' * (7 - header)
             : '';
-        lines.add('$delimiter$text$delimiter');
+        final list = attrs['list'];
+        number = list == 'ordered' ? number + 1 : 0;
+        final prefix = list == 'ordered' ? '$number. ' : list == 'bullet' ? '- ' : '';
+        lines.add('$prefix$delimiter$text$delimiter');
         text.clear();
       }
     }
@@ -157,6 +165,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
       final isProtected =
           code.any((match) => match.start <= end && match.end > offset) ||
           widget.links.any((link) => link.start <= end && link.end > offset) ||
+          (documentListMarker.firstMatch(line)?.group(1)?.isNotEmpty ?? false) ||
           line.startsWith('|') ||
           line.contains('[[') ||
           documentFootnoteReference.hasMatch(line) ||
@@ -273,7 +282,9 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
         children: [
           Wrap(
             children: [
-              _formatButton('굵게', Icons.format_bold, quill.Attribute.bold),
+              _formatButton('번호 목록', Icons.format_list_numbered, quill.Attribute.ol),
+            _formatButton('글머리표', Icons.format_list_bulleted, quill.Attribute.ul),
+            _formatButton('굵게', Icons.format_bold, quill.Attribute.bold),
               _formatButton('기울임', Icons.format_italic, quill.Attribute.italic),
               _formatButton(
                 '밑줄',

@@ -14,6 +14,7 @@ import 'thought_settings.dart';
 import 'thought_filters.dart';
 import 'label_links.dart';
 import 'document_markup.dart';
+import 'document_list_input.dart';
 import 'document_rich_editor.dart';
 import 'document_syntax.dart' hide documentTitle;
 import 'caret_assist.dart';
@@ -370,6 +371,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
           showWhenEmpty: false, enterSelectsVisible: true, showShortcutHint: true,
           child: Stack(fit:StackFit.expand,children:[TextField(key: const ValueKey('project-document'), readOnly: _saving, controller: _body, focusNode: _bodyFocus, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
           onTapOutside: _wide ? null : (_) {},
+          inputFormatters: const [DocumentListInput()],
           onTap: () => _body.openAtCaret(context), textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
           decoration: InputDecoration(contentPadding:EdgeInsets.fromLTRB(12,16,12,_dirty?36:16),fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder())),
           if(_dirty)const Positioned(left:12,right:12,bottom:8,child:IgnorePointer(child:Text('아직 저장되지 않았습니다.',textAlign:TextAlign.center,style:TextStyle(color:Colors.red,fontSize:12)))),

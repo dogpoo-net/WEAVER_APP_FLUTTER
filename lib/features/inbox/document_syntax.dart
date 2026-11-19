@@ -17,3 +17,5 @@ String documentTitle(String text) {
 final documentFootnoteDefinition = RegExp(r'^\[\^([a-zA-Z0-9_-]+)\]:[ \t]+(.+)$');
 final documentFootnoteReference = RegExp(r'\[\^([a-zA-Z0-9_-]+)\]');
 final documentEditorComment = RegExp(r'^\s*<!--.*-->\s*$');
+
+final documentListMarker = RegExp(r'^([ \t]*)(?:(\d{1,9})\.|-)[ \t]+');

@@ -209,6 +209,22 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
           text = inner.trim(); start += 1 + inner.length - inner.trimLeft().length;
         }
       }
+      final marker = widget.formatting && !_inCode && headingKey == null
+          ? documentListMarker.firstMatch(line) : null;
+      if (marker != null) {
+        final number = marker.group(2);
+        lines.add(Padding(
+          padding: EdgeInsetsDirectional.only(start: (marker.group(1)!.length * 8.0).clamp(0.0, 64.0)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SizedBox(width: number == null ? 24 : 32,
+              child: Text(number == null ? '•' : '$number.', style: style)),
+            Expanded(child: Text.rich(TextSpan(children:
+              _inline(line.substring(marker.end), offset + marker.end, style)))),
+          ]),
+        ));
+        offset += line.length + 1;
+        continue;
+      }
       lines.add(SizedBox(key: headingKey, width: double.infinity, child: Text.rich(TextSpan(children: _inline(text.isEmpty ? ' ' : text, start, style)), textAlign: align)));
       offset += line.length + 1;
     }
