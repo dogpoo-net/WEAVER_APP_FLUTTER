@@ -9,7 +9,7 @@ Future<ContainerDeletion?> confirmContainerDeletion(
 ) => showDialog<ContainerDeletion>(
   context: context,
   builder: (context) => AlertDialog(
-    title: const Text('내용을 삭제하시겠어요?'),
+    title: Text(isFolder ? '내용을 함께 삭제할까요?' : '내용을 삭제하시겠어요?'),
     content: Text('$name\n\n내용을 유지하고 이 ${isFolder ? '폴더' : '상자'}만 삭제하거나,\n내용을 전부 삭제할 수 있습니다.'),
     actions: [
       TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
