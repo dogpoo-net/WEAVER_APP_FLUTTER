@@ -286,8 +286,9 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     for (final record in store.elements.records.values) {
       for (final tag in record.tags) { _tagCounts.update(tag, (count) => count + 1, ifAbsent: () => 1); }
     }
+    final narrowMenu = MediaQuery.sizeOf(context).width < 760;
     final content = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      if (!widget.embedded) const SizedBox(height: 8),
+      if (!widget.embedded && !narrowMenu) const SizedBox(height: 8),
       Row(children: [
         Expanded(child: TextButton(
           style: TextButton.styleFrom(
@@ -344,8 +345,20 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         onTap: () => _select(WorkspaceMenu.settings)),
     ]);
     if (widget.embedded) return Material(child: SizedBox(width: 280, child: content));
-    return Dialog(alignment: AlignmentDirectional.topStart, insetPadding: const EdgeInsets.fromLTRB(16, 64, 16, 12),
-      child: SizedBox(width: MediaQuery.sizeOf(context).width < 760 ? double.infinity : 320, height: double.infinity, child: content));
+    return Dialog(
+      alignment: AlignmentDirectional.topStart,
+      insetPadding: EdgeInsets.fromLTRB(16, narrowMenu ? 48 : 64, 16, 12),
+      child: SizedBox(
+        width: narrowMenu ? double.infinity : 320,
+        height: double.infinity,
+        child: narrowMenu
+            ? Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: content,
+              )
+            : content,
+      ),
+    );
   }
 }
 
