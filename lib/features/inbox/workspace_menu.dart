@@ -2,6 +2,7 @@ import 'menu_display_preferences.dart';
 import 'element_store.dart' as store;
 import 'label_links.dart';
 import 'memo_boxes.dart';
+import 'memo_box_actions.dart';
 import 'dart:async';
 import 'tag_colors.dart';
 import 'package:flutter/material.dart';
@@ -27,10 +28,12 @@ class WorkspaceMenu extends StatefulWidget {
     this.projectFolderNames = const [], this.tagFolders = const [], this.tagFolderNames = const {},
     this.paragraphFolders = const [], this.elementFolders = const [],
     this.paragraphFolderNames = const [], this.elementFolderNames = const [],
-    this.onBoxChanged, this.onDeleteFolder, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
+    this.onBoxChanged, this.onDeleteFolder, this.onDeleteDocument, this.onDeleteBox, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
   final WorkspaceMenuViewState? viewState;
   final List<String> projectIds;
   final Future<void> Function(String kind, String folder)? onDeleteFolder;
+  final Future<void> Function(String id)? onDeleteDocument;
+  final Future<void> Function(String name, ContainerDeletion choice)? onDeleteBox;
   final bool embedded;
   final VoidCallback? onBoxChanged;
   static const createBox = -1000007, createBoxFolder = -1000008;
@@ -123,9 +126,68 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     Text('$count', key: ValueKey(key), style: TextStyle(fontSize: 13,
       color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .55)))],
   ]));
+  bool _deletingItem = false;
+
+  Widget _deleteActions(String name, String label, Future<void> Function() delete) =>
+      PopupMenuButton<String>(
+        tooltip: '$name 관리',
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(32),
+          fixedSize: const Size.square(32),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        icon: const Icon(Icons.more_vert, size: 18),
+        onSelected: (_) async {
+          if (_deletingItem) return;
+          _deletingItem = true;
+          try {
+            await delete();
+          } catch (error) {
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('삭제를 완료하지 못했습니다. $error')),
+            );
+          } finally {
+            _deletingItem = false;
+          }
+        },
+        itemBuilder: (_) => [PopupMenuItem(value: 'delete', child: Text(label))],
+      );
+
+  Future<void> _deleteDocument(String id, String title) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('문서를 삭제하시겠어요?'),
+        content: Text(title),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('삭제')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await widget.onDeleteDocument?.call(id);
+    // Floating menus receive a snapshot of the documents when opened.
+    if (mounted && !widget.embedded && ModalRoute.of(context)?.isCurrent == true) {
+      Navigator.pop(context);
+    }
+  }
+
+  Future<void> _deleteBox(String name) async {
+    final choice = await confirmContainerDeletion(context, name);
+    if (choice == null || !mounted) return;
+    await widget.onDeleteBox?.call(name, choice);
+    if (mounted) setState(_sync);
+  }
+
   Widget _item(_Kind kind, int index, {bool nested = false}) {
     final name = _items(kind)[index];
     final label = kind == _Kind.tag ? '#$name' : name.replaceAll(RegExp(r'[\r\n]+'), ' ');
+    final projectId = kind == _Kind.project && index < widget.projectIds.length
+        ? widget.projectIds[index] : null;
+    final canDeleteBox = kind == _Kind.box && !memoBoxes[index].isUnclassified &&
+        widget.onDeleteBox != null;
     final tile = ListTile(key: ValueKey('menu-${kind.name}-$index'),
       dense: true,
       minVerticalPadding: 2,
@@ -148,13 +210,18 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           shape: BoxShape.circle,
           color: hashtagColors.containsKey(name) ? Color(hashtagColors[name]!) : Theme.of(context).colorScheme.outlineVariant,
           border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: .4)))),
-      ) : kind == _Kind.box ? IconButton(tooltip: '$name 상자 색상 변경',
+      ) : kind == _Kind.box ? Row(mainAxisSize: MainAxisSize.min, children: [
+        IconButton(tooltip: '$name 상자 색상 변경',
         icon: Icon(Icons.circle, size: 16, color: Color(memoBoxes[index].color)), onPressed: () async {
           final box = memoBoxes[index];
           final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
           if (!mounted || color == null) return;
           setState(() => box.color = color.toARGB32()); widget.onBoxChanged?.call();
-        }) : null,
+        }),
+        if (canDeleteBox) _deleteActions(name, '상자 삭제', () => _deleteBox(name)),
+      ]) : projectId != null && widget.onDeleteDocument != null
+        ? _deleteActions(name, '문서 삭제', () => _deleteDocument(projectId, name))
+        : null,
       leading: Icon(switch (kind) { _Kind.box => Icons.inventory_2_outlined, _Kind.tag => Icons.tag, _Kind.element => Icons.circle_outlined,
         _Kind.paragraph => Icons.subject, _Kind.project => Icons.article_outlined }, size: 20),
       onTap: () => _select(switch (kind) { _Kind.box => -1100000 - index, _Kind.project => index, _Kind.tag => -3 - index,

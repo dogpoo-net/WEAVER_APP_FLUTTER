@@ -1,3 +1,4 @@
+import 'memo_box_actions.dart';
 import '../capture/voice_transcription.dart';
 import 'main_app_bar.dart';
 import '../sync/workspace_events.dart';
@@ -954,6 +955,48 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     await _persist();await widget.storage?.reloadResource?.call(id);
     if(mounted)_applyRemoteSnapshot(replaceResource:id);
   }
+  Future<void> _deleteMenuDocument(String id) async {
+    final storage = widget.storage;
+    await storage?.writable();
+    if (!mounted) return;
+    final index = _notes.indexWhere((note) => note.project?.id == id);
+    if (index < 0) return;
+    final note = _notes[index];
+    setState(() {
+      _notes.removeAt(index);
+      elements.sources.remove(note.project);
+    });
+    await _persist();
+    if (_storageError != null) {
+      if (mounted) setState(() {
+        _notes.insert(index.clamp(0, _notes.length), note);
+        elements.indexProject(note.project!);
+      });
+      desktopMenu.refresh();
+      throw StateError(_storageError!);
+    }
+    await storage?.writeDocumentDraft(id, null);
+    await storage?.syncDeleted?.call();
+  }
+
+  Future<void> _deleteMenuBox(String name, ContainerDeletion choice) async {
+    final storage = widget.storage;
+    await storage?.writable();
+    if (!mounted) return;
+    final box = memoBoxes.where((box) => !box.isUnclassified && box.name == name).firstOrNull;
+    if (box == null) return;
+    final ids = box.elementIds.toSet();
+    setState(() {
+      removeMemoBoxesKeepingThoughts({name});
+      if (choice == ContainerDeletion.withThoughts) {
+        elements.removeAll(ids.map((id) => elements.byId(id)?.text).nonNulls.toList());
+      }
+    });
+    await _persist();
+    if (_storageError != null) throw StateError(_storageError!);
+    await storage?.syncFolders?.call();
+  }
+
   Future<void> _deleteBoxes(Set<String> names) async {
     final boxes = memoBoxes.where((b) => !b.isUnclassified && names.contains(b.name)).toList();
     final ids = boxes.expand((b) => b.elementIds).toSet();
@@ -1138,6 +1181,8 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
         onTagColorChanged: _persist,
         onBoxChanged: _persist,
         onDeleteFolder: _deleteFolder,
+        onDeleteDocument: (widget.storage?.canvasWritable ?? true) ? _deleteMenuDocument : null,
+        onDeleteBox: (widget.storage?.canvasWritable ?? true) ? _deleteMenuBox : null,
         folders: projectFolders,
         projectFolderNames: projects.map((n) => n.project!.folder).toList(),
       ),
@@ -1480,6 +1525,8 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
         onTagColorChanged: _persist,
         onBoxChanged: _persist,
         onDeleteFolder: _deleteFolder,
+        onDeleteDocument: (widget.storage?.canvasWritable ?? true) ? _deleteMenuDocument : null,
+        onDeleteBox: (widget.storage?.canvasWritable ?? true) ? _deleteMenuBox : null,
                 folders: projectFolders,
                 tags: _allTags,
                 onSelected: (choice) => _selectMenu(
