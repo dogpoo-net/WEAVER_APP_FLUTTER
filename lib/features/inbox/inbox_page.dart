@@ -1543,16 +1543,17 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
         final byDate = b.noticeBoardAt!.compareTo(a.noticeBoardAt!);
         return byDate != 0 ? byDate : a.id.compareTo(b.id);
       });
+    final visibleNotices = notices.take(noticeBoardLimit).toList();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Divider(height: 18, thickness: 1, color: colors.outlineVariant.withValues(alpha: .45)),
-      _homeSectionTitle('알림판'),
+      _homeSectionTitle('알림판', count: visibleNotices.length),
       const SizedBox(height: 6),
-      if (notices.isEmpty)
+      if (visibleNotices.isEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Text('지금은 알릴 만한 게 없습니다.', style: TextStyle(color: colors.onSurfaceVariant)),
         ),
-      for (final thought in notices.take(noticeBoardLimit))
+      for (final thought in visibleNotices)
         ListTile(
           key: ValueKey('notice-board-${thought.id}'),
           dense: true,
