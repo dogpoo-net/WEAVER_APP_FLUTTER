@@ -559,6 +559,10 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
 
   @override
   Widget build(BuildContext context) {
+    final inputBorder = Theme.of(context).inputDecorationTheme.enabledBorder;
+    final inputRadius = inputBorder is OutlineInputBorder
+        ? inputBorder.borderRadius
+        : const OutlineInputBorder().borderRadius;
     final numbering = DocumentHeadingNumbers();
     final headings = <({String title, _Section section, int offset})>[];
     for (final section in _sections) {
@@ -750,7 +754,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                       color: Theme.of(context)
                           .colorScheme
                           .surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: inputRadius,
                     ),
                   ),
                 ),
