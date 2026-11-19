@@ -5,12 +5,12 @@ import 'thought_filters.dart';
 enum ContainerDeletion { containerOnly, withThoughts }
 
 Future<ContainerDeletion?> confirmContainerDeletion(
-  BuildContext context, String name, String keepDescription,
+  BuildContext context, String name, {bool isFolder = false}
 ) => showDialog<ContainerDeletion>(
   context: context,
   builder: (context) => AlertDialog(
-    title: const Text('내용도 함께 삭제하시겠습니까?'),
-    content: Text('$name\n\n$keepDescription\n내용까지 삭제하면 생각은 휴지통으로 이동합니다.'),
+    title: const Text('내용을 삭제하시겠어요?'),
+    content: Text('$name\n\n내용을 유지하고 이 ${isFolder ? '폴더' : '상자'}만 삭제하거나,\n내용을 전부 삭제할 수 있습니다.'),
     actions: [
       TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
       TextButton(
@@ -19,7 +19,7 @@ Future<ContainerDeletion?> confirmContainerDeletion(
       ),
       TextButton(
         onPressed: () => Navigator.pop(context, ContainerDeletion.withThoughts),
-        child: const Text('내용까지 삭제'),
+        child: const Text('모두 삭제'),
       ),
     ],
   ),
@@ -48,7 +48,7 @@ class MemoBoxActions extends StatelessWidget {
     final deleteWithContents = onDeleteWithContents;
     if (deleteWithContents != null) {
       final choice = await confirmContainerDeletion(
-        context, selected.join(', '), '내용을 유지하면 생각은 미분류로 이동합니다.',
+        context, selected.join(', '),
       );
       if (choice == null || !context.mounted) return;
       try {

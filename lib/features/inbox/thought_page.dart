@@ -792,7 +792,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   Future<void> _deleteCanvasBox(MemoBox box) async {
     if (!_canEdit || box.isUnclassified || _deletingContainer) return;
     final choice = await confirmContainerDeletion(
-      context, box.name, '내용을 유지하면 생각은 미분류로 이동합니다.',
+      context, box.name,
     );
     if (choice == null || !mounted) return;
     try {
@@ -813,7 +813,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   Future<void> _deleteCanvasFolder(String folder) async {
     if (!_canEdit || _deletingContainer) return;
     final choice = await confirmContainerDeletion(
-      context, folder, '내용을 유지하면 내부의 상자와 폴더는 상위 폴더로 이동합니다.',
+      context, folder, isFolder: true,
     );
     if (choice == null || !mounted || !_canEdit || _deletingContainer) return;
     _deletingContainer = true;
