@@ -363,6 +363,13 @@ class _ElementMetadataState extends State<_ElementMetadata> {
       padding: EdgeInsets.zero, visualDensity: VisualDensity.standard,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
+    final attachmentActionStyle = IconButton.styleFrom(
+      minimumSize: const Size.square(40),
+      fixedSize: const Size.square(40),
+      padding: EdgeInsets.zero,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.standard,
+    );
     final compact = TextButton.styleFrom(minimumSize: const Size(0, 34),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact);
@@ -488,13 +495,13 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                   } : null);
                 },
                   icon: const Icon(Icons.location_on_outlined, size: 18), label: const Text('지도 보기')))),
-                  IconButton(tooltip:'위치 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_locationEdits[element.id]=null),icon:const Icon(Icons.delete_outline)),
+                  IconButton(style:attachmentActionStyle,tooltip:'위치 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_locationEdits[element.id]=null),icon:const Icon(Icons.delete_outline)),
                 ])),
-              for(final audio in _audioUploads[element.id]??<VoiceDraft>[])VoicePlayer(key:ObjectKey(audio),load:()async=>audio.bytes,durationMs:audio.durationMs,transcript:audio.transcript,transcription:audio.transcription,textStyle:Theme.of(context).textTheme.labelLarge,
-                trailing:IconButton(tooltip:'음성 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState((){_audioUploads[element.id]!.clear();_removedAudio[element.id]=element.recordings.map((a)=>a.id).toSet();}),icon:const Icon(Icons.delete_outline))),
-              for(final clip in _audioFor(element))VoicePlayer(key:ValueKey(clip.id),load:()=>MediaStorage.read(clip.id),durationMs:clip.durationMs,transcript:clip.transcript,transcription:clip.transcription,textStyle:Theme.of(context).textTheme.labelLarge,
+              for(final audio in _audioUploads[element.id]??<VoiceDraft>[])VoicePlayer(key:ObjectKey(audio),load:()async=>audio.bytes,durationMs:audio.durationMs,transcript:audio.transcript,transcription:audio.transcription,textStyle:Theme.of(context).textTheme.labelLarge,actionStyle:attachmentActionStyle,
+                trailing:IconButton(style:attachmentActionStyle,tooltip:'음성 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState((){_audioUploads[element.id]!.clear();_removedAudio[element.id]=element.recordings.map((a)=>a.id).toSet();}),icon:const Icon(Icons.delete_outline))),
+              for(final clip in _audioFor(element))VoicePlayer(key:ValueKey(clip.id),load:()=>MediaStorage.read(clip.id),durationMs:clip.durationMs,transcript:clip.transcript,transcription:clip.transcription,textStyle:Theme.of(context).textTheme.labelLarge,actionStyle:attachmentActionStyle,
                 onTranscribe:_canAttach && voiceAudioRequest!=null?()async{try{await retrySavedVoice(element.id,clip.id);}finally{if(mounted)setState((){});}}:null,
-                trailing:IconButton(tooltip:'음성 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_removedAudio.putIfAbsent(element.id,()=>{}).add(clip.id)),icon:const Icon(Icons.delete_outline))),
+                trailing:IconButton(style:attachmentActionStyle,tooltip:'음성 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_removedAudio.putIfAbsent(element.id,()=>{}).add(clip.id)),icon:const Icon(Icons.delete_outline))),
               if(_photosFor(element).isNotEmpty||(_photoUploads[element.id]?.isNotEmpty??false))Padding(padding:const EdgeInsets.symmetric(vertical:8),child:PhotoGallery(
                 photos:_photosFor(element),
                 onDelete:_attachmentBusy||!_canAttach?null:(photo)=>setState(()=>_removedPhotos.putIfAbsent(element.id,()=>{}).add(photo.id)),
