@@ -120,6 +120,8 @@ class _Section {
   String source;
   final bool protected;
   final key = GlobalKey();
+  final editorKey = GlobalKey<quill.EditorState>();
+  final gutterOrigin = GlobalKey();
   quill.QuillController? controller;
   FocusNode? focus;
   ScrollController? scroll;
@@ -307,31 +309,32 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     }
     final sectionWidgets = <Widget>[];
     var sectionStart = 0;
+    var firstLine = 1;
     for (final section in _sections) {
       final sectionEnd = sectionStart + section.source.length;
       sectionWidgets.add(
         section.protected
-            ? Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                child: _ProtectedDocumentSource(
-                  source: section.source,
-                  links: [
-                    for (final link in widget.links)
-                      if (link.start >= sectionStart && link.end <= sectionEnd)
-                        ElementBinding(
-                          link.id,
-                          link.start - sectionStart,
-                          link.end - sectionStart,
-                        ),
-                  ],
-                  onLinkHover: widget.onLinkHover,
-                ),
+            ? _ProtectedDocumentSource(
+                firstLine: firstLine,
+                source: section.source,
+                links: [
+                  for (final link in widget.links)
+                    if (link.start >= sectionStart && link.end <= sectionEnd)
+                      ElementBinding(
+                        link.id,
+                        link.start - sectionStart,
+                        link.end - sectionStart,
+                      ),
+                ],
+                onLinkHover: widget.onLinkHover,
               )
-            : _QuillEditorBlock(section: section, key: section.key),
+            : _QuillEditorBlock(
+                section: section,
+                firstLine: firstLine,
+                key: section.key,
+              ),
       );
+      firstLine += '\n'.allMatches(section.source).length + 1;
       sectionStart = sectionEnd + 1;
     }
     return Localizations.override(
@@ -410,11 +413,31 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
             ],
           ),
           Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: sectionWidgets,
-              ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned.fill(
+                  left: _gutterWidth,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest,
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: sectionWidgets,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -433,37 +456,137 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
   );
 }
 
+const _gutterWidth = 42.0;
+
+TextStyle _lineNumberStyle(BuildContext context) =>
+    Theme.of(context).textTheme.bodySmall!
+        .copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+
 class _QuillEditorBlock extends StatelessWidget {
-  const _QuillEditorBlock({super.key, required this.section});
+  const _QuillEditorBlock({
+    super.key,
+    required this.section,
+    required this.firstLine,
+  });
   final _Section section;
+  final int firstLine;
 
   @override
-  Widget build(BuildContext context) => quill.QuillEditor.basic(
-    controller: section.controller!,
-    focusNode: section.focus!,
-    scrollController: section.scroll!,
-    config: quill.QuillEditorConfig(
-      scrollable: false,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      customStyles: quill.DefaultStyles(
-        code: quill.DefaultTextBlockStyle(
-          documentCodeStyle(context),
-          const quill.HorizontalSpacing(10, 10),
-          const quill.VerticalSpacing(4, 4),
-          const quill.VerticalSpacing(2, 2),
-          documentCodeDecoration(context),
+  Widget build(BuildContext context) {
+    final controller = section.controller!;
+    return Stack(
+      key: section.gutterOrigin,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: _gutterWidth),
+          child: quill.QuillEditor.basic(
+            controller: controller,
+            focusNode: section.focus!,
+            scrollController: section.scroll!,
+            config: quill.QuillEditorConfig(
+              editorKey: section.editorKey,
+              scrollable: false,
+              showCodeBlockLineNumbers: false,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              customStyles: quill.DefaultStyles(
+                code: quill.DefaultTextBlockStyle(
+                  documentCodeStyle(context),
+                  const quill.HorizontalSpacing(10, 10),
+                  const quill.VerticalSpacing(4, 4),
+                  const quill.VerticalSpacing(2, 2),
+                  documentCodeDecoration(context),
+                ),
+              ),
+            ),
+          ),
         ),
-      ),
-    ),
-  );
+        Positioned(
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: _gutterWidth,
+          child: IgnorePointer(
+            child: CustomPaint(
+              painter: _QuillLineNumbers(
+                editorKey: section.editorKey,
+                originKey: section.gutterOrigin,
+                text: controller.document.toPlainText(),
+                firstLine: firstLine,
+                style: _lineNumberStyle(context),
+                scaler: MediaQuery.textScalerOf(context),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuillLineNumbers extends CustomPainter {
+  _QuillLineNumbers({
+    required this.editorKey,
+    required this.originKey,
+    required this.text,
+    required this.firstLine,
+    required this.style,
+    required this.scaler,
+  });
+
+  final GlobalKey<quill.EditorState> editorKey;
+  final GlobalKey originKey;
+  final String text;
+  final int firstLine;
+  final TextStyle style;
+  final TextScaler scaler;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final render = editorKey.currentState?.renderEditor;
+    if (render == null || !render.hasSize || size.isEmpty) return;
+    // The editor padding is also the render object's origin inside the row.
+    final origin = originKey.currentContext?.findRenderObject();
+    if (origin is! RenderBox) return;
+    final top = render.localToGlobal(Offset.zero, ancestor: origin).dy;
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    final label = TextPainter(
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+    );
+    var line = firstLine;
+    for (final start in [
+      0,
+      for (var i = 0; i + 1 < text.length; i++)
+        if (text.codeUnitAt(i) == 10) i + 1,
+    ]) {
+      final caret = render.getLocalRectForCaret(TextPosition(offset: start));
+      label.text = TextSpan(text: '${line++}', style: style);
+      label.layout();
+      label.paint(
+        canvas,
+        Offset(
+          size.width - label.width - 8,
+          top + caret.center.dy - label.height / 2,
+        ),
+      );
+    }
+    label.dispose();
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_QuillLineNumbers oldDelegate) => true;
 }
 
 class _ProtectedDocumentSource extends StatelessWidget {
   const _ProtectedDocumentSource({
+    required this.firstLine,
     required this.source,
     required this.links,
     required this.onLinkHover,
   });
+  final int firstLine;
   final String source;
   final List<ElementBinding> links;
   final ValueChanged<String?> onLinkHover;
@@ -474,8 +597,12 @@ class _ProtectedDocumentSource extends StatelessWidget {
     Widget textSegment(int start, int end) {
       final segmentLinks = [
         for (final link in links)
-          if (link.start >= start && link.end <= end)
-            ElementBinding(link.id, link.start - start, link.end - start),
+          if (link.start < end && link.end > start)
+            ElementBinding(
+              link.id,
+              link.start.clamp(start, end) - start,
+              link.end.clamp(start, end) - start,
+            ),
       ];
       final text = source.substring(start, end);
       return segmentLinks.isEmpty
@@ -491,21 +618,88 @@ class _ProtectedDocumentSource extends StatelessWidget {
             );
     }
 
+    int line = firstLine;
+    Widget numbered(int number, Widget child) => Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: _gutterWidth,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 8, top: 2),
+            child: Text(
+              '$number',
+              textAlign: TextAlign.right,
+              style: _lineNumberStyle(context),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+            child: child,
+          ),
+        ),
+      ],
+    );
+    void addLines(int start, int end) {
+      while (start < end) {
+        final newline = source.indexOf('\n', start);
+        final lineEnd = newline >= 0 && newline < end ? newline : end;
+        children.add(
+          numbered(
+            line++,
+            lineEnd == start ? const Text(' ') : textSegment(start, lineEnd),
+          ),
+        );
+        start = lineEnd + 1;
+      }
+    }
+
     var offset = 0;
     for (final block in documentCodeBlocks(source)) {
-      if (offset < block.start) {
-        children.add(textSegment(offset, block.start));
-      }
+      addLines(offset, block.start);
+      final raw = block.group(0)!;
+      final code = documentCodeBody(raw);
+      final firstCodeLine = line + (raw.startsWith('<code>\n') ? 1 : 0);
+      final codeLineCount = '\n'.allMatches(code).length + 1;
       children.add(
-        SelectionArea(
-          child: DocumentCodeBlock(documentCodeBody(block.group(0)!)),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: _gutterWidth,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8, top: 14),
+                child: Text(
+                  List.generate(
+                    codeLineCount,
+                    (index) => firstCodeLine + index,
+                  ).join('\n'),
+                  textAlign: TextAlign.right,
+                  style: documentCodeStyle(context).copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 2,
+                ),
+                child: SelectionArea(child: DocumentCodeBlock(code)),
+              ),
+            ),
+          ],
         ),
       );
+      line += '\n'.allMatches(raw).length + 1;
       offset = block.end;
       if (offset < source.length && source[offset] == '\n') offset++;
     }
-    if (offset < source.length)
-      children.add(textSegment(offset, source.length));
+    addLines(offset, source.length);
+    if (source.endsWith('\n')) children.add(numbered(line, const Text(' ')));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: children,
