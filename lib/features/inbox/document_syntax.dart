@@ -1,8 +1,8 @@
 /// Equals delimiters are syntax; whitespace inside them is content.
 final projectHeading = RegExp(r'^(={2,6})(?![=])(.+?)(?<![=])\1$');
-final documentCodeOpening = RegExp(r'''<code(?:[ 	]+lang[ 	]*=[ 	]*(?:"([^"<>
-]*)"|'([^'<>
-]*)'|([^\s"'<>]+)))?[ 	]*>''');
+final documentCodeOpening = RegExp(
+  r'''<code(?:[ \t]+lang[ \t]*=[ \t]*(?:"([^"<>\r\n]*)"|'([^'<>\r\n]*)'|([^\s"'<>]+)))?[ \t]*>''',
+);
 final codeMarkup = RegExp(
   '${documentCodeOpening.pattern}'
   r'[\s\S]*?(?:</code>|$)',
