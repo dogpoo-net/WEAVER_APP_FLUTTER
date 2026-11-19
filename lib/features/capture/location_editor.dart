@@ -198,12 +198,12 @@ class _LocationEditorState extends State<LocationEditor> {
         tooltip: tooltip,
         onPressed: onPressed,
         style: IconButton.styleFrom(
-          minimumSize: const Size(36, 36),
-          maximumSize: const Size(36, 36),
+          minimumSize: const Size(32, 32),
+          maximumSize: const Size(32, 32),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
         visualDensity: VisualDensity.standard,
-        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+        constraints: const BoxConstraints.tightFor(width: 32, height: 32),
         padding: EdgeInsets.zero,
         icon: Icon(icon, size: 19),
       );
@@ -337,8 +337,8 @@ class _LocationEditorState extends State<LocationEditor> {
                             ? null
                             : () => setState(() => important = !important),
                         style: IconButton.styleFrom(
-                          minimumSize: const Size(36, 36),
-                          maximumSize: const Size(36, 36),
+                          minimumSize: const Size(32, 32),
+                          maximumSize: const Size(32, 32),
                           padding: EdgeInsets.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           backgroundColor: important
@@ -349,6 +349,13 @@ class _LocationEditorState extends State<LocationEditor> {
                       ),
                     IconButton(
                       tooltip: '마커 색상',
+                      style: IconButton.styleFrom(
+                        fixedSize: const Size(32, 32),
+                        minimumSize: const Size(32, 32),
+                        padding: EdgeInsets.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      visualDensity: VisualDensity.standard,
                       onPressed: saving ? null : color,
                       icon: Container(
                         width: 20,
@@ -431,7 +438,7 @@ class _LocationEditorState extends State<LocationEditor> {
                         Icons.mic_none,
                         saving || attaching ? null : recordVoice,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 2),
                       action(
                         '사진 업로드 (최대 5장)',
                         Icons.add_photo_alternate_outlined,

@@ -24,9 +24,9 @@ import 'features/inbox/element_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Web needs explicit registration for Korean editing. Native engines already
-  // load this declared font from FontManifest; avoid loading/registering it twice.
-  if (kIsWeb) {
+  Future<void> prepareFont() async {
+    // Native engines register the declared font themselves.
+    if (!kIsWeb) return;
     final font = FontLoader('NotoSansKR')
       ..addFont(rootBundle.load('assets/fonts/NotoSansKR-Variable.ttf'));
     await font.load();
@@ -38,7 +38,12 @@ Future<void> main() async {
   });
   WorkspaceStorage? storage;
   try {
-    storage = WorkspaceStorage(await RecordPreferences.open(await SharedPreferences.getInstance()));
+    await Future.wait<void>([
+      prepareFont(),
+      SharedPreferences.getInstance()
+          .then(RecordPreferences.open)
+          .then((preferences) { storage = WorkspaceStorage(preferences); }),
+    ]);
   } catch (_) {
     runApp(MaterialApp(home: Scaffold(body: SafeArea(child: Center(child: Padding(
       padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [

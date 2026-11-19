@@ -11,6 +11,7 @@ import 'record_lock.dart';
 class RecordPreferences implements SharedPreferences {
   RecordPreferences(this.settings, this.box, {this.reopen})
     : _observedRevision = RecordLock().revision;
+  static const _sweepKey = 'maintenance:sweep-v1';
   final SharedPreferences settings;
   Box<String> box;
   final Future<Box<String>> Function()? reopen;
@@ -36,13 +37,18 @@ class RecordPreferences implements SharedPreferences {
 
   static Future<RecordPreferences> open(SharedPreferences settings) async {
     // Same Hive directory as MediaStorage, a separate database file/IDB box.
-    await Hive.initFlutter('weaver-media');
-    final result = RecordPreferences(
-      settings,
-      await Hive.openBox<String>('workspace-records-v1'),
-      reopen: () => Hive.openBox<String>('workspace-records-v1'),
-    );
-    result._observedRevision = null;
+    final result = await RecordLock().exclusive(() async {
+      await Hive.initFlutter('weaver-media');
+      // Capture the revision under the same lock as the initial read.
+      if (Hive.isBoxOpen('workspace-records-v1')) {
+        await Hive.box<String>('workspace-records-v1').close();
+      }
+      return RecordPreferences(
+        settings,
+        await Hive.openBox<String>('workspace-records-v1'),
+        reopen: () => Hive.openBox<String>('workspace-records-v1'),
+      );
+    });
     await result.migrate();
     return result;
   }
@@ -111,6 +117,7 @@ class RecordPreferences implements SharedPreferences {
       if (!await settings.remove(key))
         throw StateError('Local migration cleanup failed');
     }
+    if (box.get(_sweepKey) == 'clean') return;
     // Interrupted writes can leave unreachable records; remove only after every
     // committed manifest is readable. Never touch other Hive boxes (media).
     final reachable = <String>{};
@@ -119,19 +126,16 @@ class RecordPreferences implements SharedPreferences {
     )) {
       final scope = manifest.substring(9);
       final tree = jsonDecode(box.get(manifest)!);
-      for (final ref in JsonRecords.refs(
+      final refs = JsonRecords.refs(
         tree,
         read: (ref) => box.get('record:$scope:$ref'),
-      )) {
-        if (!box.containsKey('record:$scope:$ref'))
-          throw const FormatException('Incomplete local database');
-      }
-      reachable.addAll(
-        JsonRecords.refs(
-          tree,
-          read: (ref) => box.get('record:$scope:$ref'),
-        ).map((ref) => 'record:$scope:$ref'),
       );
+      for (final ref in refs) {
+        if (!box.containsKey('record:$scope:$ref')) {
+          throw const FormatException('Incomplete local database');
+        }
+        reachable.add('record:$scope:$ref');
+      }
     }
     final garbage = box.keys
         .whereType<String>()
@@ -141,6 +145,9 @@ class RecordPreferences implements SharedPreferences {
       await box.deleteAll(garbage);
       _changed = true;
     }
+    _changed = true;
+    await box.put(_sweepKey, 'clean');
+    await box.flush();
   });
   Future<bool> _put(String key, String raw) =>
       _putValue(key, jsonDecode(raw), raw: raw);
@@ -185,23 +192,31 @@ class RecordPreferences implements SharedPreferences {
           if (!box.containsKey(_record(key, e.key)))
             _record(key, e.key): e.value,
       };
+      final wasClean = box.get(_sweepKey) == 'clean';
       _changed = true;
+      await box.put(_sweepKey, 'dirty');
+      await box.flush();
       await box.putAll(added);
       await box.flush();
       // Commit point. Old records remain reachable until this single write.
       await box.put(_manifest(key), manifest);
       await box.flush();
-      if (old != null) {
-        final removed = JsonRecords.refs(
-          jsonDecode(old),
-          read: (ref) => box.get(_record(key, ref)),
-        ).difference(split.records.keys.toSet());
-        // Garbage collection is not part of commit success; never ask a caller
-        // to roll back an already committed workspace for cleanup failure.
-        try {
+      // Cleanup failure must not turn a committed save into a failed save.
+      // Leave the marker dirty so the next launch reclaims interrupted writes.
+      try {
+        if (old != null) {
+          final removed = JsonRecords.refs(
+            jsonDecode(old),
+            read: (ref) => box.get(_record(key, ref)),
+          ).difference(split.records.keys.toSet());
           await box.deleteAll(removed.map((ref) => _record(key, ref)));
-        } catch (_) {}
-      }
+        }
+        await box.flush();
+        if (wasClean) {
+          await box.put(_sweepKey, 'clean');
+          await box.flush();
+        }
+      } catch (_) {}
     }
     if (raw != null) {
       _remember(key, manifest, raw);
@@ -269,7 +284,10 @@ class RecordPreferences implements SharedPreferences {
           if (settings.containsKey(key) && !await settings.remove(key))
             return false;
           _cache.remove(key);
+          final wasClean = box.get(_sweepKey) == 'clean';
           _changed = true;
+          await box.put(_sweepKey, 'dirty');
+          await box.flush();
           await box.delete(_manifest(key));
           await box.flush();
           try {
@@ -279,6 +297,11 @@ class RecordPreferences implements SharedPreferences {
                   .where((k) => k.startsWith('record:${_scope(key)}:'))
                   .toList(),
             );
+            await box.flush();
+            if (wasClean) {
+              await box.put(_sweepKey, 'clean');
+              await box.flush();
+            }
           } catch (_) {}
           return true;
         });

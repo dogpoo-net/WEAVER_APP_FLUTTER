@@ -25,7 +25,10 @@ class FailingManifestBox implements Box<String> {
   Future<void> flush() => delegate.flush();
   @override
   Future<void> put(dynamic key, String value) async {
-    throw StateError('injected manifest write failure');
+    if (key is String && key.startsWith('manifest:')) {
+      throw StateError('injected manifest write failure');
+    }
+    await delegate.put(key, value);
   }
 
   @override
