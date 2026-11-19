@@ -23,7 +23,7 @@ class WorkspaceMenuViewState {
 class WorkspaceMenu extends StatefulWidget {
   const WorkspaceMenu({super.key, required this.projects, this.projectIds = const [], this.tags = const [],
     this.paragraphs = const [], this.elements = const [], this.embedded = false,
-    this.showSyncReview=false, this.viewState, this.onSelected, this.onHide, this.onPin, this.onFloat, this.folders = const [],
+    this.viewState, this.onSelected, this.onHide, this.onPin, this.onFloat, this.folders = const [],
     this.projectFolderNames = const [], this.tagFolders = const [], this.tagFolderNames = const {},
     this.paragraphFolders = const [], this.elementFolders = const [],
     this.paragraphFolderNames = const [], this.elementFolderNames = const [],
@@ -32,8 +32,6 @@ class WorkspaceMenu extends StatefulWidget {
   final List<String> projectIds;
   final Future<void> Function(String kind, String folder)? onDeleteFolder;
   final bool embedded;
-  final bool showSyncReview;
-  static const syncReview = -1000011;
   final VoidCallback? onBoxChanged;
   static const createBox = -1000007, createBoxFolder = -1000008;
   final VoidCallback? onTagColorChanged;
@@ -338,7 +336,6 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         ]),
       ))),
       const Divider(indent: 16, endIndent: 16),
-      if(widget.showSyncReview)ListTile(dense:true,minTileHeight:36,minVerticalPadding:0,visualDensity:const VisualDensity(vertical:-2),leading:const Icon(Icons.sync,size:18),title:const Text('동기화'),onTap:()=>_select(WorkspaceMenu.syncReview)),
       ListTile(dense: true, minTileHeight:36,minVerticalPadding:0,visualDensity:const VisualDensity(vertical:-2), leading: const Icon(Icons.delete_outline, size: 18), title: const Text('휴지통'),
         onTap: () => _select(WorkspaceMenu.trash)),
       ListTile(dense: true, minTileHeight:36,minVerticalPadding:0,visualDensity:const VisualDensity(vertical:-2), leading: const Icon(Icons.settings_outlined, size: 18), title: const Text('설정'),
