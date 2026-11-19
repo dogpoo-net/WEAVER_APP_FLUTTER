@@ -90,7 +90,8 @@ class DocumentComments {
   late final String maskedText = source.replaceAllMapped(_documentTokens, (
     token,
   ) {
-    if (token.namedGroup('comment') == null) return token.group(0)!;
+    if ((token as RegExpMatch).namedGroup('comment') == null)
+      return token.group(0)!;
     return token.group(0)!.replaceAll(RegExp(r'[^\r\n]'), ' ');
   });
 

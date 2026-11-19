@@ -4,6 +4,7 @@ import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill/quill_delta.dart' show Delta;
 
 import 'document_syntax.dart';
+import 'document_table.dart';
 import 'document_diagnostics.dart';
 import 'canvas_link_text.dart';
 import 'document_code_block.dart';
@@ -24,6 +25,24 @@ const _codeLineAttributes = {'code-block': true};
 String _languageLine(String? language) => '[lang: ${language ?? ''}]';
 String _readLanguageLine(String line) =>
     _codeLanguageLine.firstMatch(line)?.group(1)?.trim() ?? '';
+
+quill.AlignAttribute? _sourceAlignment(String line) {
+  if (line.length <= 2 || !line.startsWith('|') || !line.endsWith('|')) {
+    return null;
+  }
+  final leading = line[1] == ' ';
+  final trailing = line[line.length - 2] == ' ';
+  return quill.AlignAttribute(
+    leading ? (trailing ? 'center' : 'right') : 'left',
+  );
+}
+
+String _alignSource(String value, Object? alignment) => switch (alignment) {
+  'left' => '|$value |',
+  'center' => '| $value |',
+  'right' => '| $value|',
+  _ => value,
+};
 
 /// Project a supported source line into Quill inserts, without updating source.
 List<Map<String, Object>> _decodeLine(
@@ -46,8 +65,11 @@ List<Map<String, Object>> _decodeLine(
   }
   final heading = projectHeading.firstMatch(line);
   final marker = heading == null ? documentListMarker.firstMatch(line) : null;
-  final text =
-      heading?.group(2) ?? (marker == null ? line : line.substring(marker.end));
+  final alignment = _sourceAlignment(line);
+  final text = alignment != null
+      ? line.substring(1, line.length - 1).trim()
+      : heading?.group(2) ??
+            (marker == null ? line : line.substring(marker.end));
   final ops = <Map<String, Object>>[];
   void insert(String value, Map<String, Object> attrs) {
     if (value.isNotEmpty)
@@ -73,6 +95,7 @@ List<Map<String, Object>> _decodeLine(
 
   inline(text, const {});
   insert('\n', {
+    if (alignment != null) 'align': alignment.value!,
     if (heading != null) 'header': 7 - heading.group(1)!.length,
     if (marker != null) 'list': marker.group(2) == null ? 'bullet' : 'ordered',
   });
@@ -153,6 +176,8 @@ List<String> _encodeLines(
           lines.add(
             isCode
                 ? '${_codeOpeningFor(language)}$value</code>'
+                : delimiter.isEmpty && prefix.isEmpty
+                ? _alignSource(value, attrs['align'])
                 : '$prefix$delimiter$value$delimiter',
           );
         }
@@ -303,7 +328,17 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
       group.clear();
     }
 
-    for (final line in widget.source.split('\n')) {
+    final sourceLines = widget.source.split('\n');
+    int? tableColumns;
+    for (var row = 0; row < sourceLines.length; row++) {
+      final line = sourceLines[row];
+      final columns = tableCells(line)?.length;
+      if (columns != tableColumns) tableColumns = null;
+      if (columns != null &&
+          row + 1 < sourceLines.length &&
+          tableSeparator(sourceLines[row + 1], columns)) {
+        tableColumns = columns;
+      }
       final end = offset + line.length;
       while (hasComment && comments.current.end <= offset) {
         hasComment = comments.moveNext();
@@ -314,7 +349,8 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
           widget.links.any((link) => link.start <= end && link.end > offset) ||
           (documentListMarker.firstMatch(line)?.group(1)?.isNotEmpty ??
               false) ||
-          line.startsWith('|') ||
+          tableColumns != null ||
+          (line.startsWith('|') && _sourceAlignment(line) == null) ||
           line.contains('[[') ||
           documentFootnoteReference.hasMatch(line);
       final isCodeRun = !isProtected && editableCodeLines.contains(offset);
@@ -479,6 +515,21 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     section.focus!.requestFocus();
   }
 
+  Widget _alignmentButton(
+    String label,
+    IconData icon,
+    quill.Attribute attribute,
+  ) => IconButton(
+    tooltip: label,
+    icon: Icon(icon),
+    onPressed: () {
+      final section = _active;
+      if (section == null) return;
+      section.controller!.formatSelection(attribute);
+      section.focus!.requestFocus();
+    },
+  );
+
   int _insertionOffset() {
     final section = _active;
     final controller = section?.controller;
@@ -500,6 +551,9 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     if (row >= sourceLines.length) return offset - 1;
     final line = sourceLines[row];
     final heading = projectHeading.firstMatch(line);
+    if (_sourceAlignment(line) != null) {
+      return offset + line.substring(0, line.length - 1).trimRight().length;
+    }
     return offset + line.length - (heading?.group(1)?.length ?? 0);
   }
 
@@ -606,6 +660,21 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                 '취소선',
                 Icons.strikethrough_s,
                 quill.Attribute.strikeThrough,
+              ),
+              _alignmentButton(
+                '왼쪽 정렬',
+                Icons.format_align_left,
+                quill.Attribute.leftAlignment,
+              ),
+              _alignmentButton(
+                '가운데 정렬',
+                Icons.format_align_center,
+                quill.Attribute.centerAlignment,
+              ),
+              _alignmentButton(
+                '오른쪽 정렬',
+                Icons.format_align_right,
+                quill.Attribute.rightAlignment,
               ),
               PopupMenuButton<int>(
                 tooltip: '제목 단계',
