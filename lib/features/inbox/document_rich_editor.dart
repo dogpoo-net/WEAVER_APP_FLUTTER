@@ -171,14 +171,7 @@ class DocumentEditorToolbar extends StatelessWidget {
         Expanded(
           child: IconButtonTheme(
             data: IconButtonThemeData(
-              style: IconButton.styleFrom(
-                minimumSize: const Size.square(32),
-                maximumSize: const Size.square(32),
-                padding: EdgeInsets.zero,
-                iconSize: 18,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.standard,
-              ),
+              style: _documentToolbarButtonStyle,
             ),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -526,11 +519,15 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
               ),
               PopupMenuButton<int>(
                 tooltip: '제목 단계',
+                style: _documentToolbarButtonStyle,
+                padding: EdgeInsets.zero,
+                iconSize: 18,
                 icon: const Icon(Icons.title),
                 itemBuilder: (_) => [
                   const PopupMenuItem(value: 0, child: Text('본문')),
-                  for (var level = 1; level <= 5; level++)
-                    PopupMenuItem(value: level, child: Text('제목 $level')),
+                  const PopupMenuItem(value: 1, child: Text('문서 제목')),
+                  for (var level = 2; level <= 5; level++)
+                    PopupMenuItem(value: level, child: Text('제목 ${level - 1}')),
                 ],
                 onSelected: (level) {
                   final section = _active;
@@ -625,6 +622,15 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     onPressed: () => _toggle(attribute),
   );
 }
+
+final _documentToolbarButtonStyle = IconButton.styleFrom(
+  minimumSize: const Size.square(32),
+  maximumSize: const Size.square(32),
+  padding: EdgeInsets.zero,
+  iconSize: 18,
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  visualDensity: VisualDensity.standard,
+);
 
 const _gutterWidth = 42.0;
 
