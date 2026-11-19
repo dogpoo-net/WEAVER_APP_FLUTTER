@@ -28,12 +28,13 @@ class WorkspaceMenu extends StatefulWidget {
     this.projectFolderNames = const [], this.tagFolders = const [], this.tagFolderNames = const {},
     this.paragraphFolders = const [], this.elementFolders = const [],
     this.paragraphFolderNames = const [], this.elementFolderNames = const [],
-    this.onBoxChanged, this.onDeleteFolder, this.onDeleteDocument, this.onDeleteBox, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
+    this.onBoxChanged, this.onDeleteFolder, this.onDeleteDocument, this.onDeleteBox, this.onDeleteBoxFolder, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
   final WorkspaceMenuViewState? viewState;
   final List<String> projectIds;
   final Future<void> Function(String kind, String folder)? onDeleteFolder;
   final Future<void> Function(String id)? onDeleteDocument;
   final Future<void> Function(String name, ContainerDeletion choice)? onDeleteBox;
+  final Future<void> Function(String name, ContainerDeletion choice)? onDeleteBoxFolder;
   final bool embedded;
   final VoidCallback? onBoxChanged;
   static const createBox = -1000007, createBoxFolder = -1000008;
@@ -281,7 +282,18 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     onWillAcceptWithDetails: (d) => canMoveMemoFolder(d.data.name, folder),
     onAcceptWithDetails: (d) { setState(() => moveMemoFolder(d.data.name, folder)); widget.onBoxChanged?.call(); },
     builder: (context, candidates, rejected) => ColoredBox(color: candidates.isEmpty ? Colors.transparent : Theme.of(context).colorScheme.secondaryContainer, child: child));
-  Widget _folderActions(_Kind kind, String folder) => PopupMenuButton<String>(
+  Widget? _folderActions(_Kind kind, String folder) {
+    if (kind == _Kind.box) {
+      final remove = widget.onDeleteBoxFolder;
+      if (remove == null) return null;
+      return _itemActions(folder, '폴더 삭제', () async {
+        final choice = await confirmContainerDeletion(context, folder, isFolder: true);
+        if (!mounted || choice == null) return;
+        await remove(folder, choice);
+        if (mounted) setState(_sync);
+      });
+    }
+    return PopupMenuButton<String>(
     tooltip: '$folder 폴더 관리',
     style: IconButton.styleFrom(
       minimumSize: const Size.square(32),
@@ -295,6 +307,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     try { await widget.onDeleteFolder?.call(kind.name, folder); if (mounted) setState(_sync); }
     catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('폴더 변경을 동기화하지 못했습니다. $e'))); }
   }, itemBuilder: (_) => [PopupMenuItem(value: 'delete', enabled: widget.onDeleteFolder != null, child: const Text('폴더 삭제'))]);
+  }
   Widget _boxFolder(String folder) {
     final label = Row(children: [const Icon(Icons.folder_outlined, size: 20), const SizedBox(width: 8), Expanded(child: _countedTitle(folder, memoBoxes.where((box) => !box.isUnclassified && box.folder != null && memoFolderContains(folder, box.folder!)).length, 'box-folder-count-$folder'))]);
     final feedback = Material(child: Padding(padding: const EdgeInsets.all(12), child: Text(folder)));

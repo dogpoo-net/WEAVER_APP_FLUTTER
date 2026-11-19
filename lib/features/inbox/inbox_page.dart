@@ -997,6 +997,33 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     await storage?.syncFolders?.call();
   }
 
+  Future<void> _deleteMenuBoxFolder(String folder, ContainerDeletion choice) async {
+    final storage = widget.storage;
+    await storage?.writable();
+    if (!mounted || !memoBoxFolders.contains(folder)) return;
+    setState(() {
+      if (choice == ContainerDeletion.containerOnly) {
+        removeMemoFolderKeepingContents(folder);
+        pageGraphLayout.folderPositions.remove(folder);
+        return;
+      }
+      final subtree = memoBoxFolders.where((name) => memoFolderContains(folder, name)).toList()
+        ..sort((a, b) => memoFolderDepth(b).compareTo(memoFolderDepth(a)));
+      final names = subtree.toSet();
+      final boxes = memoBoxes.where((box) => !box.isUnclassified && names.contains(box.folder)).toList();
+      final ids = boxes.expand((box) => box.elementIds).toSet();
+      removeMemoBoxesKeepingThoughts(boxes.map((box) => box.name).toSet());
+      for (final name in subtree) {
+        removeMemoFolderKeepingContents(name);
+        pageGraphLayout.folderPositions.remove(name);
+      }
+      elements.removeAll(ids.map((id) => elements.byId(id)?.text).nonNulls.toList());
+    });
+    await _persist();
+    if (_storageError != null) throw StateError(_storageError!);
+    await storage?.syncFolders?.call();
+  }
+
   Future<void> _deleteBoxes(Set<String> names) async {
     final boxes = memoBoxes.where((b) => !b.isUnclassified && names.contains(b.name)).toList();
     final ids = boxes.expand((b) => b.elementIds).toSet();
@@ -1026,11 +1053,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     final before = WorkspaceSnapshot.encode(_notes);
     await widget.storage?.writable();
     try {
-    if (kind == 'box') {
-      final removed = memoBoxFolders.where((f) => memoFolderContains(folder, f)).toSet();
-      for (final b in memoBoxes) { if (removed.contains(b.folder)) b.folder = null; }
-      memoBoxFolders.removeWhere(removed.contains); memoBoxFolderParents.removeWhere((key, value) => removed.contains(key) || removed.contains(value));
-    } else if (kind == 'project') {
+    if (kind == 'project') {
       projectFolders.remove(folder); for (final n in _notes) { if (n.project?.folder == folder) n.project!.folder = null; }
     } else if (kind == 'paragraph') {
       paragraphFolders.remove(folder); for (final n in _paragraphNotes) { if (n.folder == folder) n.folder = null; }
@@ -1183,6 +1206,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
         onDeleteFolder: _deleteFolder,
         onDeleteDocument: (widget.storage?.canvasWritable ?? true) ? _deleteMenuDocument : null,
         onDeleteBox: (widget.storage?.canvasWritable ?? true) ? _deleteMenuBox : null,
+        onDeleteBoxFolder: (widget.storage?.canvasWritable ?? true) ? _deleteMenuBoxFolder : null,
         folders: projectFolders,
         projectFolderNames: projects.map((n) => n.project!.folder).toList(),
       ),
@@ -1527,6 +1551,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
         onDeleteFolder: _deleteFolder,
         onDeleteDocument: (widget.storage?.canvasWritable ?? true) ? _deleteMenuDocument : null,
         onDeleteBox: (widget.storage?.canvasWritable ?? true) ? _deleteMenuBox : null,
+        onDeleteBoxFolder: (widget.storage?.canvasWritable ?? true) ? _deleteMenuBoxFolder : null,
                 folders: projectFolders,
                 tags: _allTags,
                 onSelected: (choice) => _selectMenu(
