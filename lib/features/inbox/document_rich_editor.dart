@@ -250,6 +250,8 @@ class DocumentRichEditor extends StatefulWidget {
     required this.links,
     required this.onPatch,
     required this.onLinkHover,
+    required this.onInsertFootnote,
+    required this.onInsertTable,
     required this.modeSwitch,
     required this.dirty,
     required this.diagnostics,
@@ -260,6 +262,7 @@ class DocumentRichEditor extends StatefulWidget {
   final List<ElementBinding> links;
   final void Function(int start, int end, String replacement) onPatch;
   final ValueChanged<String?> onLinkHover;
+  final ValueChanged<int>? onInsertFootnote, onInsertTable;
   final Widget modeSwitch;
   final bool dirty;
   final List<DocumentDiagnostic> diagnostics;
@@ -277,16 +280,19 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
   @override
   void initState() {
     super.initState();
+    final documentComments = DocumentComments(widget.source);
     final editableCodeLines = {
-      for (final block in documentCodeBlocks(widget.source))
+      for (final block in documentCodeBlocks(documentComments.maskedText))
         if (!block.group(0)!.contains('\n') &&
             documentCodeLanguage(block.group(0)!) == null)
           block.start,
     };
     final code = codeMarkup
-        .allMatches(widget.source)
+        .allMatches(documentComments.maskedText)
         .where((match) => !editableCodeLines.contains(match.start))
         .toList();
+    final comments = documentComments.ranges.iterator;
+    var hasComment = comments.moveNext();
     final group = <String>[];
     bool? protected;
     bool? codeRun;
@@ -299,15 +305,18 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
 
     for (final line in widget.source.split('\n')) {
       final end = offset + line.length;
+      while (hasComment && comments.current.end <= offset) {
+        hasComment = comments.moveNext();
+      }
       final isProtected =
+          (hasComment && comments.current.start < end) ||
           code.any((match) => match.start <= end && match.end > offset) ||
           widget.links.any((link) => link.start <= end && link.end > offset) ||
           (documentListMarker.firstMatch(line)?.group(1)?.isNotEmpty ??
               false) ||
           line.startsWith('|') ||
           line.contains('[[') ||
-          documentFootnoteReference.hasMatch(line) ||
-          documentEditorComment.hasMatch(line);
+          documentFootnoteReference.hasMatch(line);
       final isCodeRun = !isProtected && editableCodeLines.contains(offset);
       if (isProtected != protected || isCodeRun != codeRun) finish();
       protected = isProtected;
@@ -470,6 +479,30 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     section.focus!.requestFocus();
   }
 
+  int _insertionOffset() {
+    final section = _active;
+    final controller = section?.controller;
+    if (section == null || controller == null) return widget.source.length;
+    final offsets = <int>[];
+    _encodeLines(controller.document, contentOffsets: offsets);
+    final caret = controller.selection.extentOffset;
+    var row = offsets.lastIndexWhere((offset) => offset <= caret);
+    if (row < 0) row = 0;
+    final sourceLines = section.source.split('\n');
+    var offset = 0;
+    for (final other in _sections) {
+      if (identical(other, section)) break;
+      offset += other.source.length + 1;
+    }
+    for (var i = 0; i < row && i < sourceLines.length; i++) {
+      offset += sourceLines[i].length + 1;
+    }
+    if (row >= sourceLines.length) return offset - 1;
+    final line = sourceLines[row];
+    final heading = projectHeading.firstMatch(line);
+    return offset + line.length - (heading?.group(1)?.length ?? 0);
+  }
+
   @override
   Widget build(BuildContext context) {
     final numbering = DocumentHeadingNumbers();
@@ -477,7 +510,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     for (final section in _sections) {
       final offsets = <int>[];
       final lines = section.protected
-          ? section.source
+          ? DocumentComments(section.source).visibleText
                 .replaceAllMapped(
                   codeMarkup,
                   (match) => '\n' * '\n'.allMatches(match.group(0)!).length,
@@ -594,6 +627,20 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                   );
                   section.focus!.requestFocus();
                 },
+              ),
+              IconButton(
+                tooltip: '각주 삽입',
+                icon: const Icon(Icons.format_list_numbered),
+                onPressed: widget.onInsertFootnote == null
+                    ? null
+                    : () => widget.onInsertFootnote!(_insertionOffset()),
+              ),
+              IconButton(
+                tooltip: '표 삽입',
+                icon: const Icon(Icons.table_chart_outlined),
+                onPressed: widget.onInsertTable == null
+                    ? null
+                    : () => widget.onInsertTable!(_insertionOffset()),
               ),
               if (headings.isNotEmpty)
                 PopupMenuButton<int>(
@@ -966,9 +1013,11 @@ class _ProtectedDocumentSource extends StatelessWidget {
 
     var offset = 0;
     var blockIndex = 0;
-    for (final block in documentCodeBlocks(source)) {
+    for (final block in documentCodeBlocks(
+      DocumentComments(source).maskedText,
+    )) {
       addLines(offset, block.start);
-      final raw = block.group(0)!;
+      final raw = source.substring(block.start, block.end);
       final code = documentCodeBody(raw);
       final language = documentCodeLanguage(raw);
       final opening = documentCodeOpening.matchAsPrefix(raw)!;

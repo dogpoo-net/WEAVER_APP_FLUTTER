@@ -143,25 +143,38 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
 
   Widget _buildMarkup(BuildContext context) {
     _inCode = false;
-    _linksAt = {for (final b in widget.links) b.start: b};
-    final keys = {for (final b in widget.links) '${b.start}:${b.id}'};
+    final comments = widget.formatting ? DocumentComments(widget.text) : null;
+    final source = comments?.visibleText ?? widget.text;
+    final ranges = comments?.removals ?? const <({int start, int end})>[];
+    final links = <ElementBinding>[];
+    var index = 0, removed = 0;
+    for (final link in widget.links) {
+      while (index < ranges.length && ranges[index].end <= link.start) {
+        removed += ranges[index].end - ranges[index].start;
+        index++;
+      }
+      if (index < ranges.length && ranges[index].start < link.end) continue;
+      links.add(ElementBinding(link.id, link.start - removed, link.end - removed));
+    }
+    _linksAt = {for (final link in links) link.start: link};
+    final keys = {for (final link in links) '${link.start}:${link.id}'};
     for (final key in _recognizers.keys.where((key) => !keys.contains(key)).toList()) { _recognizers.remove(key)!.dispose(); }
     final baseStyle = widget.style ?? Theme.of(context).textTheme.bodyLarge!;
     final lines = <Widget>[];
     var offset = 0;
-    final sourceLines = widget.text.split('\n');
+    final sourceLines = source.split('\n');
     _footnotes.clear();
     _numbers.clear();
     final numbering = DocumentHeadingNumbers();
     final headings = <({String title, GlobalKey key})>[];
     if (widget.formatting) {
-      final prose = widget.text.replaceAll(codeMarkup, '\n');
+      final prose = source.replaceAll(codeMarkup, '\n');
       final body = StringBuffer();
       for (final line in prose.split('\n')) {
         final definition = documentFootnoteDefinition.firstMatch(line);
         if (definition != null) {
           _footnotes.putIfAbsent(definition.group(1)!, () => definition.group(2)!);
-        } else if (!documentEditorComment.hasMatch(line)) {
+        } else {
           body.writeln(line);
         }
       }
@@ -175,7 +188,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
       _noteKeys.removeWhere((id, _) => !_footnotes.containsKey(id));
     }
     final codeBlocks = widget.formatting
-        ? {for (final block in documentCodeBlocks(widget.text)) block.start: block}
+        ? {for (final block in documentCodeBlocks(source)) block.start: block}
         : const <int, RegExpMatch>{};
     for (var lineIndex = 0; lineIndex < sourceLines.length; lineIndex++) {
       final line = sourceLines[lineIndex];
@@ -196,7 +209,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
         continue;
       }
       if (widget.formatting && !_inCode &&
-          (documentEditorComment.hasMatch(line) || documentFootnoteDefinition.hasMatch(line))) {
+          documentFootnoteDefinition.hasMatch(line)) {
         offset += line.length + 1;
         continue;
       }
@@ -225,7 +238,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
       var text = line, start = offset, style = baseStyle;
       var align = TextAlign.left;
       if (widget.formatting && !_inCode) {
-        final heading = projectHeading.firstMatch(line);
+        final heading = projectHeading.firstMatch(line.trimRight());
         if (heading != null) {
           text = heading.group(2)!; start += line.indexOf(text, heading.group(1)!.length);
           headingKey = GlobalKey();

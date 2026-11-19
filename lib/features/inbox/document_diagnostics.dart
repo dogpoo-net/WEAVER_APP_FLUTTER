@@ -37,19 +37,20 @@ class DocumentSyntaxDiagnostics {
   }
 
   static Iterable<DocumentDiagnostic> _singleTitle(String source) sync* {
-    final code = codeMarkup.allMatches(source).iterator;
+    final masked = DocumentComments(source).maskedText;
+    final code = codeMarkup.allMatches(masked).iterator;
     var hasCode = code.moveNext();
     var seenTitle = false;
     var start = 0;
     var lineNumber = 0;
-    for (final line in source.split('\n')) {
+    for (final line in masked.split('\n')) {
       final end = start + line.length;
       while (hasCode && code.current.end <= start) {
         hasCode = code.moveNext();
       }
       // Inline code is valid in a title. Ignore titles that start inside code.
       if (!hasCode || code.current.start > start) {
-        final heading = projectHeading.firstMatch(line);
+        final heading = projectHeading.firstMatch(line.trimRight());
         if (heading?.group(1)?.length == 6 &&
             heading!.group(2)!.trim().isNotEmpty) {
           if (seenTitle) {

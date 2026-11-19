@@ -152,6 +152,11 @@ class LabelTextController extends BoundTextController {
   ValueChanged<String?>? onLinkHover;
   bool editingDocument = false;
   final _syntax = DocumentSyntaxDiagnostics();
+  DocumentComments? _comments;
+  DocumentComments get _documentComments {
+    if (_comments?.source != text) _comments = DocumentComments(text);
+    return _comments!;
+  }
   DocumentDiagnosticReport? onSyntaxDiagnostic;
   List<DocumentDiagnostic> get syntaxDiagnostics => editingDocument ? _syntax.forSource(text) : const [];
 
@@ -177,7 +182,8 @@ class LabelTextController extends BoundTextController {
     _parsing = true;
     try {
       for (final match in RegExp(r'\[\[([^\[\]\n|]+)\|([^\[\]\n]+)\]\]').allMatches(text).toList().reversed) {
-        if (codeMarkup.allMatches(text).any((code) => code.start <= match.start && match.start < code.end)) continue;
+        if (editingDocument && _documentComments.ranges.any((comment) => comment.start < match.end && comment.end > match.start)) continue;
+        if (codeMarkup.allMatches(editingDocument ? _documentComments.maskedText : text).any((code) => code.start <= match.start && match.start < code.end)) continue;
         final id = resolveLabelTarget(match.group(2)!.trim());
         if (id != null) bind(match.start, match.end, id, match.group(1)!);
       }
@@ -216,12 +222,14 @@ class LabelTextController extends BoundTextController {
   @override
   TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
     final diagnostics = syntaxDiagnostics;
-    if (bindings.isEmpty && diagnostics.isEmpty) {
+    final comments = editingDocument ? _documentComments.ranges : const <RegExpMatch>[];
+    if (bindings.isEmpty && diagnostics.isEmpty && comments.isEmpty) {
       return super.buildTextSpan(context: context, style: style, withComposing: withComposing);
     }
     final children = <InlineSpan>[];
     var offset = 0;
     var diagnosticIndex = 0;
+    var commentIndex = 0;
     void append(int start, int end, {TextStyle? textStyle, ElementBinding? link}) {
       while (start < end) {
         while (diagnosticIndex < diagnostics.length && diagnostics[diagnosticIndex].end <= start) {
@@ -229,11 +237,23 @@ class LabelTextController extends BoundTextController {
         }
         final next = diagnosticIndex < diagnostics.length ? diagnostics[diagnosticIndex] : null;
         final issue = next != null && next.contains(start) ? next : null;
+        while (commentIndex < comments.length && comments[commentIndex].end <= start) {
+          commentIndex++;
+        }
+        final comment = commentIndex < comments.length ? comments[commentIndex] : null;
+        final inComment = comment != null && comment.start <= start;
         final boundary = issue?.end ?? next?.start ?? end;
-        final stop = boundary < end ? boundary : end;
+        final commentBoundary = inComment ? comment.end : comment?.start ?? end;
+        final split = boundary < commentBoundary ? boundary : commentBoundary;
+        final stop = split < end ? split : end;
         children.add(TextSpan(
           text: text.substring(start, stop),
-          style: issue != null
+          style: inComment
+              ? (textStyle ?? const TextStyle()).copyWith(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.greenAccent.shade200 : Colors.green.shade800,
+                )
+              : issue != null
               ? (textStyle ?? const TextStyle()).merge(documentDiagnosticStyle(context))
               : textStyle,
           mouseCursor: link == null ? null

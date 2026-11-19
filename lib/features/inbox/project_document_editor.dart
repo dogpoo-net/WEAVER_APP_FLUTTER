@@ -195,24 +195,30 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       selection: TextSelection.collapsed(offset: end - token.length + tag.length + 2));
     _tags.add(tag); _bodyFocus.requestFocus();
   }
-  Future<void> _insertTable() async {
+  int _richInsertionRevision = 0;
+
+  Future<void> _insertTable({int? richOffset}) async {
     final before = _body.value;
     final table = await showDocumentTableDialog(context);
-    if (!mounted || table == null || before.text != _body.text) return;
+    if (!mounted || !_canEdit || _saving || table == null || before.text != _body.text) return;
     final selection = before.selection;
-    final start = selection.isValid ? selection.start : before.text.length;
-    final end = selection.isValid ? selection.end : start;
+    final lineEnd = richOffset == null ? -1 : before.text.indexOf('\n', richOffset);
+    final start = richOffset == null
+        ? (selection.isValid ? selection.start : before.text.length)
+        : (lineEnd < 0 ? before.text.length : lineEnd);
+    final end = richOffset == null && selection.isValid ? selection.end : start;
     final text = '${start > 0 && before.text[start - 1] != '\n' ? '\n' : ''}$table\n';
     _body.value = TextEditingValue(text: before.text.replaceRange(start, end, text), selection: TextSelection.collapsed(offset: start + text.length));
-    _bodyFocus.requestFocus();
+    _finishInsertion();
   }
-  Future<void> _insertAnnotation({required bool footnote}) async {
+
+  Future<void> _insertFootnote({int? richOffset}) async {
     final before = _body.value;
     var draft = '';
     final input = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(footnote ? '각주 삽입' : '편집 주석 삽입'),
+        title: const Text('각주 삽입'),
         content: TextField(
           autofocus: true,
           maxLines: 4,
@@ -225,44 +231,42 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       ),
     );
     if (!mounted || !_canEdit || _saving || input == null || input.isEmpty || _body.text != before.text) return;
-    final caret = before.selection.isValid ? before.selection.end : before.text.length;
+    final caret = richOffset ?? (before.selection.isValid ? before.selection.end : before.text.length);
     var offset = caret;
     for (final link in _body.bindings) {
       if (link.start < offset && offset < link.end) offset = link.end;
     }
     final text = input.replaceAll(RegExp(r'[\r\n]+'), ' ');
-    if (footnote) {
-      if (caretInsideCode(before.text, offset)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('코드 밖에 각주를 넣어주세요.')),
-        );
-        return;
-      }
-      final usedIds = documentFootnoteReference.allMatches(before.text).map((m) => m.group(1)).toSet();
-      var next = 1;
-      while (usedIds.contains('note-$next')) {
-        next++;
-      }
-      final reference = '[^note-$next]';
-      final definition = '\n\n$reference: $text';
-      _body.value = TextEditingValue(
-        text: before.text + definition,
-        selection: TextSelection.collapsed(offset: offset),
+    if (caretInsideCode(before.text, offset)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('코드 밖에 각주를 넣어주세요.')),
       );
-      _body.value = TextEditingValue(
-        text: _body.text.replaceRange(offset, offset, reference),
-        selection: TextSelection.collapsed(offset: offset + reference.length),
-      );
-    } else {
-      final newline = before.text.indexOf('\n', offset);
-      final end = newline < 0 ? before.text.length : newline;
-      final comment = '\n<!-- $text -->';
-      _body.value = TextEditingValue(
-        text: before.text.replaceRange(end, end, comment),
-        selection: TextSelection.collapsed(offset: end + comment.length),
-      );
+      return;
     }
-    _bodyFocus.requestFocus();
+    final usedIds = documentFootnoteReference.allMatches(before.text).map((m) => m.group(1)).toSet();
+    var next = 1;
+    while (usedIds.contains('note-$next')) {
+      next++;
+    }
+    final reference = '[^note-$next]';
+    final definition = '\n\n$reference: $text';
+    _body.value = TextEditingValue(
+      text: before.text + definition,
+      selection: TextSelection.collapsed(offset: offset),
+    );
+    _body.value = TextEditingValue(
+      text: _body.text.replaceRange(offset, offset, reference),
+      selection: TextSelection.collapsed(offset: offset + reference.length),
+    );
+    _finishInsertion();
+  }
+
+  void _finishInsertion() {
+    if (_rich) {
+      setState(() => _richInsertionRevision++);
+    } else {
+      _bodyFocus.requestFocus();
+    }
   }
 
   bool _saving=false;
@@ -424,7 +428,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         : _preview
         ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
         : _rich
-        ? DocumentRichEditor(source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty, diagnostics: _body.syntaxDiagnostics, onSyntaxDiagnostic: _showSyntaxDiagnostic)
+        ? DocumentRichEditor(key: ValueKey(_richInsertionRevision), onInsertFootnote: _saving ? null : (offset) => _insertFootnote(richOffset: offset), onInsertTable: _saving ? null : (offset) => _insertTable(richOffset: offset), source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty, diagnostics: _body.syntaxDiagnostics, onSyntaxDiagnostic: _showSyntaxDiagnostic)
         : DocumentLineNumbers(controller: _body, scroll: _documentScroll, child: CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true,
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
@@ -453,13 +457,8 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
           modeSwitch: modeSwitch,
           tools: [
             IconButton(
-              tooltip: '편집 주석 삽입',
-              onPressed: _saving ? null : () => _insertAnnotation(footnote: false),
-              icon: const Icon(Icons.comment_outlined),
-            ),
-            IconButton(
               tooltip: '각주 삽입',
-              onPressed: _saving ? null : () => _insertAnnotation(footnote: true),
+              onPressed: _saving ? null : _insertFootnote,
               icon: const Icon(Icons.format_list_numbered),
             ),
             IconButton(
@@ -500,6 +499,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       '제목 1: ======제목======\n제목 2: =====제목=====\n제목 3: ====제목====\n제목 4: ===제목===\n제목 5: ==제목==\n'
       '제목 안의 공백은 그대로 표시됩니다. 가장 먼저 나오는 제목을 문서 이름으로 사용합니다.\n\n'
       '굵게: **텍스트**\n기울임: //텍스트//\n밑줄: __텍스트__\n취소선: --텍스트--\n\n'
+      '주석: // 한 줄 주석\n여러 줄 주석: /* 여러 줄 주석 */\n\n'
       '왼쪽 정렬: |텍스트 |\n오른쪽 정렬: | 텍스트|\n가운데 정렬: | 텍스트 |\n\n'
       '링크: [[표시명|라벨 또는 문서 제목]]\n웹 링크: [[표시명|https://example.com]]\n'
       '[[표시명|까지 입력하면 어시스트가 열립니다. Ctrl + Space로 선택할 수 있습니다. 문서는 문서: 접두어와 굵은 제목으로 표시됩니다.\n\n'

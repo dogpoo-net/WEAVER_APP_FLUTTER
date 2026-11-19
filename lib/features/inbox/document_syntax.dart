@@ -24,14 +24,14 @@ bool caretInsideCode(String text, int caret) => codeMarkup
     );
 
 String documentTitle(String text) {
-  final prose = text.replaceAllMapped(
+  final prose = DocumentComments(text).visibleText.replaceAllMapped(
     codeMarkup,
     (match) => '\n' * '\n'.allMatches(match.group(0)!).length,
   );
   final lines = prose.split('\n');
   String? fallbackHeading;
   for (final line in lines) {
-    final heading = projectHeading.firstMatch(line);
+    final heading = projectHeading.firstMatch(line.trimRight());
     if (heading == null) continue;
     final title = heading.group(2)!.trim();
     if (title.isEmpty) continue;
@@ -40,11 +40,7 @@ String documentTitle(String text) {
   }
   return fallbackHeading ??
       lines
-          .where(
-            (line) =>
-                !documentEditorComment.hasMatch(line) &&
-                !documentFootnoteDefinition.hasMatch(line),
-          )
+          .where((line) => !documentFootnoteDefinition.hasMatch(line))
           .map((line) => line.trim())
           .where((line) => line.isNotEmpty)
           .firstOrNull ??
@@ -73,7 +69,60 @@ final documentFootnoteDefinition = RegExp(
   r'^\[\^([a-zA-Z0-9_-]+)\]:[ \t]+(.+)$',
 );
 final documentFootnoteReference = RegExp(r'\[\^([a-zA-Z0-9_-]+)\]');
-final documentEditorComment = RegExp(r'^\s*<!--.*-->\s*$');
+// A paired, non-space-prefixed // span remains the existing italic markup.
+final _documentTokens = RegExp(
+  '${codeMarkup.pattern.replaceFirst(r'|$', r'|(?![\s\S])')}|'
+  r'\[\[[^\r\n]*?\]\]|\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s<>\[\]]+|'
+  r'//[^/\s][^\r\n]*?//|(?<comment>/\*[\s\S]*?(?:\*/|(?![\s\S]))|'
+  r'^[ \t]*<!--[^\r\n]*-->[ \t]*(?=\r?$)|//[^\r\n]*)',
+  multiLine: true,
+);
+
+class DocumentComments {
+  DocumentComments(this.source);
+
+  final String source;
+  late final List<RegExpMatch> ranges = [
+    for (final token in _documentTokens.allMatches(source))
+      if (token.namedGroup('comment') != null) token,
+  ];
+  late final String visibleText = _visibleText();
+  late final String maskedText = _documentTokens.replaceAllMapped(source, (
+    token,
+  ) {
+    if (token.namedGroup('comment') == null) return token.group(0)!;
+    return token.group(0)!.replaceAll(RegExp(r'[^\r\n]'), ' ');
+  });
+
+  late final List<({int start, int end})> removals = [
+    for (final range in ranges) _removal(range),
+  ];
+
+  ({int start, int end}) _removal(RegExpMatch range) {
+    final lineStart = range.start == 0
+        ? 0
+        : source.lastIndexOf('\n', range.start - 1) + 1;
+    final nextLine = source.indexOf('\n', range.end);
+    final lineEnd = nextLine < 0 ? source.length : nextLine;
+    if (source.substring(lineStart, range.start).trim().isEmpty &&
+        source.substring(range.end, lineEnd).trim().isEmpty) {
+      return (start: lineStart, end: nextLine < 0 ? lineEnd : lineEnd + 1);
+    }
+    return (start: range.start, end: range.end);
+  }
+
+  String _visibleText() {
+    if (ranges.isEmpty) return source;
+    final buffer = StringBuffer();
+    var start = 0;
+    for (final range in removals) {
+      buffer.write(source.substring(start, range.start));
+      start = range.end;
+    }
+    buffer.write(source.substring(start));
+    return buffer.toString();
+  }
+}
 
 final documentListMarker = RegExp(r'^([ \t]*)(?:(\d{1,9})\.|-)[ \t]+');
 
