@@ -107,8 +107,8 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     await widget.storage!.writeDocumentDraft(_draftId,{'text':_body.text,'links':_body.bindings.map((b)=>b.toJson()).toList(),'tags':{..._tags,..._filters.tags}.toList(),'base':_original});
   }
   void _queueDraft(){
-    if(_draftQueued || _loading)return;_draftQueued=true;
-    scheduleMicrotask(()async{_draftQueued=false;if(!mounted)return;try{await _storeDraft();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('로컬 초안을 저장하지 못했습니다. $e')));}});
+    if(_draftQueued || _loading || _saving)return;_draftQueued=true;
+    scheduleMicrotask(()async{_draftQueued=false;if(!mounted || _saving)return;try{await _storeDraft();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('로컬 초안을 저장하지 못했습니다. $e')));}});
   }
   Future<void> _reload()async{
     if(widget.onReload==null || !await confirmReload(context) || !mounted)return;
@@ -294,6 +294,9 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     await _storeDraft();
     if(!mounted)return;
     if (widget.project == null) { setState((){_dirty=false;_saving=false;});Navigator.pop(context, project); return; }
+    // Both editor modes patch _body. The edit session owns the compare base
+    // until this save is acknowledged or the user resolves a real conflict.
+    widget.storage?.documentSaveBases[project.id] = _original;
     elements.indexProject(project); await widget.onChanged?.call(); await widget.onSave?.call();
     final storage=widget.storage;
     if(storage?.syncResource!=null){

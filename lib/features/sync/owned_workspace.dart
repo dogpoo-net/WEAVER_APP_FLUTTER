@@ -459,6 +459,15 @@ class WorkspaceSync extends ChangeNotifier {
     await (_running = initialize().whenComplete(() => _running = null));
     if (error != null) { base = previous; cursor = oldCursor; _lastSynced = oldSnapshot; throw EmailAuthFailure(error!); }
   }
+  final _unacknowledgedDocuments = <String, Map<String, dynamic>>{};
+
+  bool _sameDocumentContent(Map<String, dynamic> left, Map<String, dynamic> right) {
+    final leftTags = Set<String>.from(left['project']['tags'] as List? ?? []);
+    final rightTags = Set<String>.from(right['project']['tags'] as List? ?? []);
+    return documentSegment(left).signature == documentSegment(right).signature &&
+        setEquals(leftTags, rightTags);
+  }
+
   Future<void> saveDocument(String id)async{
     if(networkPending){await storage.flush();return;}
     await storage.flush();
@@ -473,13 +482,23 @@ class WorkspaceSync extends ChangeNotifier {
     if(entry==null)throw const EmailAuthFailure('저장할 문서를 찾지 못했습니다.');
     var candidate=Map<String,dynamic>.from(entry.value['value'] as Map);
     var expected=storage.documentSaveBases.containsKey(id)?storage.documentSaveBases[id]:base[entry.key];
+    final unacknowledged = _unacknowledgedDocuments[id];
     for(var attempt=0;attempt<5;attempt++){
+      _unacknowledgedDocuments[id] = candidate;
       final result=await request('save',{'resourceId':id,'documentMerge':true,'changes':[{'kind':entry.value['kind'],'id':entry.value['id'],'value':candidate,'baseRevision':expected?['revision']??0,'deleted':false}]});
       if(result['documentConflict'] is Map){
         final remote=Map<String,dynamic>.from(result['documentConflict'] as Map);
         if(remote['deleted']==true)throw const EmailAuthFailure('다른 기기에서 삭제된 문서입니다. 로컬 초안은 보관됩니다.');
         remote['value']=jsonDecode(remote.remove('payload') as String);
-        final ancestor=expected?['value'];
+        // A failed response can leave the user's previous save committed.
+        // Only use it as the ancestor when the returned content matches it.
+        final remoteValue = Map<String, dynamic>.from(remote['value'] as Map);
+        final ancestor = unacknowledged != null &&
+            _sameDocumentContent(unacknowledged, remoteValue)
+            ? unacknowledged
+            : expected?['value'];
+        if (unacknowledged == null) _unacknowledgedDocuments.remove(id);
+        else _unacknowledgedDocuments[id] = unacknowledged;
         if(ancestor is! Map)throw const EmailAuthFailure('문서의 원본 버전을 찾지 못했습니다. 로컬 초안은 보관됩니다.');
         final plan=mergeDocument(Map<String,dynamic>.from(ancestor),candidate,Map<String,dynamic>.from(remote['value'] as Map));
         if(plan.hasConflicts)throw DocumentMergeConflict(plan,remote);
@@ -487,6 +506,7 @@ class WorkspaceSync extends ChangeNotifier {
       }
       final row=Map<String,dynamic>.from((result['changes'] as List).single as Map);
       row['value']=jsonDecode(row.remove('payload') as String);
+      _unacknowledgedDocuments.remove(id);
       base[entry.key]=row;storage.documentSaveBases[id]=row;
       await storage.flush();final current=splitWorkspace(storage.read());current[entry.key]=row;
       await storage.replaceFromBackup(joinWorkspace(current));await saveBase();
@@ -517,6 +537,7 @@ class WorkspaceSync extends ChangeNotifier {
       if(!ready){await initialize();if(!ready)return;}
       final raw=requestedSnapshot??storage.read();if(raw==null)return;
       final local=splitWorkspace(raw);final changes=<Map<String,dynamic>>[];
+      var skippedOpenDocument = false;
       for(final key in {...base.keys,...local.keys}){
         if(resource==null && sameItem(local[key],base[key]))continue;
         final item=local[key]??base[key]!;
@@ -524,6 +545,10 @@ class WorkspaceSync extends ChangeNotifier {
         final scope=editResource(item)??editResource(base[key]);
         if(contentOnly && scope!=null)continue;
         if(resource!=null && scope!=resource)continue;
+        if (!foldersOnly && scope != null && storage.editorResources.contains(scope)) {
+          skippedOpenDocument = true;
+          continue;
+        }
         if (deletionsOnly) {
           final kind = item['kind'];
           final removed = !local.containsKey(key) && {'list:elements','list:notes','list:trash','list:memoBoxes'}.contains(kind);
@@ -575,7 +600,7 @@ class WorkspaceSync extends ChangeNotifier {
         }
 
       }
-      if ((!deletionsOnly && !foldersOnly && !contentOnly && resource==null) || {...base.keys,...local.keys}.every((key) => sameItem(local[key],base[key]))) _lastSynced=raw;
+      if ((!skippedOpenDocument && !deletionsOnly && !foldersOnly && !contentOnly && resource==null) || {...base.keys,...local.keys}.every((key) => sameItem(local[key],base[key]))) _lastSynced=raw;
       await saveBase();error=null;
     }catch(e){
       if(e is EmailAuthFailure && e.status==409){
