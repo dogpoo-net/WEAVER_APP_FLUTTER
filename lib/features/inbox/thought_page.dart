@@ -210,7 +210,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     if(index+1<group.length)_resizeNeighbors.add(group[index+1]);
   }
 
-  void _resizeThought(String id, Size size, Offset shift, {bool snap=true}) => setState(() {
+  void _resizeThought(String id, Size size, Offset shift, {bool snap=true}) => _updateCanvas(() {
     if (_resizingThought != id) _beginResize(id);
     final group = _selected.contains(id)
         ? _selected.where(_positions.containsKey).toSet() : <String>{id};
@@ -330,7 +330,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final delta = scene.globalToLocal(pointer) - scene.globalToLocal(_folderLiftPointer!);
     _folderLiftPointer = pointer;
     final shift = Offset(math.max(delta.dx, 32 - bounds.left), math.max(delta.dy, 32 - bounds.top));
-    setState(() { _moveFolder(name, shift); _moveSelectedTags(shift); _folderLiftShift += shift; });
+    _updateCanvas(() { _moveFolder(name, shift); _moveSelectedTags(shift); _folderLiftShift += shift; });
     _saveLayout();
   }
   void _finishFolderLift(String name, Offset pointer) {
@@ -380,7 +380,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     if (scene == null) return;
     final delta = scene.globalToLocal(pointer) - scene.globalToLocal(_boxLiftPointer!);
     _boxLiftPointer = pointer;
-    setState(() => _dragBox(box, delta));
+    _updateCanvas(() => _dragBox(box, delta));
   }
   void _finishBoxDrag(MemoBox box, [Offset? pointer]) {
     if (identical(_liftedBox, box) && pointer != null) _boxLiftPointer = pointer;
@@ -925,7 +925,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     if (widget.filters == null) _filters.dispose();
     elements.removeListener(_storeChanged);
     _view.removeListener(_saveLayout);
-    _view.dispose(); _search.dispose();
+    _view.dispose(); _search.dispose(); _canvasUpdates.dispose();
     super.dispose();
   }
   Offset? _rangeAnchorPoint;
@@ -984,7 +984,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   void _moveLiftedSelection(Offset global,List<ElementRecord> records){
     if(!_selectionLifted || _selectionGlobalDown==null || _selectionDragOrigins.isEmpty)return;
-    setState((){
+    _updateCanvas((){
       final delta=(global-_selectionGlobalDown!)/_view.value.storage[0].abs();
       final left=_selectionDragOrigins.values.map((p)=>p.dx).reduce(math.min),top=_selectionDragOrigins.values.map((p)=>p.dy).reduce(math.min);
       final shift=Offset(math.max(delta.dx,32-left),math.max(delta.dy,32-top));
@@ -1118,7 +1118,16 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('저장 또는 동기화에 실패했습니다. 로컬 자료는 유지됩니다. $e')));}
     finally {_savingCanvas=false;}
   }
-  Widget _build(BuildContext context) {
+  final _canvasUpdates = ValueNotifier<int>(0);
+
+  // Gesture state is applied synchronously for hit testing and the final drop.
+  // Only the canvas subtree needs to render these intermediate positions.
+  void _updateCanvas(VoidCallback update) {
+    update();
+    _canvasUpdates.value++;
+  }
+
+  Widget _buildCanvas(BuildContext context, ColorScheme color) {
     final ranks = {for (var i = 0; i < _layout.layers.length; i++) _layout.layers[i]: i};
     final records = _records..sort((a, b) {
       final priority=(a.important?1:0).compareTo(b.important?1:0);
@@ -1128,26 +1137,27 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final front = records.where((r) => r.id == _frontThought).firstOrNull;
       if (front != null) { records.remove(front); final firstImportant=records.indexWhere((r)=>r.important); records.insert(!front.important&&firstImportant>=0?firstImportant:records.length,front); }
     }
-    final thoughtBounds=[for(final record in records)_bounds(record.id)];
+    final thoughtBounds = [for (final record in records) _bounds(record.id)];
     final coveredThoughts={for(final i in coveredCanvasItems(thoughtBounds))records[i].id};
     final visiblePositions = {for (final r in records) r.id: _positions[r.id]!};
     final labelExtent = records.where((r) => r.indexLabel.isNotEmpty).fold(180.0, (width, r) => math.max(width, ThoughtLabel.width(context, r.indexLabel) + 36));
     final tags = _hideTags ? <String>[] : (records.expand((r) => r.tags).toSet().toList()..sort());
     final tagPositions = <String, Offset>{for (final tag in tags) 'tag:$tag': _tagPositions['tag:$tag']!};
     final nodeRects = <String, Rect>{
-      for (final e in visiblePositions.entries) e.key: _bounds(e.key),
+      for (var i = 0; i < records.length; i++) records[i].id: thoughtBounds[i],
       for (final e in tagPositions.entries) e.key: _tagBounds(e.key),
     };
     var sceneWidth = math.max(3000.0, nodeRects.values.map((r) => r.right + labelExtent).fold(0.0, math.max));
     var sceneHeight = math.max(2200.0, nodeRects.values.map((r) => r.bottom + 100).fold(0.0, math.max));
     final regions = <({MemoBox box, Rect bounds})>[];
-    for (final box in _regionBoxes) {
+    final regionBoxes = _regionBoxes.toList();
+    for (final box in regionBoxes) {
       final bounds = _regionBounds(box, visiblePositions);
       if (bounds != null) regions.add((box: box, bounds: _liftBoxes[box] ?? bounds));
     }
     var emptyX = regions.map((r) => r.bounds.right + 80).fold(
       nodeRects.values.map((r) => r.right + 80).fold(640.0, math.max), math.max);
-    for (final box in _regionBoxes) {
+    for (final box in regionBoxes) {
       if (box.elementIds.any(_positions.containsKey)) continue;
       regions.add((box: box, bounds: _emptyBoxBounds.putIfAbsent(box, () => _placeEmptyBox(emptyX))));
       emptyX += 340;
@@ -1161,35 +1171,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     }
     sceneWidth = folders.values.map((r) => r.right + 100).fold(sceneWidth, math.max);
     sceneHeight = folders.values.map((r) => r.bottom + 100).fold(sceneHeight, math.max);
-    final color = Theme.of(context).colorScheme;
-    return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filters.singleBox?.name ?? '전체 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
-      padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40), maximumSize: const Size(36, 40),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
-      if(widget.storage!=null)ValueListenableBuilder<String>(valueListenable:widget.storage!.canvasSaveState,builder:(context,state,_)=>Tooltip(message:state,child:Padding(padding:const EdgeInsets.symmetric(horizontal:4),child:Icon(state=='저장됨'?Icons.cloud_done_outlined:state=='저장 중'?Icons.cloud_upload_outlined:Icons.cloud_queue,size:18)))),
-      if(_canEdit)MemoBoxActions(filters:_filters,onCreate:_createBox,onCreateThought:_create,onDeleteWithContents:_removeCanvasBoxes,preserveThoughts:true),
-      PopupMenuButton<String>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: (value) {if(value=='all'){setState(() => _centered=false);}else if(_canEdit){_resetArrangement(value=='stack');}},
-        itemBuilder: (_) => const [PopupMenuItem(value:'all',child:Text('전체 보기')),PopupMenuItem(value: 'spread', child: Text('펼쳐보기')), PopupMenuItem(value: 'stack', child: Text('겹쳐보기'))]),
-      if (!widget.blocks) IconButton(tooltip: '저장 (Ctrl+S)', onPressed: _canEdit?_saveCanvas:null, icon: const Icon(Icons.save_outlined)),
-      IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
-        context: context, builder: (context) => AlertDialog(title: const Text('사용 안내'),
-          content: const Text('생각·태그를 드래그해 배치하세요. 생각을 누르면 수정할 수 있습니다. 라벨을 누르는 동안 해당 생각을 앞으로 볼 수 있습니다.'),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))]))),
-    ]))]), body: DesktopMenuBody(child: Column(children: [
-      if (widget.viewSelector != null) widget.viewSelector!,
-      if (!_canEdit) const Padding(key:ValueKey('canvas-readonly-notice'),padding:EdgeInsets.all(4),child:Text('읽기 전용 워크스페이스입니다.')),
-      Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 0), child: Row(children: [
-        Expanded(child: TextField(key: const ValueKey('graph-search'), controller: _search,
-          style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 13 : 14),
-          decoration: const InputDecoration(hintText: '생각·해시태그 찾기', prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 36), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), isDense: true),
-          onChanged: (value) => setState(() { _query = value.trim().replaceFirst(RegExp(r'^#'), '').toLowerCase(); _centered = false; _sync(); }))),
-        ...[
-          const SizedBox(width: 8),
-          FilterChip(showCheckmark: false, visualDensity: VisualDensity.compact,
-            label: const Text('해시태그 숨기기', style: TextStyle(fontSize: 12)), selected: _hideTags,
-            onSelected: (value) => setState(() { _hideTags = value; if(value)_selected.removeWhere(_tagPositions.containsKey); _saveLayout(); })),
-        ],
-      ])),
-      Expanded(child: Stack(children: [Positioned.fill(child: LayoutBuilder(builder: (context, viewport) {
+    return Stack(children: [Positioned.fill(child: LayoutBuilder(builder: (context, viewport) {
         if (!_centered) {
           _centered = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1240,7 +1222,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 });
               }
               _endPinch();
-            }, onMove: (delta) => setState(() {
+            }, onMove: (delta) => _updateCanvas(() {
               if (_pinchBase != null) return;
               _draggedFolder = folder.key;
               final shift = Offset(math.max(delta.dx, 32 - folder.value.left), math.max(delta.dy, 32 - folder.value.top));
@@ -1267,7 +1249,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   try { await showElementMetadata(context, record.text); }
                   finally { _detailOpen=false; }
                 },
-                onMove: (delta) => setState(() { final previous = _positions[record.id]!; final p = previous + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
+                onMove: (delta) => _updateCanvas(() { final previous = _positions[record.id]!; final p = previous + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
                   if (_liftBoxes.isEmpty) _displaceNeighbors({record.id});
                   _rememberStacks();
                   final target = records.where((r) => r.id != record.id && _bounds(r.id).overlaps(_bounds(record.id))).lastOrNull;
@@ -1381,7 +1363,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               onLongPressStart: (d) => _liftBox(region.box, d.globalPosition),
               onLongPressMoveUpdate: (d) => _moveLiftedBox(region.box, d.globalPosition),
               onLongPressEnd: (d) => _finishBoxDrag(region.box, d.globalPosition),
-              onPanUpdate: (d) => setState(() => _dragBox(region.box, d.delta)),
+              onPanUpdate: (d) => _updateCanvas(() => _dragBox(region.box, d.delta)),
               onPanEnd: (_) => _finishBoxDrag(region.box),
               onPanCancel: () { if (!identical(_liftedBox, region.box)) _finishBoxDrag(region.box); },
               child:Row(mainAxisAlignment:MainAxisAlignment.center,children:[Flexible(child:Text(region.box.name,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:Color(region.box.color),fontSize:13,fontWeight:FontWeight.w600))),
@@ -1393,7 +1375,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               // Use the same recognizer as cards: a pan recognizer can lose to
               // InteractiveViewer's scale recognizer and move the viewport instead.
               onScaleStart: (_) {},
-              onScaleUpdate: (d) => setState(() {
+              onScaleUpdate: (d) => _updateCanvas(() {
                 if (d.pointerCount > 1) { _zoomCanvas(d.scale, d.focalPoint); return; }
                 if (_pinchBase != null) return;
                 // ScaleGestureRecognizer already reports delta in local scene coordinates.
@@ -1451,7 +1433,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               if (!_movingSelection) { _selected.clear(); _rangeAnchor=null; _rangeAnchorPoint=null; }
               _selectionDragOrigins..clear()..addEntries(_selected.map((id) => MapEntry(id, _selectionPoint(id))));
             }),
-            onScaleUpdate: (d) => setState(() {
+            onScaleUpdate: (d) => _updateCanvas(() {
               if (d.pointerCount > 1) {
                 _selected..clear()..addAll(_selectionBeforeGesture);
                 _selectionStart = null; _selectionEnd = null; return;
@@ -1540,7 +1522,42 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               ]))),
           ]),
         )),
+    ]);
+  }
+
+  Widget _build(BuildContext context) {
+    final color = Theme.of(context).colorScheme;
+    return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filters.singleBox?.name ?? '전체 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40), maximumSize: const Size(36, 40),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
+      if(widget.storage!=null)ValueListenableBuilder<String>(valueListenable:widget.storage!.canvasSaveState,builder:(context,state,_)=>Tooltip(message:state,child:Padding(padding:const EdgeInsets.symmetric(horizontal:4),child:Icon(state=='저장됨'?Icons.cloud_done_outlined:state=='저장 중'?Icons.cloud_upload_outlined:Icons.cloud_queue,size:18)))),
+      if(_canEdit)MemoBoxActions(filters:_filters,onCreate:_createBox,onCreateThought:_create,onDeleteWithContents:_removeCanvasBoxes,preserveThoughts:true),
+      PopupMenuButton<String>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: (value) {if(value=='all'){setState(() => _centered=false);}else if(_canEdit){_resetArrangement(value=='stack');}},
+        itemBuilder: (_) => const [PopupMenuItem(value:'all',child:Text('전체 보기')),PopupMenuItem(value: 'spread', child: Text('펼쳐보기')), PopupMenuItem(value: 'stack', child: Text('겹쳐보기'))]),
+      if (!widget.blocks) IconButton(tooltip: '저장 (Ctrl+S)', onPressed: _canEdit?_saveCanvas:null, icon: const Icon(Icons.save_outlined)),
+      IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
+        context: context, builder: (context) => AlertDialog(title: const Text('사용 안내'),
+          content: const Text('생각·태그를 드래그해 배치하세요. 생각을 누르면 수정할 수 있습니다. 라벨을 누르는 동안 해당 생각을 앞으로 볼 수 있습니다.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))]))),
+    ]))]), body: DesktopMenuBody(child: Column(children: [
+      if (widget.viewSelector != null) widget.viewSelector!,
+      if (!_canEdit) const Padding(key:ValueKey('canvas-readonly-notice'),padding:EdgeInsets.all(4),child:Text('읽기 전용 워크스페이스입니다.')),
+      Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 0), child: Row(children: [
+        Expanded(child: TextField(key: const ValueKey('graph-search'), controller: _search,
+          style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 13 : 14),
+          decoration: const InputDecoration(hintText: '생각·해시태그 찾기', prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 36), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), isDense: true),
+          onChanged: (value) => setState(() { _query = value.trim().replaceFirst(RegExp(r'^#'), '').toLowerCase(); _centered = false; _sync(); }))),
+        ...[
+          const SizedBox(width: 8),
+          FilterChip(showCheckmark: false, visualDensity: VisualDensity.compact,
+            label: const Text('해시태그 숨기기', style: TextStyle(fontSize: 12)), selected: _hideTags,
+            onSelected: (value) => setState(() { _hideTags = value; if(value)_selected.removeWhere(_tagPositions.containsKey); _saveLayout(); })),
+        ],
       ])),
+      Expanded(child: ListenableBuilder(
+        listenable: _canvasUpdates,
+        builder: (context, _) => _buildCanvas(context, color),
+      )),
       ThoughtFilters(tags: _scopeRecords.expand((r) => r.tags).toSet().toList()..sort(),
         selection: _filters, onChanged: _changed,
         onFilter: _filters.toggle),
@@ -1557,19 +1574,28 @@ class _Connections extends CustomPainter {
   List<({Path path, Color color})> _buildPaths() {
     final result = <({Path path, Color color})>[];
 
+    final cards = [
+      for (final entry in positions.entries)
+        if (!tagColors.containsKey(entry.key)) entry,
+    ];
+    final ranks = {for (var i = 0; i < cards.length; i++) cards[i].key: i};
+    late final index = CanvasOverlapIndex([for (final entry in cards) entry.value]);
     for (final entry in links.entries) {
+      final rank = ranks[entry.key];
+      if (rank == null) continue;
+      List<Rect>? covers;
       for (final id in entry.value) {
         if ((tagColors.containsKey(id) || entry.key.compareTo(id) < 0) && positions.containsKey(id) && positions.containsKey(entry.key)) {
           final card = positions[entry.key]!;
           final tag = positions[id]!;
-          final above = positions.entries.skipWhile((e) => e.key != entry.key).skip(1)
-              .where((e) => !tagColors.containsKey(e.key)).map((e) => e.value);
-          final start = tagColors.containsKey(id) ? hashtagConnectionAnchor(card, above, tag.center) : card.center;
+          Offset? start = card.center;
+          if (tagColors.containsKey(id) && (tag.center.dx < card.left || tag.center.dx > card.right)) {
+            covers ??= index.overlappingAbove(rank);
+            start = hashtagConnectionAnchor(card, covers, tag.center);
+          }
           if (start == null) continue;
           final end = tag.center;
-          final points = [start, end];
-          final path = Path()..moveTo(points.first.dx, points.first.dy);
-          for (final point in points.skip(1)) { path.lineTo(point.dx, point.dy); }
+          final path = Path()..moveTo(start.dx, start.dy)..lineTo(end.dx, end.dy);
           result.add((path: path, color: tagColors[id]?.withValues(alpha: .75) ?? color));
         }
       }
@@ -1636,5 +1662,8 @@ class _SelectionPainter extends CustomPainter {
     }
   }
   @override
-  bool shouldRepaint(_SelectionPainter old) => true;
+  bool shouldRepaint(_SelectionPainter old) =>
+      color != old.color || radius != old.radius || liftScale != old.liftScale ||
+      marquee != old.marquee || !listEquals(selected, old.selected) ||
+      !setEquals(resizeRects, old.resizeRects);
 }

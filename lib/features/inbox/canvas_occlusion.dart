@@ -19,3 +19,39 @@ Set<int> coveredCanvasItems(List<Rect> bounds){
   }
   return covered;
 }
+
+/// Finds possible occluders near a card without scanning every later card.
+class CanvasOverlapIndex {
+  CanvasOverlapIndex(this.bounds) {
+    for (var index = 0; index < bounds.length; index++) {
+      for (final cell in _cellsFor(bounds[index])) {
+        _cells.putIfAbsent(cell, () => []).add(index);
+      }
+    }
+  }
+
+  final List<Rect> bounds;
+  final _cells = <(int, int), List<int>>{};
+
+  Iterable<(int, int)> _cellsFor(Rect rect) sync* {
+    if (rect.isEmpty || !rect.isFinite) return;
+    const cellSize = 256.0;
+    for (var x = (rect.left / cellSize).floor(); x <= (rect.right / cellSize).floor(); x++) {
+      for (var y = (rect.top / cellSize).floor(); y <= (rect.bottom / cellSize).floor(); y++) {
+        yield (x, y);
+      }
+    }
+  }
+
+  List<Rect> overlappingAbove(int index) {
+    final rect = bounds[index];
+    final matches = <int>{};
+    for (final cell in _cellsFor(rect)) {
+      for (final other in _cells[cell] ?? const <int>[]) {
+        if (other > index && rect.overlaps(bounds[other])) matches.add(other);
+      }
+    }
+    final ordered = matches.toList()..sort();
+    return [for (final other in ordered) bounds[other]];
+  }
+}

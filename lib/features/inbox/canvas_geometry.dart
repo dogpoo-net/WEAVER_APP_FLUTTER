@@ -4,6 +4,18 @@ import 'package:flutter/material.dart';
 /// Find the shortest free translation along sampled directions, keeping the
 /// stationary boxes fixed. Collision intervals are merged along each ray.
 Offset releaseBox(Rect moving, List<Rect> obstacles, {required bool rectangular, double gap = 24}) {
+  // A stationary box already outside every collision interval has a zero-cost
+  // solution. Leave near-touching and out-of-bounds cases to the ray solver.
+  if (moving.left >= 32 && moving.top >= 32) {
+    final padded = moving.inflate(gap + .01);
+    final needsRelease = obstacles.any((other) {
+      if (rectangular) return padded.overlaps(other);
+      final radius = (moving.width + other.width) / 2 + gap + .01;
+      return (moving.center - other.center).distanceSquared < radius * radius;
+    });
+    if (!needsRelease) return Offset.zero;
+  }
+
   Offset? best;
   for (var i = 0; i < 128; i++) {
     final angle = i * math.pi * 2 / 128;
