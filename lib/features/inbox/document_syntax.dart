@@ -19,3 +19,17 @@ final documentFootnoteReference = RegExp(r'\[\^([a-zA-Z0-9_-]+)\]');
 final documentEditorComment = RegExp(r'^\s*<!--.*-->\s*$');
 
 final documentListMarker = RegExp(r'^([ \t]*)(?:(\d{1,9})\.|-)[ \t]+');
+
+/// Closed code spans occupying complete lines can be rendered as blocks.
+Iterable<RegExpMatch> documentCodeBlocks(String source) =>
+    codeMarkup.allMatches(source).where((match) =>
+      match.group(0)!.endsWith('</code>') &&
+      (match.start == 0 || source[match.start - 1] == '\n') &&
+      (match.end == source.length || source[match.end] == '\n'));
+
+String documentCodeBody(String markup) {
+  var body = markup.substring(6, markup.length - 7);
+  if (body.startsWith('\n')) body = body.substring(1);
+  if (body.endsWith('\n')) body = body.substring(0, body.length - 1);
+  return body;
+}

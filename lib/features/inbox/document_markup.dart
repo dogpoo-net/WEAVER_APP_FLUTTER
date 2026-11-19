@@ -1,3 +1,4 @@
+import 'document_code_block.dart';
 import 'document_table.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -165,8 +166,23 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
       }
       _noteKeys.removeWhere((id, _) => !_footnotes.containsKey(id));
     }
+    final codeBlocks = widget.formatting
+        ? {for (final block in documentCodeBlocks(widget.text)) block.start: block}
+        : const <int, RegExpMatch>{};
     for (var lineIndex = 0; lineIndex < sourceLines.length; lineIndex++) {
       final line = sourceLines[lineIndex];
+      if (!_inCode && codeBlocks.containsKey(offset)) {
+        final chunks = <String>[];
+        while (codeBlocks[offset] case final block?) {
+          final raw = block.group(0)!;
+          chunks.add(documentCodeBody(raw));
+          lineIndex += '\n'.allMatches(raw).length + 1;
+          offset = block.end + 1;
+        }
+        lineIndex--;
+        lines.add(DocumentCodeBlock(chunks.join('\n')));
+        continue;
+      }
       if (widget.formatting && !_inCode &&
           (documentEditorComment.hasMatch(line) || documentFootnoteDefinition.hasMatch(line))) {
         offset += line.length + 1;

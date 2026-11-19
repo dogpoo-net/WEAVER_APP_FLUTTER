@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 
 import 'document_syntax.dart';
+import 'document_code_block.dart';
 import 'element_binding.dart';
 
 const _marks = {
@@ -13,9 +14,20 @@ const _marks = {
 
 /// Project a supported source line into Quill inserts, without updating source.
 List<Map<String, Object>> _decodeLine(String line) {
+  if (documentCodeBlocks(line).isNotEmpty) {
+    final code = documentCodeBody(line);
+    return [
+      if (code.isNotEmpty) {'insert': code},
+      {
+        'insert': '\n',
+        'attributes': {'code-block': true},
+      },
+    ];
+  }
   final heading = projectHeading.firstMatch(line);
   final marker = heading == null ? documentListMarker.firstMatch(line) : null;
-  final text = heading?.group(2) ?? (marker == null ? line : line.substring(marker.end));
+  final text =
+      heading?.group(2) ?? (marker == null ? line : line.substring(marker.end));
   final ops = <Map<String, Object>>[];
   void insert(String value, Map<String, Object> attrs) {
     if (value.isNotEmpty)
@@ -84,8 +96,16 @@ List<String> _encodeLines(quill.Document doc) {
             : '';
         final list = attrs['list'];
         number = list == 'ordered' ? number + 1 : 0;
-        final prefix = list == 'ordered' ? '$number. ' : list == 'bullet' ? '- ' : '';
-        lines.add('$prefix$delimiter$text$delimiter');
+        final prefix = list == 'ordered'
+            ? '$number. '
+            : list == 'bullet'
+            ? '- '
+            : '';
+        lines.add(
+          attrs['code-block'] == true
+              ? '<code>$text</code>'
+              : '$prefix$delimiter$text$delimiter',
+        );
         text.clear();
       }
     }
@@ -150,7 +170,14 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
   @override
   void initState() {
     super.initState();
-    final code = codeMarkup.allMatches(widget.source).toList();
+    final editableCodeLines = {
+      for (final block in documentCodeBlocks(widget.source))
+        if (!block.group(0)!.contains('\n')) block.start,
+    };
+    final code = codeMarkup
+        .allMatches(widget.source)
+        .where((match) => !editableCodeLines.contains(match.start))
+        .toList();
     final group = <String>[];
     bool? protected;
     var offset = 0;
@@ -165,7 +192,8 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
       final isProtected =
           code.any((match) => match.start <= end && match.end > offset) ||
           widget.links.any((link) => link.start <= end && link.end > offset) ||
-          (documentListMarker.firstMatch(line)?.group(1)?.isNotEmpty ?? false) ||
+          (documentListMarker.firstMatch(line)?.group(1)?.isNotEmpty ??
+              false) ||
           line.startsWith('|') ||
           line.contains('[[') ||
           documentFootnoteReference.hasMatch(line) ||
@@ -282,9 +310,18 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
         children: [
           Wrap(
             children: [
-              _formatButton('번호 목록', Icons.format_list_numbered, quill.Attribute.ol),
-            _formatButton('글머리표', Icons.format_list_bulleted, quill.Attribute.ul),
-            _formatButton('굵게', Icons.format_bold, quill.Attribute.bold),
+              _formatButton('코드 블록', Icons.code, quill.Attribute.codeBlock),
+              _formatButton(
+                '번호 목록',
+                Icons.format_list_numbered,
+                quill.Attribute.ol,
+              ),
+              _formatButton(
+                '글머리표',
+                Icons.format_list_bulleted,
+                quill.Attribute.ul,
+              ),
+              _formatButton('굵게', Icons.format_bold, quill.Attribute.bold),
               _formatButton('기울임', Icons.format_italic, quill.Attribute.italic),
               _formatButton(
                 '밑줄',
@@ -352,7 +389,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                           horizontal: 12,
                           vertical: 6,
                         ),
-                        child: SelectableText(section.source),
+                        child: _ProtectedDocumentSource(source: section.source),
                       )
                     else
                       _QuillEditorBlock(section: section, key: section.key),
@@ -385,9 +422,47 @@ class _QuillEditorBlock extends StatelessWidget {
     controller: section.controller!,
     focusNode: section.focus!,
     scrollController: section.scroll!,
-    config: const quill.QuillEditorConfig(
+    config: quill.QuillEditorConfig(
       scrollable: false,
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      customStyles: quill.DefaultStyles(
+        code: quill.DefaultTextBlockStyle(
+          documentCodeStyle(context),
+          const quill.HorizontalSpacing(10, 10),
+          const quill.VerticalSpacing(4, 4),
+          const quill.VerticalSpacing(2, 2),
+          documentCodeDecoration(context),
+        ),
+      ),
     ),
   );
+}
+
+class _ProtectedDocumentSource extends StatelessWidget {
+  const _ProtectedDocumentSource({required this.source});
+  final String source;
+
+  @override
+  Widget build(BuildContext context) {
+    final children = <Widget>[];
+    var offset = 0;
+    for (final block in documentCodeBlocks(source)) {
+      if (offset < block.start) {
+        children.add(SelectableText(source.substring(offset, block.start)));
+      }
+      children.add(
+        SelectionArea(
+          child: DocumentCodeBlock(documentCodeBody(block.group(0)!)),
+        ),
+      );
+      offset = block.end;
+      if (offset < source.length && source[offset] == '\n') offset++;
+    }
+    if (offset < source.length)
+      children.add(SelectableText(source.substring(offset)));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    );
+  }
 }
