@@ -291,19 +291,34 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
 
   @override
   Widget build(BuildContext context) {
+    final numbering = DocumentHeadingNumbers();
     final headings = <({String title, _Section section, int offset})>[];
     for (final section in _sections) {
       var offset = 0;
-      for (final line in section.projected) {
+      final lines = section.protected
+          ? section.source
+                .replaceAllMapped(
+                  codeMarkup,
+                  (match) => '\n' * '\n'.allMatches(match.group(0)!).length,
+                )
+                .split('\n')
+          : section.projected;
+      for (final line in lines) {
         final match = projectHeading.firstMatch(line);
-        if (match != null)
-          headings.add((
-            title: match.group(2)!,
-            section: section,
-            offset: offset,
-          ));
-        for (final op in _decodeLine(line)) {
-          offset += (op['insert'] as String).length;
+        if (match != null) {
+          final prefix = numbering.next(match.group(1)!.length);
+          if (prefix.isNotEmpty) {
+            headings.add((
+              title: '$prefix${match.group(2)!.trim()}',
+              section: section,
+              offset: offset,
+            ));
+          }
+        }
+        if (!section.protected) {
+          for (final op in _decodeLine(line)) {
+            offset += (op['insert'] as String).length;
+          }
         }
       }
     }
@@ -315,6 +330,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
       sectionWidgets.add(
         section.protected
             ? _ProtectedDocumentSource(
+                key: section.key,
                 firstLine: firstLine,
                 source: section.source,
                 links: [
@@ -397,7 +413,8 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                     final entry = headings[index];
                     final target = entry.section.key.currentContext;
                     if (target != null) Scrollable.ensureVisible(target);
-                    final controller = entry.section.controller!;
+                    final controller = entry.section.controller;
+                    if (controller == null) return;
                     controller.updateSelection(
                       TextSelection.collapsed(
                         offset: entry.offset.clamp(
@@ -581,6 +598,7 @@ class _QuillLineNumbers extends CustomPainter {
 
 class _ProtectedDocumentSource extends StatelessWidget {
   const _ProtectedDocumentSource({
+    super.key,
     required this.firstLine,
     required this.source,
     required this.links,

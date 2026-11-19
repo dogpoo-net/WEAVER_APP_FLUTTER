@@ -150,6 +150,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
     final sourceLines = widget.text.split('\n');
     _footnotes.clear();
     _numbers.clear();
+    final numbering = DocumentHeadingNumbers();
     final headings = <({String title, GlobalKey key})>[];
     if (widget.formatting) {
       final prose = widget.text.replaceAll(codeMarkup, '\n');
@@ -196,6 +197,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
         continue;
       }
       GlobalKey? headingKey;
+      var headingPrefix = '';
       final header = tableCells(line);
       if (widget.formatting && !_inCode && header != null && lineIndex + 1 < sourceLines.length && tableSeparator(sourceLines[lineIndex + 1], header.length)) {
         final tableRows = <({List<TableCellSource> cells, int offset})>[(cells: header, offset: offset)];
@@ -223,7 +225,10 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
         if (heading != null) {
           text = heading.group(2)!; start += line.indexOf(text, heading.group(1)!.length);
           headingKey = GlobalKey();
-          headings.add((title: text.trim(), key: headingKey));
+          headingPrefix = numbering.next(heading.group(1)!.length);
+          if (headingPrefix.isNotEmpty) {
+            headings.add((title: '$headingPrefix${text.trim()}', key: headingKey));
+          }
           style = style.copyWith(fontSize: 14 + heading.group(1)!.length * 3.0, fontWeight: FontWeight.bold);
         } else if (line.startsWith('|') && line.endsWith('|') && line.length > 2) {
           final inner = line.substring(1, line.length - 1);
@@ -248,7 +253,10 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
         offset += line.length + 1;
         continue;
       }
-      lines.add(SizedBox(key: headingKey, width: double.infinity, child: Text.rich(TextSpan(children: _inline(text.isEmpty ? ' ' : text, start, style)), textAlign: align)));
+      lines.add(SizedBox(key: headingKey, width: double.infinity, child: Text.rich(TextSpan(children: [
+        if (headingPrefix.isNotEmpty) TextSpan(text: headingPrefix, style: style),
+        ..._inline(text.isEmpty ? ' ' : text, start, style),
+      ]), textAlign: align)));
       offset += line.length + 1;
     }
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
