@@ -309,7 +309,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       minimumSize: const Size(0, 34),
       visualDensity: VisualDensity.standard,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      shape: const StadiumBorder(),
+      shape: const RoundedRectangleBorder(),
       textStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
     );
     Widget navigationButton(String label, IconData icon, int destination, {double end = 16}) =>
