@@ -1398,6 +1398,49 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     ),
   ));
 
+  Widget _homeSectionTitle(String title, {int? count}) => Row(children: [
+    Text(title, style: Theme.of(context).textTheme.titleMedium),
+    if (count != null) ...[
+      const SizedBox(width: 8),
+      Text('$count', style: TextStyle(color: colors.primary)),
+    ],
+  ]);
+
+  Widget _noticeBoard() {
+    final notices = elements.records.values
+        .where((thought) => thought.noticeBoardAt != null && canBrowseThought(thought))
+        .toList()
+      ..sort((a, b) {
+        final byDate = b.noticeBoardAt!.compareTo(a.noticeBoardAt!);
+        return byDate != 0 ? byDate : a.id.compareTo(b.id);
+      });
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Divider(height: 18, thickness: 1, color: colors.outlineVariant.withValues(alpha: .45)),
+      _homeSectionTitle('알림판'),
+      const SizedBox(height: 6),
+      if (notices.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Text('지금은 알릴 만한 게 없습니다.', style: TextStyle(color: colors.onSurfaceVariant)),
+        ),
+      for (final thought in notices.take(noticeBoardLimit))
+        ListTile(
+          key: ValueKey('notice-board-${thought.id}'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          minTileHeight: 38,
+          leading: const Icon(Icons.push_pin_outlined, size: 18),
+          title: Text(thought.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+          onTap: () => showElementMetadata(context, thought.text),
+        ),
+    ]);
+  }
+
+  Widget _composerWithNoticeBoard(double maxHeight) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [_composer(maxHeight), _noticeBoard()],
+  );
+
   Widget _list() {
     final visible = _notes
         .where((n) => n.content.toLowerCase().contains(_query.toLowerCase()) || n.title.toLowerCase().contains(_query.toLowerCase()) || n.tags.any((t) => t.contains(_query.toLowerCase().replaceFirst('#', ''))))
@@ -1418,13 +1461,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Text('모아둔 생각', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(width: 8),
-            Text('${_notes.length}', style: TextStyle(color: colors.primary)),
-          ],
-        ),
+        _homeSectionTitle('모아둔 생각', count: _notes.length),
         const SizedBox(height: 16),
         TextField(
           key: const ValueKey('note-search'),
@@ -1476,7 +1513,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
           if ((isProject ? projects : paragraphs).isNotEmpty) ...[
             Divider(key: ValueKey(isProject ? 'main-project-divider' : 'main-paragraph-divider'),
               height: 18, thickness: 1, color: colors.outlineVariant.withValues(alpha: .45)),
-            Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(isProject ? '문서' : '문단', style: Theme.of(context).textTheme.labelMedium)),
+            Padding(padding: const EdgeInsets.only(bottom: 6), child: _homeSectionTitle(isProject ? '문서' : '문단', count: (isProject ? projects : paragraphs).length)),
             for (final note in (isProject ? projects : paragraphs).take(_query.isNotEmpty
               ? (isProject ? projects.length : paragraphs.length) : (isProject ? _projectLimit : _paragraphLimit)))
               _recentNoteCard(note),
@@ -1643,12 +1680,12 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
                                       ),
                                     ),
                                     const SizedBox(width: 24),
-                                    Expanded(child: RepaintBoundary(child: _composer(composerHeight))),
+                                    Expanded(child: RepaintBoundary(child: _composerWithNoticeBoard(composerHeight))),
                                   ],
                                 )
                               : Column(
                                   children: [
-                                    RepaintBoundary(child: _composer(composerHeight)),
+                                    RepaintBoundary(child: _composerWithNoticeBoard(composerHeight)),
                                     const SizedBox(height: 24),
                                     RepaintBoundary(child: _list()),
                                   ],

@@ -28,6 +28,9 @@ import 'project_page.dart';
 import 'word_badge.dart';
 import 'hashtags.dart';
 
+const noticeBoardLimit = 10;
+const noticeBoardFullMessage = '알림판에는 생각을 최대 10개까지 등록할 수 있습니다.';
+
 class ElementRecord {
   ElementRecord(this.text)
     : createdAt = DateTime.now(),
@@ -47,6 +50,7 @@ class ElementRecord {
   final List<VoiceAttachment> recordings = [];
   final List<PhotoAttachment> photos = [];
   bool important = false;
+  DateTime? noticeBoardAt;
   bool voiceTextPending = false;
   bool hiddenFromSearch = false;
   int? labelColor;
@@ -104,7 +108,7 @@ class _ElementRecords extends MapBase<String, ElementRecord> {
 
 class ElementStore extends ChangeNotifier {
   void Function(String oldText, String newText)? onRenamed;
-  String? update(String oldText, String input, {Iterable<String>? tags, int? labelColor, bool? hiddenFromSearch, bool? important, String? indexLabel, bool? labelOnLeft, int? indexLabelColor, List<ElementBinding>? inlineLinks}) {
+  String? update(String oldText, String input, {Iterable<String>? tags, int? labelColor, bool? hiddenFromSearch, bool? important, bool? onNoticeBoard, String? indexLabel, bool? labelOnLeft, int? indexLabelColor, List<ElementBinding>? inlineLinks}) {
     final parsed = inlineLinks == null ? parseTaggedInput(input) : TaggedInput(input.trim(), {...?tags});
     if (parsed.text.isEmpty) return '생각 내용을 입력해주세요.';
     final record = records[oldText];
@@ -113,6 +117,17 @@ class ElementStore extends ChangeNotifier {
       return '같은 내용의 생각이 이미 있어요.';
     }
     final ordered = records.entries.map((e) => MapEntry(e.key == oldText ? parsed.text : e.key, e.value)).toList();
+    if (onNoticeBoard == true && record.noticeBoardAt == null &&
+        records.values.where((thought) => thought.noticeBoardAt != null).length >= noticeBoardLimit) {
+      return noticeBoardFullMessage;
+    }
+    if (onNoticeBoard != null) {
+      if (onNoticeBoard) {
+        record.noticeBoardAt ??= DateTime.now().toUtc();
+      } else {
+        record.noticeBoardAt = null;
+      }
+    }
     if (inlineLinks != null) { record.inlineLinks = List.of(inlineLinks); }
     else if (parsed.text != oldText) { record.inlineLinks.clear(); }
     if (indexLabel != null) record.indexLabel = indexLabel.replaceAll(RegExp(r'\s+'), ' ').trim();
@@ -164,6 +179,7 @@ class ElementStore extends ChangeNotifier {
       final removed = records.remove(word);
       if (removed == null) continue;
       removed.deletedAt = deletedAt;
+      removed.noticeBoardAt = null;
       trash[removed.id] = removed;
       changed = true;
     }
@@ -283,6 +299,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   late String _word;
   int? _labelColor;
   late bool _closed, _important;
+  bool? _noticeBoardChange;
   String? _error;
   final _photoUploads=<String,List<PhotoDraft>>{};
   final _audioUploads=<String,List<VoiceDraft>>{};
@@ -518,6 +535,26 @@ class _ElementMetadataState extends State<_ElementMetadata> {
         const Padding(padding: EdgeInsets.only(top: 8),
           child: Divider(key: ValueKey('element-actions-divider'), height: 1, thickness: 1)),
         Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
+          if (_canAttach) IconButton(
+            tooltip: (_noticeBoardChange ?? (element.noticeBoardAt != null))
+                ? '알림판 등록 해제' : '알림판에 등록',
+            isSelected: _noticeBoardChange ?? (element.noticeBoardAt != null),
+            style: captureStyle,
+            icon: const Icon(Icons.push_pin_outlined, size: 18),
+            selectedIcon: const Icon(Icons.push_pin, size: 18),
+            onPressed: _attachmentBusy ? null : () {
+              final registered = _noticeBoardChange ?? (element.noticeBoardAt != null);
+              if (!registered && element.noticeBoardAt == null &&
+                  elements.records.values.where((thought) => thought.noticeBoardAt != null).length >= noticeBoardLimit) {
+                setState(() => _error = noticeBoardFullMessage);
+                return;
+              }
+              setState(() {
+                _noticeBoardChange = !registered;
+                if (_error == noticeBoardFullMessage) _error = null;
+              });
+            },
+          ),
           Expanded(child:Row(mainAxisAlignment:MainAxisAlignment.end,children:[
           Flexible(child: Text(workspaceMemoAuthor?.call(element.id) ?? '작성자 정보 없음',
             key: const ValueKey('element-author'), maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -567,7 +604,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               for(final id in written){try{await MediaStorage.delete(id,owner:_mediaOwner);}catch(_){}}
               if(mounted)setState((){_attachmentBusy=false;_error='첨부 저장에 실패했습니다. $e';});return;
             }
-            final error = elements.update(word, cleaned.text, inlineLinks: cleaned.links, tags: {..._tags, ...cleaned.tags}, labelColor: _labelColor, hiddenFromSearch: _closed, important: _important, indexLabel: _labelEditor.text, labelOnLeft: _labelOnLeft, indexLabelColor: _indexLabelColor);
+            final error = elements.update(word, cleaned.text, inlineLinks: cleaned.links, tags: {..._tags, ...cleaned.tags}, labelColor: _labelColor, hiddenFromSearch: _closed, important: _important, onNoticeBoard: _noticeBoardChange, indexLabel: _labelEditor.text, labelOnLeft: _labelOnLeft, indexLabelColor: _indexLabelColor);
             if (error != null) {
               for(final id in written){await MediaStorage.delete(id,owner:_mediaOwner);}
               if(mounted)setState(() { _attachmentBusy=false;_error = error; });

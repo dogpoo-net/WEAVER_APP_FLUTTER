@@ -80,6 +80,7 @@ class WorkspaceSnapshot {
             'folder': r.folder,
             'hiddenFromSearch': r.hiddenFromSearch,
             'important': r.important,
+            if (r.noticeBoardAt case final at?) 'noticeBoardAt': at.toIso8601String(),
             if(r.voiceTextPending)'voiceTextPending':true,
             if (r.labelColor != null) 'labelColor': r.labelColor,
             'indexLabel': r.indexLabel, 'labelOnLeft': r.labelOnLeft, 'indexLabelColor': r.indexLabelColor,
@@ -173,6 +174,7 @@ class WorkspaceSnapshot {
        ..folder = r['folder'] as String?
        ..hiddenFromSearch = (r['hiddenFromSearch'] as bool?) ?? false
        ..important = r['important'] == true
+       ..noticeBoardAt = r['noticeBoardAt'] is String ? DateTime.tryParse(r['noticeBoardAt'] as String) : null
        ..voiceTextPending = r['voiceTextPending'] == true
        ..labelColor = r['labelColor'] is int ? r['labelColor'] as int : null
        ..indexLabel = (r['indexLabel'] as String? ?? '').replaceAll(RegExp(r'\s+'), ' ').trim()
