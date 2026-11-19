@@ -87,7 +87,7 @@ class DocumentComments {
       if (token.namedGroup('comment') != null) token,
   ];
   late final String visibleText = _visibleText();
-  late final String maskedText = _documentTokens.replaceAllMapped(source, (
+  late final String maskedText = source.replaceAllMapped(_documentTokens, (
     token,
   ) {
     if (token.namedGroup('comment') == null) return token.group(0)!;
