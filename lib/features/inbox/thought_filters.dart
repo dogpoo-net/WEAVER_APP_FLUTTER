@@ -65,7 +65,7 @@ class ThoughtFilters extends StatelessWidget {
             box: item, onChanged: onChanged, child: _chip(item.name, ValueKey('thought-filter-box-${item.name}'), selection?.boxes.contains(item) ?? identical(box, item), () => onFilter(item, null), avatar: _color('${item.name} 상자 색상 변경', Color(item.color), () async {
                 final color = await pickHashtagColor(context, item.name, Color(item.color), prefix: '');
                 if (color != null && context.mounted) { item.color = color.toARGB32(); onChanged(); }
-              })));
+              }))));
           },
         )),
       ])),
@@ -78,7 +78,7 @@ class ThoughtFilters extends StatelessWidget {
             return Padding(padding: const EdgeInsets.only(right: 6), child: _chip('#$item', ValueKey('thought-filter-tag-$item'), selection?.tags.contains(item) ?? (tag == item), () => onFilter(null, item), avatar: _color('#$item 색상 변경', Color(hashtagColors[item] ?? 0xFF90A4AE), () async {
               final color = await pickHashtagColor(context, item, Color(hashtagColors[item] ?? 0xFF90A4AE));
               if (color != null && context.mounted) { hashtagColors[item] = color.toARGB32(); onChanged(); }
-            }));
+            })));
           },
         )),
       ])),
