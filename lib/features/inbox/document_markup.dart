@@ -178,7 +178,9 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
       final line = sourceLines[lineIndex];
       if (!_inCode && codeBlocks.containsKey(offset)) {
         final chunks = <String>[];
-        while (codeBlocks[offset] case final block?) {
+        while (true) {
+          final block = codeBlocks[offset];
+          if (block == null) break;
           final raw = block.group(0)!;
           chunks.add(documentCodeBody(raw));
           lineIndex += '\n'.allMatches(raw).length + 1;
