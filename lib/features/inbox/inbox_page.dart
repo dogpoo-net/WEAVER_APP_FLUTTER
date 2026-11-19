@@ -1438,7 +1438,11 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
 
   Widget _composerWithNoticeBoard(double maxHeight) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [_composer(maxHeight), _noticeBoard()],
+    children: [
+      _composer(maxHeight),
+      const SizedBox(height: 4),
+      _noticeBoard(),
+    ],
   );
 
   Widget _list() {
