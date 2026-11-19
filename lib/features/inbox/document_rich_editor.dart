@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 
 import 'document_syntax.dart';
+import 'canvas_link_text.dart';
 import 'document_code_block.dart';
 import 'element_binding.dart';
 
@@ -153,11 +154,13 @@ class DocumentRichEditor extends StatefulWidget {
     required this.source,
     required this.links,
     required this.onPatch,
+    required this.onLinkHover,
   });
 
   final String source;
   final List<ElementBinding> links;
   final void Function(int start, int end, String replacement) onPatch;
+  final ValueChanged<String?> onLinkHover;
 
   @override
   State<DocumentRichEditor> createState() => _DocumentRichEditorState();
@@ -302,6 +305,35 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
         }
       }
     }
+    final sectionWidgets = <Widget>[];
+    var sectionStart = 0;
+    for (final section in _sections) {
+      final sectionEnd = sectionStart + section.source.length;
+      sectionWidgets.add(
+        section.protected
+            ? Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                child: _ProtectedDocumentSource(
+                  source: section.source,
+                  links: [
+                    for (final link in widget.links)
+                      if (link.start >= sectionStart && link.end <= sectionEnd)
+                        ElementBinding(
+                          link.id,
+                          link.start - sectionStart,
+                          link.end - sectionStart,
+                        ),
+                  ],
+                  onLinkHover: widget.onLinkHover,
+                ),
+              )
+            : _QuillEditorBlock(section: section, key: section.key),
+      );
+      sectionStart = sectionEnd + 1;
+    }
     return Localizations.override(
       context: context,
       delegates: const [quill.FlutterQuillLocalizations.delegate],
@@ -381,19 +413,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final section in _sections)
-                    if (section.protected)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        child: _ProtectedDocumentSource(source: section.source),
-                      )
-                    else
-                      _QuillEditorBlock(section: section, key: section.key),
-                ],
+                children: sectionWidgets,
               ),
             ),
           ),
@@ -439,16 +459,41 @@ class _QuillEditorBlock extends StatelessWidget {
 }
 
 class _ProtectedDocumentSource extends StatelessWidget {
-  const _ProtectedDocumentSource({required this.source});
+  const _ProtectedDocumentSource({
+    required this.source,
+    required this.links,
+    required this.onLinkHover,
+  });
   final String source;
+  final List<ElementBinding> links;
+  final ValueChanged<String?> onLinkHover;
 
   @override
   Widget build(BuildContext context) {
     final children = <Widget>[];
+    Widget textSegment(int start, int end) {
+      final segmentLinks = [
+        for (final link in links)
+          if (link.start >= start && link.end <= end)
+            ElementBinding(link.id, link.start - start, link.end - start),
+      ];
+      final text = source.substring(start, end);
+      return segmentLinks.isEmpty
+          ? SelectableText(text)
+          : SelectionArea(
+              child: CanvasLinkText(
+                text: text,
+                links: segmentLinks,
+                enabled: true,
+                onLinkHover: onLinkHover,
+              ),
+            );
+    }
+
     var offset = 0;
     for (final block in documentCodeBlocks(source)) {
       if (offset < block.start) {
-        children.add(SelectableText(source.substring(offset, block.start)));
+        children.add(textSegment(offset, block.start));
       }
       children.add(
         SelectionArea(
@@ -459,7 +504,7 @@ class _ProtectedDocumentSource extends StatelessWidget {
       if (offset < source.length && source[offset] == '\n') offset++;
     }
     if (offset < source.length)
-      children.add(SelectableText(source.substring(offset)));
+      children.add(textSegment(offset, source.length));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: children,

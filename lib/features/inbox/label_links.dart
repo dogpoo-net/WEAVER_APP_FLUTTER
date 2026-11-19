@@ -148,6 +148,14 @@ class LabelTextController extends BoundTextController {
     : super(text, links.where((b) => isInlineLink(b.id)));
   bool _parsing = false;
   String? _hoveredLink;
+  ValueChanged<String?>? onLinkHover;
+
+  void _setHoveredLink(String? id) {
+    if (_hoveredLink == id) return;
+    _hoveredLink = id;
+    onLinkHover?.call(id);
+    notifyListeners();
+  }
   @override
   set value(TextEditingValue next) {
     super.value = next;
@@ -214,10 +222,15 @@ class LabelTextController extends BoundTextController {
     }
     for (final link in bindings) {
       plain(offset, link.start);
-      children.add(TextSpan(text: text.substring(link.start, link.end), style: inlineLinkStyle(context, link.id, hovered: _hoveredLink == link.id),
+      final hovered = _hoveredLink == link.id;
+      final linkStyle = inlineLinkStyle(context, link.id, hovered: hovered);
+      children.add(TextSpan(
+        text: text.substring(link.start, link.end),
+        style: hovered ? linkStyle.copyWith(decorationStyle: TextDecorationStyle.solid) : linkStyle,
         mouseCursor: SystemMouseCursors.click,
-        onEnter: (_) { _hoveredLink = link.id; notifyListeners(); },
-        onExit: (_) { _hoveredLink = null; notifyListeners(); }));
+        onEnter: (_) => _setHoveredLink(link.id),
+        onExit: (_) { if (_hoveredLink == link.id) _setHoveredLink(null); },
+      ));
       offset = link.end;
     }
     plain(offset, text.length);

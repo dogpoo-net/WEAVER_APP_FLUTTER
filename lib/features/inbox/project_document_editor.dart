@@ -42,8 +42,14 @@ class ProjectDocumentEditor extends StatefulWidget {
 class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   late final LabelTextController _body;
   bool _preview = false, _loading = false, _rich = false;
+  final _hoveredReference = ValueNotifier<String?>(null);
+
+  void _highlightReference(String? id) {
+    if (mounted) _hoveredReference.value = id;
+  }
 
   void _setRich(bool value) {
+    _highlightReference(null);
     FocusScope.of(context).unfocus();
     setState(() {
       _rich = value;
@@ -113,6 +119,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       _original=draft['base']==null?null:Map<String,dynamic>.from(draft['base'] as Map);widget.storage?.documentSaveBases[_draftId]=_original;_dirty=true;
     }
     _lastEdit = _editSignature;
+    _body.onLinkHover = _highlightReference;
     _body.addListener(_edited); elements.addListener(_refresh);
   }
   @override
@@ -143,7 +150,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   }
   void _refresh() { if (mounted) setState(() {}); }
   @override
-  void dispose() { widget.storage?.editorResources.remove(widget.project?.id??'new-document');elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _documentSearch.dispose(); _documentReferenceScroll.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
+  void dispose() { widget.storage?.editorResources.remove(widget.project?.id??'new-document');elements.removeListener(_refresh); _body.dispose(); _hoveredReference.dispose(); _bodyFocus.dispose(); _search.dispose(); _documentSearch.dispose(); _documentReferenceScroll.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
   Future<void> _insertLabel(String word) async {
     if (_rich) _setRich(false);
     await insertAssistedLink(context, _body, word);
@@ -270,10 +277,17 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   }
   Widget _referenceBadge(String key) {
     final project = projectTarget(key);
-    final badge = WordBadge(word: key, displayText: project != null || !_wide ? assistTargetTitle(key) : null,
-      project: project != null, labelTarget: !_wide && isLabelAssistTarget(key),
-      memo: !_wide && project == null && !isLabelAssistTarget(key), compact: true, dense: !_wide,
-      onTap: () => project != null ? openInlineLink(context, key) : showElementMetadata(context, key));
+    final targetId = project != null ? key : 'label:${elements.records[key]?.id}';
+    final badge = ValueListenableBuilder<String?>(
+      valueListenable: _hoveredReference,
+      builder: (context, hovered, _) => WordBadge(
+        word: key, displayText: project != null || !_wide ? assistTargetTitle(key) : null,
+        project: project != null, labelTarget: !_wide && isLabelAssistTarget(key),
+        memo: !_wide && project == null && !isLabelAssistTarget(key), compact: true, dense: !_wide,
+        selected: hovered == targetId,
+        onTap: () => project != null ? openInlineLink(context, key) : showElementMetadata(context, key),
+      ),
+    );
     final feedback = Material(color: Colors.transparent, child: SizedBox(width: 180, child: WordBadge(word: key,
       displayText: assistTargetTitle(key), project: project != null, compact: true, onTap: () {})));
     return _wide ? Draggable<InlineLinkDrag>(dragAnchorStrategy: pointerDragAnchorStrategy, data: InlineLinkDrag(key), feedback: feedback, childWhenDragging: Opacity(opacity: .4, child: badge), child: badge)
@@ -356,7 +370,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     if(didPop || _saving)return;
     try{await _storeDraft();if(mounted){setState(()=>_dirty=false);WidgetsBinding.instance.addPostFrameCallback((_){if(context.mounted)Navigator.pop(context);});}}
     catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('초안을 보관하지 못했습니다. $e')));}
-  }, child: Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _preview = !_preview)), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _canEdit && !_saving ? _save : null),
+  }, child: Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () { _highlightReference(null); setState(() => _preview = !_preview); }), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _canEdit && !_saving ? _save : null),
     IconButton(tooltip: '작성 문법 안내', icon: const Icon(Icons.info_outline), onPressed: _showHelp),
    ]))]), bottomNavigationBar: _canEdit?null:SafeArea(child:Padding(padding:const EdgeInsets.all(12),child:Text('읽기 전용 워크스페이스입니다.'))), body: DesktopMenuBody(child: SafeArea(top: false, child: LayoutBuilder(builder: (context, constraints) {
       final documentBody = !_canEdit
@@ -364,7 +378,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         : _preview
         ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
         : _rich
-        ? DocumentRichEditor(source: _body.text, links: _body.bindings, onPatch: _applyRichPatch)
+        ? DocumentRichEditor(source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference)
         : DocumentLineNumbers(controller: _body, scroll: _documentScroll, child: CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true,
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
