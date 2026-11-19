@@ -119,6 +119,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       _original=draft['base']==null?null:Map<String,dynamic>.from(draft['base'] as Map);widget.storage?.documentSaveBases[_draftId]=_original;_dirty=true;
     }
     _lastEdit = _editSignature;
+    _body.editingDocument = true;
     _body.onLinkHover = _highlightReference;
     _body.addListener(_edited); elements.addListener(_refresh);
   }

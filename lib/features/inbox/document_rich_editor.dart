@@ -485,6 +485,7 @@ class _ProtectedDocumentSource extends StatelessWidget {
                 text: text,
                 links: segmentLinks,
                 enabled: true,
+                editingDocument: true,
                 onLinkHover: onLinkHover,
               ),
             );

@@ -149,6 +149,7 @@ class LabelTextController extends BoundTextController {
   bool _parsing = false;
   String? _hoveredLink;
   ValueChanged<String?>? onLinkHover;
+  bool editingDocument = false;
 
   void _setHoveredLink(String? id) {
     if (_hoveredLink == id) return;
@@ -204,7 +205,9 @@ class LabelTextController extends BoundTextController {
   void openAtCaret(BuildContext context) {
     if (!selection.isValid || !selection.isCollapsed) return;
     final hit = bindings.where((b) => b.start <= selection.extentOffset && selection.extentOffset < b.end).firstOrNull;
-    if (hit != null) openInlineLink(context, hit.id);
+    if (hit != null && !(editingDocument && hit.id.startsWith('label:'))) {
+      openInlineLink(context, hit.id);
+    }
   }
   @override
   TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
@@ -227,7 +230,7 @@ class LabelTextController extends BoundTextController {
       children.add(TextSpan(
         text: text.substring(link.start, link.end),
         style: hovered ? linkStyle.copyWith(decorationStyle: TextDecorationStyle.solid) : linkStyle,
-        mouseCursor: SystemMouseCursors.click,
+        mouseCursor: editingDocument ? SystemMouseCursors.text : SystemMouseCursors.click,
         onEnter: (_) => _setHoveredLink(link.id),
         onExit: (_) { if (_hoveredLink == link.id) _setHoveredLink(null); },
       ));

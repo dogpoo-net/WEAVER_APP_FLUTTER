@@ -5,10 +5,10 @@ import 'label_links.dart';
 
 /// Canvas links use text hit testing, leaving card dragging to the parent.
 class CanvasLinkText extends StatefulWidget {
-  const CanvasLinkText({super.key, required this.text, required this.links, required this.enabled, this.style, this.onLinkHover});
+  const CanvasLinkText({super.key, required this.text, required this.links, required this.enabled, this.style, this.onLinkHover, this.editingDocument = false});
   final String text;
   final List<ElementBinding> links;
-  final bool enabled;
+  final bool enabled, editingDocument;
   final TextStyle? style;
   final ValueChanged<String?>? onLinkHover;
   @override
@@ -49,7 +49,10 @@ class _CanvasLinkTextState extends State<CanvasLinkText> {
       TapGestureRecognizer? tap;
       if (widget.enabled) {
         active.add(key);
-        tap = _taps.putIfAbsent(key, TapGestureRecognizer.new)..onTap = () => _open(link.id);
+        if (!(widget.editingDocument && link.id.startsWith('label:'))) {
+          tap = _taps.putIfAbsent(key, TapGestureRecognizer.new)..onTap = () => _open(link.id);
+        }
+
       }
       final hovered = widget.enabled && _hovered == key;
       final style = inlineLinkStyle(context, link.id, hovered: hovered);
@@ -57,10 +60,10 @@ class _CanvasLinkTextState extends State<CanvasLinkText> {
         style: hovered ? style.copyWith(decorationStyle: TextDecorationStyle.solid) : style,
         onEnter: widget.enabled ? (_) { if (mounted) setState(() => _hovered = key); widget.onLinkHover?.call(link.id); } : null,
         onExit: widget.enabled ? (_) { if (mounted && _hovered == key) { setState(() => _hovered = null); widget.onLinkHover?.call(null); } } : null,
-        recognizer: tap, mouseCursor: widget.enabled ? SystemMouseCursors.click : MouseCursor.defer));
+        recognizer: tap, mouseCursor: !widget.enabled ? MouseCursor.defer : widget.editingDocument ? SystemMouseCursors.text : SystemMouseCursors.click));
       offset = link.end;
     }
-    for (final key in _taps.keys.where((key)=>!active.contains(key)).toList()) { _taps.remove(key)!.dispose(); }
+    for (final key in _taps.keys.where((key) => !active.contains(key)).toList()) { _taps.remove(key)!.dispose(); }
     if (!active.contains(_hovered)) _hovered = null;
     if (offset < widget.text.length) children.add(TextSpan(text: widget.text.substring(offset)));
     return Text.rich(TextSpan(children: children), softWrap: true, overflow: TextOverflow.clip, style: widget.style);
