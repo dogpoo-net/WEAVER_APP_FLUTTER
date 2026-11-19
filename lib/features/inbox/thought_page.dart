@@ -1474,7 +1474,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           ))),
         ])))),
       )); })),
-        if (_canEdit && records.where((record) => _selected.contains(record.id)).length > 1)
+        if (_canEdit && records.any((record) => _selected.contains(record.id)))
           Positioned(bottom: 8, left: 0, right: 0, child: Center(
             child: Material(
               color: color.surfaceContainerHigh,
