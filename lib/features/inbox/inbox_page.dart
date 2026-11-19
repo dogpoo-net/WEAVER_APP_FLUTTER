@@ -169,7 +169,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
   final _quickAssistKey = GlobalKey<CaretAssistState>();
   final List<Note> _notes = [];
   String _query = '';
-  int _memoRows = 5, _paragraphLimit = 5, _projectLimit = 5;
+  int _memoRows = 5, _projectLimit = 5;
   bool _memoHasMore = false;
   final _menuViewState = WorkspaceMenuViewState();
   bool get _menuVisible => desktopMenu.visible;
@@ -1067,8 +1067,8 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     await widget.storage?.syncFolders?.call();
     elements.refreshVisibility(); if (mounted) setState(() {});
   }
-  Future<void> _allThoughts([MemoBox? box]) async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onLayoutChanged: _persistLayouts, onChanged: _persist, onSave:_saveAndSync, initialBox: box, storage:widget.storage, onDocument:_showProject, onCreateDocument:_createProject, onRefresh:_refreshForBrowse, onReloadResource:_reloadResource, onDeleteBoxes:_deleteBoxes)));
+  Future<void> _allThoughts([MemoBox? box, ThoughtView? view]) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => AllThoughtsPage(notes: _notes, onLayoutChanged: _persistLayouts, onChanged: _persist, onSave:_saveAndSync, initialBox: box, initialView: view, storage:widget.storage, onDocument:_showProject, onCreateDocument:_createProject, onRefresh:_refreshForBrowse, onReloadResource:_reloadResource, onDeleteBoxes:_deleteBoxes)));
     if (mounted) setState(() {});
   }
 
@@ -1449,7 +1449,6 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     final records = elements.records.values.where((record) => canBrowseThought(record) &&
       (record.indexLabel.toLowerCase().contains(_query.toLowerCase()) || record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.contains(query))))
       .toList()..sort(compareThoughtPriority);
-    final paragraphs = visible.where((note) => note.paragraphs != null && note.project == null).toList();
     final projects = visible.where((note) => note.project != null).toList();
     final moreStyle = TextButton.styleFrom(textStyle: const TextStyle(fontSize: 11),
       minimumSize: const Size(0, 24), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1467,7 +1466,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
           key: const ValueKey('note-search'),
           style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 13 : 14),
           onChanged: (value) => setState(() {
-            _query = value; _memoRows = 5; _paragraphLimit = 5; _projectLimit = 5; _memoHasMore = false;
+            _query = value; _memoRows = 5; _projectLimit = 5; _memoHasMore = false;
           }),
           decoration: const InputDecoration(
             hintText: '메모에서 찾기',
@@ -1507,22 +1506,24 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
           if (_query.isEmpty && _memoHasMore) TextButton(key: const ValueKey('thoughts-more'), style: moreStyle,
             onPressed: () => setState(() => _memoRows += 5), child: const Text('+더보기')),
           TextButton(key: const ValueKey('thoughts-all'), style: moreStyle,
-            onPressed: _allThoughts, child: const Text('모두보기')),
+            onPressed: () => _allThoughts(null, ThoughtView.page), child: const Text('모두보기')),
         ]),
-        for (final isProject in [true]) ...[
-          if ((isProject ? projects : paragraphs).isNotEmpty) ...[
-            Divider(key: ValueKey(isProject ? 'main-project-divider' : 'main-paragraph-divider'),
-              height: 18, thickness: 1, color: colors.outlineVariant.withValues(alpha: .45)),
-            Padding(padding: const EdgeInsets.only(bottom: 6), child: _homeSectionTitle(isProject ? '문서' : '문단', count: (isProject ? projects : paragraphs).length)),
-            for (final note in (isProject ? projects : paragraphs).take(_query.isNotEmpty
-              ? (isProject ? projects.length : paragraphs.length) : (isProject ? _projectLimit : _paragraphLimit)))
-              _recentNoteCard(note),
-            if (_query.isEmpty && (isProject ? projects.length > _projectLimit : paragraphs.length > _paragraphLimit))
-              Align(alignment: AlignmentDirectional.centerEnd, child: TextButton(
-                key: ValueKey(isProject ? 'projects-more' : 'paragraphs-more'), style: moreStyle,
-                onPressed: () => setState(() { if (isProject) { _projectLimit += 5; } else { _paragraphLimit += 5; } }),
-                child: const Text('+더보기'))),
-          ],
+        if (projects.isNotEmpty) ...[
+          Divider(key: const ValueKey('main-project-divider'),
+            height: 18, thickness: 1, color: colors.outlineVariant.withValues(alpha: .45)),
+          Padding(padding: const EdgeInsets.only(bottom: 6),
+            child: _homeSectionTitle('문서', count: projects.length)),
+          for (final note in projects.take(_projectLimit))
+            _recentNoteCard(note),
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            if (projects.length > _projectLimit)
+              TextButton(key: const ValueKey('projects-more'), style: moreStyle,
+                onPressed: () => setState(() => _projectLimit += 5),
+                child: const Text('+더보기')),
+            TextButton(key: const ValueKey('projects-all'), style: moreStyle,
+              onPressed: () => _allThoughts(null, ThoughtView.documents),
+              child: const Text('모두보기')),
+          ]),
         ],
       ],
     );
