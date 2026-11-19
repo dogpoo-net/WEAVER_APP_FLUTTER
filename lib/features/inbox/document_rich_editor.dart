@@ -1,7 +1,7 @@
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:flutter_quill/quill_delta.dart' show Delta;
 
 import 'document_syntax.dart';
 import 'document_diagnostics.dart';
@@ -16,11 +16,27 @@ const _marks = {
   '--': 'strike',
 };
 
+const _codeLanguagePrefix = '[lang:';
+const _emptyCodeLanguageLine = '[lang: ]';
+final _codeLanguageLine = RegExp(r'^\[lang:[ \t]*([^"<>\]\r\n]*)\]$');
+const _codeLineAttributes = {'code-block': true};
+
+String _languageLine(String? language) => '[lang: ${language ?? ''}]';
+String _readLanguageLine(String line) =>
+    _codeLanguageLine.firstMatch(line)?.group(1)?.trim() ?? '';
+
 /// Project a supported source line into Quill inserts, without updating source.
-List<Map<String, Object>> _decodeLine(String line) {
+List<Map<String, Object>> _decodeLine(
+  String line, {
+  bool showCodeLanguage = false,
+}) {
   if (documentCodeBlocks(line).isNotEmpty) {
     final code = documentCodeBody(line);
     return [
+      if (showCodeLanguage) ...[
+        {'insert': _languageLine(documentCodeLanguage(line))},
+        {'insert': '\n', 'attributes': _codeLineAttributes},
+      ],
       if (code.isNotEmpty) {'insert': code},
       {
         'insert': '\n',
@@ -63,11 +79,20 @@ List<Map<String, Object>> _decodeLine(String line) {
   return ops;
 }
 
-List<String> _encodeLines(quill.Document doc) {
+List<String> _encodeLines(
+  quill.Document doc, {
+  List<int>? missingLanguageOffsets,
+  List<int>? contentOffsets,
+}) {
   final lines = <String>[];
   final text = StringBuffer();
   var active = <String>[];
   var number = 0;
+  var offset = 0;
+  var lineStart = 0;
+  var inCode = false;
+  int? pendingLanguageOffset;
+  var language = '';
   for (final op in doc.toDelta().toJson()) {
     final insert = op['insert'];
     if (insert is! String) continue;
@@ -78,6 +103,7 @@ List<String> _encodeLines(quill.Document doc) {
     ];
     final pieces = insert.split('\n');
     for (var i = 0; i < pieces.length; i++) {
+      offset += pieces[i].length;
       if (pieces[i].isNotEmpty) {
         var shared = 0;
         while (shared < active.length &&
@@ -105,14 +131,40 @@ List<String> _encodeLines(quill.Document doc) {
             : list == 'bullet'
             ? '- '
             : '';
-        lines.add(
-          attrs['code-block'] == true
-              ? '<code>$text</code>'
-              : '$prefix$delimiter$text$delimiter',
-        );
+        final isCode = attrs['code-block'] == true;
+        final value = text.toString();
+        if (isCode && !inCode) {
+          language = '';
+          if (!value.startsWith(_codeLanguagePrefix)) {
+            missingLanguageOffsets?.add(lineStart);
+          }
+        }
+        if (!isCode && pendingLanguageOffset != null) {
+          contentOffsets?.add(pendingLanguageOffset);
+          lines.add('${_codeOpeningFor(language)}</code>');
+          pendingLanguageOffset = null;
+        }
+        if (isCode && !inCode && value.startsWith(_codeLanguagePrefix)) {
+          pendingLanguageOffset = lineStart;
+          language = _readLanguageLine(value);
+        } else {
+          pendingLanguageOffset = null;
+          contentOffsets?.add(lineStart);
+          lines.add(
+            isCode
+                ? '${_codeOpeningFor(language)}$value</code>'
+                : '$prefix$delimiter$value$delimiter',
+          );
+        }
+        inCode = isCode;
+        lineStart = ++offset;
         text.clear();
       }
     }
+  }
+  if (pendingLanguageOffset != null) {
+    contentOffsets?.add(pendingLanguageOffset);
+    lines.add('${_codeOpeningFor(language)}</code>');
   }
   return lines;
 }
@@ -129,12 +181,18 @@ class _Section {
   FocusNode? focus;
   ScrollController? scroll;
   List<String> projected = const [];
+  bool insertingLanguageLine = false;
 
   void initialize() {
     if (protected) return;
-    final document = quill.Document.fromJson([
-      for (final line in source.split('\n')) ..._decodeLine(line),
-    ]);
+    final ops = <Map<String, Object>>[];
+    var inCode = false;
+    for (final line in source.split('\n')) {
+      final isCode = documentCodeBlocks(line).isNotEmpty;
+      ops.addAll(_decodeLine(line, showCodeLanguage: isCode && !inCode));
+      inCode = isCode;
+    }
+    final document = quill.Document.fromJson(ops);
     projected = _encodeLines(document);
     controller = quill.QuillController(
       document: document,
@@ -170,9 +228,7 @@ class DocumentEditorToolbar extends StatelessWidget {
         const SizedBox(width: _gutterWidth),
         Expanded(
           child: IconButtonTheme(
-            data: IconButtonThemeData(
-              style: _documentToolbarButtonStyle,
-            ),
+            data: IconButtonThemeData(style: _documentToolbarButtonStyle),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(children: tools),
@@ -279,7 +335,35 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
   bool _appendSectionOnEdit = false;
 
   void _edited(_Section section) {
-    final next = _encodeLines(section.controller!.document);
+    if (section.insertingLanguageLine) return;
+    final controller = section.controller!;
+    final missing = <int>[];
+    var next = _encodeLines(
+      controller.document,
+      missingLanguageOffsets: missing,
+    );
+    if (missing.isNotEmpty) {
+      section.insertingLanguageLine = true;
+      try {
+        final delta = Delta();
+        var previous = 0;
+        for (final offset in missing) {
+          delta
+            ..retain(offset - previous)
+            ..insert(_emptyCodeLanguageLine)
+            ..insert('\n', _codeLineAttributes);
+          previous = offset;
+        }
+        controller.compose(
+          delta,
+          controller.selection,
+          quill.ChangeSource.local,
+        );
+      } finally {
+        section.insertingLanguageLine = false;
+      }
+      next = _encodeLines(controller.document);
+    }
     final before = section.projected;
     var start = 0;
     while (start < before.length &&
@@ -299,34 +383,11 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     final sourceLines = section.source.split('\n');
     final updated = [
       ...sourceLines.take(start),
-      for (var i = start; i < newEnd; i++)
-        _carryCodeLanguage(next[i], sourceLines, before, i, start, oldEnd),
+      for (var i = start; i < newEnd; i++) next[i],
       ...sourceLines.skip(oldEnd),
     ].join('\n');
     section.projected = next;
     _updateSection(section, updated);
-  }
-
-  String _carryCodeLanguage(
-    String line,
-    List<String> source,
-    List<String> prior,
-    int index,
-    int start,
-    int oldEnd,
-  ) {
-    if (!line.startsWith('<code>')) return line;
-    final candidates = [
-      if (oldEnd > start) index.clamp(start, oldEnd - 1),
-      if (start > 0) start - 1,
-      if (oldEnd < prior.length) oldEnd,
-    ];
-    for (final candidate in candidates) {
-      if (!prior[candidate].startsWith('<code>')) continue;
-      final language = documentCodeLanguage(source[candidate]);
-      return language == null ? line : _withCodeLanguage(line, language);
-    }
-    return line;
   }
 
   void _updateSection(
@@ -356,33 +417,36 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     }
   }
 
-  void _changeProtectedLanguage(_Section section, int start, String value) {
-    final current = documentCodeOpening.matchAsPrefix(section.source, start);
-    if (current == null) return;
-    final end = current.end;
-    final opening = _codeOpeningFor(value);
-    if (section.source.substring(start, end) == opening) return;
-    _updateSection(
-      section,
-      section.source.replaceRange(start, end, opening),
-      patchStart: start,
-      patchEnd: end,
-      replacement: opening,
-    );
-  }
-
-  void _changeQuillLanguage(
+  void _editProtectedCode(
     _Section section,
-    int first,
-    int last,
+    int start,
+    String previous,
     String value,
   ) {
-    final lines = section.source.split('\n');
-    for (var i = first; i <= last; i++) {
-      lines[i] = _withCodeLanguage(lines[i], value);
-    }
-    final updated = lines.join('\n');
-    if (updated != section.source) _updateSection(section, updated);
+    final opening = documentCodeOpening.matchAsPrefix(previous)!;
+    final newline = value.indexOf('\n');
+    final firstLine = newline == -1 ? value : value.substring(0, newline);
+    final hasLanguageLine = firstLine.startsWith(_codeLanguagePrefix);
+    final language = hasLanguageLine ? _readLanguageLine(firstLine) : '';
+    final code = hasLanguageLine
+        ? (newline < 0 ? '' : value.substring(newline + 1))
+        : value;
+    final leadingBreak = previous.startsWith('\n', opening.end) ? '\n' : '';
+    final trailingBreak =
+        previous.endsWith('\n</code>') &&
+            previous.length - 7 > opening.end + leadingBreak.length
+        ? '\n'
+        : '';
+    final updated =
+        '${_codeOpeningFor(language)}$leadingBreak$code$trailingBreak</code>';
+    if (updated == previous) return;
+    _updateSection(
+      section,
+      section.source.replaceRange(start, start + previous.length, updated),
+      patchStart: start,
+      patchEnd: start + previous.length,
+      replacement: updated,
+    );
   }
 
   @override
@@ -411,7 +475,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     final numbering = DocumentHeadingNumbers();
     final headings = <({String title, _Section section, int offset})>[];
     for (final section in _sections) {
-      var offset = 0;
+      final offsets = <int>[];
       final lines = section.protected
           ? section.source
                 .replaceAllMapped(
@@ -419,22 +483,17 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                   (match) => '\n' * '\n'.allMatches(match.group(0)!).length,
                 )
                 .split('\n')
-          : section.projected;
-      for (final line in lines) {
-        final match = projectHeading.firstMatch(line);
+          : _encodeLines(section.controller!.document, contentOffsets: offsets);
+      for (var i = 0; i < lines.length; i++) {
+        final match = projectHeading.firstMatch(lines[i]);
         if (match != null) {
           final prefix = numbering.next(match.group(1)!.length);
           if (prefix.isNotEmpty) {
             headings.add((
               title: '$prefix${match.group(2)!.trim()}',
               section: section,
-              offset: offset,
+              offset: section.protected ? 0 : offsets[i],
             ));
-          }
-        }
-        if (!section.protected) {
-          for (final op in _decodeLine(line)) {
-            offset += (op['insert'] as String).length;
           }
         }
       }
@@ -468,16 +527,14 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                       ),
                 ],
                 onLinkHover: widget.onLinkHover,
-                onLanguage: (start, language) =>
-                    _changeProtectedLanguage(section, start, language),
+                onCodeChanged: (start, raw, value) =>
+                    _editProtectedCode(section, start, raw, value),
               )
             : _QuillEditorBlock(
                 section: section,
                 firstLine: firstLine,
                 diagnostics: diagnoses,
                 onSyntaxDiagnostic: widget.onSyntaxDiagnostic,
-                onLanguage: (first, last, language) =>
-                    _changeQuillLanguage(section, first, last, language),
                 key: section.key,
               ),
       );
@@ -639,36 +696,6 @@ String _codeOpeningFor(String value) {
   return language.isEmpty ? '<code>' : '<code lang="$language">';
 }
 
-String _withCodeLanguage(String line, String language) {
-  final opening = documentCodeOpening.matchAsPrefix(line);
-  return opening == null
-      ? line
-      : _codeOpeningFor(language) + line.substring(opening.end);
-}
-
-class _CodeLanguageInput extends StatelessWidget {
-  const _CodeLanguageInput({
-    super.key,
-    required this.value,
-    required this.onChanged,
-  });
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) => TextFormField(
-    initialValue: value,
-    onChanged: onChanged,
-    inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'["<>\r\n]'))],
-    decoration: const InputDecoration(
-      labelText: '언어',
-      hintText: '예: python',
-      isDense: true,
-      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-    ),
-  );
-}
-
 TextStyle _lineNumberStyle(BuildContext context) =>
     Theme.of(context).textTheme.bodySmall!
         .copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
@@ -678,7 +705,6 @@ class _QuillEditorBlock extends StatelessWidget {
     super.key,
     required this.section,
     required this.firstLine,
-    required this.onLanguage,
     required this.diagnostics,
     required this.onSyntaxDiagnostic,
   });
@@ -687,21 +713,17 @@ class _QuillEditorBlock extends StatelessWidget {
   final Map<int, DocumentDiagnostic> diagnostics;
   final void Function(String? message, Offset position, {bool touch})
   onSyntaxDiagnostic;
-  final void Function(int first, int last, String value) onLanguage;
 
   @override
   Widget build(BuildContext context) {
     final controller = section.controller!;
-    final issuesByOffset = <int, DocumentDiagnostic>{};
-    if (diagnostics.isNotEmpty) {
-      var line = 0, offset = 0;
-      for (final text in controller.document.toPlainText().split('\n')) {
-        final issue = diagnostics[line++];
-        if (issue != null) issuesByOffset[offset] = issue;
-        offset += text.length + 1;
-      }
-    }
-    final editor = Stack(
+    final contentOffsets = <int>[];
+    _encodeLines(controller.document, contentOffsets: contentOffsets);
+    final issuesByOffset = <int, DocumentDiagnostic>{
+      for (var i = 0; i < contentOffsets.length; i++)
+        if (diagnostics[i] case final issue?) contentOffsets[i]: issue,
+    };
+    return Stack(
       key: section.gutterOrigin,
       children: [
         Padding(
@@ -781,7 +803,7 @@ class _QuillEditorBlock extends StatelessWidget {
               painter: _QuillLineNumbers(
                 editorKey: section.editorKey,
                 originKey: section.gutterOrigin,
-                text: controller.document.toPlainText(),
+                offsets: contentOffsets,
                 firstLine: firstLine,
                 style: _lineNumberStyle(context),
                 scaler: MediaQuery.textScalerOf(context),
@@ -791,48 +813,6 @@ class _QuillEditorBlock extends StatelessWidget {
         ),
       ],
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ListenableBuilder(
-          listenable: controller,
-          builder: (context, _) {
-            final lines = section.projected;
-            final plain = controller.document.toPlainText();
-            final offset = controller.selection.extentOffset.clamp(
-              0,
-              plain.length,
-            );
-            final row = '\n'.allMatches(plain.substring(0, offset)).length;
-            bool isCode(int index) =>
-                index >= 0 &&
-                index < lines.length &&
-                lines[index].startsWith('<code>');
-            if (!isCode(row)) return const SizedBox.shrink();
-            var first = row, last = row;
-            final source = section.source.split('\n');
-            final language = documentCodeLanguage(source[row]);
-            while (isCode(first - 1) &&
-                documentCodeLanguage(source[first - 1]) == language) {
-              first--;
-            }
-            while (isCode(last + 1) &&
-                documentCodeLanguage(source[last + 1]) == language) {
-              last++;
-            }
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(_gutterWidth + 12, 0, 12, 4),
-              child: _CodeLanguageInput(
-                key: ValueKey(first),
-                value: language ?? '',
-                onChanged: (value) => onLanguage(first, last, value),
-              ),
-            );
-          },
-        ),
-        editor,
-      ],
-    );
   }
 }
 
@@ -840,7 +820,7 @@ class _QuillLineNumbers extends CustomPainter {
   _QuillLineNumbers({
     required this.editorKey,
     required this.originKey,
-    required this.text,
+    required this.offsets,
     required this.firstLine,
     required this.style,
     required this.scaler,
@@ -848,7 +828,7 @@ class _QuillLineNumbers extends CustomPainter {
 
   final GlobalKey<quill.EditorState> editorKey;
   final GlobalKey originKey;
-  final String text;
+  final List<int> offsets;
   final int firstLine;
   final TextStyle style;
   final TextScaler scaler;
@@ -868,11 +848,7 @@ class _QuillLineNumbers extends CustomPainter {
       textScaler: scaler,
     );
     var line = firstLine;
-    for (final start in [
-      0,
-      for (var i = 0; i + 1 < text.length; i++)
-        if (text.codeUnitAt(i) == 10) i + 1,
-    ]) {
+    for (final start in offsets) {
       final caret = render.getLocalRectForCaret(TextPosition(offset: start));
       label.text = TextSpan(text: '${line++}', style: style);
       label.layout();
@@ -900,14 +876,14 @@ class _ProtectedDocumentSource extends StatelessWidget {
     required this.source,
     required this.links,
     required this.onLinkHover,
-    required this.onLanguage,
+    required this.onCodeChanged,
   });
   final int firstLine;
   final Map<int, DocumentDiagnostic> diagnostics;
   final String source;
   final List<ElementBinding> links;
   final ValueChanged<String?> onLinkHover;
-  final void Function(int start, String value) onLanguage;
+  final void Function(int start, String raw, String value) onCodeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -996,8 +972,7 @@ class _ProtectedDocumentSource extends StatelessWidget {
       final code = documentCodeBody(raw);
       final language = documentCodeLanguage(raw);
       final opening = documentCodeOpening.matchAsPrefix(raw)!;
-      final openingStart = block.start;
-      final languageInputKey = ValueKey(blockIndex++);
+      final codeKey = ValueKey(blockIndex++);
       final firstCodeLine = line + (raw.startsWith('\n', opening.end) ? 1 : 0);
       final codeLineCount = '\n'.allMatches(code).length + 1;
       children.add(
@@ -1007,7 +982,7 @@ class _ProtectedDocumentSource extends StatelessWidget {
             SizedBox(
               width: _gutterWidth,
               child: Padding(
-                padding: const EdgeInsets.only(right: 8, top: 52),
+                padding: const EdgeInsets.only(right: 8, top: 27),
                 child: Text(
                   List.generate(
                     codeLineCount,
@@ -1026,16 +1001,31 @@ class _ProtectedDocumentSource extends StatelessWidget {
                   horizontal: 12,
                   vertical: 2,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _CodeLanguageInput(
-                      key: languageInputKey,
-                      value: language ?? '',
-                      onChanged: (value) => onLanguage(openingStart, value),
+                child: DecoratedBox(
+                  decoration: documentCodeDecoration(context),
+                  child: TextFormField(
+                    key: codeKey,
+                    initialValue: '${_languageLine(language)}\n$code',
+                    minLines: 2,
+                    maxLines: null,
+                    style: documentCodeStyle(context),
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    keyboardType: TextInputType.multiline,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      filled: false,
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                     ),
-                    SelectionArea(child: DocumentCodeBlock(code)),
-                  ],
+                    onChanged: (value) =>
+                        onCodeChanged(block.start, raw, value),
+                  ),
                 ),
               ),
             ),
