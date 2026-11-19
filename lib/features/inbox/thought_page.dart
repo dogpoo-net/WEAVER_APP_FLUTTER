@@ -155,6 +155,17 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _selectionMode = value; _selected.clear(); _rangeAnchor = null; _selectionStart = null; _selectionEnd = null;
     _selectionPointers.clear(); _selectionZoomBase = null; _selectionZoomDistance = null; _selectionZoomAnchor = null; _selectionPinched = false;
   });
+  Rect _boxHeaderBounds(Rect bounds) {
+    final width = widget.blocks ? bounds.width - 64 : bounds.width * .45;
+    return Rect.fromLTWH(bounds.center.dx - width / 2, bounds.top + 8, width, 32);
+  }
+
+  void _toggleThoughtSelection(String id) {
+    if (!_selected.add(id)) _selected.remove(id);
+    _rangeAnchor = id;
+    _rangeAnchorPoint = null;
+  }
+
   String? _resizingThought;
   final _resizeNeighbors = <String>{};
   String? _upperResizeNeighbor;
@@ -737,42 +748,133 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     }
   }
   bool _deletingContainer=false;
-  Future<bool> _confirmContainerDelete(String name,String detail)async=>await showDialog<bool>(context:context,builder:(context)=>AlertDialog(
-    title:const Text('삭제하시겠습니까?'),content:Text('$name\n\n$detail'),
-    actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('취소')),
-      TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('삭제'))]))==true;
   Future<void> _persistContainerDelete()async{
     _saveLayout(flush:true);_changed();
     final save=widget.onSave??saveWorkspaceContent;
     if(save!=null)await save();
     await widget.storage?.syncFolders?.call();
   }
-  Future<void> _removeCanvasBoxes(Set<String> names)async{
-    if(!_canEdit||_deletingContainer)return;
-    _deletingContainer=true;
-    try{
-      await widget.storage?.writable();if(!mounted||!_canEdit)return;
-      final removed=memoBoxes.where((b)=>!b.isUnclassified&&names.contains(b.name)).toSet();
-      removeMemoBoxesKeepingThoughts(names);
-      _filters.boxes.removeWhere(removed.contains);_emptyBoxBounds.removeWhere((b,_)=>removed.contains(b));
-      await _persistContainerDelete();
-    }finally{_deletingContainer=false;}
+  void _removeBoxes(Set<String> names) {
+    removeMemoBoxesKeepingThoughts(names);
+    _filters.boxes.removeWhere((box) => names.contains(box.name));
+    _emptyBoxBounds.removeWhere((box, _) => names.contains(box.name));
   }
-  Future<void> _deleteCanvasBox(MemoBox box)async{
-    if(!_canEdit||box.isUnclassified||_deletingContainer)return;
-    if(!await _confirmContainerDelete(box.name,'포함된 생각은 삭제하지 않고 미분류로 이동합니다.')||!mounted)return;
-    try{await _removeCanvasBoxes({box.name});}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('상자 삭제를 저장하지 못했습니다. $e')));}
+
+  void _trashThoughts(Set<String> ids) {
+    final words = ids.map((id) => elements.byId(id)?.text).nonNulls.toList();
+    for (final box in memoBoxes.where((box) => !box.isUnclassified)) {
+      box.elementIds.removeAll(ids);
+    }
+    _selected.removeAll(ids);
+    if (ids.contains(_rangeAnchor)) {
+      _rangeAnchor = null;
+      _rangeAnchorPoint = null;
+    }
+    elements.removeAll(words);
   }
-  Future<void> _deleteCanvasFolder(String folder)async{
-    if(!_canEdit||_deletingContainer)return;
-    if(!await _confirmContainerDelete(folder,'내부의 상자와 하위 폴더는 상위 폴더로 이동합니다.')||!mounted||!_canEdit)return;
-    _deletingContainer=true;
-    try{
-      await widget.storage?.writable();if(!mounted||!_canEdit)return;
-      removeMemoFolderKeepingContents(folder);_layout.folderPositions.remove(folder);_frozenFolders.remove(folder);
+
+  Future<void> _removeCanvasBoxes(Set<String> names, ContainerDeletion choice) async {
+    if (!_canEdit || _deletingContainer) return;
+    _deletingContainer = true;
+    try {
+      await widget.storage?.writable();
+      if (!mounted || !_canEdit) return;
+      final boxes = memoBoxes.where((box) => !box.isUnclassified && names.contains(box.name)).toList();
+      final ids = boxes.expand((box) => box.elementIds).toSet();
+      _removeBoxes(boxes.map((box) => box.name).toSet());
+      if (choice == ContainerDeletion.withThoughts) _trashThoughts(ids);
       await _persistContainerDelete();
-    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('폴더 삭제를 저장하지 못했습니다. $e')));}
-    finally{_deletingContainer=false;}
+    } finally {
+      _deletingContainer = false;
+    }
+  }
+
+  Future<void> _deleteCanvasBox(MemoBox box) async {
+    if (!_canEdit || box.isUnclassified || _deletingContainer) return;
+    final choice = await confirmContainerDeletion(
+      context, box.name, '내용을 유지하면 생각은 미분류로 이동합니다.',
+    );
+    if (choice == null || !mounted) return;
+    try {
+      await _removeCanvasBoxes({box.name}, choice);
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('상자 삭제를 저장하지 못했습니다. $error')),
+      );
+    }
+  }
+
+  void _removeFolder(String folder) {
+    removeMemoFolderKeepingContents(folder);
+    _layout.folderPositions.remove(folder);
+    _frozenFolders.remove(folder);
+  }
+
+  Future<void> _deleteCanvasFolder(String folder) async {
+    if (!_canEdit || _deletingContainer) return;
+    final choice = await confirmContainerDeletion(
+      context, folder, '내용을 유지하면 내부의 상자와 폴더는 상위 폴더로 이동합니다.',
+    );
+    if (choice == null || !mounted || !_canEdit || _deletingContainer) return;
+    _deletingContainer = true;
+    try {
+      await widget.storage?.writable();
+      if (!mounted || !_canEdit || !memoBoxFolders.contains(folder)) return;
+      if (choice == ContainerDeletion.withThoughts) {
+        final boxes = memoBoxes.where((box) =>
+          !box.isUnclassified && box.folder != null && memoFolderContains(folder, box.folder!),
+        ).toList();
+        final ids = boxes.expand((box) => box.elementIds).toSet();
+        final subtree = memoBoxFolders.where((name) => memoFolderContains(folder, name)).toList()
+          ..sort((a, b) => memoFolderDepth(b).compareTo(memoFolderDepth(a)));
+        _removeBoxes(boxes.map((box) => box.name).toSet());
+        for (final name in subtree) {
+          _removeFolder(name);
+        }
+        _trashThoughts(ids);
+      } else {
+        _removeFolder(folder);
+      }
+      await _persistContainerDelete();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('폴더 삭제를 저장하지 못했습니다. $error')),
+      );
+    } finally {
+      _deletingContainer = false;
+    }
+  }
+
+  Future<void> _deleteSelectedThoughts(Set<String> ids) async {
+    if (ids.isEmpty || !_canEdit || _deletingContainer) return;
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('선택한 생각을 삭제하시겠습니까?'),
+        content: Text('생각 ${ids.length}개가 휴지통으로 이동합니다.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('삭제')),
+        ],
+      ),
+    );
+    if (accepted != true || !mounted || !_canEdit || _deletingContainer) return;
+    _deletingContainer = true;
+    try {
+      await widget.storage?.writable();
+      if (!mounted || !_canEdit) return;
+      _trashThoughts(ids);
+      _saveLayout(flush: true);
+      _changed();
+      final save = widget.onSave ?? saveWorkspaceContent;
+      if (save != null) await save();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('생각을 삭제하지 못했습니다. $error')),
+      );
+    } finally {
+      _deletingContainer = false;
+    }
   }
   Future<void> _createBox() async {
     final box = await createMemoBox(context);
@@ -1064,7 +1166,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40), maximumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
       if(widget.storage!=null)ValueListenableBuilder<String>(valueListenable:widget.storage!.canvasSaveState,builder:(context,state,_)=>Tooltip(message:state,child:Padding(padding:const EdgeInsets.symmetric(horizontal:4),child:Icon(state=='저장됨'?Icons.cloud_done_outlined:state=='저장 중'?Icons.cloud_upload_outlined:Icons.cloud_queue,size:18)))),
-      if(_canEdit)MemoBoxActions(filters:_filters,onCreate:_createBox,onCreateThought:_create,onDelete:_removeCanvasBoxes,preserveThoughts:true),
+      if(_canEdit)MemoBoxActions(filters:_filters,onCreate:_createBox,onCreateThought:_create,onDeleteWithContents:_removeCanvasBoxes,preserveThoughts:true),
       PopupMenuButton<String>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: (value) {if(value=='all'){setState(() => _centered=false);}else if(_canEdit){_resetArrangement(value=='stack');}},
         itemBuilder: (_) => const [PopupMenuItem(value:'all',child:Text('전체 보기')),PopupMenuItem(value: 'spread', child: Text('펼쳐보기')), PopupMenuItem(value: 'stack', child: Text('겹쳐보기'))]),
       if (!widget.blocks) IconButton(tooltip: '저장 (Ctrl+S)', onPressed: _canEdit?_saveCanvas:null, icon: const Icon(Icons.save_outlined)),
@@ -1144,13 +1246,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               final shift = Offset(math.max(delta.dx, 32 - folder.value.left), math.max(delta.dy, 32 - folder.value.top));
               _moveFolder(folder.key, shift); _moveSelectedTags(shift); _saveLayout();
             })),
-          for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds,showLabel:false, highlighted: identical(_hoverBox, region.box) || identical(_liftedBox, region.box), rectangular: widget.blocks,
-            onLiftStart: (pointer) => _liftBox(region.box, pointer),
-            onLiftMove: (pointer) => _moveLiftedBox(region.box, pointer),
-            onLiftEnd: (pointer) => _finishBoxDrag(region.box, pointer),
-            onDrag: (delta) => setState(() => _dragBox(region.box, delta)),
-            onDragCancel: () { if (!identical(_liftedBox, region.box)) _finishBoxDrag(region.box); },
-            onDragEnd: () => _finishBoxDrag(region.box)),
+          for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds,showLabel:false, highlighted: identical(_hoverBox, region.box) || identical(_liftedBox, region.box), rectangular: widget.blocks),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
             nodeRects,
             {for (final r in records) r.id: {if (!_hideTags) ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
@@ -1166,7 +1262,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 onActiveChanged: (active) => setState(() { if (active) { _rememberStacks(); _thoughtDragOrigins.putIfAbsent(record.id, () => _positions[record.id]!); _dragStartStacks.putIfAbsent(record.id, () => alignedStackMembers(record.id, _positions,groups:_layout.stackGroups)); } _draggingId = active ? record.id : null; if (!active) { _hoverBox = null; _dropHighlights.clear(); } }),
                 onTap: () async {
                   if (_detailOpen) return;
-                  if (_selectionMode) { _toggleSelection(false); return; }
+                  if (_selectionMode) { setState(() => _toggleThoughtSelection(record.id)); return; }
                   _rangeAnchor=record.id; _detailOpen=true;
                   try { await showElementMetadata(context, record.text); }
                   finally { _detailOpen=false; }
@@ -1182,7 +1278,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   final center = _bounds(record.id).center;
                   _hoverBox = regions.where((r) => !r.box.elementIds.contains(record.id) && _inside(r.bounds, center)).firstOrNull?.box;
                   _saveLayout(); }),
-                onBorderTap: () { if (!_ctrlPressed && !_shiftPressed && (_selectionMode || _selected.isNotEmpty)) _toggleSelection(false); },
+                onBorderTap: () {
+                  if (_selectionMode) {
+                    setState(() => _toggleThoughtSelection(record.id));
+                  } else if (!_ctrlPressed && !_shiftPressed && _selected.isNotEmpty) {
+                    _toggleSelection(false);
+                  }
+                },
                 onResizeStart: () => _beginResize(record.id),
                 fitSize: (horizontal,vertical)=>_fitThought(record,horizontal,vertical),
                 onAutoResize: (size,shift)=>_resizeThought(record.id,size,shift,snap:false),
@@ -1273,10 +1375,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               child: ThoughtLabel(key: ValueKey('thought-label-${record.id}'), record: record, movable: _canEdit,
               active: _frontThought == record.id,
               onHold: (held) => setState(() { if (held) { _frontThought = record.id; } else if (_frontThought == record.id) { _frontThought = null; } })))),
-          for (final region in regions) Positioned(
-            left: region.bounds.center.dx - (widget.blocks ? region.bounds.width - 64 : region.bounds.width * .45) / 2,
-            top: region.bounds.top + 8,
-            width: widget.blocks ? region.bounds.width - 64 : region.bounds.width * .45, height: 32,
+          for (final region in regions) Positioned.fromRect(
+            rect: _boxHeaderBounds(region.bounds),
             child: GestureDetector(key: ValueKey('box-drag-header-${region.box.name}'), behavior: HitTestBehavior.opaque,
               onLongPressStart: (d) => _liftBox(region.box, d.globalPosition),
               onLongPressMoveUpdate: (d) => _moveLiftedBox(region.box, d.globalPosition),
@@ -1324,7 +1424,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onLongPressCancel:_cancelSelectionLift,
             onTapUp: (d) => setState(() {
               final hit = _hitSelection(d.localPosition, records);
-              if (!_ctrlPressed && !_shiftPressed && (_selectionMode || _selected.isNotEmpty)) {
+              if (!_selectionMode && !_ctrlPressed && !_shiftPressed && _selected.isNotEmpty) {
                 _toggleSelection(false); return;
               }
               if (hit == null) { _selected.clear(); _rangeAnchor=null; _rangeAnchorPoint=null; }
@@ -1335,7 +1435,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 }
                 for(final id in tagPositions.keys){if(range.overlaps(nodeRects[id]!))_selected.add(id);}
               } else {
-                if(_ctrlPressed||_selectionMode){if(!_selected.add(hit))_selected.remove(hit);}
+                if(_ctrlPressed||_selectionMode){_toggleThoughtSelection(hit);}
                 else{_selected..clear()..add(hit);}
                 _rangeAnchor=hit; _rangeAnchorPoint=d.localPosition;
               }
@@ -1384,10 +1484,29 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               builder: (context, scale, child) => CustomPaint(painter: _SelectionPainter(
               [for (final r in records) (rect: _bounds(r.id), selected: _selected.contains(r.id)), for(final id in tagPositions.keys)(rect:nodeRects[id]!,selected:_selected.contains(id))],
               !_movingSelection && _selectionStart != null && _selectionEnd != null ? Rect.fromPoints(_selectionStart!, _selectionEnd!) : null,
-              color.primary, widget.blocks ? 6 : 12, captureAll: _rangeSelection, liftScale: scale, resizeRects: {for(final r in records)_bounds(r.id)}))),
+              color.primary, widget.blocks ? 6 : 12, captureAll: _rangeSelection, liftScale: scale, containerHeaders: [
+                for (final region in regions) _boxHeaderBounds(region.bounds),
+                for (final bounds in folders.values)
+                  Rect.fromLTWH(bounds.left, bounds.top, bounds.width, MemoFolderRegion.headerHeight),
+              ], resizeRects: {for(final r in records)_bounds(r.id)}))),
           ))),
         ])))),
       )); })),
+        if (_canEdit && records.where((record) => _selected.contains(record.id)).length > 1)
+          Positioned(bottom: 8, left: 0, right: 0, child: Center(
+            child: Material(
+              color: color.surfaceContainerHigh,
+              shape: const CircleBorder(),
+              child: IconButton(
+                tooltip: '선택한 생각 삭제',
+                icon: const Icon(Icons.close),
+                onPressed: () => _deleteSelectedThoughts({
+                  for (final record in records)
+                    if (_selected.contains(record.id)) record.id,
+                }),
+              ),
+            ),
+          )),
         if (_canEdit && _selected.isNotEmpty) Positioned(top: 8, right: 12, child: Material(key: const ValueKey('canvas-layer-panel'),
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: IntrinsicWidth(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -1474,12 +1593,14 @@ class _Connections extends CustomPainter {
 }
 
 class _SelectionPainter extends CustomPainter {
-  _SelectionPainter(this.selected, this.marquee, this.color, this.radius, {this.captureAll=false, this.liftScale=1, this.resizeRects=const {}});
+  _SelectionPainter(this.selected, this.marquee, this.color, this.radius, {this.captureAll=false, this.liftScale=1, this.resizeRects=const {}, this.containerHeaders=const []});
+  final List<Rect> containerHeaders;
   final Set<Rect> resizeRects;
   final double liftScale;
   final bool captureAll;
   @override
   bool hitTest(Offset position) {
+    if (containerHeaders.any((rect) => rect.contains(position))) return false;
     for (final item in selected.reversed) {
       if (RRect.fromRectAndRadius(item.rect,Radius.circular(resizeRects.contains(item.rect)?radius:item.rect.shortestSide/2)).contains(position)) {
         // Let the visible frontmost card's resize handle receive border events.

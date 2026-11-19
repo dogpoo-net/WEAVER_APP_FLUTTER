@@ -19,6 +19,7 @@ Map<String, Rect> memoFolderRegions(Map<MemoBox, Rect> boxes, Map<String, Offset
 
 /// A background group, deliberately not a `DragTarget<MemoDrag>` or a `MemoBox`.
 class MemoFolderRegion extends StatefulWidget {
+  static const headerHeight = 40.0;
   const MemoFolderRegion({super.key, required this.name, required this.bounds, required this.onMove, required this.onEnd, this.onLiftStart, this.onLiftMove, this.onLiftEnd, this.highlighted = false, this.onZoom,this.onDelete});
   final String name;
   final Rect bounds;
@@ -35,7 +36,11 @@ class _MemoFolderRegionState extends State<MemoFolderRegion> {
   Offset? _lastGlobal;
   bool _pinching = false, _scaling = false;
   @override
-  Widget build(BuildContext context) => Positioned.fromRect(rect: widget.bounds, child: Listener(
+  Widget build(BuildContext context) => Positioned.fromRect(rect: widget.bounds, child: DecoratedBox(
+    decoration: BoxDecoration(borderRadius: BorderRadius.circular(18),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: .12),
+      border: Border.all(color: widget.highlighted ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline.withValues(alpha: .4), width: widget.highlighted ? 3 : 1)),
+    child: Align(alignment: Alignment.topLeft, child: SizedBox(height: MemoFolderRegion.headerHeight, child: Listener(
     onPointerDown: (event) { _lastGlobal ??= event.position; },
     onPointerUp: (_) { if (!_scaling) _lastGlobal = null; },
     onPointerCancel: (_) { if (!_scaling) _lastGlobal = null; },
@@ -53,15 +58,12 @@ class _MemoFolderRegionState extends State<MemoFolderRegion> {
       }
       _lastGlobal = d.focalPoint;
     }, onScaleEnd: (_) { _lastGlobal = null; _pinching = false; _scaling = false; widget.onEnd(); },
-    child: DecoratedBox(decoration: BoxDecoration(borderRadius: BorderRadius.circular(18),
-      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: .12),
-      border: Border.all(color: widget.highlighted ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outline.withValues(alpha: .4), width: widget.highlighted ? 3 : 1)),
-      child: Align(alignment: Alignment.topLeft, child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(children: [
           const Icon(Icons.folder_outlined, size: 16), const SizedBox(width: 6),
           Expanded(child: Text(widget.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12))),
           if(widget.onDelete!=null)IconButton(tooltip:'${widget.name} 폴더 삭제',onPressed:widget.onDelete,style:IconButton.styleFrom(minimumSize:const Size.square(24),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap),icon:const Icon(Icons.close,size:16)),
-        ]))),
-  ))));
+        ])),
+  ))))));
 }

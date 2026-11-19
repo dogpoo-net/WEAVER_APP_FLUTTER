@@ -37,7 +37,7 @@ class MemoBoxRegion extends StatelessWidget {
       onLongPressStart: onLiftStart == null ? null : (d) => onLiftStart!(d.globalPosition),
       onLongPressMoveUpdate: onLiftMove == null ? null : (d) => onLiftMove!(d.globalPosition),
       onLongPressEnd: onLiftStart == null ? null : (d) => onLiftEnd != null ? onLiftEnd!(d.globalPosition) : onDragEnd?.call(),
-      onPanUpdate: (d) => onDrag?.call(d.delta), onPanEnd: (_) => onDragEnd?.call(), onPanCancel: onDragCancel ?? onDragEnd,
+      onPanUpdate: onDrag == null ? null : (d) => onDrag!(d.delta), onPanEnd: onDragEnd == null ? null : (_) => onDragEnd!(), onPanCancel: onDragCancel ?? onDragEnd,
       child: DecoratedBox(decoration: BoxDecoration(shape: rectangular ? BoxShape.rectangle : BoxShape.circle, borderRadius: rectangular ? BorderRadius.circular(24) : null,
         color: Color(box.color).withValues(alpha: highlighted ? .16 : .10),
         border: Border.all(color: Color(box.color).withValues(alpha: .7), width: highlighted ? 3 : 1.5)),

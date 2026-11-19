@@ -154,13 +154,22 @@ class ElementStore extends ChangeNotifier {
   }
 
   int deletionRevision = 0;
-  void remove(String word) {
-    final removed = records.remove(word);
-    if (removed == null) return;
-    removed.deletedAt = DateTime.now();
-    trash[removed.id] = removed;
-    deletionRevision++;
-    notifyListeners();
+  void remove(String word) => removeAll([word]);
+
+  void removeAll(Iterable<String> words) {
+    final deletedAt = DateTime.now();
+    var changed = false;
+    for (final word in words) {
+      final removed = records.remove(word);
+      if (removed == null) continue;
+      removed.deletedAt = deletedAt;
+      trash[removed.id] = removed;
+      changed = true;
+    }
+    if (changed) {
+      deletionRevision++;
+      notifyListeners();
+    }
   }
 
   final Map<String, ElementRecord> trash = {};
