@@ -20,6 +20,25 @@ class WorkspaceRouteObserver extends RouteObserver<ModalRoute<dynamic>> {
 }
 final workspaceRouteObserver = WorkspaceRouteObserver();
 
+/// Start background work once the page has finished animating onto the screen.
+void afterWorkspaceRouteEntrance(BuildContext context, VoidCallback action) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!context.mounted) return;
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation == null || animation.status == AnimationStatus.completed) {
+      action();
+      return;
+    }
+    if (animation.status != AnimationStatus.forward) return;
+    void onStatus(AnimationStatus status) {
+      if (status == AnimationStatus.forward) return;
+      animation.removeStatusListener(onStatus);
+      if (status == AnimationStatus.completed && context.mounted) action();
+    }
+    animation.addStatusListener(onStatus);
+  });
+}
+
 /// Respect editors' unsaved-change guards while returning through nested views.
 Future<void> navigateHome(BuildContext context) async {
   final navigator = Navigator.of(context);

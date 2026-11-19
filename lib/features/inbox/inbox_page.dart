@@ -1045,7 +1045,6 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
   }
 
   Future<void> _showProject(Note note) async {
-    try { await _refreshForBrowse(); } catch (e) { if (mounted) _captureError('서버 변경을 확인하지 못했습니다. $e'); }
     if (!mounted) return;
     final current = _notes.where((n) => n.id == note.id).firstOrNull;
     if (current == null) { _captureError('다른 기기에서 삭제된 문서입니다.'); return; }
@@ -1054,7 +1053,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
       context,
       MaterialPageRoute(
         builder: (_) =>
-            ProjectPage(project: note.project!, projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: ()async{if(note.content!=note.project!.content)note.updatedAt=DateTime.now();note.content=note.project!.content;await _persist();}, onSave: () => _saveAndSync(resource:note.project!.id), onHistory:widget.storage?.openHistory, onLease:widget.storage?.documentLease, storage:widget.storage, onReload:()=>_reloadResource(note.project!.id)),
+            ProjectPage(project: note.project!, onOpenRefresh: _refreshForBrowse, projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: ()async{if(note.content!=note.project!.content)note.updatedAt=DateTime.now();note.content=note.project!.content;await _persist();}, onSave: () => _saveAndSync(resource:note.project!.id), onHistory:widget.storage?.openHistory, onLease:widget.storage?.documentLease, storage:widget.storage, onReload:()=>_reloadResource(note.project!.id)),
       ),
     );
     if (!mounted) return;

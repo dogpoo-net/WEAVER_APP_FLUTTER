@@ -133,12 +133,17 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware, Retai
     if(!_viewReady)return const SizedBox.shrink();
     final allRecords = elements.records.values.toList();
     final tags = {...allRecords.expand((record) => record.tags)}.toList()..sort();
-    final records = allRecords.where((record) => canBrowseThought(record) &&
+    final query = _query.toLowerCase();
+    final tagQuery = query.startsWith('#') ? query.substring(1) : query;
+    final records = allRecords.where((record) => _filters.matches(record) &&
+      canBrowseThought(record) &&
       ((!_photosOnly && !_audioOnly) ||
         (_photosOnly && record.photos.isNotEmpty) ||
         (_audioOnly && record.recordings.isNotEmpty)) &&
-      _filters.matches(record) &&
-      (record.indexLabel.toLowerCase().contains(_query.toLowerCase()) || record.text.toLowerCase().contains(_query.toLowerCase()) || record.tags.any((tag) => tag.toLowerCase().contains(_query.toLowerCase().replaceFirst(RegExp(r'^#'), ''))))).toList()..sort(compareThoughtPriority);
+      (query.isEmpty || record.indexLabel.toLowerCase().contains(query) ||
+        record.text.toLowerCase().contains(query) ||
+        record.tags.any((tag) => tag.toLowerCase().contains(tagQuery))))
+      .toList()..sort(compareThoughtPriority);
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
     final countLabel = _query.isEmpty && _filters.isEmpty ? '생각 ${records.length}개' : '생각 ${records.length}개 / 전체 ${allRecords.length}개';
     final grid = LayoutBuilder(builder: (context, bounds) {
@@ -325,7 +330,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     super.initState();
     ensureUnclassifiedBox();
     widget.storage?.liveChanges.addListener(_liveChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _reload(); });
+    afterWorkspaceRouteEntrance(context, () { if (mounted) _reload(); });
     _tabPosition=AnimationController(vsync:this,upperBound:activeThoughtViews.length-1.0,value:activeThoughtViews.indexOf(_view).toDouble());
     _loadTabs();
   }

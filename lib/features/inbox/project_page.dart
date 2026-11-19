@@ -30,10 +30,10 @@ class WritingProject {
 }
 
 class ProjectPage extends StatefulWidget {
-  const ProjectPage({super.key, required this.project, this.onChanged, this.onSave, this.onHistory, this.onLease, this.storage, this.onReload, this.projects = const []});
+  const ProjectPage({super.key, required this.project, this.onChanged, this.onSave, this.onHistory, this.onLease, this.storage, this.onReload, this.onOpenRefresh, this.projects = const []});
   final Future<Map<String,dynamic>> Function(String,String,bool)? onLease;
   final WorkspaceStorage? storage;
-  final Future<void> Function()? onReload;
+  final Future<void> Function()? onReload, onOpenRefresh;
   final WritingProject project;
   final List<WritingProject> projects;
   final Future<void> Function()? onChanged, onSave;
@@ -77,7 +77,24 @@ class _ProjectPageState extends State<ProjectPage>{
    }
    setState((){});
  }
- @override void initState(){super.initState();widget.storage?.documentDraftChanges.addListener(_changed);}
+ @override
+ void initState() {
+   super.initState();
+   widget.storage?.documentDraftChanges.addListener(_changed);
+   final refresh = widget.onOpenRefresh;
+   if (refresh != null) {
+     afterWorkspaceRouteEntrance(context, () async {
+       try {
+         await refresh();
+         if (mounted) _changed();
+       } catch (_) {
+         if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(content: Text('서버 변경을 확인하지 못했습니다. 기기의 문서를 표시합니다.')),
+         );
+       }
+     });
+   }
+ }
  @override void dispose(){widget.storage?.documentDraftChanges.removeListener(_changed);super.dispose();}
  Map<String,dynamic>? get _draft=>widget.storage?.documentDraft(widget.project.id);
  DocumentSegment get _display=>_draft==null?DocumentSegment(widget.project.content,widget.project.documentLinks):DocumentSegment(_draft!['text'] as String,[for(final b in _draft!['links'] as List)ElementBinding(b['id'] as String,b['start'] as int,b['end'] as int)]);

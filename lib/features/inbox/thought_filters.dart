@@ -40,7 +40,12 @@ class ThoughtFilters extends StatelessWidget {
     child: SizedBox.square(dimension: 20, child: InkWell(onTap: onTap, customBorder: const CircleBorder(),
       child: Icon(Icons.circle, size: 14, color: color))));
   @override
-  Widget build(BuildContext context) => SafeArea(top: false, child: Padding(
+  Widget build(BuildContext context) {
+    final boxes = [
+      ...memoBoxes.where((box) => !box.isUnclassified),
+      ...memoBoxes.where((box) => box.isUnclassified),
+    ];
+    return SafeArea(top: false, child: Padding(
     padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 12, vertical: compact ? 2 : 6), child: Row(children: [
       ChoiceChip(key: const ValueKey('thought-filter-all'), selected: selection?.isEmpty ?? (box == null && tag == null),
         showCheckmark: false, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -52,23 +57,32 @@ class ThoughtFilters extends StatelessWidget {
       Expanded(child: Column(mainAxisSize: MainAxisSize.min, children: [
       SizedBox(height: compact ? 30 : 38, child: Row(children: [
         const Icon(Icons.inventory_2_outlined, size: 18), const SizedBox(width: 8),
-        Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [
-          for (final item in [...memoBoxes.where((box) => !box.isUnclassified), ...memoBoxes.where((box) => box.isUnclassified)]) Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
+        Expanded(child: ListView.builder(scrollDirection: Axis.horizontal,
+          itemCount: boxes.length,
+          itemBuilder: (context, index) {
+            final item = boxes[index];
+            return Padding(padding: const EdgeInsets.only(right: 6), child: MemoBoxTarget(
             box: item, onChanged: onChanged, child: _chip(item.name, ValueKey('thought-filter-box-${item.name}'), selection?.boxes.contains(item) ?? identical(box, item), () => onFilter(item, null), avatar: _color('${item.name} 상자 색상 변경', Color(item.color), () async {
                 final color = await pickHashtagColor(context, item.name, Color(item.color), prefix: '');
                 if (color != null && context.mounted) { item.color = color.toARGB32(); onChanged(); }
-              })))),
-        ])),
+              })));
+          },
+        )),
       ])),
       if (tags.isNotEmpty) SizedBox(height: compact ? 30 : 36, child: Row(children: [
         const Icon(Icons.tag, size: 18), const SizedBox(width: 8),
-        Expanded(child: ListView(scrollDirection: Axis.horizontal, children: [for (final item in tags)
-          Padding(padding: const EdgeInsets.only(right: 6), child: _chip('#$item', ValueKey('thought-filter-tag-$item'), selection?.tags.contains(item) ?? (tag == item), () => onFilter(null, item), avatar: _color('#$item 색상 변경', Color(hashtagColors[item] ?? 0xFF90A4AE), () async {
+        Expanded(child: ListView.builder(scrollDirection: Axis.horizontal,
+          itemCount: tags.length,
+          itemBuilder: (context, index) {
+            final item = tags[index];
+            return Padding(padding: const EdgeInsets.only(right: 6), child: _chip('#$item', ValueKey('thought-filter-tag-$item'), selection?.tags.contains(item) ?? (tag == item), () => onFilter(null, item), avatar: _color('#$item 색상 변경', Color(hashtagColors[item] ?? 0xFF90A4AE), () async {
               final color = await pickHashtagColor(context, item, Color(hashtagColors[item] ?? 0xFF90A4AE));
               if (color != null && context.mounted) { hashtagColors[item] = color.toARGB32(); onChanged(); }
-            }))),
-        ])),
+            }));
+          },
+        )),
       ])),
       ])),
     ])));
+  }
 }
