@@ -206,7 +206,15 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     onWillAcceptWithDetails: (d) => canMoveMemoFolder(d.data.name, folder),
     onAcceptWithDetails: (d) { setState(() => moveMemoFolder(d.data.name, folder)); widget.onBoxChanged?.call(); },
     builder: (context, candidates, rejected) => ColoredBox(color: candidates.isEmpty ? Colors.transparent : Theme.of(context).colorScheme.secondaryContainer, child: child));
-  Widget _folderActions(_Kind kind, String folder) => PopupMenuButton<String>(tooltip: '$folder 폴더 관리', icon: const Icon(Icons.more_vert, size: 18), onSelected: (_) async {
+  Widget _folderActions(_Kind kind, String folder) => PopupMenuButton<String>(
+    tooltip: '$folder 폴더 관리',
+    style: IconButton.styleFrom(
+      minimumSize: const Size.square(40),
+      fixedSize: const Size.square(40),
+      padding: EdgeInsets.zero,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    ),
+    icon: const Icon(Icons.more_vert, size: 18), onSelected: (_) async {
     final yes = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('폴더를 삭제할까요?'), content: const Text('폴더와 하위 폴더를 삭제하고 안의 자료는 미분류로 이동합니다. 자료는 삭제하지 않습니다.'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('삭제'))]));
     if (yes != true || !mounted) return;
     try { await widget.onDeleteFolder?.call(kind.name, folder); if (mounted) setState(_sync); }
@@ -227,7 +235,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       key: ValueKey('box-$folder-${_viewState.collapseRevision}'),
       initiallyExpanded: _viewState.expandedFolders.contains('box-$folder'),
       onExpansionChanged: (value) => _expanded('box-$folder', value), title: title, trailing: _folderActions(_Kind.box, folder),
-      visualDensity: const VisualDensity(vertical: -1),
+      minTileHeight: 46,
       childrenPadding: const EdgeInsetsDirectional.only(start: 16),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
       collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
@@ -236,7 +244,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         for (var i = 0; i < memoBoxes.length; i++) if (!memoBoxes[i].isUnclassified && memoBoxes[i].folder == folder) _item(_Kind.box, i, nested: true)],
     )));
   }
-  Widget _heading(_Kind kind) => Padding(padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 12, 4),
+  Widget _heading(_Kind kind) => Padding(padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 12, 2),
     child: Row(children: [
       Expanded(child: Text(_label(kind), style: Theme.of(context).textTheme.labelMedium)),
       if (kind == _Kind.box) IconButton(tooltip: '메모상자 만들기', iconSize: 18, visualDensity: VisualDensity.compact, icon: const Icon(Icons.add), onPressed: () => _select(WorkspaceMenu.createBox)),
@@ -258,7 +266,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         key: ValueKey('${kind.name}-$folder-${_viewState.collapseRevision}'),
         initiallyExpanded: _viewState.expandedFolders.contains('${kind.name}-$folder'),
         onExpansionChanged: (value) => _expanded('${kind.name}-$folder', value), leading: const Icon(Icons.folder_outlined), title: kind == _Kind.tag ? _countedTitle(folder, placements.where((p) => p == folder).length, 'tag-folder-count-$folder') : Text(folder), trailing: _folderActions(kind, folder),
-        visualDensity: const VisualDensity(vertical: -1),
+        minTileHeight: 46,
         childrenPadding: const EdgeInsetsDirectional.only(start: 16),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
         collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
@@ -367,9 +375,9 @@ class _SectionHeading extends SliverPersistentHeaderDelegate {
   final Color backgroundColor;
   final Widget child;
   @override
-  double get minExtent => 56;
+  double get minExtent => 48;
   @override
-  double get maxExtent => 56;
+  double get maxExtent => minExtent;
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => SizedBox(
     height: maxExtent, child: Material(key: ValueKey('menu-${kind}s-heading'),
