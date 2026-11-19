@@ -76,9 +76,11 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
     while (i < text.length) {
       if (tableCell && text.startsWith('<br>', i)) { plain.write('\n'); i += 4; continue; }
       if (tableCell && text[i] == '\\' && i + 1 < text.length && ['|', '\\'].contains(text[i + 1])) { plain.write(text[i + 1]); i += 2; continue; }
-      if (widget.formatting && (_inCode || text.startsWith('<code>', i))) {
+      final codeOpen = widget.formatting && !_inCode && text[i] == '<'
+          ? documentCodeOpening.matchAsPrefix(text, i) : null;
+      if (widget.formatting && (_inCode || codeOpen != null)) {
         flush();
-        if (!_inCode) i += 6;
+        if (codeOpen != null) i = codeOpen.end;
         final close = text.indexOf('</code>', i);
         final end = close < 0 ? text.length : close;
         result.add(TextSpan(text: text.substring(i, end), style: style.copyWith(
@@ -179,16 +181,18 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
       final line = sourceLines[lineIndex];
       if (!_inCode && codeBlocks.containsKey(offset)) {
         final chunks = <String>[];
+        final language = documentCodeLanguage(codeBlocks[offset]!.group(0)!);
         while (true) {
           final block = codeBlocks[offset];
           if (block == null) break;
           final raw = block.group(0)!;
+          if (documentCodeLanguage(raw) != language) break;
           chunks.add(documentCodeBody(raw));
           lineIndex += '\n'.allMatches(raw).length + 1;
           offset = block.end + 1;
         }
         lineIndex--;
-        lines.add(DocumentCodeBlock(chunks.join('\n')));
+        lines.add(DocumentCodeBlock(chunks.join('\n'), language: language));
         continue;
       }
       if (widget.formatting && !_inCode &&

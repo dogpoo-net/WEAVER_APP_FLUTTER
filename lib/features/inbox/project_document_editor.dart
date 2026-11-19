@@ -458,7 +458,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       '링크: [[표시명|라벨 또는 문서 제목]]\n웹 링크: [[표시명|https://example.com]]\n'
       '[[표시명|까지 입력하면 어시스트가 열립니다. Ctrl + Space로 선택할 수 있습니다. 문서는 문서: 접두어와 굵은 제목으로 표시됩니다.\n\n'
       '표: 상단 표 삽입 버튼에서 행·열과 내용을 입력하세요. 삽입 후 본문에서 수정하며 미리보기에서 표로 표시됩니다.\n| 제목 | 제목 |\n| --- | --- |\n| 내용 | 내용 |\n\n'
-      '코드: <code>code</code>\n여러 줄도 가능하며 코드 안의 문법은 해석하지 않습니다.\n\n'
+      '코드: <code>code</code>\n언어 표시: <code lang="python">code</code>\n여러 줄도 가능하며 코드 안의 문법은 해석하지 않습니다.\n\n'
       '상단 미리보기 버튼으로 서식과 링크를 확인하세요.')),
     actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],
   ));

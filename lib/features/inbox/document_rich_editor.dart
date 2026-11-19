@@ -177,7 +177,9 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     super.initState();
     final editableCodeLines = {
       for (final block in documentCodeBlocks(widget.source))
-        if (!block.group(0)!.contains('\n')) block.start,
+        if (!block.group(0)!.contains('\n') &&
+            documentCodeLanguage(block.group(0)!) == null)
+          block.start,
     };
     final code = codeMarkup
         .allMatches(widget.source)
@@ -678,7 +680,9 @@ class _ProtectedDocumentSource extends StatelessWidget {
       addLines(offset, block.start);
       final raw = block.group(0)!;
       final code = documentCodeBody(raw);
-      final firstCodeLine = line + (raw.startsWith('<code>\n') ? 1 : 0);
+      final language = documentCodeLanguage(raw);
+      final opening = documentCodeOpening.matchAsPrefix(raw)!;
+      final firstCodeLine = line + (raw.startsWith('\n', opening.end) ? 1 : 0);
       final codeLineCount = '\n'.allMatches(code).length + 1;
       children.add(
         Row(
@@ -687,7 +691,12 @@ class _ProtectedDocumentSource extends StatelessWidget {
             SizedBox(
               width: _gutterWidth,
               child: Padding(
-                padding: const EdgeInsets.only(right: 8, top: 14),
+                padding: EdgeInsets.only(
+                  right: 8,
+                  top:
+                      14 +
+                      (language == null ? 0 : DocumentCodeBlock.languageHeight),
+                ),
                 child: Text(
                   List.generate(
                     codeLineCount,
@@ -706,7 +715,9 @@ class _ProtectedDocumentSource extends StatelessWidget {
                   horizontal: 12,
                   vertical: 2,
                 ),
-                child: SelectionArea(child: DocumentCodeBlock(code)),
+                child: SelectionArea(
+                  child: DocumentCodeBlock(code, language: language),
+                ),
               ),
             ),
           ],

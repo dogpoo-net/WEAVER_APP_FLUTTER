@@ -1,6 +1,18 @@
 /// Equals delimiters are syntax; whitespace inside them is content.
 final projectHeading = RegExp(r'^(={2,6})(?![=])(.+?)(?<![=])\1$');
-final codeMarkup = RegExp(r'<code>[\s\S]*?(?:</code>|$)');
+final documentCodeOpening = RegExp(r'''<code(?:[ 	]+lang[ 	]*=[ 	]*(?:"([^"<>
+]*)"|'([^'<>
+]*)'|([^\s"'<>]+)))?[ 	]*>''');
+final codeMarkup = RegExp(
+  '${documentCodeOpening.pattern}'
+  r'[\s\S]*?(?:</code>|$)',
+);
+
+String? documentCodeLanguage(String markup) {
+  final open = documentCodeOpening.matchAsPrefix(markup);
+  final language = (open?.group(1) ?? open?.group(2) ?? open?.group(3))?.trim();
+  return language == null || language.isEmpty ? null : language;
+}
 
 bool caretInsideCode(String text, int caret) => codeMarkup
     .allMatches(text)
@@ -76,7 +88,10 @@ Iterable<RegExpMatch> documentCodeBlocks(String source) => codeMarkup
     );
 
 String documentCodeBody(String markup) {
-  var body = markup.substring(6, markup.length - 7);
+  var body = markup.substring(
+    documentCodeOpening.matchAsPrefix(markup)!.end,
+    markup.length - 7,
+  );
   if (body.startsWith('\n')) body = body.substring(1);
   if (body.endsWith('\n')) body = body.substring(0, body.length - 1);
   return body;
