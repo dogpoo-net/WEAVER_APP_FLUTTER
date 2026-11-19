@@ -76,7 +76,7 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
       await discardAttachments();if(!mounted)return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('생각 내용을 입력해주세요. 같은 내용의 생각은 중복 생성할 수 없습니다.')));return;
     }
-    final record=elements.add(draft.text)..location=draft.location;
+    final record=elements.add(draft.text)..location=draft.location..important=draft.important;
     record.photos.addAll(draft.photos);record.recordings.addAll(draft.recordings);
     final box=_filters.singleBox;
     if(box!=null&&!box.isUnclassified)moveThoughtToBox(record.id,box);
