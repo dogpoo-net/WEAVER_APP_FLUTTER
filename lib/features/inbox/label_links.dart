@@ -62,7 +62,16 @@ Future<void> openInlineLink(BuildContext context, String id) async {
 }
 TextStyle inlineLinkStyle(BuildContext context, String id, {bool hovered = false}) {
   final target = labelTarget(id);
-  final color = target == null ? const Color(0xFFFF9800) : wordColor(context, target.text);
+  final Color color;
+  if (target == null) {
+    color = const Color(0xFFFF9800);
+  } else if (target.hiddenFromSearch) {
+    color = Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF808080)
+        : const Color(0xFF505050);
+  } else {
+    color = wordColor(context, target.text);
+  }
   final memo = id.startsWith('label:');
   return TextStyle(color: color, decoration: memo || hovered ? TextDecoration.underline : TextDecoration.none, decorationColor: color,
     decorationStyle: memo ? TextDecorationStyle.dotted : TextDecorationStyle.solid,
