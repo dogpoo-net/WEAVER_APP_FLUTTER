@@ -151,7 +151,11 @@ class _Section {
 
 /// Keep the mode switch in view while the formatting tools scroll on narrow screens.
 class DocumentEditorToolbar extends StatelessWidget {
-  const DocumentEditorToolbar({super.key, required this.tools, required this.modeSwitch});
+  const DocumentEditorToolbar({
+    super.key,
+    required this.tools,
+    required this.modeSwitch,
+  });
 
   final List<Widget> tools;
   final Widget modeSwitch;
@@ -159,26 +163,30 @@ class DocumentEditorToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     height: 36,
-    child: Row(children: [
-      const SizedBox(width: _gutterWidth),
-      Expanded(
-        child: IconButtonTheme(
-          data: IconButtonThemeData(style: IconButton.styleFrom(
-            minimumSize: const Size.square(32),
-            maximumSize: const Size.square(32),
-            padding: EdgeInsets.zero,
-            iconSize: 18,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: VisualDensity.standard,
-          )),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(children: tools),
+    child: Row(
+      children: [
+        const SizedBox(width: _gutterWidth),
+        Expanded(
+          child: IconButtonTheme(
+            data: IconButtonThemeData(
+              style: IconButton.styleFrom(
+                minimumSize: const Size.square(32),
+                maximumSize: const Size.square(32),
+                padding: EdgeInsets.zero,
+                iconSize: 18,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
+              ),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: tools),
+            ),
           ),
         ),
-      ),
-      modeSwitch,
-    ]),
+        modeSwitch,
+      ],
+    ),
   );
 }
 
@@ -476,76 +484,72 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
             key: const ValueKey('document-editor-toolbar'),
             modeSwitch: widget.modeSwitch,
             tools: [
-                _formatButton('코드 블록', Icons.code, quill.Attribute.codeBlock),
-                _formatButton(
-                  '번호 목록',
-                  Icons.format_list_numbered,
-                  quill.Attribute.ol,
-                ),
-                _formatButton(
-                  '글머리표',
-                  Icons.format_list_bulleted,
-                  quill.Attribute.ul,
-                ),
-                _formatButton('굵게', Icons.format_bold, quill.Attribute.bold),
-                _formatButton(
-                  '기울임',
-                  Icons.format_italic,
-                  quill.Attribute.italic,
-                ),
-                _formatButton(
-                  '밑줄',
-                  Icons.format_underlined,
-                  quill.Attribute.underline,
-                ),
-                _formatButton(
-                  '취소선',
-                  Icons.strikethrough_s,
-                  quill.Attribute.strikeThrough,
-                ),
+              _formatButton('코드 블록', Icons.code, quill.Attribute.codeBlock),
+              _formatButton(
+                '번호 목록',
+                Icons.format_list_numbered,
+                quill.Attribute.ol,
+              ),
+              _formatButton(
+                '글머리표',
+                Icons.format_list_bulleted,
+                quill.Attribute.ul,
+              ),
+              _formatButton('굵게', Icons.format_bold, quill.Attribute.bold),
+              _formatButton('기울임', Icons.format_italic, quill.Attribute.italic),
+              _formatButton(
+                '밑줄',
+                Icons.format_underlined,
+                quill.Attribute.underline,
+              ),
+              _formatButton(
+                '취소선',
+                Icons.strikethrough_s,
+                quill.Attribute.strikeThrough,
+              ),
+              PopupMenuButton<int>(
+                tooltip: '제목 단계',
+                icon: const Icon(Icons.title),
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 0, child: Text('본문')),
+                  for (var level = 1; level <= 5; level++)
+                    PopupMenuItem(value: level, child: Text('제목 $level')),
+                ],
+                onSelected: (level) {
+                  final section = _active;
+                  if (section == null) return;
+                  section.controller!.formatSelection(
+                    quill.HeaderAttribute(level: level == 0 ? null : level),
+                  );
+                  section.focus!.requestFocus();
+                },
+              ),
+              if (headings.isNotEmpty)
                 PopupMenuButton<int>(
-                  tooltip: '제목 단계',
-                  icon: const Icon(Icons.title),
+                  tooltip: '목차',
+                  icon: const Icon(Icons.list),
                   itemBuilder: (_) => [
-                    const PopupMenuItem(value: 0, child: Text('본문')),
-                    for (var level = 1; level <= 5; level++)
-                      PopupMenuItem(value: level, child: Text('제목 $level')),
+                    for (var i = 0; i < headings.length; i++)
+                      PopupMenuItem(value: i, child: Text(headings[i].title)),
                   ],
-                  onSelected: (level) {
-                    final section = _active;
-                    if (section == null) return;
-                    section.controller!.formatSelection(
-                      quill.HeaderAttribute(level: level == 0 ? null : level),
+                  onSelected: (index) {
+                    final entry = headings[index];
+                    final target = entry.section.key.currentContext;
+                    if (target != null) Scrollable.ensureVisible(target);
+                    final controller = entry.section.controller;
+                    if (controller == null) return;
+                    controller.updateSelection(
+                      TextSelection.collapsed(
+                        offset: entry.offset.clamp(
+                          0,
+                          controller.document.length - 1,
+                        ),
+                      ),
+                      quill.ChangeSource.local,
                     );
-                    section.focus!.requestFocus();
+                    entry.section.focus!.requestFocus();
                   },
                 ),
-                if (headings.isNotEmpty)
-                  PopupMenuButton<int>(
-                    tooltip: '목차',
-                    icon: const Icon(Icons.list),
-                    itemBuilder: (_) => [
-                      for (var i = 0; i < headings.length; i++)
-                        PopupMenuItem(value: i, child: Text(headings[i].title)),
-                    ],
-                    onSelected: (index) {
-                      final entry = headings[index];
-                      final target = entry.section.key.currentContext;
-                      if (target != null) Scrollable.ensureVisible(target);
-                      final controller = entry.section.controller;
-                      if (controller == null) return;
-                      controller.updateSelection(
-                        TextSelection.collapsed(
-                          offset: entry.offset.clamp(
-                            0,
-                            controller.document.length - 1,
-                          ),
-                        ),
-                        quill.ChangeSource.local,
-                      );
-                      entry.section.focus!.requestFocus();
-                    },
-                  ),
             ],
           ),
           Expanded(
@@ -564,22 +568,28 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                   ),
                 ),
                 SingleChildScrollView(
-                  padding: EdgeInsets.only(top: 12, bottom: widget.dirty ? 36 : 16),
+                  padding: EdgeInsets.only(
+                    top: 12,
+                    bottom: widget.dirty ? 36 : 16,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: sectionWidgets,
                   ),
-                if (widget.dirty) const Positioned(
-                  left: _gutterWidth + 12,
-                  right: 12,
-                  bottom: 8,
-                  child: IgnorePointer(child: Text(
-                    '아직 저장되지 않았습니다.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.red, fontSize: 12),
-                  )),
                 ),
-                ),
+                if (widget.dirty)
+                  const Positioned(
+                    left: _gutterWidth + 12,
+                    right: 12,
+                    bottom: 8,
+                    child: IgnorePointer(
+                      child: Text(
+                        '아직 저장되지 않았습니다.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.red, fontSize: 12),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
