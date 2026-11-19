@@ -388,10 +388,17 @@ class WorkspaceSync extends ChangeNotifier {
   }
   Future<void> ensureMedia(String raw) async {
     final snapshot=WorkspaceSnapshot.decode(raw);
-    for(final record in [...snapshot.records,...snapshot.trashRecords]){
-      for(final id in [...record.photos.map((p)=>p.id),...record.recordings.map((p)=>p.id)]){
-        if(await MediaStorage.read(id,owner:storage.owner)==null){final result=await request('media/read',{'mediaId':id});await MediaStorage.write(id,base64Decode(result['data'] as String),owner:storage.owner);}
-      }
+    final ids = {
+      for (final record in [...snapshot.records, ...snapshot.trashRecords]) ...[
+        ...record.photos.map((photo) => photo.id),
+        ...record.recordings.map((clip) => clip.id),
+      ],
+    };
+    final owner = storage.owner;
+    for (final id in ids) {
+      if (await MediaStorage.contains(id, owner: owner)) continue;
+      final result = await request('media/read', {'mediaId': id});
+      await MediaStorage.write(id, base64Decode(result['data'] as String), owner: owner);
     }
   }
   Future<void> uploadMedia(String raw,{String? sourceOwner}) async {

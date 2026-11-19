@@ -16,6 +16,11 @@ class MediaStorage {
   static String? activeOwner;
   static String _key(String id,String? owner){final scope=owner==''?activeOwner:owner;return scope==null?id:'owned:${base64Url.encode(utf8.encode(scope))}:$id';}
   static Future<void> write(String id, Uint8List bytes,{String? owner=''}) {final key=_key(id,owner);return _box().then((box)=>box.put(key,bytes));}
+  /// Check the lazy box index without loading the attachment bytes.
+  static Future<bool> contains(String id, {String? owner = ''}) async {
+    final key = _key(id, owner);
+    return (await _box()).containsKey(key);
+  }
   static Future<Uint8List?> read(String id,{String? owner=''}) {final key=_key(id,owner);return _box().then((box)=>box.get(key));}
   static Future<void> delete(String id,{String? owner=''}) {final key=_key(id,owner);return _box().then((box)=>box.delete(key));}
   static Future<void> clear({String? owner=''}) async {final prefix=_key('',owner);final box=await _box();await box.deleteAll(box.keys.where((key)=>prefix.isEmpty?!key.toString().startsWith('owned:'):key.toString().startsWith(prefix)).toList());}
