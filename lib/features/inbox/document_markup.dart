@@ -3,6 +3,7 @@ import 'document_table.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'element_binding.dart';
+import 'element_store.dart' show elements;
 import 'label_links.dart';
 
 export 'document_syntax.dart' show documentTitle;
@@ -92,7 +93,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
       if (link != null) {
         flush();
         final recognizer = _recognizers.putIfAbsent('${link.start}:${link.id}', () => TapGestureRecognizer())..onTap = () => openInlineLink(context, link.id);
-        result.add(TextSpan(text: text.substring(i, link.end - base), style: style.merge(inlineLinkStyle(context, link.id, hovered: _hovered == link.id)), recognizer: recognizer, mouseCursor: SystemMouseCursors.click, onEnter: (_) => setState(() => _hovered = link.id), onExit: (_) => setState(() => _hovered = null)));
+        result.add(TextSpan(text: text.substring(i, link.end - base), style: style.merge(inlineLinkStyle(context, link.id, hovered: _hovered == link.id, markMissing: true)), recognizer: recognizer, mouseCursor: SystemMouseCursors.click, onEnter: (_) => setState(() => _hovered = link.id), onExit: (_) => setState(() => _hovered = null)));
         i = link.end - base; continue;
       }
       if (widget.formatting && text[i] == '[') {
@@ -134,7 +135,11 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
   @override
   void dispose() { for (final r in _recognizers.values) { r.dispose(); } super.dispose(); }
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => widget.links.isEmpty
+      ? _buildMarkup(context)
+      : ListenableBuilder(listenable: elements, builder: (context, _) => _buildMarkup(context));
+
+  Widget _buildMarkup(BuildContext context) {
     _inCode = false;
     _linksAt = {for (final b in widget.links) b.start: b};
     final keys = {for (final b in widget.links) '${b.start}:${b.id}'};

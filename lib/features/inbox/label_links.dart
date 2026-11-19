@@ -60,10 +60,21 @@ Future<void> openInlineLink(BuildContext context, String id) async {
     if (record != null) await showElementMetadata(context, record.text);
   }
 }
-TextStyle inlineLinkStyle(BuildContext context, String id, {bool hovered = false}) {
+TextStyle inlineLinkStyle(BuildContext context, String id, {
+  bool hovered = false,
+  bool markMissing = false,
+}) {
   final target = labelTarget(id);
+  final missing = markMissing && (
+    (id.startsWith('label:') && (target == null || target.deletedAt != null)) ||
+    (id.startsWith('project:') && projectTarget(id) == null)
+  );
   final Color color;
-  if (target == null) {
+  if (missing) {
+    color = Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFFFF7587)
+        : const Color(0xFFB4233D);
+  } else if (target == null) {
     color = const Color(0xFFFF9800);
   } else if (target.hiddenFromSearch) {
     color = Theme.of(context).brightness == Brightness.dark
@@ -73,7 +84,7 @@ TextStyle inlineLinkStyle(BuildContext context, String id, {bool hovered = false
     color = wordColor(context, target.text);
   }
   final memo = id.startsWith('label:');
-  return TextStyle(color: color, decoration: memo || hovered ? TextDecoration.underline : TextDecoration.none, decorationColor: color,
+  return TextStyle(color: color, decoration: memo || hovered || missing ? TextDecoration.underline : TextDecoration.none, decorationColor: color,
     decorationStyle: memo ? TextDecorationStyle.dotted : TextDecorationStyle.solid,
     decorationThickness: 1, fontWeight: FontWeight.normal);
 }
