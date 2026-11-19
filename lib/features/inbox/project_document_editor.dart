@@ -374,12 +374,22 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   }, child: Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () { _highlightReference(null); setState(() => _preview = !_preview); }), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _canEdit && !_saving ? _save : null),
     IconButton(tooltip: '작성 문법 안내', icon: const Icon(Icons.info_outline), onPressed: _showHelp),
    ]))]), bottomNavigationBar: _canEdit?null:SafeArea(child:Padding(padding:const EdgeInsets.all(12),child:Text('읽기 전용 워크스페이스입니다.'))), body: DesktopMenuBody(child: SafeArea(top: false, child: LayoutBuilder(builder: (context, constraints) {
+      final modeSwitch = TextButton.icon(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(0, 32),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        onPressed: _saving ? null : () => _setRich(!_rich),
+        icon: Icon(_rich ? Icons.code : Icons.format_paint_outlined, size: 18),
+        label: Text(_rich ? '원문 편집' : '서식 편집'),
+      );
       final documentBody = !_canEdit
         ? SingleChildScrollView(child:SelectableText(_body.text))
         : _preview
         ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
         : _rich
-        ? DocumentRichEditor(source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference)
+        ? DocumentRichEditor(source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty)
         : DocumentLineNumbers(controller: _body, scroll: _documentScroll, child: CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true,
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
@@ -398,32 +408,28 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(12),
         child: Padding(padding: const EdgeInsets.all(4), child: _referencesPanel()));
       final document = Column(children: [
-        if (!_preview) Align(key: const ValueKey('document-editor-toolbar'), alignment: Alignment.centerRight, child: Wrap(
-          alignment: WrapAlignment.end,
-          children: [
-            if (_canEdit) TextButton.icon(
-              onPressed: _saving ? null : () => _setRich(!_rich),
-              icon: Icon(_rich ? Icons.code : Icons.format_paint_outlined, size: 18),
-              label: Text(_rich ? '원문 편집' : '서식 편집'),
-            ),
-            if (!_rich) ...[
+        if (!_preview && !_rich && _canEdit) DocumentEditorToolbar(
+          key: const ValueKey('document-editor-toolbar'),
+          modeSwitch: modeSwitch,
+          tools: [
             IconButton(
               tooltip: '편집 주석 삽입',
-              onPressed: _canEdit && !_saving ? () => _insertAnnotation(footnote: false) : null,
-              icon: const Icon(Icons.comment_outlined, size: 18),
+              onPressed: _saving ? null : () => _insertAnnotation(footnote: false),
+              icon: const Icon(Icons.comment_outlined),
             ),
             IconButton(
               tooltip: '각주 삽입',
-              onPressed: _canEdit && !_saving ? () => _insertAnnotation(footnote: true) : null,
-              icon: const Icon(Icons.format_list_numbered, size: 18),
+              onPressed: _saving ? null : () => _insertAnnotation(footnote: true),
+              icon: const Icon(Icons.format_list_numbered),
             ),
-            TextButton.icon(style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12), tapTargetSize: MaterialTapTargetSize.shrinkWrap), onPressed: _canEdit && !_saving ? _insertTable : null, icon: const Icon(Icons.table_chart_outlined, size: 18), label: const Text('표 삽입')),
-            ],
+            IconButton(
+              tooltip: '표 삽입',
+              onPressed: _saving ? null : _insertTable,
+              icon: const Icon(Icons.table_chart_outlined),
+            ),
           ],
-        )),
-        Expanded(child:documentInput),
-        if (_rich && !_preview && _dirty)
-          const Text('아직 저장되지 않았습니다.', style: TextStyle(color: Colors.red, fontSize: 12)),
+        ),
+        Expanded(child: documentInput),
       ]);
       return Column(children: [
         Expanded(child: Padding(padding: EdgeInsets.fromLTRB(_wide ? 12 : 6, 2, _wide ? 12 : 6, 0), child: _wide

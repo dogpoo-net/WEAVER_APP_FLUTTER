@@ -149,6 +149,39 @@ class _Section {
   }
 }
 
+/// Keep the mode switch in view while the formatting tools scroll on narrow screens.
+class DocumentEditorToolbar extends StatelessWidget {
+  const DocumentEditorToolbar({super.key, required this.tools, required this.modeSwitch});
+
+  final List<Widget> tools;
+  final Widget modeSwitch;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 36,
+    child: Row(children: [
+      const SizedBox(width: _gutterWidth),
+      Expanded(
+        child: IconButtonTheme(
+          data: IconButtonThemeData(style: IconButton.styleFrom(
+            minimumSize: const Size.square(32),
+            maximumSize: const Size.square(32),
+            padding: EdgeInsets.zero,
+            iconSize: 18,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.standard,
+          )),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: tools),
+          ),
+        ),
+      ),
+      modeSwitch,
+    ]),
+  );
+}
+
 /// Quill edits supported text. Existing links and block syntax stay in source
 /// ranges that are never round-tripped through Delta.
 class DocumentRichEditor extends StatefulWidget {
@@ -158,12 +191,16 @@ class DocumentRichEditor extends StatefulWidget {
     required this.links,
     required this.onPatch,
     required this.onLinkHover,
+    required this.modeSwitch,
+    required this.dirty,
   });
 
   final String source;
   final List<ElementBinding> links;
   final void Function(int start, int end, String replacement) onPatch;
   final ValueChanged<String?> onLinkHover;
+  final Widget modeSwitch;
+  final bool dirty;
 
   @override
   State<DocumentRichEditor> createState() => _DocumentRichEditorState();
@@ -435,10 +472,10 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: _gutterWidth),
-            child: Wrap(
-              children: [
+          DocumentEditorToolbar(
+            key: const ValueKey('document-editor-toolbar'),
+            modeSwitch: widget.modeSwitch,
+            tools: [
                 _formatButton('코드 블록', Icons.code, quill.Attribute.codeBlock),
                 _formatButton(
                   '번호 목록',
@@ -509,8 +546,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                       entry.section.focus!.requestFocus();
                     },
                   ),
-              ],
-            ),
+            ],
           ),
           Expanded(
             child: Stack(
@@ -523,19 +559,26 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                       color: Theme.of(context)
                           .colorScheme
                           .surfaceContainerHighest,
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                 ),
                 SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: EdgeInsets.only(top: 12, bottom: widget.dirty ? 36 : 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: sectionWidgets,
                   ),
+                if (widget.dirty) const Positioned(
+                  left: _gutterWidth + 12,
+                  right: 12,
+                  bottom: 8,
+                  child: IgnorePointer(child: Text(
+                    '아직 저장되지 않았습니다.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.red, fontSize: 12),
+                  )),
+                ),
                 ),
               ],
             ),
