@@ -112,7 +112,15 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware, Retai
     onTap: () => showElementMetadata(context, word, onSaved: _refresh));
   Widget _tile(ElementRecord record, bool desktop, {double width = 280}) {
     final tile = SizedBox(key: ValueKey('thought-${record.id}'), width: width, height: _square ? width : null, child: _badge(record.text, desktop));
-    final feedback = Material(color: Colors.transparent, child: SizedBox(width: 180, child: _badge(record.text, false)));
+    final previewWidth = math.min(width, 180.0);
+    final feedback = Material(
+      type: MaterialType.transparency,
+      child: SizedBox(
+        width: previewWidth,
+        height: _square ? previewWidth : null,
+        child: _badge(record.text, desktop),
+      ),
+    );
     if (desktop) { return Draggable<MemoDrag>(key:ValueKey(record.id), data: MemoDrag(record.id), feedback: feedback,
       childWhenDragging: Opacity(opacity: .4, child: tile), child: tile); }
     return LongPressDraggable<MemoDrag>(key:ValueKey(record.id), data: MemoDrag(record.id), feedback: feedback,
