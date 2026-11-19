@@ -128,7 +128,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   ]));
   bool _deletingItem = false;
 
-  Widget _deleteActions(String name, String label, Future<void> Function() delete) =>
+  Widget _itemActions(String name, String label, Future<void> Function()? delete, {MemoBox? box}) =>
       PopupMenuButton<String>(
         tooltip: '$name 관리',
         style: IconButton.styleFrom(
@@ -138,8 +138,16 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
         icon: const Icon(Icons.more_vert, size: 18),
-        onSelected: (_) async {
+        onSelected: (action) async {
           if (_deletingItem) return;
+          if (action == 'color' && box != null) {
+            final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
+            if (!mounted || color == null || !memoBoxes.contains(box)) return;
+            setState(() => box.color = color.toARGB32());
+            widget.onBoxChanged?.call();
+            return;
+          }
+          if (delete == null) return;
           _deletingItem = true;
           try {
             await delete();
@@ -151,7 +159,14 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
             _deletingItem = false;
           }
         },
-        itemBuilder: (_) => [PopupMenuItem(value: 'delete', child: Text(label))],
+        itemBuilder: (_) => [
+          if (box != null) PopupMenuItem(value: 'color', child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.circle, size: 16, color: Color(box.color)),
+            const SizedBox(width: 8),
+            const Text('색상'),
+          ])),
+          if (delete != null) PopupMenuItem(value: 'delete', child: Text(label)),
+        ],
       );
 
   Future<void> _deleteDocument(String id, String title) async {
@@ -210,17 +225,10 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           shape: BoxShape.circle,
           color: hashtagColors.containsKey(name) ? Color(hashtagColors[name]!) : Theme.of(context).colorScheme.outlineVariant,
           border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: .4)))),
-      ) : kind == _Kind.box ? Row(mainAxisSize: MainAxisSize.min, children: [
-        IconButton(tooltip: '$name 상자 색상 변경',
-        icon: Icon(Icons.circle, size: 16, color: Color(memoBoxes[index].color)), onPressed: () async {
-          final box = memoBoxes[index];
-          final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
-          if (!mounted || color == null) return;
-          setState(() => box.color = color.toARGB32()); widget.onBoxChanged?.call();
-        }),
-        if (canDeleteBox) _deleteActions(name, '상자 삭제', () => _deleteBox(name)),
-      ]) : projectId != null && widget.onDeleteDocument != null
-        ? _deleteActions(name, '문서 삭제', () => _deleteDocument(projectId, name))
+      ) : kind == _Kind.box
+        ? _itemActions(name, '상자 삭제', canDeleteBox ? () => _deleteBox(name) : null, box: memoBoxes[index])
+        : projectId != null && widget.onDeleteDocument != null
+        ? _itemActions(name, '문서 삭제', () => _deleteDocument(projectId, name))
         : null,
       leading: Icon(switch (kind) { _Kind.box => Icons.inventory_2_outlined, _Kind.tag => Icons.tag, _Kind.element => Icons.circle_outlined,
         _Kind.paragraph => Icons.subject, _Kind.project => Icons.article_outlined }, size: 20),
