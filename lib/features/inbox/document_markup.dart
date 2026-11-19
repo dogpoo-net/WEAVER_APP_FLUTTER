@@ -19,6 +19,51 @@ class DocumentMarkup extends StatefulWidget {
 class _DocumentMarkupState extends State<DocumentMarkup> {
   Map<int, ElementBinding> _linksAt = {};
   bool _inCode = false;
+  final _footnotes = <String, String>{};
+  final _numbers = <String, int>{};
+  final _noteKeys = <String, GlobalKey>{};
+
+  void _jump(GlobalKey key) {
+    final target = key.currentContext;
+    if (target != null) {
+      Scrollable.ensureVisible(target, duration: const Duration(milliseconds: 240));
+    }
+  }
+
+  Widget _footnoteMarker(String id, TextStyle style) {
+    final number = '[${_numbers[id]}]';
+    final key = _noteKeys.putIfAbsent(id, GlobalKey.new);
+    final mobile = switch (Theme.of(context).platform) {
+      TargetPlatform.android || TargetPlatform.iOS => true,
+      _ => false,
+    };
+    final marker = InkWell(
+      mouseCursor: SystemMouseCursors.click,
+      onTap: () async {
+        if (!mobile) {
+          _jump(key);
+          return;
+        }
+        final jump = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Align(alignment: Alignment.centerLeft, child: TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(number),
+            )),
+            content: SingleChildScrollView(child: Text(_footnotes[id] ?? '')),
+          ),
+        );
+        if (mounted && jump == true) _jump(key);
+      },
+      child: Text(number, style: style.copyWith(
+        color: Theme.of(context).colorScheme.primary,
+        decoration: TextDecoration.underline,
+      )),
+    );
+    return mobile ? marker : Tooltip(message: _footnotes[id]!, child: marker);
+  }
+
   String? _hovered;
   final _recognizers = <String, TapGestureRecognizer>{};
   List<InlineSpan> _inline(String text, int base, TextStyle style, {bool tableCell = false}) {
@@ -48,6 +93,20 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
         final recognizer = _recognizers.putIfAbsent('${link.start}:${link.id}', () => TapGestureRecognizer())..onTap = () => openInlineLink(context, link.id);
         result.add(TextSpan(text: text.substring(i, link.end - base), style: style.merge(inlineLinkStyle(context, link.id, hovered: _hovered == link.id)), recognizer: recognizer, mouseCursor: SystemMouseCursors.click, onEnter: (_) => setState(() => _hovered = link.id), onExit: (_) => setState(() => _hovered = null)));
         i = link.end - base; continue;
+      }
+      if (widget.formatting && text[i] == '[') {
+        final reference = documentFootnoteReference.matchAsPrefix(text, i);
+        final id = reference?.group(1);
+        if (id != null && _footnotes.containsKey(id)) {
+          flush();
+          _numbers.putIfAbsent(id, () => _numbers.length + 1);
+          result.add(WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: _footnoteMarker(id, style),
+          ));
+          i = reference!.end;
+          continue;
+        }
       }
       var matched = false;
       if (widget.formatting) {
@@ -83,8 +142,37 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
     final lines = <Widget>[];
     var offset = 0;
     final sourceLines = widget.text.split('\n');
+    _footnotes.clear();
+    _numbers.clear();
+    final headings = <({String title, GlobalKey key})>[];
+    if (widget.formatting) {
+      final prose = widget.text.replaceAll(codeMarkup, '\n');
+      final body = StringBuffer();
+      for (final line in prose.split('\n')) {
+        final definition = documentFootnoteDefinition.firstMatch(line);
+        if (definition != null) {
+          _footnotes.putIfAbsent(definition.group(1)!, () => definition.group(2)!);
+        } else if (!documentEditorComment.hasMatch(line)) {
+          body.writeln(line);
+        }
+      }
+      for (final reference in documentFootnoteReference.allMatches(body.toString())) {
+        final id = reference.group(1)!;
+        if (_footnotes.containsKey(id)) {
+          _numbers.putIfAbsent(id, () => _numbers.length + 1);
+          _noteKeys.putIfAbsent(id, GlobalKey.new);
+        }
+      }
+      _noteKeys.removeWhere((id, _) => !_footnotes.containsKey(id));
+    }
     for (var lineIndex = 0; lineIndex < sourceLines.length; lineIndex++) {
       final line = sourceLines[lineIndex];
+      if (widget.formatting && !_inCode &&
+          (documentEditorComment.hasMatch(line) || documentFootnoteDefinition.hasMatch(line))) {
+        offset += line.length + 1;
+        continue;
+      }
+      GlobalKey? headingKey;
       final header = tableCells(line);
       if (widget.formatting && !_inCode && header != null && lineIndex + 1 < sourceLines.length && tableSeparator(sourceLines[lineIndex + 1], header.length)) {
         final tableRows = <({List<TableCellSource> cells, int offset})>[(cells: header, offset: offset)];
@@ -111,6 +199,8 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
         final heading = projectHeading.firstMatch(line);
         if (heading != null) {
           text = heading.group(2)!; start += line.indexOf(text, heading.group(1)!.length);
+          headingKey = GlobalKey();
+          headings.add((title: text.trim(), key: headingKey));
           style = style.copyWith(fontSize: 14 + heading.group(1)!.length * 3.0, fontWeight: FontWeight.bold);
         } else if (line.startsWith('|') && line.endsWith('|') && line.length > 2) {
           final inner = line.substring(1, line.length - 1);
@@ -119,9 +209,27 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
           text = inner.trim(); start += 1 + inner.length - inner.trimLeft().length;
         }
       }
-      lines.add(SizedBox(width: double.infinity, child: Text.rich(TextSpan(children: _inline(text.isEmpty ? ' ' : text, start, style)), textAlign: align)));
+      lines.add(SizedBox(key: headingKey, width: double.infinity, child: Text.rich(TextSpan(children: _inline(text.isEmpty ? ' ' : text, start, style)), textAlign: align)));
       offset += line.length + 1;
     }
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: lines);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      if (headings.isNotEmpty) ExpansionTile(
+        title: const Text('목차'),
+        children: [
+          for (final heading in headings)
+            ListTile(dense: true, title: Text(heading.title), onTap: () => _jump(heading.key)),
+        ],
+      ),
+      ...lines,
+      if (_numbers.isNotEmpty) ...[
+        const Divider(),
+        const Text('각주'),
+        for (final entry in _numbers.entries) Padding(
+            key: _noteKeys[entry.key],
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text('[${entry.value}] ${_footnotes[entry.key]}'),
+          ),
+      ],
+    ]);
   }
 }

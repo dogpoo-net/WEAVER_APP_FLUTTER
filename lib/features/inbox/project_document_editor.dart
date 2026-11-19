@@ -14,6 +14,7 @@ import 'thought_settings.dart';
 import 'thought_filters.dart';
 import 'label_links.dart';
 import 'document_markup.dart';
+import 'document_syntax.dart' hide documentTitle;
 import 'caret_assist.dart';
 import 'keyboard_dismiss.dart';
 import 'workspace_routes.dart';
@@ -140,6 +141,65 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     _body.value = TextEditingValue(text: before.text.replaceRange(start, end, text), selection: TextSelection.collapsed(offset: start + text.length));
     _bodyFocus.requestFocus();
   }
+  Future<void> _insertAnnotation({required bool footnote}) async {
+    final before = _body.value;
+    var draft = '';
+    final input = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(footnote ? '각주 삽입' : '편집 주석 삽입'),
+        content: TextField(
+          autofocus: true,
+          maxLines: 4,
+          onChanged: (value) => draft = value,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(context, draft.trim()), child: const Text('삽입')),
+        ],
+      ),
+    );
+    if (!mounted || !_canEdit || _saving || input == null || input.isEmpty || _body.text != before.text) return;
+    final caret = before.selection.isValid ? before.selection.end : before.text.length;
+    var offset = caret;
+    for (final link in _body.bindings) {
+      if (link.start < offset && offset < link.end) offset = link.end;
+    }
+    final text = input.replaceAll(RegExp(r'[\r\n]+'), ' ');
+    if (footnote) {
+      if (caretInsideCode(before.text, offset)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('코드 밖에 각주를 넣어주세요.')),
+        );
+        return;
+      }
+      final usedIds = documentFootnoteReference.allMatches(before.text).map((m) => m.group(1)).toSet();
+      var next = 1;
+      while (usedIds.contains('note-$next')) {
+        next++;
+      }
+      final reference = '[^note-$next]';
+      final definition = '\n\n$reference: $text';
+      _body.value = TextEditingValue(
+        text: before.text + definition,
+        selection: TextSelection.collapsed(offset: offset),
+      );
+      _body.value = TextEditingValue(
+        text: _body.text.replaceRange(offset, offset, reference),
+        selection: TextSelection.collapsed(offset: offset + reference.length),
+      );
+    } else {
+      final newline = before.text.indexOf('\n', offset);
+      final end = newline < 0 ? before.text.length : newline;
+      final comment = '\n<!-- $text -->';
+      _body.value = TextEditingValue(
+        text: before.text.replaceRange(end, end, comment),
+        selection: TextSelection.collapsed(offset: end + comment.length),
+      );
+    }
+    _bodyFocus.requestFocus();
+  }
+
   bool _saving=false;
   Future<void> _save() async {
     if(_saving)return;
@@ -292,7 +352,20 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(12),
         child: Padding(padding: const EdgeInsets.all(4), child: _referencesPanel()));
       final document = Column(children: [
-        if (!_preview) Align(key: const ValueKey('document-editor-toolbar'), alignment: Alignment.centerRight, child: TextButton.icon(style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12), tapTargetSize: MaterialTapTargetSize.shrinkWrap), onPressed: _canEdit && !_saving ? _insertTable : null, icon: const Icon(Icons.table_chart_outlined, size: 18), label: const Text('표 삽입'))),
+        if (!_preview) Align(key: const ValueKey('document-editor-toolbar'), alignment: Alignment.centerRight, child: Wrap(
+          alignment: WrapAlignment.end,
+          children: [
+            IconButton(
+              tooltip: '편집 주석 삽입',
+              onPressed: _canEdit && !_saving ? () => _insertAnnotation(footnote: false) : null,
+              icon: const Icon(Icons.comment_outlined, size: 18),
+            ),
+            IconButton(
+              tooltip: '각주 삽입',
+              onPressed: _canEdit && !_saving ? () => _insertAnnotation(footnote: true) : null,
+              icon: const Icon(Icons.format_list_numbered, size: 18),
+            ),
+            TextButton.icon(style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12), tapTargetSize: MaterialTapTargetSize.shrinkWrap), onPressed: _canEdit && !_saving ? _insertTable : null, icon: const Icon(Icons.table_chart_outlined, size: 18), label: const Text('표 삽입'))],)),
         Expanded(child:documentInput),
       ]);
       return Column(children: [

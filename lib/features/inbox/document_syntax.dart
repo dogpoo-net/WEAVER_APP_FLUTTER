@@ -11,5 +11,9 @@ String documentTitle(String text) {
     final heading = projectHeading.firstMatch(line);
     if (heading != null) return heading.group(2)!.trim();
   }
-  return prose.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).firstOrNull ?? '문서';
+  return prose.split('\n').where((line) => !documentEditorComment.hasMatch(line) && !documentFootnoteDefinition.hasMatch(line)).map((s) => s.trim()).where((s) => s.isNotEmpty).firstOrNull ?? '문서';
 }
+
+final documentFootnoteDefinition = RegExp(r'^\[\^([a-zA-Z0-9_-]+)\]:[ \t]+(.+)$');
+final documentFootnoteReference = RegExp(r'\[\^([a-zA-Z0-9_-]+)\]');
+final documentEditorComment = RegExp(r'^\s*<!--.*-->\s*$');
