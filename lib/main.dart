@@ -25,7 +25,8 @@ import 'features/inbox/element_store.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   Future<void> prepareFont() async {
-    // Native engines register the declared font themselves.
+    // The web release keeps explicit registration for Korean editing and
+    // excludes this family from the engine manifest to avoid a second load.
     if (!kIsWeb) return;
     final font = FontLoader('NotoSansKR')
       ..addFont(rootBundle.load('assets/fonts/NotoSansKR-Variable.ttf'));

@@ -10,10 +10,11 @@ import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'overview_collections.dart';
 import 'memo_box_actions.dart';
 import 'thought_settings.dart';
-import '../capture/geolog_page.dart';
+import '../capture/geolog_page.dart' deferred as geolog;
+import 'deferred_screen.dart';
 import 'desktop_menu_frame.dart';
 import 'thought_filters.dart';
-import 'thought_page.dart';
+import 'thought_page.dart' deferred as canvas;
 import 'memo_boxes.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -383,14 +384,35 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     if(view==ThoughtView.search)return DesktopMenuFrame(child:WorkspaceSearch(notes:widget.notes,selector:selector,controller:_searchController,onDocument:widget.onDocument));
     if(view==ThoughtView.documents)return DesktopMenuFrame(child:DocumentCollection(notes:widget.notes,selector:selector,storage:widget.storage,onOpen:widget.onDocument,onCreate:widget.onCreateDocument));
     if(view==ThoughtView.photos || view==ThoughtView.audio)return DesktopMenuFrame(child:AttachmentCollection(key:ValueKey(view),audio:view==ThoughtView.audio,selector:selector,filters:_filters,storage:widget.storage,onChanged:widget.onChanged));
-    if (view == ThoughtView.geolog) { return DesktopMenuFrame(child: GeologPage(filters: _filters, box: activeBox,
-      viewSelector: selector, onChanged: () => widget.onChanged?.call())); }
+    if (view == ThoughtView.geolog) { return DeferredScreen(
+      load: geolog.loadLibrary,
+      selector: selector,
+      builder: (_) => DesktopMenuFrame(child: geolog.GeologPage(
+        filters: _filters,
+        box: activeBox,
+        viewSelector: selector,
+        onChanged: () => widget.onChanged?.call(),
+      )),
+    ); }
     if (view == ThoughtView.boxes) { return DesktopMenuFrame(child: ThoughtBoxView(storage:widget.storage,filters: _filters, notes: widget.notes, initialBox: activeBox,
       onChanged: widget.onChanged, onLayoutChanged: widget.onLayoutChanged, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes)); }
     // A menu box selects a filter, not a different canvas. All entry routes
     // must read/write the workspace layout so tab changes preserve placement.
-    return DesktopMenuFrame(child: ThoughtPage(filters: _filters, key: ValueKey(view), blocks: true,
-      onChanged: () => widget.onChanged?.call(), onLayoutChanged: widget.onLayoutChanged, onSave:widget.onSave, storage:widget.storage, viewSelector: selector, onDeleteBoxes: widget.onDeleteBoxes));
+    return DeferredScreen(
+      load: canvas.loadLibrary,
+      selector: selector,
+      builder: (_) => DesktopMenuFrame(child: canvas.ThoughtPage(
+        filters: _filters,
+        key: ValueKey(view),
+        blocks: true,
+        onChanged: () => widget.onChanged?.call(),
+        onLayoutChanged: widget.onLayoutChanged,
+        onSave: widget.onSave,
+        storage: widget.storage,
+        viewSelector: selector,
+        onDeleteBoxes: widget.onDeleteBoxes,
+      )),
+    );
   }
 }
 

@@ -3,7 +3,8 @@ import 'dart:collection';
 import 'thought_colors.dart';
 import '../capture/voice_dialog.dart';
 import '../capture/attachment_picker.dart';
-import '../capture/location_editor.dart';
+import '../capture/location_editor.dart' deferred as location_editor;
+import 'deferred_screen.dart';
 import 'memo_comments.dart';
 import 'caret_assist.dart';
 import 'package:flutter/services.dart';
@@ -13,7 +14,7 @@ import 'label_links.dart';
 import 'element_binding.dart';
 import 'document_markup.dart';
 import 'tag_colors.dart';
-import '../capture/location_preview.dart';
+import '../capture/location_preview.dart' deferred as location_preview;
 import '../capture/photo_gallery.dart';
 import '../capture/capture_models.dart';
 import '../capture/media_storage.dart';
@@ -305,7 +306,9 @@ class _ElementMetadataState extends State<_ElementMetadata> {
         final draft=await showVoiceRecorder(context);
         if(mounted&&draft!=null)setState(()=>_audioUploads[record.id]=[draft]);
       }else{
-        final draft=await showLocationEditor(context,initial:_locationFor(record));
+        if (!await loadScreen(context, location_editor.loadLibrary) || !mounted) return;
+        if (ModalRoute.of(context)?.isCurrent == false) return;
+        final draft=await location_editor.showLocationEditor(context,initial:_locationFor(record));
         if(mounted&&draft!=null)setState(()=>_locationEdits[record.id]=draft.location);
       }
     }catch(e){if(mounted)setState(()=>_error='$e');}
@@ -477,7 +480,13 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               if(_attachmentBusy&&!_captureModalOpen)const LinearProgressIndicator(),
               if (_locationFor(element) case final location?) Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(children:[Expanded(child:Align(alignment:Alignment.centerLeft,child:TextButton.icon(onPressed: () => showLocationPreview(context, location,onChanged:_canAttach?(updated){if(mounted)setState(()=>_locationEdits[element.id]=updated);}:null),
+                child: Row(children:[Expanded(child:Align(alignment:Alignment.centerLeft,child:TextButton.icon(onPressed: () async {
+                  if (!await loadScreen(context, location_preview.loadLibrary) || !mounted) return;
+                  if (ModalRoute.of(context)?.isCurrent == false) return;
+                  await location_preview.showLocationPreview(context, location, onChanged: _canAttach ? (updated) {
+                    if (mounted) setState(() => _locationEdits[element.id] = updated);
+                  } : null);
+                },
                   icon: const Icon(Icons.location_on_outlined, size: 18), label: const Text('지도 보기')))),
                   IconButton(tooltip:'위치 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_locationEdits[element.id]=null),icon:const Icon(Icons.delete_outline)),
                 ])),

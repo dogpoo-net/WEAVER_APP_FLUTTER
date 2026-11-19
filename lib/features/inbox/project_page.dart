@@ -7,7 +7,8 @@ import 'dart:math';
 import 'desktop_menu_frame.dart';
 import 'paragraph_editor.dart';
 import 'package:flutter/material.dart';
-import 'project_document_editor.dart';
+import 'deferred_screen.dart';
+import 'project_document_editor.dart' deferred as document_editor;
 
 class WritingProject {
   WritingProject(
@@ -42,6 +43,30 @@ class ProjectPage extends StatefulWidget {
 class _ProjectPageState extends State<ProjectPage>{
 
  bool _editing = false, _deleted = false;
+ Future<void> _editDocument() async {
+   if (_editing) return;
+   _editing = true;
+   try {
+     if (!await loadScreen(context, document_editor.loadLibrary) || !mounted) return;
+     if (_deleted || ModalRoute.of(context)?.isCurrent == false) return;
+     await Navigator.push(context, MaterialPageRoute<void>(
+       builder: (_) => DesktopMenuFrame(child: document_editor.ProjectDocumentEditor(
+         project: widget.project,
+         projects: widget.projects,
+         onChanged: widget.onChanged,
+         onSave: widget.onSave,
+         onHistory: widget.onHistory,
+         onLease: widget.onLease,
+         storage: widget.storage,
+         onReload: widget.onReload,
+       )),
+     ));
+   } finally {
+     _editing = false;
+     if (mounted) _changed();
+   }
+ }
+
  void _changed(){
    if(!mounted || _editing)return;
    final raw=widget.storage?.read();
@@ -56,5 +81,5 @@ class _ProjectPageState extends State<ProjectPage>{
  @override void dispose(){widget.storage?.documentDraftChanges.removeListener(_changed);super.dispose();}
  Map<String,dynamic>? get _draft=>widget.storage?.documentDraft(widget.project.id);
  DocumentSegment get _display=>_draft==null?DocumentSegment(widget.project.content,widget.project.documentLinks):DocumentSegment(_draft!['text'] as String,[for(final b in _draft!['links'] as List)ElementBinding(b['id'] as String,b['start'] as int,b['end'] as int)]);
- @override Widget build(BuildContext context)=>DesktopMenuFrame(child:Scaffold(appBar:AppBar(title:WorkspaceTitle(widget.project.title),actions:[if(widget.onHistory!=null)IconButton(tooltip:'문서 변경 이력',onPressed:()=>widget.onHistory!(widget.project.id),icon:const Icon(Icons.history)),if(!_deleted)IconButton(tooltip:'문서 수정',icon:const Icon(Icons.edit_outlined),onPressed:()async{_editing=true;await Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>DesktopMenuFrame(child:ProjectDocumentEditor(project:widget.project,projects:widget.projects,onChanged:widget.onChanged,onSave:widget.onSave,onHistory:widget.onHistory,onLease:widget.onLease,storage:widget.storage,onReload:widget.onReload))));if(mounted){_editing=false;_changed();}})]),body:DesktopMenuBody(child:SelectionArea(child:SingleChildScrollView(padding:const EdgeInsets.all(20),child:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:900),child:_deleted?const Text('다른 기기에서 삭제된 문서입니다.'):Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[if(_draft!=null)const Padding(padding:EdgeInsets.only(bottom:12),child:Text('아직 저장되지 않았습니다.',style:TextStyle(color:Colors.red))),DocumentMarkup(text:_display.text,links:_display.links)]))))))));
+ @override Widget build(BuildContext context)=>DesktopMenuFrame(child:Scaffold(appBar:AppBar(title:WorkspaceTitle(widget.project.title),actions:[if(widget.onHistory!=null)IconButton(tooltip:'문서 변경 이력',onPressed:()=>widget.onHistory!(widget.project.id),icon:const Icon(Icons.history)),if(!_deleted)IconButton(tooltip:'문서 수정',icon:const Icon(Icons.edit_outlined),onPressed: _editDocument)]),body:DesktopMenuBody(child:SelectionArea(child:SingleChildScrollView(padding:const EdgeInsets.all(20),child:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:900),child:_deleted?const Text('다른 기기에서 삭제된 문서입니다.'):Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[if(_draft!=null)const Padding(padding:EdgeInsets.only(bottom:12),child:Text('아직 저장되지 않았습니다.',style:TextStyle(color:Colors.red))),DocumentMarkup(text:_display.text,links:_display.links)]))))))));
 }

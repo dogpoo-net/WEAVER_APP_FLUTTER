@@ -40,7 +40,8 @@ import 'tag_page.dart';
 import 'paragraph_editor.dart';
 import 'word_badge.dart';
 import 'project_page.dart';
-import 'project_document_editor.dart';
+import 'deferred_screen.dart';
+import 'project_document_editor.dart' deferred as document_editor;
 import 'all_thoughts_page.dart';
 import 'workspace_menu.dart';
 import 'element_store.dart';
@@ -1005,11 +1006,23 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     if (mounted) setState(() {});
   }
 
+  bool _openingDocumentEditor = false;
   Future<void> _createProject() async {
+    if (_openingDocumentEditor) return;
+    _openingDocumentEditor = true;
+    try {
+      if (!await loadScreen(context, document_editor.loadLibrary) || !mounted) return;
+      await _createProjectInEditor();
+    } finally {
+      _openingDocumentEditor = false;
+    }
+  }
+
+  Future<void> _createProjectInEditor() async {
     final project = await Navigator.push<WritingProject>(
       context,
       MaterialPageRoute(
-        builder: (_) => DesktopMenuFrame(child: ProjectDocumentEditor(storage:widget.storage,projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: _persist)),
+        builder: (_) => DesktopMenuFrame(child: document_editor.ProjectDocumentEditor(storage:widget.storage,projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: _persist)),
       ),
     );
     if (project == null || !mounted) return;

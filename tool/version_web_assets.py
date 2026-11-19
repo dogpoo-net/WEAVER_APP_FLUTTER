@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Give the Dart entry point and local CanvasKit independent cache URLs."""
+"""Give Dart, CanvasKit and Flutter assets independent cache URLs."""
 import hashlib
 import json
 import re
@@ -33,16 +33,36 @@ def version_assets(root: Path) -> None:
            for build in config['builds']):
         raise ValueError('Unexpected Dart entry point')
 
+    index = root / 'index.html'
+    html = index.read_text()
+    font = 'assets/assets/fonts/NotoSansKR-Variable.ttf'
+    if html.count(f'href="{font}"') != 1 or not (root / font).is_file():
+        raise ValueError('Unexpected startup font preload')
+
+    # main.dart explicitly registers this font on web for Korean text input.
+    # Leaving it in the engine manifest would load and register it a second time.
+    font_manifest = root / 'assets' / 'FontManifest.json'
+    fonts = json.loads(font_manifest.read_text())
+    remaining_fonts = [family for family in fonts if family['family'] != 'NotoSansKR']
+    if len(fonts) - len(remaining_fonts) != 1:
+        raise ValueError('Unexpected startup font family in Flutter manifest')
+    font_manifest.write_text(json.dumps(remaining_fonts))
+
     main = root / 'main.dart.js'
     dart_url = move_bundle(root, 'dart', [main, *root.glob('main.dart.js_*.part.js')], root)
     canvas = root / 'canvaskit'
     canvas_url = move_bundle(root, 'canvaskit', [p for p in canvas.rglob('*') if p.is_file()], canvas)
 
+    assets = root / 'assets'
+    assets_url = move_bundle(root, 'assets', [p for p in assets.rglob('*') if p.is_file()], root)
+
     for build in config['builds']:
         build['mainJsPath'] = f'{dart_url}/{main.name}'
     source = source[:match.start(1)] + json.dumps(config) + source[match.end(1):]
     bootstrap.write_text(source.replace('canvasKitBaseUrl: "canvaskit/"',
-                                        f'canvasKitBaseUrl: "{canvas_url}/"'))
+                                        f'canvasKitBaseUrl: "{canvas_url}/",\n'
+                                        f'    assetBase: "{assets_url}/"'))
+    index.write_text(html.replace(f'href="{font}"', f'href="{assets_url}/{font}"'))
 
 
 if __name__ == '__main__':

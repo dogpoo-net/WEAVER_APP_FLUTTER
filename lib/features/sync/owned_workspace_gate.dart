@@ -19,7 +19,8 @@ import 'owned_workspace.dart';
 import 'sharing_pages.dart';
 import 'workspace_picker.dart';
 import 'workspace_policy_page.dart';
-import 'admin_backoffice_page.dart';
+import 'admin_backoffice_page.dart' deferred as admin;
+import '../inbox/deferred_screen.dart';
 import 'readonly_workspace.dart';
 
 class OwnedWorkspaceGate extends StatefulWidget {
@@ -413,7 +414,10 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
   }
 
   Future<void> openAdmin()async{
-    await Navigator.of(context).push<void>(MaterialPageRoute(builder:(_)=>AdminBackofficePage(request:widget.auth.emailApi.workspace)));
+    if (!await loadScreen(context, admin.loadLibrary) || !current) return;
+    await Navigator.of(context).push<void>(MaterialPageRoute(
+      builder: (_) => admin.AdminBackofficePage(request: widget.auth.emailApi.workspace),
+    ));
     // Return to the same workspace and preserve its unsaved local state.
     if(current){final result=await widget.auth.emailApi.workspace('catalog',{});if(current)setState(()=>isAdmin=result['isAdmin']==true);storage?.openAdmin=isAdmin?openAdmin:null;}
   }
