@@ -14,6 +14,7 @@ import 'thought_settings.dart';
 import 'thought_filters.dart';
 import 'label_links.dart';
 import 'document_markup.dart';
+import 'document_rich_editor.dart';
 import 'document_syntax.dart' hide documentTitle;
 import 'caret_assist.dart';
 import 'keyboard_dismiss.dart';
@@ -39,7 +40,29 @@ class ProjectDocumentEditor extends StatefulWidget {
 }
 class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   late final LabelTextController _body;
-  bool _preview = false, _loading = false;
+  bool _preview = false, _loading = false, _rich = false;
+
+  void _setRich(bool value) {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _rich = value;
+      _preview = false;
+    });
+  }
+
+  void _applyRichPatch(int start, int end, String replacement) {
+    final delta = replacement.length - (end - start);
+    final text = _body.text.replaceRange(start, end, replacement);
+    final links = [
+      for (final link in _body.bindings)
+        if (link.start >= end)
+          ElementBinding(link.id, link.start + delta, link.end + delta)
+        else
+          link,
+    ];
+    _body.loadDocument(text, links,
+      selection: TextSelection.collapsed(offset: start + replacement.length));
+  }
   String get _draftId=>widget.project?.id??'new-document';
   Map<String,dynamic>? _original;
   bool get _canEdit=>widget.storage?.canvasWritable??true;
@@ -53,7 +76,8 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     scheduleMicrotask(()async{_draftQueued=false;if(!mounted)return;try{await _storeDraft();}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('로컬 초안을 저장하지 못했습니다. $e')));}});
   }
   Future<void> _reload()async{
-    if(widget.onReload==null || !await confirmReload(context))return;
+    if(widget.onReload==null || !await confirmReload(context) || !mounted)return;
+    if (_rich) _setRich(false);
     try{
       await widget.onReload!();if(!mounted)return;
       _loading=true;
@@ -120,7 +144,9 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   @override
   void dispose() { widget.storage?.editorResources.remove(widget.project?.id??'new-document');elements.removeListener(_refresh); _body.dispose(); _bodyFocus.dispose(); _search.dispose(); _documentSearch.dispose(); _documentReferenceScroll.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
   Future<void> _insertLabel(String word) async {
-    await insertAssistedLink(context, _body, word); if (mounted) _bodyFocus.requestFocus();
+    if (_rich) _setRich(false);
+    await insertAssistedLink(context, _body, word);
+    if (mounted) _bodyFocus.requestFocus();
   }
   void _insertTag(String tag) {
     final token = tagPrefix(_body.value);
@@ -203,6 +229,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   bool _saving=false;
   Future<void> _save() async {
     if(_saving)return;
+    if (_rich) _setRich(false);
     setState(()=>_saving=true);
     try {
     if(!mounted)return;
@@ -335,6 +362,8 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         ? SingleChildScrollView(child:SelectableText(_body.text))
         : _preview
         ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
+        : _rich
+        ? DocumentRichEditor(source: _body.text, links: _body.bindings, onPatch: _applyRichPatch)
         : DocumentLineNumbers(controller: _body, scroll: _documentScroll, child: CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true,
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
@@ -345,7 +374,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
           decoration: InputDecoration(contentPadding:EdgeInsets.fromLTRB(12,16,12,_dirty?36:16),fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder())),
           if(_dirty)const Positioned(left:12,right:12,bottom:8,child:IgnorePointer(child:Text('아직 저장되지 않았습니다.',textAlign:TextAlign.center,style:TextStyle(color:Colors.red,fontSize:12)))),
         ])));
-      final documentInput = !_canEdit || _preview ? documentBody : DragTarget<Object>(key: const ValueKey('document-link-drop'),
+      final documentInput = !_canEdit || _preview || _rich ? documentBody : DragTarget<Object>(key: const ValueKey('document-link-drop'),
         onWillAcceptWithDetails: (details) => !_saving && _dragKey(details.data) != null,
         onAcceptWithDetails: _dropLink, builder: (context, candidates, rejected) => KeyedSubtree(key: _dropEditorKey, child: documentBody));
       final panel = Material(key: const ValueKey('project-reference-panel'),
@@ -355,6 +384,12 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         if (!_preview) Align(key: const ValueKey('document-editor-toolbar'), alignment: Alignment.centerRight, child: Wrap(
           alignment: WrapAlignment.end,
           children: [
+            if (_canEdit) TextButton.icon(
+              onPressed: _saving ? null : () => _setRich(!_rich),
+              icon: Icon(_rich ? Icons.code : Icons.format_paint_outlined, size: 18),
+              label: Text(_rich ? '원문 편집' : '서식 편집'),
+            ),
+            if (!_rich) ...[
             IconButton(
               tooltip: '편집 주석 삽입',
               onPressed: _canEdit && !_saving ? () => _insertAnnotation(footnote: false) : null,
@@ -365,8 +400,13 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
               onPressed: _canEdit && !_saving ? () => _insertAnnotation(footnote: true) : null,
               icon: const Icon(Icons.format_list_numbered, size: 18),
             ),
-            TextButton.icon(style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12), tapTargetSize: MaterialTapTargetSize.shrinkWrap), onPressed: _canEdit && !_saving ? _insertTable : null, icon: const Icon(Icons.table_chart_outlined, size: 18), label: const Text('표 삽입'))],)),
+            TextButton.icon(style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12), tapTargetSize: MaterialTapTargetSize.shrinkWrap), onPressed: _canEdit && !_saving ? _insertTable : null, icon: const Icon(Icons.table_chart_outlined, size: 18), label: const Text('표 삽입')),
+            ],
+          ],
+        )),
         Expanded(child:documentInput),
+        if (_rich && !_preview && _dirty)
+          const Text('아직 저장되지 않았습니다.', style: TextStyle(color: Colors.red, fontSize: 12)),
       ]);
       return Column(children: [
         Expanded(child: Padding(padding: EdgeInsets.fromLTRB(_wide ? 12 : 6, 2, _wide ? 12 : 6, 0), child: _wide
