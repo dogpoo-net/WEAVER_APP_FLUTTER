@@ -11,30 +11,78 @@ import 'workspace_storage.dart';
 import 'workspace_routes.dart';
 
 class WorkspaceSearchResult {
-  const WorkspaceSearchResult(this.kind, this.title, this.body, {this.note, this.record, this.audioId});
+  const WorkspaceSearchResult(this.kind, this.title, this.body, {this.note, this.record});
   final String kind, title, body;
   final Note? note;
   final ElementRecord? record;
-  final String? audioId;
   DateTime get date => note?.updatedAt ?? note?.createdAt ?? record!.createdAt;
-  String get key => '$kind-${note?.id ?? audioId ?? record!.id}';
+  String get key => '$kind-${note?.id ?? record!.id}';
 }
-List<WorkspaceSearchResult> searchWorkspace(List<Note> notes, Iterable<ElementRecord> records, String query) {
-  final words = query.trim().toLowerCase().split(RegExp(r'\s+'));
-  bool matches(String text) { final lower = text.toLowerCase(); return words.every(lower.contains); }
-  return [
-    for (final n in notes)
-      if (n.project != null && matches('${n.project!.title}\n${n.project!.content}'))
-        WorkspaceSearchResult('문서', n.project!.title, n.project!.content, note:n),
-    for (final r in records.where((r)=>r.deletedAt == null && canBrowseThought(r))) ...[
-      if (matches('${r.indexLabel}\n${r.text}\n${r.tags.join(' ')}'))
-        WorkspaceSearchResult('생각', r.indexLabel.isEmpty ? r.text : r.indexLabel, r.text, record:r),
-      for (final voice in r.recordings)
-        if (voice.transcript.trim().isNotEmpty && matches(voice.transcript))
-          WorkspaceSearchResult('음성', r.title, voice.transcript, record:r, audioId:voice.id),
-    ],
-  ]..sort((a,b){final order=b.date.compareTo(a.date);return order!=0?order:a.key.compareTo(b.key);});
+
+Iterable<String> _searchTerms(String query) =>
+    query.trim().toLowerCase().split(RegExp(r'\s+')).where((word) => word.isNotEmpty);
+
+bool _searchableThought(ElementRecord record) =>
+    record.deletedAt == null && canBrowseThought(record);
+
+List<WorkspaceSearchResult> searchWorkspace(
+  List<Note> notes,
+  Iterable<ElementRecord> records,
+  String query,
+) {
+  final words = _searchTerms(query).toList();
+  bool matches(String text) {
+    if (words.isEmpty) return true;
+    final lower = text.toLowerCase();
+    return words.every(lower.contains);
+  }
+
+  final results = [
+    for (final note in notes)
+      if (note.project case final project?)
+        if (matches('${project.title}\n${project.content}'))
+          WorkspaceSearchResult('문서', project.title, project.content, note: note),
+  ];
+  for (final record in records.where(_searchableThought)) {
+    final title = record.indexLabel.isEmpty ? record.text : record.indexLabel;
+    final tags = record.tags.map((tag) => '#$tag').join(' ');
+    final bodyMatches = words.isEmpty || matches('$title\n${record.text}\n$tags');
+    final transcript = words.isEmpty ? null : record.recordings
+        .map((voice) => voice.transcript)
+        .where((text) => text.trim().isNotEmpty && matches(text))
+        .firstOrNull;
+    if (!bodyMatches && transcript == null) continue;
+    final preview = matches(record.text)
+        ? record.text
+        : transcript ?? (matches(tags) ? tags : record.text);
+    results.add(WorkspaceSearchResult('생각', title, preview, record: record));
+  }
+  return results..sort((a, b) {
+    final order = b.date.compareTo(a.date);
+    return order != 0 ? order : a.key.compareTo(b.key);
+  });
 }
+
+Widget _highlightedSearchText(BuildContext context, String text, RegExp? pattern, int maxLines, {String prefix = ''}) {
+  final spans = <InlineSpan>[];
+  var offset = 0;
+  final colors = Theme.of(context).colorScheme;
+  final highlight = TextStyle(
+    backgroundColor: colors.tertiaryContainer,
+    color: colors.onTertiaryContainer,
+  );
+  if (pattern != null) {
+    for (final match in pattern.allMatches(text)) {
+      if (match.start > offset) spans.add(TextSpan(text: text.substring(offset, match.start)));
+      spans.add(TextSpan(text: match.group(0), style: highlight));
+      offset = match.end;
+    }
+  }
+  if (spans.isEmpty) return Text('$prefix$text', maxLines: maxLines, overflow: TextOverflow.ellipsis);
+  if (offset < text.length) spans.add(TextSpan(text: text.substring(offset)));
+  return Text.rich(TextSpan(children: [if (prefix.isNotEmpty) TextSpan(text: prefix), ...spans]), maxLines: maxLines, overflow: TextOverflow.ellipsis);
+}
+
 class WorkspaceSearch extends StatefulWidget {
   const WorkspaceSearch({super.key, required this.notes, required this.selector, required this.controller, this.onDocument});
   final List<Note> notes;
@@ -85,17 +133,17 @@ class _WorkspaceSearchState extends State<WorkspaceSearch> with RetainedOverview
   }
   @override void initState(){super.initState();elements.addListener(_refresh);}
   @override void dispose(){_debounce?.cancel();elements.removeListener(_refresh);_scroll.dispose();super.dispose();}
-  int _countSearchableItems() {
-    var count = widget.notes.where((note) => note.project != null).length;
-    for (final record in elements.records.values) {
-      if (record.deletedAt != null || !canBrowseThought(record)) continue;
-      count += 1 + record.recordings.where((voice) => voice.transcript.trim().isNotEmpty).length;
-    }
-    return count;
-  }
+  int _countSearchableItems() =>
+      widget.notes.where((note) => note.project != null).length +
+      elements.records.values.where(_searchableThought).length;
   @override Widget build(BuildContext context){
     final results=_results??=searchWorkspace(widget.notes,elements.records.values,_query);
-    final hasQuery = _query.trim().isNotEmpty;
+    final terms = _searchTerms(_query).toSet().toList()
+      ..sort((a, b) => b.length.compareTo(a.length));
+    final hasQuery = terms.isNotEmpty;
+    final pattern = hasQuery
+        ? RegExp(terms.map(RegExp.escape).join('|'), caseSensitive: false, unicode: true)
+        : null;
     final total = _totalCount ??= hasQuery ? _countSearchableItems() : results.length;
     return Scaffold(appBar:AppBar(centerTitle:false,titleSpacing:0,leadingWidth:44,title:const WorkspaceTitle('전체 보기'),actions:const[DesktopMenuAction()]),
       body:DesktopMenuBody(child:Column(children:[widget.selector,
@@ -114,12 +162,15 @@ class _WorkspaceSearchState extends State<WorkspaceSearch> with RetainedOverview
               key: const ValueKey('workspace-search-results'),controller:_scroll,itemCount:math.min(_limit,results.length),padding:const EdgeInsets.fromLTRB(12,8,12,12),separatorBuilder:(_,i)=>const Divider(height:1),itemBuilder:(context,i){
             final item=results[i];
             final body=excerpt(item.body);
-            final at=body.toLowerCase().indexOf(_query.trim().toLowerCase());
-            final preview=at>60?'…${body.substring(at-40)}':body;
-            return ListTile(key:ValueKey('search-${item.kind}-${item.note?.id??item.audioId??item.record!.id}'),
-              leading:Icon(item.kind=='문서'?Icons.description_outlined:item.kind=='음성'?Icons.mic_none:Icons.sticky_note_2_outlined),
-              title:Text('${item.kind}: ${item.title}',maxLines:1,overflow:TextOverflow.ellipsis),
-              subtitle:Text(preview,maxLines:3,overflow:TextOverflow.ellipsis),
+            final match = pattern?.firstMatch(body);
+            var start = math.max(0, (match?.start ?? 0) - 24);
+            if (start > 0 && (body.codeUnitAt(start) & 0xFC00) == 0xDC00) start--;
+            final preview = start == 0 ? body : '…${body.substring(start)}';
+            return ListTile(
+              key: ValueKey('search-${item.key}'),
+              leading: Icon(item.kind == '문서' ? Icons.description_outlined : Icons.sticky_note_2_outlined),
+              title: _highlightedSearchText(context, item.title, pattern, 1, prefix: '${item.kind}: '),
+              subtitle: _highlightedSearchText(context, preview, pattern, 3),
               onTap:()async{if(item.note!=null){if(widget.onDocument!=null){await widget.onDocument!(item.note!);}else{await Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>ProjectPage(project:item.note!.project!)));}}else{await showElementMetadata(context,item.record!.text);} _refresh();});
           }))),
       ])));

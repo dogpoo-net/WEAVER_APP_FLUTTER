@@ -36,9 +36,11 @@ void main(){
   final r=elements.add('서울 일정')..recordings.add(const VoiceAttachment('v',1000,transcript:'서울 회의 녹음'));
   final deleted=ElementRecord('서울 삭제')..deletedAt=DateTime.now();
   final results=searchWorkspace([note],[r,deleted],'서울');
-  expect(results.map((r)=>r.kind),unorderedEquals(['문서','생각','음성']));
-  expect(searchWorkspace([note],[r],'회의 서울').length,2);
-  expect(searchWorkspace([note],[r],'  ').length,3);
+  expect(results.map((r)=>r.kind),unorderedEquals(['문서','생각']));
+  final transcriptMatch = searchWorkspace([note],[r],'회의 서울');
+  expect(transcriptMatch.length,2);
+  expect(transcriptMatch.singleWhere((item) => item.kind == '생각').body, '서울 회의 녹음');
+  expect(searchWorkspace([note],[r],'  ').length,2);
   expect(VoiceAttachment.fromJson(r.recordings.single.toJson()).transcript,'서울 회의 녹음');
   expect(VoiceAttachment.fromJson({'id':'old','durationMs':1000}).transcript,'');
  });
