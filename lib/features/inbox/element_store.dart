@@ -346,18 +346,25 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     final element = elements.records[word];
     if (element == null) return const SizedBox.shrink();
     final mobile = MediaQuery.sizeOf(context).width < 760;
+    final captureStyle = IconButton.styleFrom(
+      minimumSize: const Size(36, 36), maximumSize: const Size(36, 36),
+      padding: EdgeInsets.zero, visualDensity: VisualDensity.standard,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
     final compact = TextButton.styleFrom(minimumSize: const Size(0, 34),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact);
     return AlertDialog(
       insetPadding: EdgeInsets.symmetric(horizontal: mobile ? 16 : 40, vertical: 24),
-      titlePadding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      contentPadding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+      titlePadding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      contentPadding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
       actionsPadding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       title: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
         Expanded(child: InlineTags(key: const ValueKey('element-tags'), tags: _tags,
           onRemove: (tag) => setState(() => _tags.remove(tag)))),
         IconButton(key: const ValueKey('thought-color'), tooltip: '생각 색상 변경',
+          style: IconButton.styleFrom(fixedSize: const Size(32, 32),
+            padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
           visualDensity: VisualDensity.compact, icon: Container(width: 20, height: 20,
             decoration: BoxDecoration(shape: BoxShape.circle, color: _closed ? wordBackgroundColor(context, word, closed: true) : _labelColor == null ? wordBackgroundColor(context, word, closed: false) : thoughtBackgroundForColor(context,Color(_labelColor!)),
               border: Border.all(color: Theme.of(context).colorScheme.outlineVariant))),
@@ -375,7 +382,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(padding: const EdgeInsets.only(top: 8), child: TextField(key: const ValueKey('thought-label-editor'), controller: _labelEditor,
+              Padding(padding: const EdgeInsets.only(top: 4), child: TextField(key: const ValueKey('thought-label-editor'), controller: _labelEditor,
                 maxLines: 1, style: const TextStyle(fontSize: 13),
                 decoration: InputDecoration(labelText: '라벨 붙이기', hintText: '라벨 내용', isDense: true,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -447,10 +454,10 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               )),
               const Divider(key:ValueKey('element-attachments-divider'),height:9,thickness:1),
               Row(children:[
-                IconButton(key:const ValueKey('detail-important'),tooltip:'중요 생각',isSelected:_important,style:IconButton.styleFrom(backgroundColor:_important?Theme.of(context).colorScheme.secondaryContainer:null),onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_important=!_important),icon:const Icon(Icons.priority_high,size:20)),
-                IconButton(tooltip:'위치 기록',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.location_on_outlined,size:20)),
-                IconButton(tooltip:'음성 녹음',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const Icon(Icons.mic_none,size:20)),
-                IconButton(tooltip:'사진 업로드',onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'photo'),icon:const Icon(Icons.add_photo_alternate_outlined,size:20)),
+                IconButton(key:const ValueKey('detail-important'),tooltip:'중요 생각',isSelected:_important,style:captureStyle.copyWith(backgroundColor:WidgetStatePropertyAll(_important?Theme.of(context).colorScheme.secondaryContainer:null)),onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_important=!_important),icon:const Icon(Icons.priority_high,size:20)),
+                IconButton(tooltip:'위치 기록',style:captureStyle,onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.location_on_outlined,size:20)),
+                IconButton(tooltip:'음성 녹음',style:captureStyle,onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const Icon(Icons.mic_none,size:20)),
+                IconButton(tooltip:'사진 업로드',style:captureStyle,onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'photo'),icon:const Icon(Icons.add_photo_alternate_outlined,size:20)),
                 const Spacer(),
                 ValueListenableBuilder<Map<String,int>>(
                   valueListenable:memoCommentCounts,
