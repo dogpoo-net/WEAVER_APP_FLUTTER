@@ -25,6 +25,7 @@ import 'keyboard_viewport.dart';
 import 'packed_badges.dart';
 import 'caret_assist.dart';
 import 'element_binding.dart';
+import 'document_syntax.dart';
 import 'memo_boxes.dart';
 import 'tag_colors.dart';
 import '../../app_theme.dart';
@@ -955,6 +956,132 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     await _persist();await widget.storage?.reloadResource?.call(id);
     if(mounted)_applyRemoteSnapshot(replaceResource:id);
   }
+  Future<void> _renameMenuDocument(String id, String name) async {
+    final storage = widget.storage;
+    await storage?.writable();
+    if (!mounted) return;
+    final note = _notes.where((note) => note.project?.id == id).firstOrNull;
+    if (note == null) return;
+    final project = note.project!;
+    final oldName = project.name;
+    final oldDocument = project.document;
+    final oldLinks = project.documentLinks;
+    final oldUpdatedAt = note.updatedAt;
+
+    // Keep the title used by the reader and the title in the menu in sync.
+    final source = oldDocument ?? project.paragraphs.map((paragraph) => switch (paragraph.role) {
+      ParagraphRole.title => '======${paragraph.text}======',
+      ParagraphRole.subtitle => '=====${paragraph.text}=====',
+      ParagraphRole.body => paragraph.text,
+    }).join('\n\n');
+    final code = codeMarkup.allMatches(source).toList();
+    var start = 0;
+    var end = 0;
+    for (final match in RegExp(r'^======[^\r\n]*======(?=\r?$)', multiLine: true).allMatches(source)) {
+      if (projectHeading.firstMatch(match.group(0)!)?.group(1)?.length != 6 ||
+          code.any((block) => block.start < match.end && block.end > match.start)) continue;
+      start = match.start;
+      end = match.end;
+      break;
+    }
+    final replacement = '======$name======${start == end && source.isNotEmpty ? '\n\n' : ''}';
+    if (documentTitle(replacement) != name) {
+      throw StateError('문서 제목으로 사용할 수 없는 형식입니다.');
+    }
+    final hadBase = storage?.documentSaveBases.containsKey(id) ?? false;
+    final oldBase = storage?.documentSaveBases.remove(id);
+    final delta = replacement.length - (end - start);
+    setState(() {
+      project.name = name;
+      project.document = source.replaceRange(start, end, replacement);
+      project.documentLinks = [
+        for (final link in oldLinks)
+          if (link.end <= start) link
+          else if (link.start >= end) ElementBinding(link.id, link.start + delta, link.end + delta),
+      ];
+      note.updatedAt = DateTime.now();
+      elements.indexProject(project);
+    });
+    try {
+      await _saveAndSync(resource: id);
+    } catch (_) {
+      if (mounted && identical(note.project, project) && project.name == name) {
+        setState(() {
+          project.name = oldName;
+          project.document = oldDocument;
+          project.documentLinks = oldLinks;
+          note.updatedAt = oldUpdatedAt;
+          elements.indexProject(project);
+        });
+        if (hadBase) storage?.documentSaveBases[id] = oldBase;
+        await _persist();
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _renameMenuContainer(String kind, String oldName, String newName) async {
+    final storage = widget.storage;
+    await storage?.writable();
+    if (!mounted) return;
+    if (kind == 'box') {
+      final box = memoBoxes.where((box) => box.name == oldName && !box.isUnclassified).firstOrNull;
+      if (box == null) return;
+      if (newName == '미분류' || memoBoxes.any((box) => box.name == newName)) {
+        throw StateError('이미 사용 중인 상자 이름입니다.');
+      }
+      setState(() => box.name = newName);
+    } else {
+      final folders = switch (kind) {
+        'boxFolder' => memoBoxFolders,
+        'projectFolder' => projectFolders,
+        'paragraphFolder' => paragraphFolders,
+        _ => elementFolders,
+      };
+      final index = folders.indexOf(oldName);
+      if (index < 0) return;
+      if (folders.contains(newName)) throw StateError('이미 사용 중인 폴더 이름입니다.');
+      setState(() {
+        folders[index] = newName;
+        switch (kind) {
+          case 'boxFolder':
+            final parent = memoBoxFolderParents.remove(oldName);
+            memoBoxFolderParents.updateAll((_, value) => value == oldName ? newName : value);
+            if (parent != null) memoBoxFolderParents[newName] = parent;
+            for (final box in memoBoxes) {
+              if (box.folder == oldName) box.folder = newName;
+            }
+            for (final layout in [pageGraphLayout, pageGraphLayout.blockLayout]) {
+              final position = layout.folderPositions.remove(oldName);
+              if (position != null) layout.folderPositions[newName] = position;
+            }
+          case 'projectFolder':
+            for (final note in _notes) {
+              if (note.project?.folder == oldName) note.project!.folder = newName;
+            }
+          case 'paragraphFolder':
+            for (final note in _paragraphNotes) {
+              if (note.folder == oldName) note.folder = newName;
+            }
+          case 'elementFolder':
+            for (final thought in elements.records.values) {
+              if (thought.folder == oldName) thought.folder = newName;
+            }
+        }
+      });
+    }
+    await _persist();
+    if (_storageError != null || _restoreBlocked) {
+      throw StateError(_storageError ?? '로컬 저장을 확인해주세요.');
+    }
+    if (kind == 'box' || kind == 'boxFolder') {
+      await storage?.syncContent?.call();
+      await storage?.syncCanvas?.call();
+    } else {
+      await storage?.syncFolders?.call();
+    }
+  }
+
   Future<void> _deleteMenuDocument(String id) async {
     final storage = widget.storage;
     await storage?.writable();
@@ -1203,6 +1330,8 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
         onTagMoved: _moveTag,
         onTagColorChanged: _persist,
         onBoxChanged: _persist,
+        onRename: (widget.storage?.canvasWritable ?? true) ? _renameMenuContainer : null,
+        onRenameDocument: (widget.storage?.canvasWritable ?? true) ? _renameMenuDocument : null,
         onDeleteFolder: _deleteFolder,
         onDeleteDocument: (widget.storage?.canvasWritable ?? true) ? _deleteMenuDocument : null,
         onDeleteBox: (widget.storage?.canvasWritable ?? true) ? _deleteMenuBox : null,
@@ -1213,7 +1342,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
     );
     await _selectMenu(choice, projects, tags);
     if (mounted &&
-        (choice == WorkspaceMenu.createFolder ||
+        (choice == WorkspaceMenu.refresh || choice == WorkspaceMenu.createFolder ||
             choice == WorkspaceMenu.createTagFolder ||
             choice == WorkspaceMenu.createParagraphFolder || choice == WorkspaceMenu.createElementFolder || choice == WorkspaceMenu.createBoxFolder)) {
       await _menu();
@@ -1590,6 +1719,8 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver {
                 onTagMoved: _moveTag,
         onTagColorChanged: _persist,
         onBoxChanged: _persist,
+        onRename: (widget.storage?.canvasWritable ?? true) ? _renameMenuContainer : null,
+        onRenameDocument: (widget.storage?.canvasWritable ?? true) ? _renameMenuDocument : null,
         onDeleteFolder: _deleteFolder,
         onDeleteDocument: (widget.storage?.canvasWritable ?? true) ? _deleteMenuDocument : null,
         onDeleteBox: (widget.storage?.canvasWritable ?? true) ? _deleteMenuBox : null,

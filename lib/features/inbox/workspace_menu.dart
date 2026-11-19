@@ -28,9 +28,12 @@ class WorkspaceMenu extends StatefulWidget {
     this.projectFolderNames = const [], this.tagFolders = const [], this.tagFolderNames = const {},
     this.paragraphFolders = const [], this.elementFolders = const [],
     this.paragraphFolderNames = const [], this.elementFolderNames = const [],
-    this.onBoxChanged, this.onDeleteFolder, this.onDeleteDocument, this.onDeleteBox, this.onDeleteBoxFolder, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
+    this.onRenameDocument, this.onRename, this.onBoxChanged, this.onDeleteFolder, this.onDeleteDocument, this.onDeleteBox, this.onDeleteBoxFolder, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
   final WorkspaceMenuViewState? viewState;
   final List<String> projectIds;
+  final Future<void> Function(String id, String name)? onRenameDocument;
+  final Future<void> Function(String kind, String oldName, String newName)? onRename;
+  static const refresh = -1000011;
   final Future<void> Function(String kind, String folder)? onDeleteFolder;
   final Future<void> Function(String id)? onDeleteDocument;
   final Future<void> Function(String name, ContainerDeletion choice)? onDeleteBox;
@@ -129,7 +132,38 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   ]));
   bool _deletingItem = false;
 
-  Widget _itemActions(String name, String label, Future<void> Function()? delete, {MemoBox? box}) =>
+  Future<void> _renameItem(String name, Future<void> Function(String) rename) async {
+    var draft = name;
+    final next = await showDialog<String>(context: context, builder: (context) {
+      void submit() {
+        if (draft.trim().isNotEmpty) Navigator.pop(context, draft.trim());
+      }
+      return AlertDialog(
+        title: const Text('이름 변경'),
+        content: TextFormField(
+          initialValue: name,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: '이름'),
+          onChanged: (value) => draft = value,
+          onFieldSubmitted: (_) => submit(),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(onPressed: submit, child: const Text('변경')),
+        ],
+      );
+    });
+    if (!mounted || next == null || next == name) return;
+    await rename(next);
+    if (!mounted) return;
+    setState(_sync);
+    if (!widget.embedded && ModalRoute.of(context)?.isCurrent == true) {
+      Navigator.pop(context, WorkspaceMenu.refresh);
+    }
+  }
+
+  Widget _itemActions(String name, String label, Future<void> Function()? delete,
+      {MemoBox? box, Future<void> Function(String)? rename}) =>
       PopupMenuButton<String>(
         tooltip: '$name 관리',
         style: IconButton.styleFrom(
@@ -148,13 +182,18 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
             widget.onBoxChanged?.call();
             return;
           }
-          if (delete == null) return;
           _deletingItem = true;
           try {
-            await delete();
+            if (action == 'rename' && rename != null) {
+              await _renameItem(name, rename);
+            } else if (action == 'delete') {
+              await delete?.call();
+            }
           } catch (error) {
             if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('삭제를 완료하지 못했습니다. $error')),
+              SnackBar(content: Text(action == 'rename'
+                ? '이름을 변경하지 못했습니다. $error'
+                : '삭제를 완료하지 못했습니다. $error')),
             );
           } finally {
             _deletingItem = false;
@@ -166,6 +205,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
             const SizedBox(width: 8),
             const Text('색상'),
           ])),
+          if (rename != null) const PopupMenuItem(value: 'rename', child: Text('이름 변경')),
           if (delete != null) PopupMenuItem(value: 'delete', child: Text(label)),
         ],
       );
@@ -227,9 +267,12 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           color: hashtagColors.containsKey(name) ? Color(hashtagColors[name]!) : Theme.of(context).colorScheme.outlineVariant,
           border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: .4)))),
       ) : kind == _Kind.box
-        ? _itemActions(name, '상자 삭제', canDeleteBox ? () => _deleteBox(name) : null, box: memoBoxes[index])
+        ? _itemActions(name, '상자 삭제', canDeleteBox ? () => _deleteBox(name) : null,
+          box: memoBoxes[index], rename: canDeleteBox && widget.onRename != null
+              ? (next) => widget.onRename!('box', name, next) : null)
         : projectId != null && widget.onDeleteDocument != null
-        ? _itemActions(name, '문서 삭제', () => _deleteDocument(projectId, name))
+        ? _itemActions(name, '문서 삭제', () => _deleteDocument(projectId, name),
+          rename: widget.onRenameDocument == null ? null : (next) => widget.onRenameDocument!(projectId, next))
         : null,
       leading: Icon(switch (kind) { _Kind.box => Icons.inventory_2_outlined, _Kind.tag => Icons.tag, _Kind.element => Icons.circle_outlined,
         _Kind.paragraph => Icons.subject, _Kind.project => Icons.article_outlined }, size: 20),
@@ -283,6 +326,15 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     onAcceptWithDetails: (d) { setState(() => moveMemoFolder(d.data.name, folder)); widget.onBoxChanged?.call(); },
     builder: (context, candidates, rejected) => ColoredBox(color: candidates.isEmpty ? Colors.transparent : Theme.of(context).colorScheme.secondaryContainer, child: child));
   Widget? _folderActions(_Kind kind, String folder) {
+    final renameFolder = widget.onRename;
+    final rename = kind == _Kind.tag || renameFolder == null
+        ? null
+        : (String next) async {
+            await renameFolder('${kind.name}Folder', folder, next);
+            if (_viewState.expandedFolders.remove('${kind.name}-$folder')) {
+              _viewState.expandedFolders.add('${kind.name}-$next');
+            }
+          };
     if (kind == _Kind.box) {
       final remove = widget.onDeleteBoxFolder;
       if (remove == null) return null;
@@ -291,22 +343,23 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         if (!mounted || choice == null) return;
         await remove(folder, choice);
         if (mounted) setState(_sync);
-      });
+      }, rename: rename);
     }
-    return PopupMenuButton<String>(
-    tooltip: '$folder 폴더 관리',
-    style: IconButton.styleFrom(
-      minimumSize: const Size.square(32),
-      fixedSize: const Size.square(32),
-      padding: EdgeInsets.zero,
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    ),
-    icon: const Icon(Icons.more_vert, size: 18), onSelected: (_) async {
-    final yes = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('폴더를 삭제할까요?'), content: const Text('폴더와 하위 폴더를 삭제하고 안의 자료는 미분류로 이동합니다. 자료는 삭제하지 않습니다.'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('삭제'))]));
-    if (yes != true || !mounted) return;
-    try { await widget.onDeleteFolder?.call(kind.name, folder); if (mounted) setState(_sync); }
-    catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('폴더 변경을 동기화하지 못했습니다. $e'))); }
-  }, itemBuilder: (_) => [PopupMenuItem(value: 'delete', enabled: widget.onDeleteFolder != null, child: const Text('폴더 삭제'))]);
+    final remove = widget.onDeleteFolder;
+    if (remove == null) return null;
+    return _itemActions(folder, '폴더 삭제', () async {
+      final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+        title: const Text('폴더를 삭제할까요?'),
+        content: const Text('폴더와 하위 폴더를 삭제하고 안의 자료는 미분류로 이동합니다. 자료는 삭제하지 않습니다.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('삭제')),
+        ],
+      ));
+      if (confirmed != true || !mounted) return;
+      await remove(kind.name, folder);
+      if (mounted) setState(_sync);
+    }, rename: rename);
   }
   Widget _boxFolder(String folder) {
     final label = Row(children: [const Icon(Icons.folder_outlined, size: 20), const SizedBox(width: 8), Expanded(child: _countedTitle(folder, memoBoxes.where((box) => !box.isUnclassified && box.folder != null && memoFolderContains(folder, box.folder!)).length, 'box-folder-count-$folder'))]);

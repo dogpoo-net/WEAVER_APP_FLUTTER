@@ -5,7 +5,7 @@ import 'element_store.dart';
 class MemoBox {
   MemoBox(this.name, {this.color = 0xFF90A4AE, this.folder, this.isUnclassified = false, Iterable<String> ids = const [], GraphLayout? layout}) : _elementIds = {...ids}, layout = layout ?? GraphLayout();
   final GraphLayout layout;
-  final String name;
+  String name;
   int color;
   String? folder;
   final bool isUnclassified;
