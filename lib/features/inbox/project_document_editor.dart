@@ -15,6 +15,7 @@ import 'thought_filters.dart';
 import 'label_links.dart';
 import 'document_markup.dart';
 import 'document_list_input.dart';
+import 'document_diagnostics.dart';
 import 'document_rich_editor.dart';
 import 'document_syntax.dart' hide documentTitle;
 import 'caret_assist.dart';
@@ -43,6 +44,32 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   late final LabelTextController _body;
   bool _preview = false, _loading = false, _rich = false;
   final _hoveredReference = ValueNotifier<String?>(null);
+  final _syntaxTooltip = DocumentDiagnosticTooltip();
+  Offset? _syntaxTouch;
+
+  void _showSyntaxDiagnostic(String? message, Offset position, {bool touch = false}) {
+    if (!mounted || message == null) {
+      _syntaxTooltip.hide();
+    } else {
+      _syntaxTooltip.show(context, message, position, touch: touch);
+    }
+  }
+
+  void _tapSource() {
+    final position = _syntaxTouch;
+    _syntaxTouch = null;
+    if (position != null && _body.selection.isValid) {
+      final offset = _body.selection.extentOffset;
+      final issue = _body.syntaxDiagnostics.where((issue) =>
+          issue.contains(offset) || issue.end == offset).firstOrNull;
+      if (issue != null) {
+        _showSyntaxDiagnostic(issue.message, position, touch: true);
+        return;
+      }
+    }
+    _syntaxTooltip.hide();
+    _body.openAtCaret(context);
+  }
 
   void _highlightReference(String? id) {
     if (mounted) _hoveredReference.value = id;
@@ -50,6 +77,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
 
   void _setRich(bool value) {
     _highlightReference(null);
+    _syntaxTooltip.hide();
     FocusScope.of(context).unfocus();
     setState(() {
       _rich = value;
@@ -120,6 +148,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     }
     _lastEdit = _editSignature;
     _body.editingDocument = true;
+    _body.onSyntaxDiagnostic = _showSyntaxDiagnostic;
     _body.onLinkHover = _highlightReference;
     _body.addListener(_edited); elements.addListener(_refresh);
   }
@@ -145,13 +174,14 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     final edit = _editSignature;
     if (_lastEdit == edit) return;
     _lastEdit = edit;
+    _syntaxTooltip.hide();
     if(_loading)return;
     if (mounted) setState(() => _dirty = true);
     _queueDraft();
   }
   void _refresh() { if (mounted) setState(() {}); }
   @override
-  void dispose() { widget.storage?.editorResources.remove(widget.project?.id??'new-document');elements.removeListener(_refresh); _body.dispose(); _hoveredReference.dispose(); _bodyFocus.dispose(); _search.dispose(); _documentSearch.dispose(); _documentReferenceScroll.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
+  void dispose() { widget.storage?.editorResources.remove(widget.project?.id??'new-document');elements.removeListener(_refresh); _body.dispose(); _syntaxTooltip.hide(); _hoveredReference.dispose(); _bodyFocus.dispose(); _search.dispose(); _documentSearch.dispose(); _documentReferenceScroll.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
   Future<void> _insertLabel(String word) async {
     if (_rich) _setRich(false);
     await insertAssistedLink(context, _body, word);
@@ -238,6 +268,11 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   bool _saving=false;
   Future<void> _save() async {
     if(_saving)return;
+    final issue = _body.syntaxDiagnostics.firstOrNull;
+    if (issue != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(issue.message)));
+      return;
+    }
     if (_rich) _setRich(false);
     setState(()=>_saving=true);
     try {
@@ -371,7 +406,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     if(didPop || _saving)return;
     try{await _storeDraft();if(mounted){setState(()=>_dirty=false);WidgetsBinding.instance.addPostFrameCallback((_){if(context.mounted)Navigator.pop(context);});}}
     catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('초안을 보관하지 못했습니다. $e')));}
-  }, child: Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () { _highlightReference(null); setState(() => _preview = !_preview); }), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _canEdit && !_saving ? _save : null),
+  }, child: Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () { _highlightReference(null); _syntaxTooltip.hide(); setState(() => _preview = !_preview); }), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _canEdit && !_saving ? _save : null),
     IconButton(tooltip: '작성 문법 안내', icon: const Icon(Icons.info_outline), onPressed: _showHelp),
    ]))]), bottomNavigationBar: _canEdit?null:SafeArea(child:Padding(padding:const EdgeInsets.all(12),child:Text('읽기 전용 워크스페이스입니다.'))), body: DesktopMenuBody(child: SafeArea(top: false, child: LayoutBuilder(builder: (context, constraints) {
       final modeSwitch = TextButton.icon(
@@ -389,16 +424,21 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         : _preview
         ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
         : _rich
-        ? DocumentRichEditor(source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty)
+        ? DocumentRichEditor(source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty, diagnostics: _body.syntaxDiagnostics, onSyntaxDiagnostic: _showSyntaxDiagnostic)
         : DocumentLineNumbers(controller: _body, scroll: _documentScroll, child: CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true,
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
           showWhenEmpty: false, enterSelectsVisible: true, showShortcutHint: true,
-          child: Stack(fit:StackFit.expand,children:[TextField(key: const ValueKey('project-document'), readOnly: _saving, controller: _body, focusNode: _bodyFocus, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
+          child: Stack(fit:StackFit.expand,children:[Listener(
+          onPointerDown: (event) {
+            _syntaxTouch = event.kind == PointerDeviceKind.touch ? event.position : null;
+            _syntaxTooltip.hide();
+          },
+          child: TextField(key: const ValueKey('project-document'), readOnly: _saving, controller: _body, focusNode: _bodyFocus, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
           onTapOutside: _wide ? null : (_) {},
           inputFormatters: const [DocumentListInput()],
-          onTap: () => _body.openAtCaret(context), textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
-          decoration: InputDecoration(contentPadding:EdgeInsets.fromLTRB(12,16,12,_dirty?36:16),fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder())),
+          onTap: _tapSource, textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
+          decoration: InputDecoration(contentPadding:EdgeInsets.fromLTRB(12,16,12,_dirty?36:16),fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder()))),
           if(_dirty)const Positioned(left:12,right:12,bottom:8,child:IgnorePointer(child:Text('아직 저장되지 않았습니다.',textAlign:TextAlign.center,style:TextStyle(color:Colors.red,fontSize:12)))),
         ])));
       final documentInput = !_canEdit || _preview || _rich ? documentBody : DragTarget<Object>(key: const ValueKey('document-link-drop'),

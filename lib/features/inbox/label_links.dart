@@ -6,6 +6,7 @@ import 'element_store.dart';
 import 'word_badge.dart';
 import 'project_page.dart';
 import 'document_syntax.dart';
+import 'document_diagnostics.dart';
 
 abstract interface class InlineLinkDragSource { String? get linkKey; }
 class InlineLinkDrag implements InlineLinkDragSource {
@@ -150,6 +151,9 @@ class LabelTextController extends BoundTextController {
   String? _hoveredLink;
   ValueChanged<String?>? onLinkHover;
   bool editingDocument = false;
+  final _syntax = DocumentSyntaxDiagnostics();
+  DocumentDiagnosticReport? onSyntaxDiagnostic;
+  List<DocumentDiagnostic> get syntaxDiagnostics => editingDocument ? _syntax.forSource(text) : const [];
 
   void _setHoveredLink(String? id) {
     if (_hoveredLink == id) return;
@@ -211,29 +215,59 @@ class LabelTextController extends BoundTextController {
   }
   @override
   TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
-    if (bindings.isEmpty) return super.buildTextSpan(context: context, style: style, withComposing: withComposing);
+    final diagnostics = syntaxDiagnostics;
+    if (bindings.isEmpty && diagnostics.isEmpty) {
+      return super.buildTextSpan(context: context, style: style, withComposing: withComposing);
+    }
     final children = <InlineSpan>[];
     var offset = 0;
+    var diagnosticIndex = 0;
+    void append(int start, int end, {TextStyle? textStyle, ElementBinding? link}) {
+      while (start < end) {
+        while (diagnosticIndex < diagnostics.length && diagnostics[diagnosticIndex].end <= start) {
+          diagnosticIndex++;
+        }
+        final next = diagnosticIndex < diagnostics.length ? diagnostics[diagnosticIndex] : null;
+        final issue = next != null && next.contains(start) ? next : null;
+        final boundary = issue?.end ?? next?.start ?? end;
+        final stop = boundary < end ? boundary : end;
+        children.add(TextSpan(
+          text: text.substring(start, stop),
+          style: issue != null
+              ? (textStyle ?? const TextStyle()).merge(documentDiagnosticStyle(context))
+              : textStyle,
+          mouseCursor: link == null ? null
+              : editingDocument ? SystemMouseCursors.text : SystemMouseCursors.click,
+          onEnter: issue == null && link == null ? null : (event) {
+            if (link != null) _setHoveredLink(link.id);
+            if (issue != null) onSyntaxDiagnostic?.call(issue.message, event.position);
+          },
+          onExit: issue == null && link == null ? null : (event) {
+            if (link != null && _hoveredLink == link.id) _setHoveredLink(null);
+            if (issue != null) onSyntaxDiagnostic?.call(null, event.position);
+          },
+        ));
+        start = stop;
+      }
+    }
     void plain(int start, int end) {
       if (end <= start) return;
       final composing = value.composing;
-      if (withComposing && composing.isValid && composing.start >= start && composing.end <= end && !composing.isCollapsed) {
-        children.add(TextSpan(text: text.substring(start, composing.start)));
-        children.add(TextSpan(text: text.substring(composing.start, composing.end), style: const TextStyle(decoration: TextDecoration.underline)));
-        children.add(TextSpan(text: text.substring(composing.end, end)));
-      } else { children.add(TextSpan(text: text.substring(start, end))); }
+      if (withComposing && composing.isValid && composing.start >= start &&
+          composing.end <= end && !composing.isCollapsed) {
+        append(start, composing.start);
+        append(composing.start, composing.end, textStyle: const TextStyle(decoration: TextDecoration.underline));
+        append(composing.end, end);
+      } else {
+        append(start, end);
+      }
     }
     for (final link in bindings) {
       plain(offset, link.start);
       final hovered = _hoveredLink == link.id;
       final linkStyle = inlineLinkStyle(context, link.id, hovered: hovered);
-      children.add(TextSpan(
-        text: text.substring(link.start, link.end),
-        style: hovered ? linkStyle.copyWith(decorationStyle: TextDecorationStyle.solid) : linkStyle,
-        mouseCursor: editingDocument ? SystemMouseCursors.text : SystemMouseCursors.click,
-        onEnter: (_) => _setHoveredLink(link.id),
-        onExit: (_) { if (_hoveredLink == link.id) _setHoveredLink(null); },
-      ));
+      append(link.start, link.end, link: link,
+        textStyle: hovered ? linkStyle.copyWith(decorationStyle: TextDecorationStyle.solid) : linkStyle);
       offset = link.end;
     }
     plain(offset, text.length);

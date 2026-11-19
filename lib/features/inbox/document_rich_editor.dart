@@ -1,8 +1,10 @@
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 
 import 'document_syntax.dart';
+import 'document_diagnostics.dart';
 import 'canvas_link_text.dart';
 import 'document_code_block.dart';
 import 'element_binding.dart';
@@ -201,6 +203,8 @@ class DocumentRichEditor extends StatefulWidget {
     required this.onLinkHover,
     required this.modeSwitch,
     required this.dirty,
+    required this.diagnostics,
+    required this.onSyntaxDiagnostic,
   });
 
   final String source;
@@ -209,6 +213,9 @@ class DocumentRichEditor extends StatefulWidget {
   final ValueChanged<String?> onLinkHover;
   final Widget modeSwitch;
   final bool dirty;
+  final List<DocumentDiagnostic> diagnostics;
+  final void Function(String? message, Offset position, {bool touch})
+  onSyntaxDiagnostic;
 
   @override
   State<DocumentRichEditor> createState() => _DocumentRichEditorState();
@@ -444,11 +451,19 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     var firstLine = 1;
     for (final section in _sections) {
       final sectionEnd = sectionStart + section.source.length;
+      final lineCount = '\n'.allMatches(section.source).length + 1;
+      final diagnoses = {
+        for (final issue in widget.diagnostics)
+          if (issue.line >= firstLine - 1 &&
+              issue.line < firstLine - 1 + lineCount)
+            issue.line - firstLine + 1: issue,
+      };
       sectionWidgets.add(
         section.protected
             ? _ProtectedDocumentSource(
                 key: section.key,
                 firstLine: firstLine,
+                diagnostics: diagnoses,
                 source: section.source,
                 links: [
                   for (final link in widget.links)
@@ -466,12 +481,14 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
             : _QuillEditorBlock(
                 section: section,
                 firstLine: firstLine,
+                diagnostics: diagnoses,
+                onSyntaxDiagnostic: widget.onSyntaxDiagnostic,
                 onLanguage: (first, last, language) =>
                     _changeQuillLanguage(section, first, last, language),
                 key: section.key,
               ),
       );
-      firstLine += '\n'.allMatches(section.source).length + 1;
+      firstLine += lineCount;
       sectionStart = sectionEnd + 1;
     }
     return Localizations.override(
@@ -656,14 +673,28 @@ class _QuillEditorBlock extends StatelessWidget {
     required this.section,
     required this.firstLine,
     required this.onLanguage,
+    required this.diagnostics,
+    required this.onSyntaxDiagnostic,
   });
   final _Section section;
   final int firstLine;
+  final Map<int, DocumentDiagnostic> diagnostics;
+  final void Function(String? message, Offset position, {bool touch})
+  onSyntaxDiagnostic;
   final void Function(int first, int last, String value) onLanguage;
 
   @override
   Widget build(BuildContext context) {
     final controller = section.controller!;
+    final issuesByOffset = <int, DocumentDiagnostic>{};
+    if (diagnostics.isNotEmpty) {
+      var line = 0, offset = 0;
+      for (final text in controller.document.toPlainText().split('\n')) {
+        final issue = diagnostics[line++];
+        if (issue != null) issuesByOffset[offset] = issue;
+        offset += text.length + 1;
+      }
+    }
     final editor = Stack(
       key: section.gutterOrigin,
       children: [
@@ -675,6 +706,50 @@ class _QuillEditorBlock extends StatelessWidget {
             scrollController: section.scroll!,
             config: quill.QuillEditorConfig(
               editorKey: section.editorKey,
+              textSpanBuilder:
+                  (context, node, nodeOffset, text, style, recognizer) {
+                    final issue = issuesByOffset[node.parent?.documentOffset];
+                    if (issue == null) {
+                      return quill.defaultSpanBuilder(
+                        context,
+                        node,
+                        nodeOffset,
+                        text,
+                        style,
+                        recognizer,
+                      );
+                    }
+                    return TextSpan(
+                      text: text,
+                      style: (style ?? const TextStyle()).merge(
+                        documentDiagnosticStyle(context),
+                      ),
+                      recognizer: recognizer,
+                      onEnter: (event) =>
+                          onSyntaxDiagnostic(issue.message, event.position),
+                      onExit: (event) =>
+                          onSyntaxDiagnostic(null, event.position),
+                    );
+                  },
+              onTapUp: (details, positionAt) {
+                if (details.kind != PointerDeviceKind.touch ||
+                    issuesByOffset.isEmpty)
+                  return false;
+                final plain = controller.document.toPlainText();
+                final offset = positionAt(details.globalPosition).offset
+                    .clamp(0, plain.length);
+                final start = offset == 0
+                    ? 0
+                    : plain.lastIndexOf('\n', offset - 1) + 1;
+                final issue = issuesByOffset[start];
+                if (issue != null)
+                  onSyntaxDiagnostic(
+                    issue.message,
+                    details.globalPosition,
+                    touch: true,
+                  );
+                return false;
+              },
               scrollable: false,
               showCodeBlockLineNumbers: false,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -815,12 +890,14 @@ class _ProtectedDocumentSource extends StatelessWidget {
   const _ProtectedDocumentSource({
     super.key,
     required this.firstLine,
+    required this.diagnostics,
     required this.source,
     required this.links,
     required this.onLinkHover,
     required this.onLanguage,
   });
   final int firstLine;
+  final Map<int, DocumentDiagnostic> diagnostics;
   final String source;
   final List<ElementBinding> links;
   final ValueChanged<String?> onLinkHover;
@@ -829,7 +906,7 @@ class _ProtectedDocumentSource extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final children = <Widget>[];
-    Widget textSegment(int start, int end) {
+    Widget textSegment(int start, int end, DocumentDiagnostic? issue) {
       final segmentLinks = [
         for (final link in links)
           if (link.start < end && link.end > start)
@@ -840,8 +917,9 @@ class _ProtectedDocumentSource extends StatelessWidget {
             ),
       ];
       final text = source.substring(start, end);
-      return segmentLinks.isEmpty
-          ? SelectableText(text)
+      final style = issue == null ? null : documentDiagnosticStyle(context);
+      final content = segmentLinks.isEmpty
+          ? SelectableText(text, style: style)
           : SelectionArea(
               child: CanvasLinkText(
                 text: text,
@@ -849,7 +927,15 @@ class _ProtectedDocumentSource extends StatelessWidget {
                 enabled: true,
                 editingDocument: true,
                 onLinkHover: onLinkHover,
+                style: style,
               ),
+            );
+      return issue == null
+          ? content
+          : Tooltip(
+              message: issue.message,
+              triggerMode: TooltipTriggerMode.tap,
+              child: content,
             );
     }
 
@@ -883,7 +969,13 @@ class _ProtectedDocumentSource extends StatelessWidget {
         children.add(
           numbered(
             line++,
-            lineEnd == start ? const Text(' ') : textSegment(start, lineEnd),
+            lineEnd == start
+                ? const Text(' ')
+                : textSegment(
+                    start,
+                    lineEnd,
+                    diagnostics[line - firstLine - 1],
+                  ),
           ),
         );
         start = lineEnd + 1;
