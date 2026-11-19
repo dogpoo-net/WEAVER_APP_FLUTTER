@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'overview_tab_activity.dart';
 import 'workspace_search.dart';
 import 'overview_tab_settings.dart';
@@ -83,7 +84,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware, Retai
     _changed();await saveWorkspaceContent?.call();await widget.storage?.syncFolders?.call();
   }
   ModalRoute<dynamic>? _route;
-  void _refresh() { _textWidths.clear(); if (mounted && tabActive) setState(() {}); }
+  void _refresh() { if (mounted && tabActive) setState(() {}); }
   @override
   void initState() { super.initState(); _loadViewMode(); _filters.addListener(_refresh); elements.addListener(_refresh); memoCommentCounts.addListener(_refresh); }
   @override
@@ -151,6 +152,10 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware, Retai
       }
       final maxWidth = desktop ? math.min(480.0, available)
         : (available * 2 / _columns).clamp(math.min(48.0, available), available);
+      // Measurements depend on text and typography, not on sync or comments.
+      if (_textWidths.length > math.max(records.length * 2, 512)) {
+        _textWidths.removeWhere((text, _) => !elements.records.containsKey(text));
+      }
       final items = <({ElementRecord record, double width})>[];
       for (final record in records) {
         final textWidth = _textWidths.putIfAbsent(record.text, () {
@@ -244,6 +249,22 @@ class AllThoughtsPage extends StatefulWidget {
 class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProviderStateMixin {
   void _liveChanged(){if(mounted)setState((){});}
   bool _loading = false;
+  Timer? _tabReload;
+
+  void _selectTab(ThoughtView view) {
+    if (_view == view) return;
+    setState(() => _view = view);
+    _rememberTab();
+    _tabPosition.animateTo(
+      _visibleTabs.indexOf(view).toDouble(),
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOutCubic,
+    );
+    _tabReload?.cancel();
+    _tabReload = Timer(const Duration(milliseconds: 220), () {
+      if (mounted) _reload();
+    });
+  }
   Future<void> _reload() async {
     if (_loading || widget.onRefresh == null) return;
     _loading = true;
@@ -308,7 +329,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     _loadTabs();
   }
   @override
-  void dispose() { widget.storage?.liveChanges.removeListener(_liveChanged); _filters.dispose(); _tabPosition.dispose(); _searchController.dispose(); super.dispose(); }
+  void dispose() { widget.storage?.liveChanges.removeListener(_liveChanged); _filters.dispose(); _tabReload?.cancel(); _tabPosition.dispose(); _searchController.dispose(); super.dispose(); }
   int _cacheEpoch = 0;
   final _cachedTabs = <ThoughtView, Widget>{};
   final _recentTabs = <ThoughtView>[];
@@ -337,8 +358,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
           for(final view in _visibleTabs) SizedBox(width:104,height:40,child:Semantics(
             selected:view==_view,child:TextButton(
               style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),
-              onPressed:(){if(_view==view)return;setState(()=>_view=view);_rememberTab();
-                _tabPosition.animateTo(_visibleTabs.indexOf(view).toDouble(),duration:const Duration(milliseconds:200),curve:Curves.easeInOutCubic);_reload();},
+              onPressed: () => _selectTab(view),
               child:Text(thoughtViewLabel(view.name))))),
           SizedBox(width:104,height:40,child:TextButton(key:const ValueKey('overview-tab-settings'),
             style:TextButton.styleFrom(shape:const RoundedRectangleBorder()),onPressed:_configureTabs,

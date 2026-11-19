@@ -118,7 +118,8 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
       ]),
       Expanded(child: Stack(children: [
         Positioned.fill(child: ClipRect(child: ImageFiltered(
-          imageFilter: ui.ImageFilter.blur(sigmaX: records.isEmpty ? 5 : 0, sigmaY: records.isEmpty ? 5 : 0),
+          enabled: records.isEmpty,
+          imageFilter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
           child: IgnorePointer(ignoring: records.isEmpty, child: FlutterMap(key: ValueKey('$_mapRevision-${records.isEmpty}'), mapController: _map,
           options: MapOptions(initialCenter: records.isEmpty ? const LatLng(20, 0) : _point(records.first), initialZoom: records.isEmpty ? 2 : 14, minZoom: 2, maxZoom: 19,
             initialCameraFit: records.length > 1 ? CameraFit.bounds(bounds: LatLngBounds.fromPoints(records.map(_point).toList()), padding: const EdgeInsets.all(48), maxZoom: 16) : null),

@@ -43,7 +43,13 @@ class RenderPackedBadges extends RenderBox with ContainerRenderObjectMixin<Rende
       if(visible.isEmpty)limit=math.max(limit,child.size.height);
       if(!slotsSorted){free.sort((a,b)=>a.top==b.top?a.left.compareTo(b.left):a.top.compareTo(b.top));slotsSorted=true;}
       final childSize=child.size;
-      final slot=free.firstWhere((r)=>r.width+.01>=childSize.width+6 && r.height+.01>=childSize.height+6);
+      final slotIndex = free.indexWhere((r) =>
+        r.width + .01 >= childSize.width + 6 && r.height + .01 >= childSize.height + 6);
+      if (slotIndex < 0) {
+        hidden = true;
+        continue;
+      }
+      final slot = free[slotIndex];
       if(index++<alwaysVisibleCount)limit=math.max(limit,slot.top+child.size.height);
       if(slot.top+child.size.height>limit+.01){hidden=true;continue;}
       final x=slot.left,y=slot.top,w=child.size.width,h=child.size.height;
@@ -64,6 +70,8 @@ class RenderPackedBadges extends RenderBox with ContainerRenderObjectMixin<Rende
       for(var i=0;i<next.length;i++){
         final r=next[i];
         if(r.width<.01||r.height<.01)continue;
+        // After all priority badges, the visible height no longer grows.
+        if (index >= alwaysVisibleCount && r.top >= limit + .01) continue;
         var contained=false;
         for(var j=0;j<next.length;j++){
           if(i==j)continue;final other=next[j];
