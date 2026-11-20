@@ -35,11 +35,8 @@ class WorkspaceBackup {
   final String? theme, graphs;
   final bool closed;
   static const maxCharacters = 64 * 1024 * 1024;
-  static Set<String> attachmentIds(WorkspaceSnapshot snapshot) => {
-    for (final r in [...snapshot.records, ...snapshot.trashRecords]) ...[
-      ...r.photos.map((p) => p.id), ...r.recordings.map((r) => r.id),
-    ],
-  };
+  static Set<String> attachmentIds(WorkspaceSnapshot snapshot) =>
+      snapshot.attachmentTypes.keys.toSet();
   static Future<WorkspaceBackup> capture(String workspace, BackupMedia store,
       {String? theme, String? graphs, bool closed = true}) async {
     final snapshot = WorkspaceSnapshot.decode(workspace);
@@ -91,7 +88,41 @@ class WorkspaceBackup {
     final prefix = 'import-${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(0x7fffffff)}';
     final names = <String, String>{};
     var index = 0;
-    for (final id in media.keys) { names[id] = '$prefix-${index++}'; }
+    final standalone = (data['workspacePhotos'] as List?) ?? [];
+    final photoIds = standalone.map((photo) => photo['id'] as String).toSet();
+    for (final id in media.keys) {
+      names[id] = '${photoIds.contains(id) ? 'workspace-photo-' : ''}$prefix-${index++}';
+    }
+    for (final photo in standalone) {
+      photo['id'] = names[photo['id']]!;
+    }
+    void remapLayout(dynamic layout) {
+      if (layout is! Map) return;
+      for (final field in ['positions', 'sizes', 'stackGroups']) {
+        if (layout[field] case final Map points) {
+          layout[field] = {for (final entry in points.entries)
+            (photoIds.contains(entry.key) ? names[entry.key] : entry.key): entry.value};
+        }
+      }
+      if (layout['layers'] case final List layers) {
+        layout['layers'] = [for (final id in layers) photoIds.contains(id) ? names[id] : id];
+      }
+      remapLayout(layout['blocks']);
+    }
+    remapLayout(data['graphLayout']);
+    for (final box in (data['memoBoxes'] as List?) ?? []) {
+      box['ids'] = [for (final id in box['ids'] as List) photoIds.contains(id) ? names[id] : id];
+      remapLayout(box['layout']);
+    }
+    final remappedGraphs = graphs == null ? null : jsonDecode(graphs!);
+    if (remappedGraphs is Map) {
+      remapLayout(remappedGraphs['page']);
+      if (remappedGraphs['boxes'] case final Map boxes) {
+        for (final layout in boxes.values) {
+          remapLayout(layout);
+        }
+      }
+    }
     for (final r in [...(data['elements'] as List), ...(data['trash'] as List? ?? [])]) {
       for (final file in [...(r['photos'] as List? ?? []), ...(r['recordings'] as List? ?? [])]) {
         file['id'] = names[file['id']]!;
@@ -109,7 +140,7 @@ class WorkspaceBackup {
       rethrow;
     }
     return WorkspaceBackup(jsonEncode(data), {for (final e in media.entries) names[e.key]!: e.value},
-      theme: theme, graphs: graphs, closed: closed);
+      theme: theme, graphs: remappedGraphs == null ? null : jsonEncode(remappedGraphs), closed: closed);
   }
 }
 

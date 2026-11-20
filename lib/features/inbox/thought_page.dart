@@ -1,3 +1,6 @@
+import 'workspace_photo.dart';
+import 'workspace_photo_actions.dart';
+import 'overview_collections.dart' show StoredThumbnail;
 import 'overview_tab_activity.dart';
 import 'memo_comment_count.dart';
 import 'canvas_link_text.dart';
@@ -556,7 +559,30 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
 
   bool _routeVisible = true, _appActive = true;
   ModalRoute<dynamic>? _route;
-  Size _size(String id) { final p = _layout.sizes[id]; return p == null ? (widget.blocks ? const Size(230, 120) : graphThoughtSize) : Size(p.dx, p.dy); }
+  Size _size(String id) {
+    final size = _layout.sizes[id];
+    final photo = widget.blocks ? workspacePhotos[id] : null;
+    if (photo != null) {
+      final ratio = photo.aspectRatio;
+      final width = math.min(size?.dx ?? 230.0, 640.0 * ratio);
+      return Size(width, width / ratio);
+    }
+    return size == null
+        ? (widget.blocks ? const Size(230, 120) : graphThoughtSize)
+        : Size(size.dx, size.dy);
+  }
+
+  void _resizeCanvasPhoto(String id, Size size, Offset shift) {
+    final previous = _positions[id]!;
+    if ((previous + shift).dx < 32 || (previous + shift).dy < 32) return;
+    _updateCanvas(() {
+      _positions[id] = previous + shift;
+      _layout.sizes[id] = Offset(size.width, size.height);
+      _displaceNeighbors({id});
+    });
+    _saveLayout();
+  }
+
   Rect _bounds(String id) => _positions[id]! & _size(id);
   @override
   void initState() {
@@ -649,7 +675,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         }
       }
       for (final id in {...expected.thoughtBoxes.keys, ...desired.thoughtBoxes.keys}) {
-        if (elements.byId(id) == null || current.thoughtBoxes[id] != expected.thoughtBoxes[id]) continue;
+        if ((elements.byId(id) == null && !workspacePhotos.containsKey(id)) || current.thoughtBoxes[id] != expected.thoughtBoxes[id]) continue;
         final box = desired.thoughtBoxes[id];
         if (box != null && !memoBoxes.contains(box)) continue;
         moveThoughtToBox(id, box ?? ensureUnclassifiedBox());
@@ -748,11 +774,21 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       setState(_sync);
     }
   }
-  List<ElementRecord> get _scopeRecords => elements.records.values.toList();
+  final _photoCanvasRecords = <String, ElementRecord>{};
+  List<ElementRecord> get _scopeRecords => [
+    ...elements.records.values,
+    if (widget.blocks)
+      for (final photo in workspacePhotos.values)
+        _photoCanvasRecords.putIfAbsent(photo.id, () =>
+          ElementRecord.restored(photo.id, photo.displayTitle, photo.createdAt))
+          ..text = photo.displayTitle
+          ..indexLabel = photo.label,
+  ];
   List<ElementRecord> get _records => _scopeRecords.where((r) => canBrowseThought(r) &&
     _filters.matches(r) &&
     (_query.isEmpty || r.indexLabel.toLowerCase().contains(_query) || r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.toLowerCase().contains(_query)))).toList();
   void _sync() {
+    _photoCanvasRecords.removeWhere((id, _) => !workspacePhotos.containsKey(id));
     final scope = _scopeRecords;
     final hadPositions = _positions.isNotEmpty;
     final newIds = scope.where((r) => !_positions.containsKey(r.id)).map((r) => r.id).toSet();
@@ -1084,6 +1120,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
 
   Future<void> _deleteSelectedThoughts(Set<String> ids) async {
+    ids = ids.where((id) => !workspacePhotos.containsKey(id)).toSet();
     if (ids.isEmpty || !_canEdit || _deletingContainer) return;
     final accepted = await showDialog<bool>(
       context: context,
@@ -1499,7 +1536,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           if (records.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
             icon: const Icon(Icons.add), label: Text(_query.isNotEmpty ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
           for (final record in records) Positioned(key: ValueKey('canvas-card-slot-${record.id}'), left: visiblePositions[record.id]!.dx - ThoughtInteraction.hitPadding, top: visiblePositions[record.id]!.dy - ThoughtInteraction.hitPadding,
-            child: ThoughtInteraction(key: ValueKey('canvas-thought-${record.id}'), size: _size(record.id), desktop: MediaQuery.sizeOf(context).width >= 760,
+            child: ThoughtInteraction(key: ValueKey('canvas-thought-${record.id}'), size: _size(record.id), aspectRatio: workspacePhotos[record.id]?.aspectRatio, desktop: MediaQuery.sizeOf(context).width >= 760,
                 groupLifted: _selectionLifted && _selected.contains(record.id),
                 onLift: () => setState(() {
                   _liftedThought = record.id;
@@ -1510,7 +1547,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   if (_detailOpen) return;
                   if (_selectionMode) { setState(() => _toggleThoughtSelection(record.id)); return; }
                   _rangeAnchor=record.id; _detailOpen=true;
-                  try { await showElementMetadata(context, record.text); }
+                  try {
+                    if (workspacePhotos.containsKey(record.id)) {
+                      await openWorkspacePhoto(context, record.id, widget.storage);
+                    } else {
+                      await showElementMetadata(context, record.text);
+                    }
+                  }
                   finally { _detailOpen=false; }
                 },
                 onMove: (delta) => _updateCanvas(() { final previous = _positions[record.id]!; final p = previous + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
@@ -1537,10 +1580,23 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                     _toggleSelection(false);
                   }
                 },
-                onResizeStart: () => _beginResize(record.id),
-                fitSize: (horizontal,vertical)=>_fitThought(record,horizontal,vertical),
+                onResizeStart: () {
+                  if (workspacePhotos.containsKey(record.id)) {
+                    _resizingThought = record.id;
+                  } else {
+                    _beginResize(record.id);
+                  }
+                },
+                fitSize: workspacePhotos.containsKey(record.id) ? null
+                    : (horizontal,vertical)=>_fitThought(record,horizontal,vertical),
                 onAutoResize: (size,shift)=>_resizeThought(record.id,size,shift,snap:false),
-                onResize: (size,shift)=>_resizeThought(record.id,size,shift),
+                onResize: (size,shift) {
+                  if (workspacePhotos.containsKey(record.id)) {
+                    _resizeCanvasPhoto(record.id, size, shift);
+                  } else {
+                    _resizeThought(record.id, size, shift);
+                  }
+                },
                 onDrop: (pointer) {
                   final origin = _thoughtDragOrigins[record.id];
                   final tolerance = (48 / _view.value.storage[0].abs()).clamp(24, 96);
@@ -1614,10 +1670,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   if (detached.isNotEmpty) _changed();
                   _saveLayout(flush: true);
                 }, onEnd: () { setState(() { _liftedThought = null; if (_resizingThought == null) _closeMovedSlots(_thoughtDragOrigins); _resizingThought = null; _resizeNeighbors.clear(); _thoughtDragOrigins.remove(record.id); _dragStartStacks.remove(record.id); _dropHighlights.clear(); _stackPreview = null; _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
-                child: Card(margin: EdgeInsets.zero, color: wordBackgroundColor(context, record.text),
+                child: Card(margin: EdgeInsets.zero,
+                  clipBehavior: workspacePhotos.containsKey(record.id) ? Clip.antiAlias : Clip.none,
+                  color: wordBackgroundColor(context, record.text),
                   shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _dropHighlights.contains(record.id) || _draggingId == record.id || (!_rangeSelection && _selected.isEmpty && _linkHoverTarget == record.id) ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) ? 3 : 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: _dropHighlights.contains(record.id) || _draggingId == record.id || (!_rangeSelection && _selected.isEmpty && _linkHoverTarget == record.id) ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) || _draggingId == record.id ? 3 : 2)),
-                  child: SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  child: workspacePhotos.containsKey(record.id)
+                  ? StoredThumbnail(key: ValueKey(record.id), id: record.id, owner: widget.storage?.owner, name: record.text)
+                  : SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Expanded(child: Padding(padding: const EdgeInsets.all(8), child: MemoCommentCount(id:record.id,builder:(context,commentCount)=>Row(crossAxisAlignment:coveredThoughts.contains(record.id)?CrossAxisAlignment.start:CrossAxisAlignment.center,children:[
                       if(AttachmentIndicators.hasAttachments(record)||commentCount>0)...[FittedBox(fit:BoxFit.scaleDown,child:AttachmentIndicators(record:record,commentCount:commentCount)),const SizedBox(width:4)],
                       Expanded(child:CanvasLinkText(text:record.text,links:record.inlineLinks,onLinkHover:(link)=>_hoverMemoLink(record.id,link),enabled:MediaQuery.sizeOf(context).width >= 760 && !_rangeSelection && _selected.isEmpty,style:TextStyle(color:wordColor(context,record.text)))),
@@ -1631,9 +1691,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             left: _liftedLabel == record.id ? _labelPointer!.dx - ThoughtLabel.width(context, record.indexLabel) / 2 : math.max(0, _positions[record.id]!.dx + (record.labelOnLeft ? -ThoughtLabel.width(context, record.indexLabel) + 4 : _size(record.id).width - 4)),
             top: _liftedLabel == record.id ? _labelPointer!.dy - 12 : _positions[record.id]!.dy + 4, width: ThoughtLabel.width(context, record.indexLabel),
             child: GestureDetector(
-              onLongPressStart: _canEdit ? (d) => _moveLabel(record.id,d.globalPosition) : null,
-              onLongPressMoveUpdate: _canEdit ? (d) => _moveLabel(record.id,d.globalPosition) : null,
-              onLongPressEnd: _canEdit ? (d) => _dropLabel(record,d.globalPosition) : null,
+              onLongPressStart: _canEdit && !workspacePhotos.containsKey(record.id) ? (d) => _moveLabel(record.id,d.globalPosition) : null,
+              onLongPressMoveUpdate: _canEdit && !workspacePhotos.containsKey(record.id) ? (d) => _moveLabel(record.id,d.globalPosition) : null,
+              onLongPressEnd: _canEdit && !workspacePhotos.containsKey(record.id) ? (d) => _dropLabel(record,d.globalPosition) : null,
               onLongPressCancel: () { if (_liftedLabel != null) setState(() { _liftedLabel=null;_labelPointer=null; }); },
               child: ThoughtLabel(key: ValueKey('thought-label-${record.id}'), record: record, movable: _canEdit,
               active: _frontThought == record.id,
@@ -1763,7 +1823,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           ))),
         ])))),
       )); })),
-        if (_canEdit && records.any((record) => _selected.contains(record.id)))
+        if (_canEdit && records.any((record) => _selected.contains(record.id) &&
+            !workspacePhotos.containsKey(record.id)))
           Positioned(bottom: 8, left: 0, right: 0, child: Center(
             child: Material(
               color: color.surfaceContainerHigh,
@@ -1773,7 +1834,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 icon: const Icon(Icons.close),
                 onPressed: () => _deleteSelectedThoughts({
                   for (final record in records)
-                    if (_selected.contains(record.id)) record.id,
+                    if (_selected.contains(record.id) && !workspacePhotos.containsKey(record.id)) record.id,
                 }),
               ),
             ),
@@ -1830,7 +1891,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         IconButton(tooltip: '다시 실행 (Ctrl+Y)', icon: const Icon(Icons.redo),
           onPressed: _redo.isEmpty ? null : () => _stepHistory(redo: true)),
       ],
-      if(_canEdit)MemoBoxActions(onCreate:_createBox,onCreateThought:_create),
+      if(_canEdit)MemoBoxActions(onCreate:_createBox,onCreateThought:_create,
+        onCreatePhoto: widget.blocks ? () => createWorkspacePhoto(
+          context, widget.storage, box: _filterBox, onChanged: _changed) : null),
       IconButton(tooltip: '전체 보기', icon: const Icon(Icons.fit_screen_outlined),
         onPressed: () => setState(() => _centered = false)),
       PopupMenuButton<bool>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),

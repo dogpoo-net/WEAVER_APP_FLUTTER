@@ -1,3 +1,4 @@
+import 'workspace_photo.dart';
 import 'package:flutter/material.dart';
 import 'graph_layout.dart';
 import 'element_store.dart';
@@ -11,7 +12,7 @@ class MemoBox {
   final bool isUnclassified;
   final Set<String> _elementIds;
   Set<String> get elementIds => isUnclassified
-      ? elements.records.values.map((record) => record.id).toSet().difference(
+      ? {...elements.records.values.map((record) => record.id), ...workspacePhotos.keys}.difference(
           memoBoxes.where((box) => !box.isUnclassified).expand((box) => box.elementIds).toSet())
       : _elementIds;
 }

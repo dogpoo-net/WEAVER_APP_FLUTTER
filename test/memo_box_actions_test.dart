@@ -30,10 +30,10 @@ void main() {
       onCreate: () {},
       onCreateThought: () {},
     ))));
-    await tester.tap(find.byTooltip('메모상자 관리'));
+    await tester.tap(find.byTooltip('만들기'));
     await tester.pumpAndSettle();
-    expect(find.text('생각 만들기'), findsOneWidget);
-    expect(find.text('상자 만들기'), findsOneWidget);
+    expect(find.text('생각'), findsOneWidget);
+    expect(find.text('메모상자'), findsOneWidget);
     expect(find.text('상자 삭제'), findsNothing);
   });
   testWidgets('Opening overview and selecting another tab requests fresh server changes', (tester) async {

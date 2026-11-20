@@ -1,3 +1,4 @@
+import 'workspace_photo.dart';
 import 'memo_box_actions.dart';
 import '../capture/voice_transcription.dart';
 import 'main_app_bar.dart';
@@ -180,6 +181,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     hashtagFolderAssignments.clear();
     hashtagColors.clear();
     memoBoxes.clear();
+    workspacePhotos.clear();
     pageGraphLayout = GraphLayout();
     memoBoxFolders.clear(); memoBoxFolderParents.clear();
     elements.addListener(_elementDeleted);
@@ -475,6 +477,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
         hashtagFolderAssignments.clear();
     hashtagColors.clear();
     memoBoxes.clear();
+    workspacePhotos.clear();
     pageGraphLayout = GraphLayout();
     memoBoxFolders.clear(); memoBoxFolderParents.clear();
         elements.clear();

@@ -4,8 +4,9 @@ class ThoughtInteraction extends StatefulWidget {
   static const hitPadding = 0.0;
   const ThoughtInteraction({super.key, required this.size, required this.child,
     required this.onMove, required this.onResize, required this.onDrop, required this.onEnd,
-    required this.onTap, required this.desktop, this.onBorderTap, this.onLift, this.onActiveChanged, this.onResizeStart, this.groupLifted = false, this.fitSize, this.onAutoResize});
+    required this.onTap, required this.desktop, this.onBorderTap, this.onLift, this.onActiveChanged, this.onResizeStart, this.groupLifted = false, this.fitSize, this.onAutoResize,this.aspectRatio});
   final Size size;
+  final double? aspectRatio;
   final Size Function(bool horizontal, bool vertical)? fitSize;
   final void Function(Size size, Offset shift)? onAutoResize;
   final Widget child;
@@ -26,7 +27,13 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
   Offset _longOffset = Offset.zero;
   Size _resizeSize = Size.zero;
   Offset _resizePointer = Offset.zero;
-  Size _clamp(double w, double h) => Size(w.clamp(170, 640), h.clamp(76, 520));
+  Size _clamp(double w, double h, {bool useHeight = false}) {
+    final ratio = widget.aspectRatio;
+    if (ratio == null) return Size(w.clamp(170, 640), h.clamp(76, 520));
+    final maxWidth = ratio < 1 ? 640.0 * ratio : 640.0;
+    final width = (useHeight ? h * ratio : w).clamp(maxWidth / 12, maxWidth).toDouble();
+    return Size(width, width / ratio);
+  }
   Widget _handle(String name, MouseCursor cursor, bool left, bool top, bool horizontal, bool vertical) =>
     MouseRegion(cursor: cursor, child: GestureDetector(key: ValueKey('resize-$name'), behavior: HitTestBehavior.opaque,
       onTap: widget.onBorderTap ?? () {}, // Never open details from a resize border.
@@ -46,7 +53,8 @@ class _ThoughtInteractionState extends State<ThoughtInteraction> {
         final delta=box.globalToLocal(d.focalPoint)-box.globalToLocal(_resizePointer);
         _resizePointer=d.focalPoint;
         final next = _clamp(_resizeSize.width + (horizontal ? delta.dx * (left ? -1 : 1) : 0),
-          _resizeSize.height + (vertical ? delta.dy * (top ? -1 : 1) : 0));
+          _resizeSize.height + (vertical ? delta.dy * (top ? -1 : 1) : 0),
+          useHeight: !horizontal || (vertical && delta.dy.abs() > delta.dx.abs()));
         widget.onResize(next, Offset(left ? _resizeSize.width - next.width : 0, top ? _resizeSize.height - next.height : 0));
         _resizeSize = next;
       }, onScaleEnd: (_) => widget.onEnd(), child: const SizedBox.expand()));

@@ -30,11 +30,9 @@ class OfflineWorkspace {
   }
   static Future<void> copyMedia(String raw,String? from,String? to)async{
     final snapshot=WorkspaceSnapshot.decode(raw);
-    for(final record in [...snapshot.records,...snapshot.trashRecords]){
-      for(final id in [...record.photos.map((p)=>p.id),...record.recordings.map((p)=>p.id)]){
-        final bytes=await MediaStorage.read(id,owner:from);
-        if(bytes!=null)await MediaStorage.write(id,bytes,owner:to);
-      }
+    for (final id in snapshot.attachmentTypes.keys) {
+      final bytes = await MediaStorage.read(id, owner: from);
+      if (bytes != null) await MediaStorage.write(id, bytes, owner: to);
     }
   }
   static Future<void> seed(WorkspaceStorage local,WorkspaceStorage source)async{

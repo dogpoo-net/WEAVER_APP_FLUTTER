@@ -399,12 +399,7 @@ class WorkspaceSync extends ChangeNotifier {
 
   Future<void> ensureMedia(String raw) async {
     final snapshot=WorkspaceSnapshot.decode(raw);
-    final ids = {
-      for (final record in [...snapshot.records, ...snapshot.trashRecords]) ...[
-        ...record.photos.map((photo) => photo.id),
-        ...record.recordings.map((clip) => clip.id),
-      ],
-    };
+    final ids = snapshot.attachmentTypes.keys;
     final owner = storage.owner;
     for (final id in ids) {
       if (await MediaStorage.contains(id, owner: owner)) continue;
@@ -414,14 +409,18 @@ class WorkspaceSync extends ChangeNotifier {
   }
   Future<void> uploadMedia(String raw,{String? sourceOwner}) async {
     final snapshot=WorkspaceSnapshot.decode(raw);
-    for(final record in [...snapshot.records,...snapshot.trashRecords]){
-      for(final id in [...record.photos.map((p)=>p.id),...record.recordings.map((p)=>p.id)]){
-        final flag=storage.scoped('media-sent.$id');if(storage.preferences.getBool(flag)==true)continue;
-        final bytes=await MediaStorage.read(id,owner:sourceOwner??storage.owner);if(bytes==null)throw const EmailAuthFailure('첨부파일을 읽지 못했습니다. 로컬 자료를 보존합니다.');
-        await request('media/write',{'mediaId':id,'mediaType':record.recordings.any((clip)=>clip.id==id)?'audio':'image','data':base64Encode(bytes)});await storage.preferences.setBool(flag,true);
-      }
+    for (final entry in snapshot.attachmentTypes.entries) {
+      final id = entry.key;
+      final flag = storage.scoped('media-sent.$id');
+      if (storage.preferences.getBool(flag) == true ||
+          (base[itemKey('list:workspacePhotos', id)]?['deleted'] == false)) continue;
+      final bytes = await MediaStorage.read(id, owner: sourceOwner ?? storage.owner);
+      if (bytes == null) throw const EmailAuthFailure('첨부파일을 읽지 못했습니다. 로컬 자료를 보존합니다.');
+      await request('media/write', {'mediaId': id, 'mediaType': entry.value, 'data': base64Encode(bytes)});
+      await storage.preferences.setBool(flag, true);
     }
   }
+
   Future<void> initialize({int ignoredPendingSaves=0,bool serverCanvas=false}) async {
     if(manualReview)return;
     loadBase();
@@ -664,7 +663,7 @@ class WorkspaceSync extends ChangeNotifier {
   }
   Future<void> removeCleanCache() async {
     await storage.flush();if(storage.read()==_lastSynced){final raw=storage.read();await storage.clear();await storage.preferences.remove(storage.syncKey);
-      if(raw!=null){final snapshot=WorkspaceSnapshot.decode(raw);for(final r in [...snapshot.records,...snapshot.trashRecords]){for(final id in [...r.photos.map((p)=>p.id),...r.recordings.map((c)=>c.id)]){try{await MediaStorage.delete(id,owner:storage.owner);}catch(_){}await storage.preferences.remove(storage.scoped('media-sent.$id'));}}}}
+      if(raw!=null){final snapshot=WorkspaceSnapshot.decode(raw);for(final id in snapshot.attachmentTypes.keys){try{await MediaStorage.delete(id,owner:storage.owner);}catch(_){}await storage.preferences.remove(storage.scoped('media-sent.$id'));}}}
   }
   @override void dispose(){
     final owner = storage.owner;

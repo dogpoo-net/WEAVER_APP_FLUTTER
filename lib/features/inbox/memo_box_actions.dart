@@ -24,9 +24,10 @@ Future<ContainerDeletion?> confirmContainerDeletion(
 );
 
 class MemoBoxActions extends StatelessWidget {
-  const MemoBoxActions({super.key, required this.onCreate, required this.onCreateThought});
+  const MemoBoxActions({super.key, required this.onCreate, required this.onCreateThought, this.onCreatePhoto});
 
   final VoidCallback onCreate, onCreateThought;
+  final VoidCallback? onCreatePhoto;
 
   @override
   Widget build(BuildContext context) => PopupMenuButton<String>(
@@ -35,18 +36,34 @@ class MemoBoxActions extends StatelessWidget {
       padding: EdgeInsets.zero,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     ),
-    tooltip: '메모상자 관리',
+    tooltip: '만들기',
     icon: const Icon(Icons.add),
     onSelected: (action) {
-      if (action == 'thought') {
-        onCreateThought();
-      } else {
-        onCreate();
+      switch (action) {
+        case 'thought': onCreateThought();
+        case 'box': onCreate();
+        case 'photo': onCreatePhoto?.call();
       }
     },
-    itemBuilder: (_) => const [
-      PopupMenuItem(value: 'thought', child: Text('생각 만들기')),
-      PopupMenuItem(value: 'create', child: Text('상자 만들기')),
+    itemBuilder: (_) => [
+      const PopupMenuItem(value: 'thought', child: _CreateMenuLabel(Icons.edit_note_rounded, '생각')),
+      const PopupMenuItem(value: 'box', child: _CreateMenuLabel(Icons.inventory_2_outlined, '메모상자')),
+      if (onCreatePhoto != null)
+        const PopupMenuItem(value: 'photo', child: _CreateMenuLabel(Icons.image_outlined, '사진')),
     ],
   );
+}
+
+class _CreateMenuLabel extends StatelessWidget {
+  const _CreateMenuLabel(this.icon, this.label);
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(children: [
+    Icon(icon, size: 20),
+    const SizedBox(width: 8),
+    Text(label),
+  ]);
 }

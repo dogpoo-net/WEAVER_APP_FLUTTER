@@ -1,3 +1,6 @@
+import 'workspace_photo.dart';
+import 'workspace_photo_actions.dart';
+import '../capture/photo_gallery.dart' show PhotoRemoveButton;
 import 'overview_tab_activity.dart';
 import 'grid_columns_preference.dart';
 import 'dart:typed_data';
@@ -56,7 +59,7 @@ class _DocumentCollectionState extends State<DocumentCollection>{
  DateTime modified(Note n)=>updated(n)??n.createdAt;
  @override Widget build(BuildContext context){final documents=widget.notes.where((n)=>n.project!=null);
  final notes=documents.where((n)=>'${n.project!.title}\n${n.project!.content}'.toLowerCase().contains(query.toLowerCase())).toList()..sort((a,b)=>modified(b).compareTo(modified(a)));
- return Scaffold(appBar:AppBar(centerTitle:false,titleSpacing:0,leadingWidth:44,title:const WorkspaceTitle('전체 보기'),actions:[if(widget.onCreate!=null && (widget.storage?.canvasWritable??true))IconButton(tooltip:'문서 만들기',icon:const Icon(Icons.add),onPressed:()async{await widget.onCreate!();if(mounted)setState((){});}),const DesktopMenuAction()]),body:DesktopMenuBody(child:Column(children:[widget.selector,
+ return Scaffold(appBar:AppBar(centerTitle:false,titleSpacing:0,leadingWidth:44,title:const WorkspaceTitle('전체 보기'),actions:[if(widget.onCreate!=null && (widget.storage?.canvasWritable??true))IconButton(tooltip:'만들기',icon:const Icon(Icons.add),onPressed:()async{await widget.onCreate!();if(mounted)setState((){});}),const DesktopMenuAction()]),body:DesktopMenuBody(child:Column(children:[widget.selector,
  Padding(padding:const EdgeInsets.fromLTRB(12,4,12,0),child:TextField(key:const ValueKey('documents-search'),style:TextStyle(fontSize:MediaQuery.sizeOf(context).width<1000?13:14),onChanged:(value)=>setState(()=>query=value.trim()),decoration:const InputDecoration(hintText:'문서 제목·내용 찾기',prefixIcon:Icon(Icons.search,size:18),prefixIconConstraints:BoxConstraints(minWidth:36,minHeight:36),contentPadding:EdgeInsets.symmetric(horizontal:12,vertical:8),isDense:true))),
  OverviewItemCount(query.isEmpty
    ? '문서 ${notes.length}개'
@@ -87,13 +90,89 @@ class _AttachmentCollectionState extends State<AttachmentCollection> with Retain
  final desktop={TargetPlatform.windows,TargetPlatform.macOS,TargetPlatform.linux}.contains(Theme.of(context).platform);
  final defaultColumns=MediaQuery.sizeOf(context).shortestSide>=600||desktop?6:2;
  final shownColumns=(columns??defaultColumns).clamp(1,maxColumns);
- final entries=<({ElementRecord record,String id,PhotoAttachment? photo,VoiceAttachment? voice})>[];
- for(final r in elements.records.values.where((r)=>canBrowseThought(r)&&widget.filters.matches(r))){if(widget.audio){for(final v in r.recordings){entries.add((record:r,id:v.id,photo:null,voice:v));}}else{for(final p in r.photos){entries.add((record:r,id:p.id,photo:p,voice:null));}}}
- entries.sort((a,b)=>b.record.createdAt.compareTo(a.record.createdAt));
- Widget tile(int index){final e=entries[index],r=e.record;final preview=e.voice!=null?Column(mainAxisAlignment:MainAxisAlignment.center,children:[Text(duration(e.voice!.durationMs),style:Theme.of(context).textTheme.titleMedium),const Icon(Icons.graphic_eq,size:48)]):StoredThumbnail(key:ValueKey(e.id),id:e.id,owner:widget.storage?.owner,name:e.photo!.name);
- return Card(clipBehavior:Clip.antiAlias,child:InkWell(key:ValueKey('attachment-${e.id}'),onTap:()async{await showElementMetadata(context,r.text);widget.onChanged?.call();if(mounted)setState((){});},child:details?Padding(padding:const EdgeInsets.all(12),child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[SizedBox(width:96,height:96,child:preview),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(r.text,maxLines:2,overflow:TextOverflow.ellipsis),const SizedBox(height:8),Text('${overviewTime(r.createdAt)} · ${overviewAuthor(widget.storage,'list:elements',r.id)}',style:Theme.of(context).textTheme.labelSmall),Row(children:[if(widget.audio?r.photos.isNotEmpty:r.recordings.isNotEmpty)Tooltip(message:widget.audio?'사진 있음':'음성 있음',child:Icon(widget.audio?Icons.image_outlined:Icons.volume_up_outlined,size:18)),if(r.location!=null)const Padding(padding:EdgeInsets.only(left:6),child:Tooltip(message:'위치 기록 있음',child:Icon(Icons.place_outlined,size:18)))])]))])):preview));
+ final entries = <({ElementRecord? record, String id, PhotoAttachment? photo,
+      VoiceAttachment? voice, DateTime created})>[];
+ for (final r in elements.records.values.where((r) => canBrowseThought(r) && widget.filters.matches(r))) {
+   if (widget.audio) {
+     for (final v in r.recordings) {
+       entries.add((record:r,id:v.id,photo:null,voice:v,created:r.createdAt));
+     }
+   } else {
+     for (final p in r.photos) {
+       entries.add((record:r,id:p.id,photo:p,voice:null,created:r.createdAt));
+     }
+   }
  }
- return Scaffold(appBar:AppBar(centerTitle:false,titleSpacing:0,leadingWidth:44,title:const WorkspaceTitle('전체 보기'),actions:[PopupMenuButton<bool>(tooltip:'정렬',icon:const Icon(Icons.sort),onSelected:(value)=>setState(()=>details=value),itemBuilder:(_)=>[CheckedPopupMenuItem(value:false,checked:!details,child:const Text('격자보기')),CheckedPopupMenuItem(value:true,checked:details,child:const Text('자세히'))]),const DesktopMenuAction()]),body:DesktopMenuBody(child:Column(children:[widget.selector,Padding(padding:const EdgeInsets.symmetric(horizontal:12),child:IconButtonTheme(data:IconButtonThemeData(style:IconButton.styleFrom(minimumSize:const Size(36,36),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap)),child:Row(children:[Expanded(child:Text('${widget.audio?'음성':'사진'} ${entries.length}개',style:Theme.of(context).textTheme.bodyMedium)),if(!details)...[IconButton(tooltip:'확대',onPressed:shownColumns>1?()=>_setColumns(shownColumns-1):null,icon:const Icon(Icons.zoom_in)),Text('$shownColumns열'),IconButton(tooltip:'축소',onPressed:shownColumns<maxColumns?()=>_setColumns(shownColumns+1):null,icon:const Icon(Icons.zoom_out))]]))),Expanded(child:entries.isEmpty?Center(child:Text(widget.audio?'추가한 음성이 없습니다.':'추가한 사진이 없습니다.')):details?ListView.builder(padding:const EdgeInsets.fromLTRB(12,8,12,12),itemCount:entries.length,itemBuilder:(_,i)=>tile(i)):GridView.builder(padding:const EdgeInsets.fromLTRB(12,8,12,12),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:shownColumns,mainAxisSpacing:8,crossAxisSpacing:8),itemCount:entries.length,itemBuilder:(_,i)=>tile(i))),
+ if (!widget.audio) {
+   for (final photo in workspacePhotos.values) {
+     if (!widget.filters.isEmpty && !widget.filters.boxes.any((box) => box.elementIds.contains(photo.id))) continue;
+     entries.add((record:null,id:photo.id,photo:photo.attachment,voice:null,created:photo.createdAt));
+   }
+ }
+ entries.sort((a,b)=>b.created.compareTo(a.created));
+ Widget tile(int index) {
+   final entry = entries[index], record = entry.record;
+   final preview = entry.voice != null
+       ? Column(mainAxisAlignment: MainAxisAlignment.center,children:[
+           Text(duration(entry.voice!.durationMs), style: Theme.of(context).textTheme.titleMedium),
+           const Icon(Icons.graphic_eq,size:48),
+         ])
+       : StoredThumbnail(key:ValueKey(entry.id),id:entry.id,
+           owner:widget.storage?.owner,name:entry.photo!.name);
+   final canDelete = !widget.audio && (widget.storage?.canvasWritable ?? true);
+   return Card(
+     key: ValueKey(entry.id),
+     clipBehavior: Clip.antiAlias,
+     child: Stack(children: [
+       InkWell(key: ValueKey('attachment-${entry.id}'), onTap: () async {
+         if (record == null) {
+           await openWorkspacePhoto(context, entry.id, widget.storage);
+         } else {
+           await showElementMetadata(context, record.text);
+           widget.onChanged?.call();
+           if (mounted) setState(() {});
+         }
+       }, child: details ? Padding(
+         padding: EdgeInsets.fromLTRB(12, 12, canDelete ? 34 : 12, 12),
+         child: Row(crossAxisAlignment: CrossAxisAlignment.start,children:[
+           SizedBox(width:96,height:96,child:preview),
+           const SizedBox(width:12),
+           Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+             Text(record?.text ?? workspacePhotos[entry.id]?.displayTitle ?? entry.photo!.name,maxLines:2,overflow:TextOverflow.ellipsis),
+             const SizedBox(height:8),
+             Text('${overviewTime(entry.created)} · ${overviewAuthor(widget.storage,
+               record == null ? 'list:workspacePhotos' : 'list:elements', record?.id ?? entry.id)}',
+               style:Theme.of(context).textTheme.labelSmall),
+             if (workspacePhotos[entry.id]?.label case final label?)
+               if (label.isNotEmpty) Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+             if (record != null) Row(children:[
+               if(widget.audio?record.photos.isNotEmpty:record.recordings.isNotEmpty)
+                 Tooltip(message:widget.audio?'사진 있음':'음성 있음',
+                   child:Icon(widget.audio?Icons.image_outlined:Icons.volume_up_outlined,size:18)),
+               if(record.location!=null)const Padding(padding:EdgeInsets.only(left:6),
+                 child:Tooltip(message:'위치 기록 있음',child:Icon(Icons.place_outlined,size:18))),
+             ]),
+           ])),
+         ]),
+       ) : SizedBox.expand(child: preview)),
+       if (!widget.audio && record != null) Positioned(top: details ? 14 : 3, left: details ? 14 : 3,
+         child: IgnorePointer(child: DecoratedBox(
+           decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
+           child: const Padding(padding: EdgeInsets.all(3),
+             child: Icon(Icons.edit_note_rounded, size: 15, color: Colors.white)),
+         ))),
+       if (canDelete) Positioned(top: 3, right: 3, child: PhotoRemoveButton(
+         onPressed: () => deleteWorkspacePhoto(context, widget.storage, entry.id,
+           thoughtId: record?.id, onChanged: () { widget.onChanged?.call(); refresh(); }),
+       )),
+     ]),
+   );
+ }
+ return Scaffold(appBar:AppBar(centerTitle:false,titleSpacing:0,leadingWidth:44,title:const WorkspaceTitle('전체 보기'),actions:[
+ if (!widget.audio && (widget.storage?.canvasWritable ?? true))
+   IconButton(tooltip: '만들기', icon: const Icon(Icons.add), onPressed: () => createWorkspacePhoto(
+     context, widget.storage, box: widget.filters.singleBox, onChanged: () { widget.onChanged?.call(); refresh(); })),
+ PopupMenuButton<bool>(tooltip:'정렬',icon:const Icon(Icons.sort),onSelected:(value)=>setState(()=>details=value),itemBuilder:(_)=>[CheckedPopupMenuItem(value:false,checked:!details,child:const Text('격자보기')),CheckedPopupMenuItem(value:true,checked:details,child:const Text('자세히'))]),const DesktopMenuAction()]),body:DesktopMenuBody(child:Column(children:[widget.selector,Padding(padding:const EdgeInsets.symmetric(horizontal:12),child:IconButtonTheme(data:IconButtonThemeData(style:IconButton.styleFrom(minimumSize:const Size(36,36),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap)),child:Row(children:[Expanded(child:Text('${widget.audio?'음성':'사진'} ${entries.length}개',style:Theme.of(context).textTheme.bodyMedium)),if(!details)...[IconButton(tooltip:'확대',onPressed:shownColumns>1?()=>_setColumns(shownColumns-1):null,icon:const Icon(Icons.zoom_in)),Text('$shownColumns열'),IconButton(tooltip:'축소',onPressed:shownColumns<maxColumns?()=>_setColumns(shownColumns+1):null,icon:const Icon(Icons.zoom_out))]]))),Expanded(child:entries.isEmpty?Center(child:Text(widget.audio?'추가한 음성이 없습니다.':'추가한 사진이 없습니다.')):details?ListView.builder(padding:const EdgeInsets.fromLTRB(12,8,12,12),itemCount:entries.length,itemBuilder:(_,i)=>tile(i)):GridView.builder(padding:const EdgeInsets.fromLTRB(12,8,12,12),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:shownColumns,mainAxisSpacing:8,crossAxisSpacing:8),itemCount:entries.length,itemBuilder:(_,i)=>tile(i))),
  ThoughtFilters(tags:elements.records.values.where(canBrowseThought).expand((r)=>r.tags).toSet().toList()..sort(),selection:widget.filters,onFilter:widget.filters.toggle,onChanged:(){widget.onChanged?.call();refresh();}),
  ])));
  }

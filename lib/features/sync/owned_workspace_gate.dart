@@ -214,6 +214,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
             if (raw != null) {
               final snapshot = WorkspaceSnapshot.decode(raw);
               if (snapshot.records.isNotEmpty ||
+                  snapshot.photos.isNotEmpty ||
                   snapshot.notes.isNotEmpty ||
                   snapshot.trashRecords.isNotEmpty) {
                 if (!valid() || !mounted) return;

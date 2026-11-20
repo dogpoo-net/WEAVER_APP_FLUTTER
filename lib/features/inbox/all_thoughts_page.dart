@@ -19,6 +19,7 @@ import 'memo_boxes.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'element_store.dart';
+import 'workspace_photo_actions.dart';
 import 'inbox_page.dart' show showThoughtCapture;
 import '../capture/voice_transcription.dart' show fillVoiceBody;
 import 'word_badge.dart';
@@ -216,7 +217,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware, Retai
       IconButton(tooltip: '음성 있는 생각', isSelected: _audioOnly,
         style: IconButton.styleFrom(backgroundColor: _audioOnly ? Theme.of(context).colorScheme.primaryContainer : null),
         icon: const Icon(Icons.volume_up_outlined), onPressed: () => setState(() => _audioOnly = !_audioOnly)),
-      if(widget.storage?.canvasWritable??true)MemoBoxActions(onCreateThought:_createThought, onCreate: () async { final box = await createMemoBox(context); if (mounted && box != null) _changed(); }),
+      if(widget.storage?.canvasWritable??true)MemoBoxActions(onCreateThought:_createThought, onCreatePhoto: () => createWorkspacePhoto(context, widget.storage, box: _filterBox, onChanged: _changed), onCreate: () async { final box = await createMemoBox(context); if (mounted && box != null) _changed(); }),
       IconButton(tooltip: _square ? '바둑판식 보기 · 행으로 전환' : '행으로 보기 · 바둑판으로 전환', icon: Icon(_square ? Icons.grid_view : Icons.view_stream), onPressed:_toggleViewMode),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('생각 보기 안내'),

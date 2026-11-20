@@ -1,3 +1,4 @@
+import 'workspace_photo.dart';
 import '../storage/record_preferences.dart';
 import '../capture/voice_transcription.dart';
 import '../sync/workspace_events.dart';
@@ -51,8 +52,17 @@ class WorkspaceSnapshot {
     this.graphLayout,
     this.boxFolderParents = const {},
     this.trashRecords = const [],
+    this.photos = const [],
   ]);
   final List<ElementRecord> trashRecords;
+  final List<WorkspacePhoto> photos;
+  Map<String, String> get attachmentTypes => {
+    for (final record in [...records, ...trashRecords]) ...{
+      for (final photo in record.photos) photo.id: 'image',
+      for (final clip in record.recordings) clip.id: 'audio',
+    },
+    for (final photo in photos) photo.id: 'image',
+  };
   final GraphLayout? graphLayout;
   final Map<String, String> boxFolderParents;
   final List<String> folders;
@@ -105,6 +115,7 @@ class WorkspaceSnapshot {
     'hashtagFolderAssignments': Map.of(hashtagFolderAssignments),
     'elements': elements.records.values.map(recordJson).toList(),
     'trash': elements.trash.values.map(recordJson).toList(),
+    'workspacePhotos': workspacePhotos.values.map((photo) => photo.toJson()).toList(),
     'colors': exportWordColors(),
     'notes': notes
         .map(
@@ -299,10 +310,12 @@ class WorkspaceSnapshot {
       GraphLayout.fromJson(data['graphLayout']),
       Map<String, String>.from(data['memoBoxFolderParents'] ?? {}),
       trashRecords,
+      ((data['workspacePhotos'] as List?) ?? []).map(WorkspacePhoto.fromJson).toList(),
     );
   }
 
   void apply() {
+    workspacePhotos..clear()..addEntries(photos.map((photo) => MapEntry(photo.id, photo)));
     pageGraphLayout = graphLayout ?? GraphLayout();
     memoBoxes..clear()..addAll(boxes);
     normalizeBoxMemberships();

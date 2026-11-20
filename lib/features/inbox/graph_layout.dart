@@ -89,7 +89,10 @@ class GraphLayout {
     readPoints(data['tags'], layout.tags);
     readPoints(data['sizes'], layout.sizes);
     readPoints(data['folderPositions'], layout.folderPositions);
-    layout.sizes.updateAll((id, p) => Offset(p.dx.clamp(170, 640), p.dy.clamp(76, 520)));
+    layout.sizes.removeWhere((id, p) => id.startsWith('workspace-photo-') &&
+        (p.dx <= 0 || p.dy <= 0 || p.dx > 640 || p.dy > 640));
+    layout.sizes.updateAll((id, p) => id.startsWith('workspace-photo-')
+        ? p : Offset(p.dx.clamp(170, 640), p.dy.clamp(76, 520)));
     final matrix = data['viewport'];
     if (matrix is List && matrix.length == 16 && matrix.every((n) => n is num && n.isFinite)) {
       final values = matrix.map((n) => (n as num).toDouble()).toList();
