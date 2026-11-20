@@ -28,13 +28,13 @@ Future<void> main() async {
     // The web release keeps explicit registration for Korean editing and
     // excludes this family from the engine manifest to avoid a second load.
     if (!kIsWeb) return;
-    final font = FontLoader('NotoSansKR')
-      ..addFont(rootBundle.load('assets/fonts/NotoSansKR-Variable.ttf'));
+    final font = FontLoader('Pretendard')
+      ..addFont(rootBundle.load('assets/fonts/PretendardVariable.ttf'));
     await font.load();
   }
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks([
-      'Noto Sans KR',
+      'Pretendard',
     ], await rootBundle.loadString('assets/fonts/OFL.txt'));
   });
   WorkspaceStorage? storage;
@@ -139,7 +139,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
     return ThemeData(
       useMaterial3: true,
-      fontFamily: 'NotoSansKR',
+      fontFamily: 'Pretendard',
+      fontFamilyFallback: const ['Noto Sans'],
       splashFactory: InkRipple.splashFactory,
       splashColor: colors.primary.withValues(alpha: 0.12),
       highlightColor: colors.primary.withValues(alpha: 0.04),

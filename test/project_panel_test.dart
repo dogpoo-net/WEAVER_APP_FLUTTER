@@ -91,6 +91,21 @@ void main() {
     expect((tester.getSize(document).height + tester.getSize(find.byKey(const ValueKey('document-editor-toolbar'))).height) / tester.getSize(panel).height, closeTo(7/3,.02));
     expect(tester.widget<TextField>(document).focusNode!.hasFocus,isTrue);
     expect(tester.widget<TextField>(document).controller!.text,draft.document);
+    tester.widget<TextField>(document).focusNode!.unfocus();
+    tester.view.resetViewInsets();
+    await tester.pumpAndSettle();
+    final divider = find.byKey(const ValueKey('mobile-document-divider'));
+    final initialHeight = tester.getSize(panel).height;
+    await tester.drag(divider, const Offset(0, -60));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(panel).height, greaterThan(initialHeight));
+    await tester.drag(divider, const Offset(0, 1500));
+    await tester.pumpAndSettle();
+    expect(panel, findsNothing);
+    expect(tester.getRect(divider).bottom, closeTo(tester.getRect(toggle).top, 1));
+    await tester.drag(divider, const Offset(0, -120));
+    await tester.pumpAndSettle();
+    expect(panel, findsOneWidget);
     expect(tester.takeException(),isNull);await tester.pumpWidget(const SizedBox());
   });
 }

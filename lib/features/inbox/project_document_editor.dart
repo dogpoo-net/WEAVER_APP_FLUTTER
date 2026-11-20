@@ -7,6 +7,7 @@ import 'element_binding.dart';
 import 'memo_boxes.dart';
 import 'document_table.dart';
 import 'document_line_numbers.dart';
+import 'document_footnote_dialog.dart';
 import 'document_line_shortcuts.dart';
 import 'workspace_photo_actions.dart';
 import 'edit_lock.dart' show confirmReload;
@@ -260,61 +261,81 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
 
   Future<void> _insertFootnote({int? richOffset}) async {
     final before = _body.value;
-    var draft = '';
-    final input = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('각주 삽입'),
-        content: TextField(
-          autofocus: true,
-          maxLines: 4,
-          onChanged: (value) => draft = value,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-          TextButton(onPressed: () => Navigator.pop(context, draft.trim()), child: const Text('삽입')),
-        ],
-      ),
-    );
-    if (!mounted || !_canEdit || _saving || input == null || input.isEmpty || _body.text != before.text) return;
-    final caret = richOffset ?? (before.selection.isValid ? before.selection.end : before.text.length);
+    final caret = richOffset ??
+        (before.selection.isValid ? before.selection.extentOffset : before.text.length);
     var offset = caret;
     for (final link in _body.bindings) {
       if (link.start < offset && offset < link.end) offset = link.end;
     }
-    final text = input.replaceAll(RegExp(r'[\r\n]+'), ' ');
-    if (caretInsideCode(before.text, offset)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('코드 밖에 각주를 넣어주세요.')),
-      );
-      return;
+    final comments = DocumentComments(before.text);
+    final codeRanges = codeMarkup.allMatches(comments.maskedText).toList();
+    final notes = <String, String>{};
+    var start = 0;
+    for (final line in before.text.split('\n')) {
+      final definition = documentFootnoteDefinition.firstMatch(line);
+      if (definition != null &&
+          !comments.ranges.any((range) => range.start <= start && range.end > start) &&
+          !codeRanges.any((range) => range.start <= start && range.end > start)) {
+        notes.putIfAbsent(definition.group(1)!, () => definition.group(2)!);
+      }
+      start += line.length + 1;
     }
-    final usedIds = documentFootnoteReference.allMatches(before.text).map((m) => m.group(1)).toSet();
-    var next = 1;
-    while (usedIds.contains('note-$next')) {
-      next++;
+    for (final reference in documentFootnoteReference.allMatches(before.text)) {
+      if (reference.start < offset && offset < reference.end) offset = reference.end;
     }
-    final reference = '[^note-$next]';
-    final definition = '\n\n$reference: $text';
-    _body.value = TextEditingValue(
-      text: before.text + definition,
-      selection: TextSelection.collapsed(offset: offset),
+    final usedIds = documentFootnoteReference.allMatches(before.text)
+        .map((match) => match.group(1)!).toSet();
+    var changed = false;
+    final selected = await showDocumentFootnotes(
+      context,
+      notes: notes,
+      onAdd: (text) {
+        var next = 1;
+        while (usedIds.contains('note-$next')) { next++; }
+        final id = 'note-$next';
+        usedIds.add(id);
+        final source = _body.text;
+        _applyRichPatch(source.length, source.length,
+          '\n\n[^$id]: $text',
+          selection: before.selection);
+        changed = true;
+        return id;
+      },
     );
-    _body.value = TextEditingValue(
-      text: _body.text.replaceRange(offset, offset, reference),
-      selection: TextSelection.collapsed(offset: offset + reference.length),
-    );
-    _finishInsertion();
+    if (!mounted) return;
+    if (_canEdit && !_saving && selected != null) {
+      if (caretInsideCode(comments.maskedText, offset) ||
+          comments.ranges.any((range) => range.start < offset && offset < range.end)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('코드나 주석 밖에 각주를 넣어주세요.')),
+        );
+      } else {
+        final reference = '[^$selected]';
+        _applyRichPatch(offset, offset, reference,
+          selection: TextSelection.collapsed(offset: offset + reference.length));
+        changed = true;
+      }
+    }
+    if (changed) _finishInsertion(selection: _body.selection);
   }
 
-  void _finishInsertion() {
+  void _finishInsertion({TextSelection? selection}) {
     if (_rich) {
       setState(() {
-        _richLineSelection = null;
+        _richLineSelection = selection;
         _richInsertionRevision++;
       });
     } else {
       _bodyFocus.requestFocus();
+    }
+  }
+
+  void _refreshRichAfterSaveChange(String previous) {
+    if (_rich && previous != _body.text) {
+      setState(() {
+        _richLineSelection = null;
+        _richInsertionRevision++;
+      });
     }
   }
 
@@ -326,11 +347,12 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(issue.message)));
       return;
     }
-    if (_rich) _setRich(false);
     setState(()=>_saving=true);
     try {
     if(!mounted)return;
+    final beforeLinkCompletion = _body.text;
     _body.completeLinks();
+    _refreshRichAfterSaveChange(beforeLinkCompletion);
     _tags.addAll(cleanLinkedInput(_body).tags);
     if (_body.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('본문을 입력해주세요.'))); return;
@@ -350,7 +372,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     final storage=widget.storage;
     if(storage?.syncResource!=null){
       final saved=WorkspaceSnapshot.decode(storage!.read()!).notes.where((n)=>n.project?.id==project.id).firstOrNull?.project;
-      if(saved!=null){project.document=saved.document;project.documentLinks=saved.documentLinks;project.name=saved.name;project.tags..clear()..addAll(saved.tags);_tags..clear()..addAll(saved.tags);_filters.tags..clear()..addAll(saved.tags);_loading=true;_body.loadDocument(project.content,project.documentLinks);_loading=false;}
+      if(saved!=null){project.document=saved.document;project.documentLinks=saved.documentLinks;project.name=saved.name;project.tags..clear()..addAll(saved.tags);_tags..clear()..addAll(saved.tags);_filters.tags..clear()..addAll(saved.tags);final previous = _body.value;_loading=true;_body.loadDocument(project.content,project.documentLinks, selection: previous.text == project.content ? previous.selection : null);_loading=false;_refreshRichAfterSaveChange(previous.text);}
       _original=storage.documentSaveBases[project.id];
     }
     await storage?.writeDocumentDraft(_draftId,null);
@@ -359,7 +381,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       if(!mounted)return;
       final resolved=await resolveDocumentConflict(context,conflict);
       if(resolved!=null&&mounted){
-        final content=documentSegment(resolved);_loading=true;_body.loadDocument(content.text,content.links);_loading=false;
+        final content=documentSegment(resolved);final previous=_body.text;_loading=true;_body.loadDocument(content.text,content.links);_loading=false;_refreshRichAfterSaveChange(previous);
         _tags..clear()..addAll(List<String>.from(resolved['project']['tags'] as List? ?? []));_filters.tags..clear()..addAll(_tags);
         _original=conflict.remoteItem;widget.storage?.documentSaveBases[_draftId]=_original;
         _dirty=true;await _storeDraft();_saving=false;await _save();
@@ -427,6 +449,72 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       Expanded(child:_referenceList(documents:true)),
     ]);
   });
+  double _mobilePanelFraction = .3;
+  double _mobileDragStart = 0, _mobileDragHeight = 0;
+
+  Widget _mobileDocumentSplit(Widget document, Widget panel) =>
+      LayoutBuilder(builder: (context, constraints) {
+        final handleHeight = constraints.maxHeight.clamp(0.0, 24.0);
+        final available = constraints.maxHeight - handleHeight;
+        final maxPanel = (available - 100).clamp(0.0, available * .7);
+        final desiredHeight = (_mobilePanelFraction * available).clamp(0.0, maxPanel);
+        final panelHeight = _thoughtPanelOpen && desiredHeight >= 48 ? desiredHeight : 0.0;
+        return Column(children: [
+          Expanded(child: document),
+          MouseRegion(
+            cursor: SystemMouseCursors.resizeUpDown,
+            child: GestureDetector(
+              key: const ValueKey('mobile-document-divider'),
+              behavior: HitTestBehavior.opaque,
+              dragStartBehavior: DragStartBehavior.down,
+              onVerticalDragStart: (details) {
+                _mobileDragStart = details.globalPosition.dy;
+                _mobileDragHeight = panelHeight;
+              },
+              onVerticalDragUpdate: (details) {
+                if (available <= 0) return;
+                final height = (_mobileDragHeight + _mobileDragStart -
+                    details.globalPosition.dy).clamp(0.0, maxPanel);
+                setState(() {
+                  _thoughtPanelOpen = true;
+                  _mobilePanelFraction = height / available;
+                });
+              },
+              child: SizedBox(
+                height: handleHeight,
+                width: double.infinity,
+                child: Stack(alignment: Alignment.center, children: [
+                  Container(
+                    width: 36,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      key: const ValueKey('project-thought-panel-toggle'),
+                      tooltip: panelHeight > 0 ? '생각 패널 숨기기' : '생각 패널 보이기',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints.tightFor(width: 36, height: 24),
+                      iconSize: 16,
+                      onPressed: () => setState(() {
+                        _thoughtPanelOpen = panelHeight == 0;
+                        if (_thoughtPanelOpen && desiredHeight < 48) _mobilePanelFraction = .3;
+                      }),
+                      icon: Icon(panelHeight > 0 ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+          if (panelHeight > 0) SizedBox(height: panelHeight, child: panel),
+        ]);
+      });
+
   String? _dragKey(Object data) {
     if (data is InlineLinkDragSource) return data.linkKey;
     if (data is MemoDrag) return elements.byId(data.id)?.text;
@@ -462,7 +550,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     if(didPop || _saving)return;
     try{await _storeDraft();if(mounted){setState(()=>_dirty=false);WidgetsBinding.instance.addPostFrameCallback((_){if(context.mounted)Navigator.pop(context);});}}
     catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('초안을 보관하지 못했습니다. $e')));}
-  }, child: Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () { _highlightReference(null); _syntaxTooltip.hide(); setState(() => _preview = !_preview); }), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _canEdit && !_saving ? _save : null),
+  }, child: Scaffold(appBar: AppBar(centerTitle: false, toolbarHeight: _wide ? null : 52, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () { _highlightReference(null); _syntaxTooltip.hide(); setState(() => _preview = !_preview); }), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _canEdit && !_saving ? _save : null),
     IconButton(tooltip: '작성 문법 안내', icon: const Icon(Icons.info_outline), onPressed: _showHelp),
    ]))]), bottomNavigationBar: _canEdit?null:SafeArea(child:Padding(padding:const EdgeInsets.all(12),child:Text('읽기 전용 워크스페이스입니다.'))), body: DesktopMenuBody(child: SafeArea(top: false, child: LayoutBuilder(builder: (context, constraints) {
       final modeSwitch = TextButton.icon(
@@ -480,7 +568,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         : _preview
         ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
         : _rich
-        ? DocumentRichEditor(key: ValueKey(_richInsertionRevision), onInsertFootnote: _saving ? null : (offset) => _insertFootnote(richOffset: offset), onInsertTable: _saving ? null : (offset) => _insertTable(richOffset: offset), onInsertPhoto: _saving ? null : _insertPhoto, onEditLines: _editLines, sourceSelection: _richLineSelection, source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty, diagnostics: _body.syntaxDiagnostics, onSyntaxDiagnostic: _showSyntaxDiagnostic)
+        ? DocumentRichEditor(key: ValueKey(_richInsertionRevision), readOnly: _saving, onInsertFootnote: _saving ? null : (offset) => _insertFootnote(richOffset: offset), onInsertTable: _saving ? null : (offset) => _insertTable(richOffset: offset), onInsertPhoto: _saving ? null : _insertPhoto, onEditLines: _editLines, sourceSelection: _richLineSelection, source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty, diagnostics: _body.syntaxDiagnostics, onSyntaxDiagnostic: _showSyntaxDiagnostic)
         : DocumentLineNumbers(controller: _body, scroll: _documentScroll, child: CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true,
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
@@ -509,9 +597,9 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
           modeSwitch: modeSwitch,
           tools: [
             IconButton(
-              tooltip: '각주 삽입',
+              tooltip: '각주 관리',
               onPressed: _saving ? null : _insertFootnote,
-              icon: const Text('[1]'),
+              icon: const Text('≡¹'),
             ),
             IconButton(
               tooltip: '표 삽입',
@@ -523,16 +611,9 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         Expanded(child: documentInput),
       ]);
       return Column(children: [
-        Expanded(child: Padding(padding: EdgeInsets.fromLTRB(_wide ? 12 : 6, 2, _wide ? 12 : 6, 0), child: _wide
+        Expanded(child: Padding(padding: EdgeInsets.fromLTRB(_wide ? 12 : 6, _wide ? 2 : 0, _wide ? 12 : 6, 0), child: _wide
           ? Row(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Expanded(child:document),if(_thoughtPanelOpen)...[const SizedBox(width:12),SizedBox(width:(constraints.maxWidth*.45).clamp(300.0,560.0),child:panel)],SizedBox(width:32,child:Align(alignment:Alignment.centerRight,child:IconButton(key:const ValueKey('project-thought-panel-toggle'),tooltip:_thoughtPanelOpen?'생각 패널 숨기기':'생각 패널 보이기',padding:EdgeInsets.zero,onPressed:()=>setState(()=>_thoughtPanelOpen=!_thoughtPanelOpen),icon:Icon(_thoughtPanelOpen?Icons.chevron_right:Icons.chevron_left))))])
-          : !_thoughtPanelOpen?document:Column(children:[Expanded(flex:7,child:document),const SizedBox(height:4),Expanded(flex:3,child:panel)]))),
-        if(!_wide)
-        TextButton.icon(key: const ValueKey('project-thought-panel-toggle'),
-          style: TextButton.styleFrom(minimumSize: const Size(double.infinity, 24), padding: EdgeInsets.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap, textStyle: const TextStyle(fontSize: 10)),
-          onPressed: () => setState(() => _thoughtPanelOpen = !_thoughtPanelOpen),
-          icon: Icon(_thoughtPanelOpen ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up, size: 14),
-          label: Text(_thoughtPanelOpen ? '생각 패널 숨기기' : '생각 패널 보이기')),
+          : _mobileDocumentSplit(document, panel))),
         TextButton.icon(key: const ValueKey('project-panel-toggle'),
           style: TextButton.styleFrom(minimumSize: const Size(double.infinity, 24), padding: EdgeInsets.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap, textStyle: const TextStyle(fontSize: 10)),

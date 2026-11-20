@@ -79,9 +79,9 @@ flutter:
     - assets/branding/profile/
     - assets/fonts/OFL.txt
   fonts:
-    - family: NotoSansKR
+    - family: Pretendard
       fonts:
-        - asset: assets/fonts/NotoSansKR-Variable.ttf
+        - asset: assets/fonts/PretendardVariable.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

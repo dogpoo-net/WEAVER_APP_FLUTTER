@@ -35,7 +35,7 @@ def version_assets(root: Path) -> None:
 
     index = root / 'index.html'
     html = index.read_text()
-    font = 'assets/assets/fonts/NotoSansKR-Variable.ttf'
+    font = 'assets/assets/fonts/PretendardVariable.ttf'
     if html.count(f'href="{font}"') != 1 or not (root / font).is_file():
         raise ValueError('Unexpected startup font preload')
 
@@ -43,7 +43,7 @@ def version_assets(root: Path) -> None:
     # Leaving it in the engine manifest would load and register it a second time.
     font_manifest = root / 'assets' / 'FontManifest.json'
     fonts = json.loads(font_manifest.read_text())
-    remaining_fonts = [family for family in fonts if family['family'] != 'NotoSansKR']
+    remaining_fonts = [family for family in fonts if family['family'] != 'Pretendard']
     if len(fonts) - len(remaining_fonts) != 1:
         raise ValueError('Unexpected startup font family in Flutter manifest')
     font_manifest.write_text(json.dumps(remaining_fonts))

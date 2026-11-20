@@ -12,6 +12,8 @@ import 'canvas_link_text.dart';
 import 'document_code_block.dart';
 import 'element_binding.dart';
 
+const _footnoteEmbed = 'weaver-footnote';
+
 const _marks = {
   '**': 'bold',
   '//': 'italic',
@@ -50,9 +52,14 @@ String _alignSource(String value, Object? alignment) => switch (alignment) {
 List<Map<String, Object>> _decodeLine(
   String line, {
   bool showCodeLanguage = false,
+  List<int>? sourceOffsets,
 }) {
   if (documentCodeBlocks(line).isNotEmpty) {
     final code = documentCodeBody(line);
+    final start = documentCodeOpening.matchAsPrefix(line)!.end;
+    for (var i = 0; i < code.length; i++) {
+      sourceOffsets?.add(start + i);
+    }
     return [
       if (showCodeLanguage) ...[
         {'insert': _languageLine(documentCodeLanguage(line))},
@@ -78,7 +85,14 @@ List<Map<String, Object>> _decodeLine(
       ops.add({'insert': value, if (attrs.isNotEmpty) 'attributes': attrs});
   }
 
-  void inline(String input, Map<String, Object> attrs) {
+  void inline(String input, Map<String, Object> attrs, int sourceStart) {
+    void emit(int start, int end) {
+      insert(input.substring(start, end), attrs);
+      for (var i = start; i < end; i++) {
+        sourceOffsets?.add(sourceStart + i);
+      }
+    }
+
     var start = 0;
     for (var i = 0; i + 1 < input.length; i++) {
       final code = documentCodeOpening.matchAsPrefix(input, i);
@@ -96,21 +110,41 @@ List<Map<String, Object>> _decodeLine(
           continue;
         }
       }
+      final footnote = documentFootnoteReference.matchAsPrefix(input, i);
+      if (footnote != null) {
+        emit(start, i);
+        ops.add({
+          'insert': {_footnoteEmbed: footnote.group(1)!},
+          if (attrs.isNotEmpty) 'attributes': attrs,
+        });
+        sourceOffsets?.add(sourceStart + i);
+        start = footnote.end;
+        i = start - 1;
+        continue;
+      }
       final marker = input.substring(i, i + 2);
       final attr = _marks[marker];
       if (attr == null || (marker == '//' && i > 0 && input[i - 1] == ':'))
         continue;
       final end = input.indexOf(marker, i + 2);
       if (end <= i + 2) continue;
-      insert(input.substring(start, i), attrs);
-      inline(input.substring(i + 2, end), {...attrs, attr: true});
+      emit(start, i);
+      inline(input.substring(i + 2, end), {
+        ...attrs,
+        attr: true,
+      }, sourceStart + i + 2);
       i = end + 1;
       start = end + 2;
     }
-    insert(input.substring(start), attrs);
+    emit(start, input.length);
   }
 
-  inline(text, const {});
+  final textStart = alignment != null
+      ? 1 +
+            line.substring(1, line.length - 1).length -
+            line.substring(1, line.length - 1).trimLeft().length
+      : (heading?.group(1)!.length ?? marker?.end ?? 0);
+  inline(text, const {}, textStart);
   insert('\n', {
     if (alignment != null) 'align': alignment.value!,
     if (heading != null) 'header': 7 - heading.group(1)!.length,
@@ -134,7 +168,9 @@ List<String> _encodeLines(
   int? pendingLanguageOffset;
   var language = '';
   for (final op in doc.toDelta().toJson()) {
-    final insert = op['insert'];
+    final value = op['insert'];
+    final footnote = value is Map ? value[_footnoteEmbed] : null;
+    final insert = footnote is String ? '[^$footnote]' : value;
     if (insert is! String) continue;
     final attrs = op['attributes'] as Map? ?? const {};
     final marks = [
@@ -143,7 +179,7 @@ List<String> _encodeLines(
     ];
     final pieces = insert.split('\n');
     for (var i = 0; i < pieces.length; i++) {
-      offset += pieces[i].length;
+      offset += footnote is String ? 1 : pieces[i].length;
       if (pieces[i].isNotEmpty) {
         var shared = 0;
         while (shared < active.length &&
@@ -323,6 +359,7 @@ class DocumentRichEditor extends StatefulWidget {
     this.onInsertPhoto,
     this.onEditLines,
     this.sourceSelection,
+    this.readOnly = false,
     required this.modeSwitch,
     required this.dirty,
     required this.diagnostics,
@@ -336,6 +373,7 @@ class DocumentRichEditor extends StatefulWidget {
   final ValueChanged<int>? onInsertFootnote, onInsertTable, onInsertPhoto;
   final void Function(DocumentLineAction, TextSelection)? onEditLines;
   final TextSelection? sourceSelection;
+  final bool readOnly;
   final Widget modeSwitch;
   final bool dirty;
   final List<DocumentDiagnostic> diagnostics;
@@ -395,7 +433,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
               tableColumns != null ||
               (line.startsWith('|') && _sourceAlignment(line) == null) ||
               documentPhoto.hasMatch(line) ||
-              documentFootnoteReference.hasMatch(line));
+              documentFootnoteDefinition.hasMatch(line));
       if (isProtected != protected) finish();
       protected = isProtected;
       group.add(line);
@@ -439,10 +477,23 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
               .length
               .clamp(0, offsets.length - 1);
           final column = prefix.length - prefix.lastIndexOf('\n') - 1;
+          final sourceLines = section.source.split('\n');
+          final sourceLine = sourceLines[row.clamp(0, sourceLines.length - 1)];
+          final sourceOffsets = <int>[];
+          _decodeLine(sourceLine, sourceOffsets: sourceOffsets);
+          final plain = controller.document.toPlainText();
+          final lineEnd = plain.indexOf('\n', offsets[row]);
+          final editorLine = plain.substring(
+            offsets[row],
+            lineEnd < 0 ? plain.length : lineEnd,
+          );
+          final editorColumn = editorLine == sourceLine
+              ? column
+              : sourceOffsets.where((offset) => offset < column).length;
           final last = row + 1 < offsets.length
               ? offsets[row + 1] - 1
               : controller.document.length - 1;
-          return (offsets[row] + column).clamp(offsets[row], last);
+          return (offsets[row] + editorColumn).clamp(offsets[row], last);
         }
 
         _active = section;
@@ -607,12 +658,14 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
   ) => IconButton(
     tooltip: label,
     icon: Icon(icon),
-    onPressed: () {
-      final section = _active;
-      if (section == null) return;
-      section.controller!.formatSelection(attribute);
-      section.focus!.requestFocus();
-    },
+    onPressed: widget.readOnly
+        ? null
+        : () {
+            final section = _active;
+            if (section == null) return;
+            section.controller!.formatSelection(attribute);
+            section.focus!.requestFocus();
+          },
   );
 
   void _editLines(_Section section, DocumentLineAction action) {
@@ -650,7 +703,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     );
   }
 
-  int _insertionOffset() {
+  int _insertionOffset({bool atCaret = false}) {
     final section = _active;
     final controller = section?.controller;
     if (section == null || controller == null) return widget.source.length;
@@ -670,6 +723,28 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     }
     if (row >= sourceLines.length) return offset - 1;
     final line = sourceLines[row];
+    if (atCaret && row < offsets.length) {
+      final plain = controller.document.toPlainText();
+      final rowStart = offsets[row];
+      final newline = plain.indexOf('\n', rowStart);
+      final editorLine = plain.substring(
+        rowStart,
+        newline < 0 ? plain.length : newline,
+      );
+      final column = (caret - rowStart).clamp(0, editorLine.length);
+      if (line == editorLine) return offset + column;
+      final sourceOffsets = <int>[];
+      _decodeLine(line, sourceOffsets: sourceOffsets);
+      if (sourceOffsets.isNotEmpty) {
+        if (column == 0) return offset + sourceOffsets.first;
+        final previous =
+            sourceOffsets[(column - 1).clamp(0, sourceOffsets.length - 1)];
+        final reference = editorLine[column - 1] == '\uFFFC'
+            ? documentFootnoteReference.matchAsPrefix(line, previous)
+            : null;
+        return offset + (reference?.end ?? previous + 1);
+      }
+    }
     final heading = projectHeading.firstMatch(line);
     if (_sourceAlignment(line) != null) {
       return offset + line.substring(0, line.length - 1).trimRight().length;
@@ -709,6 +784,27 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
         }
       }
     }
+    final source = DocumentComments(
+      _sections.map((section) => section.source).join('\n'),
+    ).visibleText.replaceAll(codeMarkup, '');
+    final bodyLines = <String>[];
+    final definitions = <String>{};
+    for (final line in source.split('\n')) {
+      final definition = documentFootnoteDefinition.firstMatch(line);
+      if (definition == null) {
+        bodyLines.add(line);
+      } else {
+        definitions.add(definition.group(1)!);
+      }
+    }
+    final notes = <String, int>{};
+    for (final reference in documentFootnoteReference.allMatches(
+      bodyLines.join('\n'),
+    )) {
+      final id = reference.group(1)!;
+      if (definitions.contains(id))
+        notes.putIfAbsent(id, () => notes.length + 1);
+    }
     final sectionWidgets = <Widget>[];
     var sectionStart = 0;
     var firstLine = 1;
@@ -728,6 +824,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                 firstLine: firstLine,
                 diagnostics: diagnoses,
                 source: section.source,
+                readOnly: widget.readOnly,
                 links: [
                   for (final link in widget.links)
                     if (link.start >= sectionStart && link.end <= sectionEnd)
@@ -743,6 +840,8 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
               )
             : _QuillEditorBlock(
                 section: section,
+                readOnly: widget.readOnly,
+                noteNumbers: notes,
                 onEditLines: (action) => _editLines(section, action),
                 firstLine: firstLine,
                 diagnostics: diagnoses,
@@ -804,6 +903,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                   for (var level = 2; level <= 5; level++)
                     PopupMenuItem(value: level, child: Text('제목 ${level - 1}')),
                 ],
+                enabled: !widget.readOnly,
                 onSelected: (level) {
                   final section = _active;
                   if (section == null) return;
@@ -825,11 +925,13 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
               ),
               const VerticalDivider(width: 12, indent: 8, endIndent: 8),
               IconButton(
-                tooltip: '각주 삽입',
-                icon: const Text('[1]'),
+                tooltip: '각주 관리',
+                icon: const Text('≡¹'),
                 onPressed: widget.onInsertFootnote == null
                     ? null
-                    : () => widget.onInsertFootnote!(_insertionOffset()),
+                    : () => widget.onInsertFootnote!(
+                        _insertionOffset(atCaret: true),
+                      ),
               ),
               IconButton(
                 tooltip: '표 삽입',
@@ -927,7 +1029,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
   ) => IconButton(
     tooltip: label,
     icon: Icon(icon),
-    onPressed: () => _toggle(attribute),
+    onPressed: widget.readOnly ? null : () => _toggle(attribute),
   );
 }
 
@@ -951,17 +1053,51 @@ TextStyle _lineNumberStyle(BuildContext context) =>
     Theme.of(context).textTheme.bodySmall!
         .copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
 
+class _FootnoteEmbedBuilder extends quill.EmbedBuilder {
+  const _FootnoteEmbedBuilder(this.numbers);
+
+  final Map<String, int> numbers;
+
+  @override
+  String get key => _footnoteEmbed;
+
+  @override
+  bool get expanded => false;
+
+  @override
+  WidgetSpan buildWidgetSpan(Widget widget) =>
+      WidgetSpan(alignment: PlaceholderAlignment.top, child: widget);
+
+  @override
+  Widget build(BuildContext context, quill.EmbedContext embedContext) {
+    final number = numbers[embedContext.node.value.data];
+    final style = embedContext.textStyle;
+    return Text(
+      number == null ? '[?]' : '[$number]',
+      style: style.copyWith(
+        color: Colors.orange.shade800,
+        fontSize: (style.fontSize ?? 14) * .72,
+        decoration: TextDecoration.none,
+      ),
+    );
+  }
+}
+
 class _QuillEditorBlock extends StatelessWidget {
   const _QuillEditorBlock({
     super.key,
     required this.section,
     required this.onEditLines,
+    required this.noteNumbers,
+    required this.readOnly,
     required this.firstLine,
     required this.diagnostics,
     required this.onSyntaxDiagnostic,
   });
   final _Section section;
   final ValueChanged<DocumentLineAction> onEditLines;
+  final Map<String, int> noteNumbers;
+  final bool readOnly;
   final int firstLine;
   final Map<int, DocumentDiagnostic> diagnostics;
   final void Function(String? message, Offset position, {bool touch})
@@ -969,7 +1105,7 @@ class _QuillEditorBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = section.controller!;
+    final controller = section.controller!..readOnly = readOnly;
     final contentOffsets = <int>[];
     _encodeLines(controller.document, contentOffsets: contentOffsets);
     final issuesByOffset = <int, DocumentDiagnostic>{
@@ -992,6 +1128,7 @@ class _QuillEditorBlock extends StatelessWidget {
               scrollController: section.scroll!,
               config: quill.QuillEditorConfig(
                 editorKey: section.editorKey,
+                embedBuilders: [_FootnoteEmbedBuilder(noteNumbers)],
                 textSpanBuilder:
                     (context, node, nodeOffset, text, style, recognizer) {
                       final issue = issuesByOffset[node.parent?.documentOffset];
@@ -1136,6 +1273,7 @@ class _ProtectedDocumentSource extends StatelessWidget {
     required this.firstLine,
     required this.diagnostics,
     required this.source,
+    required this.readOnly,
     required this.links,
     required this.onLinkHover,
     required this.onCodeChanged,
@@ -1143,6 +1281,7 @@ class _ProtectedDocumentSource extends StatelessWidget {
   final int firstLine;
   final Map<int, DocumentDiagnostic> diagnostics;
   final String source;
+  final bool readOnly;
   final List<ElementBinding> links;
   final ValueChanged<String?> onLinkHover;
   final void Function(int start, String raw, String value) onCodeChanged;
@@ -1212,6 +1351,13 @@ class _ProtectedDocumentSource extends StatelessWidget {
       while (start < end) {
         final newline = source.indexOf('\n', start);
         final lineEnd = newline >= 0 && newline < end ? newline : end;
+        if (documentFootnoteDefinition.hasMatch(
+          source.substring(start, lineEnd),
+        )) {
+          line++;
+          start = lineEnd + 1;
+          continue;
+        }
         children.add(
           numbered(
             line++,
@@ -1271,6 +1417,7 @@ class _ProtectedDocumentSource extends StatelessWidget {
                   decoration: documentCodeDecoration(context),
                   child: TextFormField(
                     key: codeKey,
+                    readOnly: readOnly,
                     initialValue: '${_languageLine(language)}\n$code',
                     minLines: 2,
                     maxLines: null,
