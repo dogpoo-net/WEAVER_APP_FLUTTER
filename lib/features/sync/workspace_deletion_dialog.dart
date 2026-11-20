@@ -52,6 +52,42 @@ class _WorkspaceDeletionDialogState extends State<WorkspaceDeletionDialog>{
   ));
 }
 
+Future<bool> confirmWorkspaceAction(BuildContext context, WorkspaceRequest request,
+    String action, Map<String,Object?> body, String title, String description) async {
+  var sent = false;
+  var busy = false;
+  var code = '';
+  String? error;
+  return await showDialog<bool>(context: context, barrierDismissible: false, builder: (context) =>
+    StatefulBuilder(builder: (context, update) {
+      Future<void> submit(bool send) async {
+        update(() { busy = true; error = null; });
+        try {
+          await request(send ? '$action-email' : action, {...body, if (!send) 'code': code});
+          if (!context.mounted) return;
+          if (send) { update(() => sent = true); }
+          else { Navigator.pop(context, true); }
+        } catch (e) {
+          if (context.mounted) update(() => error = e.toString());
+        } finally {
+          if (context.mounted) update(() => busy = false);
+        }
+      }
+      return AlertDialog(title: Text(title), content: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(description),
+        TextButton(onPressed: busy ? null : () => submit(true),
+          child: Text(sent ? '인증메일 다시 보내기' : '소유자 이메일로 인증메일 보내기')),
+        if (sent) TextField(maxLength: 8, keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: '이메일 인증코드'),
+          onChanged: (value) => update(() => code = value.trim())),
+        if (error != null) Text(error!),
+      ]), actions: [
+        TextButton(onPressed: busy ? null : () => Navigator.pop(context, false), child: const Text('취소')),
+        TextButton(onPressed: busy || !sent || code.length != 8 ? null : () => submit(false), child: Text(title)),
+      ]);
+    })) ?? false;
+}
+
 class DeletedWorkspacesDialog extends StatefulWidget {
   const DeletedWorkspacesDialog({super.key,required this.request,required this.onRestored});
   final WorkspaceRequest request;
@@ -75,12 +111,18 @@ class _DeletedWorkspacesDialogState extends State<DeletedWorkspacesDialog>{
   @override Widget build(BuildContext context)=>PopScope(canPop:!busy,child:AlertDialog(
     title:const Text('삭제된 워크스페이스'),
     content:SizedBox(width:480,child:ConstrainedBox(constraints:BoxConstraints(maxHeight:MediaQuery.sizeOf(context).height*.6),child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-      const Text('사용한 공간은 모든 플랜에서 30일 보관합니다. 보관 기한 안에 유료 구독으로 전환하면 복원할 수 있습니다.'),
+      const Text('삭제한 공간은 최대 10개까지 30일간 보관합니다. 활성 공간 한도에 여유가 있으면 복원할 수 있습니다.'),
       if(busy)const LinearProgressIndicator(),
       if(error!=null)Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error)),
       if(!busy&&rows.isEmpty)const Text('복원할 워크스페이스가 없습니다.'),
       for(final row in rows)ListTile(title:Text(row['name']),subtitle:Text('영구 삭제 예정: ${DateTime.parse(row['purgeAfter']).toLocal().toString().substring(0,16)}'),
-        trailing:TextButton(onPressed:busy||row['canRestore']==false?null:()=>restore(row['workspaceId']),child:Text(row['canRestore']==false?'유료 구독 필요':'복원'))),
+        trailing:Wrap(children:[
+          TextButton(onPressed:busy||row['canRestore']==false?null:()=>restore(row['workspaceId']),child:const Text('복원')),
+          IconButton(tooltip:'영구 삭제',icon:const Icon(Icons.delete_forever_outlined),onPressed:busy?null:()async{
+            if(await confirmWorkspaceAction(context,widget.request,'purge-workspace',{'workspaceId':row['workspaceId']},
+                '영구 삭제','${row['name']}의 자료를 영구 삭제합니다. 되돌릴 수 없습니다.') && mounted) await load();
+          }),
+        ])),
     ])))),actions:[TextButton(onPressed:busy?null:()=>Navigator.pop(context),child:const Text('닫기'))],
   ));
 }

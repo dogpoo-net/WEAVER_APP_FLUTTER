@@ -67,7 +67,7 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
           title: Text(auth!.identity!.displayName ?? '내 계정', textAlign: TextAlign.right),
           subtitle: Text(auth.identity!.email, textAlign: TextAlign.right),
           onTap: busy ? null : () { Navigator.pop(dialogContext); Navigator.push(context, MaterialPageRoute<void>(builder: (_) => ProfilePage(auth: auth))); }),
-        ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.workspaces_outline),title:const Text('워크스페이스'),subtitle:Text(workspaceName??(guest?'비회원 작업공간':'내 워크스페이스')),trailing:const Icon(Icons.chevron_right),onTap:busy||onWorkspaces==null?null:() async { choosingWorkspace=true; try { await run(onWorkspaces); } finally { choosingWorkspace=false; } }),
+        if(onWorkspaces!=null)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.workspaces_outline),title:const Text('워크스페이스'),subtitle:Text(workspaceName??(guest?'비회원 작업공간':'내 워크스페이스')),trailing:const Icon(Icons.chevron_right),onTap:busy||onWorkspaces==null?null:() async { choosingWorkspace=true; try { await run(onWorkspaces); } finally { choosingWorkspace=false; } }),
         if(onPlan!=null)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.workspace_premium_outlined),title:const Text('구독 관리'),onTap:busy?null:(){Navigator.pop(dialogContext);onPlan();}),
         if(onAdmin!=null)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.admin_panel_settings_outlined),title:const Text('관리자 백오피스'),onTap:busy?null:(){Navigator.pop(dialogContext);onAdmin();}),
         const Divider(),

@@ -435,7 +435,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     };
     local.workspaceName=catalog.firstWhere((r)=>r['workspaceId']==id)['name'];
     local.openNotification=openNotification;
-    local.openWorkspaces=chooseWorkspace;local.openAdmin=isAdmin?openAdmin:null;
+    local.openWorkspaces=catalog.length==1 && catalog.first['role']=='owner' && catalog.first['plan']=='free'?null:chooseWorkspace;local.openAdmin=isAdmin?openAdmin:null;
     local.openPlan=()=>Navigator.of(context).push<void>(MaterialPageRoute(builder:(_)=>WorkspacePolicyPage(request:widget.auth.emailApi.workspace,workspaceId:id,owner:true))).then((_)async{if(current)await switchWorkspace(id,force:true);});
     if(!quotaReadOnly)attachFiles(local,null);
     local.suspended=quotaReadOnly;

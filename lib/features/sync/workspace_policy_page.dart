@@ -39,7 +39,7 @@ class _WorkspacePolicyPageState extends State<WorkspacePolicyPage>{
     final paid=plan['code']!=null&&plan['code']!='free';final cancelled=subscription['cancelAtEnd']==true||subscription['cancelAtEnd']==1;
     return Scaffold(appBar:AppBar(title:const Text('구독 관리')),body:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:720),child:ListView(padding:const EdgeInsets.all(16),children:[
       if(busy)const LinearProgressIndicator(),if(error!=null)Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error)),
-      Row(children:[Expanded(child:Text(planName,style:Theme.of(context).textTheme.titleLarge?.copyWith(fontSize:28))),info('구독 관리','구독은 소유자의 모든 공간에 적용됩니다. Free 2개(오프라인), Standard 10개, Pro 무제한입니다. 실제 결제는 아직 연결되지 않았습니다. 이용 기간이 끝나면 Free로 전환되며 기존 자료는 삭제하지 않습니다.')]),
+      Row(children:[Expanded(child:Text(planName,style:Theme.of(context).textTheme.titleLarge?.copyWith(fontSize:28))),info('구독 관리','구독은 소유자의 모든 공간에 적용됩니다. Free는 이 기기에 저장하는 기본 공간 1개를 제공합니다. 실제 결제는 아직 연결되지 않았습니다. 이용 기간이 끝나면 Free로 전환되며 기존 자료는 삭제하지 않습니다.')]),
       if(subscription['periodEnd']!=null)Text('이용 기간 종료: ${subscriptionEndDate(subscription['periodEnd'] as String)} 23:59:59 (한국 시간)'),
       if(paid&&cancelled)const Text('구독 취소 예약됨 · 종료일까지 유료 기능 유지'),
       Text('저장 용량: ${subscriptionStorageSize((data?['bytes'] as num?)??0)} / ${limit is num?subscriptionStorageSize(limit):'플랜 한도 미정'}'),
@@ -47,7 +47,7 @@ class _WorkspacePolicyPageState extends State<WorkspacePolicyPage>{
         final yes=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:Text(cancelled?'취소 예약을 해제할까요?':'기간 종료 시 구독을 취소할까요?'),content:const Text('현재 이용 기간까지 권한을 유지합니다. 실제 결제 연동 전에는 자동 연장이나 청구가 발생하지 않습니다.'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('닫기')),TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('확인'))]));
         if(yes!=true)return;await widget.request('subscription-cancel',{'workspaceId':widget.workspaceId,'cancel':!cancelled});await refresh();
       }),child:Text(cancelled?'구독 취소 예약 해제':'구독 취소 예약')),
-      if(spaces.isNotEmpty)...[const Divider(),Row(children:[const Expanded(child:Text('기본 워크스페이스 선택')),info('기본 워크스페이스 선택','한도 초과 시 선택된 공간을 우선 사용합니다. 다른 공간은 조회·정리할 수 있습니다.')]),
+      if(paid&&spaces.isNotEmpty)...[const Divider(),Row(children:[const Expanded(child:Text('기본 워크스페이스 선택')),info('기본 워크스페이스 선택','한도 초과 시 선택된 공간을 우선 사용합니다. 다른 공간은 조회·정리할 수 있습니다.')]),
         for(final row in spaces)CheckboxListTile(contentPadding:EdgeInsets.zero,title:Text(row['name']??'워크스페이스'),value:selected.contains(row['workspaceId']),onChanged:busy?null:(value)=>setState((){if(value==true){selected.add(row['workspaceId']);}else{selected.remove(row['workspaceId']);}})),
         TextButton(onPressed:busy?null:()=>run(()async{await widget.request('select-active-workspaces',{'ids':selected.toList()});await refresh();}),child:const Text('사용할 공간 저장'))],
       if(widget.owner&&members.isNotEmpty)...[const Divider(),const Text('편집자로 유지할 참여자 선택'),

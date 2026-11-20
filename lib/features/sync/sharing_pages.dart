@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'owned_workspace.dart';
+import 'workspace_deletion_dialog.dart';
 import '../inbox/caret_assist.dart';
 
 String roleLabel(String role) => switch (role) {
@@ -91,9 +92,10 @@ class _SharingPageState extends State<SharingPage> {
                     enabled: !busy,
                     onSelected: (action) => run(() async {
                       if(action=='transfer'){
-                        final yes=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('소유권을 이전할까요?'),content:Text('${person['name']??person['email']}님이 소유자가 되며, 나는 편집자로 남습니다. 이 작업을 임의로 되돌릴 수 없습니다.'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('취소')),TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('이전'))]));
-                        if(yes!=true)return;
-                        await request('transfer',{'userId':person['userId']});
+                        final done=await confirmWorkspaceAction(context,request,'transfer',
+                            {'workspaceId':workspaceId,'userId':person['userId']},'소유권 이전',
+                            '${person['name']??person['email']}님이 소유자가 되고 나는 편집자로 남습니다.');
+                        if(!done)return;
                         if(mounted)Navigator.pop(context);
                         await widget.onAccepted(workspaceId!);
                         return;
@@ -113,7 +115,7 @@ class _SharingPageState extends State<SharingPage> {
                       if (person['role'] != 'viewer')
                         const PopupMenuItem(value: 'viewer', child: Text('읽기 전용으로 변경')),
                       const PopupMenuItem(value: 'remove', child: Text('참여자 제거')),
-                      const PopupMenuItem(value: 'transfer', child: Text('소유권 이전')),
+                      if(person['canReceiveOwnership']==true) const PopupMenuItem(value: 'transfer', child: Text('소유권 이전')),
                     ],
                   )
                 : null,

@@ -118,30 +118,52 @@ bool hasOpenLinkMarkup(TextEditingValue value) {
   return RegExp(r'\[\[[^\]\n]*$').hasMatch(value.text.substring(0, end));
 }
 
-Future<void> insertAssistedLink(BuildContext context, LabelTextController controller, String key, {bool alwaysPrompt = false, bool replaceQuery = true}) async {
+Future<void> insertAssistedLink(BuildContext context, LabelTextController controller, String key, {bool alwaysPrompt = false, bool replaceQuery = true, bool useCaretTitle = false}) async {
   final before = controller.value;
   final document = projectTarget(key);
   final alias = pendingLabelLink(before)?.display.trim();
   if (!alwaysPrompt && hasOpenLinkMarkup(before) && (document != null || (alias != null && alias.isNotEmpty))) { controller.insertTarget(key); return; }
-  final fallback = document?.title ?? elements.records[key]?.text ?? key;
+  TextSelection? caretWord;
+  if (useCaretTitle && before.selection.isValid && !hasOpenLinkMarkup(before)) {
+    final selection = before.selection;
+    if (!selection.isCollapsed) {
+      if (selection.textInside(before.text).trim().isNotEmpty) caretWord = selection;
+    } else {
+      final caret = selection.extentOffset;
+      final word = RegExp(r'[\p{L}\p{M}\p{N}_]+', unicode: true)
+          .allMatches(before.text)
+          .where((match) => match.start <= caret && caret <= match.end)
+          .firstOrNull;
+      if (word != null && !controller.bindings.any((link) =>
+          word.start < link.end && word.end > link.start)) {
+        caretWord = TextSelection(baseOffset: word.start, extentOffset: word.end);
+      }
+    }
+  }
+  final fallback = useCaretTitle
+      ? caretWord?.textInside(before.text) ?? '링크'
+      : document?.title ?? elements.records[key]?.text ?? key;
   String title = ''; String? error;
   final result = await showDialog<String>(context: context, builder: (context) => StatefulBuilder(builder: (context, update) {
     void submit(String value) {
-      if (document == null && value.trim().isEmpty) { update(() => error = '링크 제목을 입력해주세요.'); return; }
+      if (!useCaretTitle && document == null && value.trim().isEmpty) { update(() => error = '링크 제목을 입력해주세요.'); return; }
       Navigator.pop(context, value);
     }
     return AlertDialog(
       title: const Text('링크 타이틀'),
       content: TextField(key: const ValueKey('link-title-input'), autofocus: true,
-        decoration: InputDecoration(hintText: document?.title, errorText: error,
-          helperText: document == null ? '링크를 보여줄 제목을 설정하세요.' : '비워두면 문서 제목으로 입력됩니다.'),
+        decoration: InputDecoration(hintText: useCaretTitle ? fallback : document?.title, errorText: error,
+          helperText: useCaretTitle ? '비워두면 커서 위치의 단어를 사용합니다.' : document == null ? '링크를 보여줄 제목을 설정하세요.' : '비워두면 문서 제목으로 입력됩니다.'),
         onChanged: (value) { title = value; if (error != null) update(() => error = null); }, onSubmitted: submit),
       actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
         TextButton(onPressed: () => submit(title), child: const Text('확인'))]);
   }));
   if (!context.mounted || result == null || controller.text != before.text) return;
-  controller.selection = before.selection;
-  controller.insertTarget(key, display: result.trim().isEmpty ? fallback : result.trim(), complete: replaceQuery);
+  final titleText = result.trim();
+  final useFallback = useCaretTitle && titleText.isEmpty;
+  controller.selection = (useFallback ? caretWord : null) ?? before.selection;
+  controller.insertTarget(key, display: titleText.isEmpty ? fallback : titleText,
+      complete: replaceQuery && (!useFallback || hasOpenLinkMarkup(before)));
 }
 
 class LabelTextController extends BoundTextController {

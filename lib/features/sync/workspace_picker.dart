@@ -79,7 +79,7 @@ class _WorkspacePickerState extends State<WorkspacePicker>{
     ]),
     leading:row['workspaceId']==widget.selected?const Icon(Icons.check, size:18):const SizedBox(width:18),
     onTap:busy||row['sharingSuspended']==true?null:()=>Navigator.pop(context,row['workspaceId']),
-    trailing:PopupMenuButton<String>(tooltip:'워크스페이스 관리',enabled:!busy,
+    trailing:row['role']=='owner' && row['plan']=='free'?null:PopupMenuButton<String>(tooltip:'워크스페이스 관리',enabled:!busy,
       icon: const Icon(Icons.more_vert, size: 20),
       padding: EdgeInsets.zero,
       style: IconButton.styleFrom(
@@ -91,9 +91,9 @@ class _WorkspacePickerState extends State<WorkspacePicker>{
         else{await change(action,row);}
       },itemBuilder:(_)=>[
         if(widget.onManageMembers!=null && !(row['role']=='owner' && (row['plan']=='free' || row['offline']==true)))const PopupMenuItem(value:'members',child:Text('멤버 관리')),
-        if(row['role']=='owner')...const[
+        if(row['role']=='owner')...[
         PopupMenuItem(value:'rename-workspace',child:Text('이름변경')),
-        PopupMenuItem(value:'delete-workspace',child:Text('삭제')),
+        if(rows.where((r)=>r['role']=='owner').length>=2) const PopupMenuItem(value:'delete-workspace',child:Text('삭제')),
       ]else const PopupMenuItem(value:'leave-workspace',child:Text('나가기')),
       ]),
   );
@@ -103,7 +103,7 @@ class _WorkspacePickerState extends State<WorkspacePicker>{
     final joined=rows.where((row)=>row['role']!='owner').toList();
     return PopScope(canPop:!busy,child:AlertDialog(
       title:Row(children:[const Expanded(child:Text('워크스페이스 선택')),
-        IconButton(tooltip:'워크스페이스 추가',onPressed:busy?null:()=>change('create-workspace'),icon:const Icon(Icons.add))]),
+        if(!owned.any((row)=>row['plan']=='free')) IconButton(tooltip:'워크스페이스 추가',onPressed:busy?null:()=>change('create-workspace'),icon:const Icon(Icons.add))]),
       content:SizedBox(width:480,child:ConstrainedBox(constraints:BoxConstraints(maxHeight:MediaQuery.sizeOf(context).height*.6),
         child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.stretch,children:[
           if(busy)const LinearProgressIndicator(),
