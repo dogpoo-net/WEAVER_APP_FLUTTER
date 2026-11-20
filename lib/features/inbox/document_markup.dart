@@ -171,7 +171,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
     _footnotes.clear();
     _numbers.clear();
     final numbering = DocumentHeadingNumbers();
-    final headings = <({String title, GlobalKey key})>[];
+    final headings = <({String title, GlobalKey key, int depth})>[];
     if (widget.formatting) {
       final prose = source.replaceAll(codeMarkup, '\n');
       final body = StringBuffer();
@@ -255,7 +255,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
           headingKey = GlobalKey();
           headingPrefix = numbering.next(heading.group(1)!.length);
           if (headingPrefix.isNotEmpty) {
-            headings.add((title: '$headingPrefix${text.trim()}', key: headingKey));
+            headings.add((title: '$headingPrefix${text.trim()}', key: headingKey, depth: 5 - heading.group(1)!.length));
           }
           style = style.copyWith(fontSize: 14 + heading.group(1)!.length * 3.0, fontWeight: FontWeight.bold);
         } else if (line.startsWith('|') && line.endsWith('|') && line.length > 2) {
@@ -288,13 +288,30 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
       offset += line.length + 1;
     }
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-      if (headings.isNotEmpty) ExpansionTile(
-        title: const Text('목차'),
-        children: [
-          for (final heading in headings)
-            ListTile(dense: true, title: Text(heading.title), onTap: () => _jump(heading.key)),
-        ],
-      ),
+      if (headings.isNotEmpty) ...[
+        Padding(
+          padding: const EdgeInsetsDirectional.only(start: 8, bottom: 2),
+          child: Semantics(
+            header: true,
+            child: Text('목차', style: Theme.of(context).textTheme.labelSmall),
+          ),
+        ),
+        for (final heading in headings)
+          TextButton(
+            style: TextButton.styleFrom(
+              minimumSize: const Size(0, 26),
+              padding: EdgeInsetsDirectional.only(start: 8 + heading.depth * 12.0, end: 8),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.standard,
+              alignment: AlignmentDirectional.centerStart,
+              textStyle: Theme.of(context).textTheme.bodySmall,
+              shape: const RoundedRectangleBorder(),
+            ),
+            onPressed: () => _jump(heading.key),
+            child: Text(heading.title),
+          ),
+        const Divider(height: 12, thickness: 1),
+      ],
       ...lines,
       if (_numbers.isNotEmpty) ...[
         const Divider(),
