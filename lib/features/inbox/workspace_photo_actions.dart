@@ -292,7 +292,9 @@ Future<void> deleteWorkspacePhoto(
         ].any((thought) => thought.photos.any((photo) => photo.id == id));
     if (!referenced) {
       await MediaStorage.delete(id, owner: storage?.owner);
-      await storage?.preferences.remove(storage.scoped('media-sent.$id'));
+      if (storage != null) {
+        await storage.preferences.remove(storage.scoped('media-sent.$id'));
+      }
     }
   } catch (error) {
     _photoMessage(context, '사진 삭제를 완료하지 못했습니다. $error');
