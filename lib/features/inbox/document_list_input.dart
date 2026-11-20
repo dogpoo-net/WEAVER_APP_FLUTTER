@@ -28,7 +28,7 @@ class DocumentListInput extends TextInputFormatter {
       );
     }
     final number = int.tryParse(marker.group(2) ?? '');
-    final prefix = number == null ? '$indent- ' : '$indent${number + 1}. ';
+    final prefix = number == null ? '$indent${marker.group(3)} ' : '$indent${number + 1}. ';
     return TextEditingValue(
       text: newValue.text.replaceRange(caret + 1, caret + 1, prefix),
       selection: TextSelection.collapsed(offset: caret + 1 + prefix.length),

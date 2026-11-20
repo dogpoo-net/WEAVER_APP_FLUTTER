@@ -322,7 +322,7 @@ Future<void> deleteWorkspacePhoto(
                 DocumentComments(entry.text).visibleText
                     .split('\n')
                     .any(
-                      (line) => documentPhoto.firstMatch(line)?.group(1) == id,
+                      (line) => parseDocumentVisualBlock(line)?.photoId == id,
                     ),
           )) {
     _photoMessage(context, '문서에서 사용 중인 사진이에요. 문서에서 먼저 제거해주세요.');

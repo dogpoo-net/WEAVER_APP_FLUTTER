@@ -4,7 +4,7 @@ import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill/quill_delta.dart' show Delta;
 
 import 'document_syntax.dart';
-import 'document_photo.dart';
+import 'document_visual_block.dart';
 import 'document_line_shortcuts.dart';
 import 'document_table.dart';
 import 'document_diagnostics.dart';
@@ -12,6 +12,7 @@ import 'canvas_link_text.dart';
 import 'document_code_block.dart';
 import 'element_binding.dart';
 
+const _dashBullet = quill.ListAttribute('dash');
 const _footnoteEmbed = 'weaver-footnote';
 
 const _marks = {
@@ -148,7 +149,12 @@ List<Map<String, Object>> _decodeLine(
   insert('\n', {
     if (alignment != null) 'align': alignment.value!,
     if (heading != null) 'header': 7 - heading.group(1)!.length,
-    if (marker != null) 'list': marker.group(2) == null ? 'bullet' : 'ordered',
+    if (marker != null)
+      'list': switch (marker.group(3)) {
+        '–' => _dashBullet.value!,
+        '-' => 'bullet',
+        _ => 'ordered',
+      },
   });
   return ops;
 }
@@ -202,11 +208,12 @@ List<String> _encodeLines(
             : '';
         final list = attrs['list'];
         number = list == 'ordered' ? number + 1 : 0;
-        final prefix = list == 'ordered'
-            ? '$number. '
-            : list == 'bullet'
-            ? '- '
-            : '';
+        final prefix = switch (list) {
+          'ordered' => '$number. ',
+          'bullet' => '- ',
+          'dash' => '– ',
+          _ => '',
+        };
         final isCode = attrs['code-block'] == true;
         final value = text.toString();
         if (isCode && !inCode) {
@@ -259,7 +266,7 @@ class _Section {
   FocusNode? focus;
   ScrollController? scroll;
   List<String> projected = const [];
-  bool insertingLanguageLine = false;
+  bool normalizingInput = false;
 
   void initialize() {
     if (protected) return;
@@ -357,6 +364,7 @@ class DocumentRichEditor extends StatefulWidget {
     required this.onInsertFootnote,
     required this.onInsertTable,
     this.onInsertPhoto,
+    this.onInsertDivider,
     this.onEditLines,
     this.sourceSelection,
     this.readOnly = false,
@@ -370,7 +378,10 @@ class DocumentRichEditor extends StatefulWidget {
   final List<ElementBinding> links;
   final void Function(int start, int end, String replacement) onPatch;
   final ValueChanged<String?> onLinkHover;
-  final ValueChanged<int>? onInsertFootnote, onInsertTable, onInsertPhoto;
+  final ValueChanged<int>? onInsertFootnote,
+      onInsertTable,
+      onInsertPhoto,
+      onInsertDivider;
   final void Function(DocumentLineAction, TextSelection)? onEditLines;
   final TextSelection? sourceSelection;
   final bool readOnly;
@@ -387,6 +398,7 @@ class DocumentRichEditor extends StatefulWidget {
 class _DocumentRichEditorState extends State<DocumentRichEditor> {
   final _sections = <_Section>[];
   _Section? _active;
+  (_Section, int)? _selectedBlock;
 
   @override
   void initState() {
@@ -432,7 +444,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                   false) ||
               tableColumns != null ||
               (line.startsWith('|') && _sourceAlignment(line) == null) ||
-              documentPhoto.hasMatch(line) ||
+              parseDocumentVisualBlock(line) != null ||
               documentFootnoteDefinition.hasMatch(line));
       if (isProtected != protected) finish();
       protected = isProtected;
@@ -448,8 +460,13 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
       section.initialize();
       section.controller?.addListener(() => _edited(section));
       section.focus?.addListener(() {
-        if (mounted && section.focus!.hasFocus && _active != section) {
-          setState(() => _active = section);
+        if (mounted &&
+            section.focus!.hasFocus &&
+            (_active != section || _selectedBlock != null)) {
+          setState(() {
+            _active = section;
+            _selectedBlock = null;
+          });
         }
       });
     }
@@ -515,8 +532,51 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
 
   bool _appendSectionOnEdit = false;
 
+  void _recognizeListPrefix(_Section section) {
+    final controller = section.controller!;
+    final selection = controller.selection;
+    if (!selection.isValid || !selection.isCollapsed) return;
+    final caret = selection.extentOffset;
+    final plain = controller.document.toPlainText();
+    if (caret <= 0 || caret >= plain.length) return;
+    final start = plain.lastIndexOf('\n', caret - 1) + 1;
+    final prefix = plain.substring(start, caret);
+    final type = switch (prefix) {
+      '1. ' => 'ordered',
+      '- ' => 'bullet',
+      _ => null,
+    };
+    if (type == null) return;
+    final style = controller.getSelectionStyle().attributes;
+    if (style.containsKey('list') ||
+        style.containsKey('code-block') ||
+        style.containsKey('code') ||
+        style.containsKey('header'))
+      return;
+    if (caretInsideCode(plain, caret) ||
+        DocumentComments(plain).ranges
+            .any((range) => range.start <= start && range.end >= caret))
+      return;
+    final lineEnd = plain.indexOf('\n', caret);
+    section.normalizingInput = true;
+    try {
+      controller.compose(
+        Delta()
+          ..retain(start)
+          ..delete(prefix.length)
+          ..retain(lineEnd - caret)
+          ..retain(1, {'list': type}),
+        selection,
+        quill.ChangeSource.local,
+      );
+    } finally {
+      section.normalizingInput = false;
+    }
+  }
+
   void _edited(_Section section) {
-    if (section.insertingLanguageLine) return;
+    if (section.normalizingInput) return;
+    _recognizeListPrefix(section);
     final controller = section.controller!;
     final missing = <int>[];
     var next = _encodeLines(
@@ -524,7 +584,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
       missingLanguageOffsets: missing,
     );
     if (missing.isNotEmpty) {
-      section.insertingLanguageLine = true;
+      section.normalizingInput = true;
       try {
         final delta = Delta();
         var previous = 0;
@@ -541,7 +601,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
           quill.ChangeSource.local,
         );
       } finally {
-        section.insertingLanguageLine = false;
+        section.normalizingInput = false;
       }
       next = _encodeLines(controller.document);
     }
@@ -651,6 +711,27 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     section.focus!.requestFocus();
   }
 
+  void _alignBlock(
+    _Section section,
+    int start,
+    DocumentBlockAlignment alignment,
+  ) {
+    final newline = section.source.indexOf('\n', start);
+    final end = newline < 0 ? section.source.length : newline;
+    final block = parseDocumentVisualBlock(
+      section.source.substring(start, end),
+    );
+    if (block == null || block.alignment == alignment) return;
+    final value = alignDocumentVisualBlock(block.markup, alignment);
+    _updateSection(
+      section,
+      section.source.replaceRange(start, end, value),
+      patchStart: start,
+      patchEnd: end,
+      replacement: value,
+    );
+  }
+
   Widget _alignmentButton(
     String label,
     IconData icon,
@@ -661,6 +742,16 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     onPressed: widget.readOnly
         ? null
         : () {
+            final selected = _selectedBlock;
+            if (selected != null) {
+              final alignment = switch (attribute.value) {
+                'center' => DocumentBlockAlignment.center,
+                'right' => DocumentBlockAlignment.right,
+                _ => DocumentBlockAlignment.left,
+              };
+              _alignBlock(selected.$1, selected.$2, alignment);
+              return;
+            }
             final section = _active;
             if (section == null) return;
             section.controller!.formatSelection(attribute);
@@ -704,6 +795,14 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
   }
 
   int _insertionOffset({bool atCaret = false}) {
+    final selected = _selectedBlock;
+    if (!atCaret && selected != null) {
+      var offset = 0;
+      for (final section in _sections) {
+        if (identical(section, selected.$1)) return offset + selected.$2;
+        offset += section.source.length + 1;
+      }
+    }
     final section = _active;
     final controller = section?.controller;
     if (section == null || controller == null) return widget.source.length;
@@ -825,6 +924,19 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                 diagnostics: diagnoses,
                 source: section.source,
                 readOnly: widget.readOnly,
+                selectedBlock: identical(_selectedBlock?.$1, section)
+                    ? _selectedBlock?.$2
+                    : null,
+                onSelectBlock: (start) {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  setState(
+                    () => _selectedBlock = (_selectedBlock == (section, start))
+                        ? null
+                        : (section, start),
+                  );
+                },
+                onAlignBlock: (start, alignment) =>
+                    _alignBlock(section, start, alignment),
                 links: [
                   for (final link in widget.links)
                     if (link.start >= sectionStart && link.end <= sectionEnd)
@@ -918,10 +1030,25 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                 Icons.format_list_numbered,
                 quill.Attribute.ol,
               ),
-              _formatButton(
-                '글머리표',
-                Icons.format_list_bulleted,
-                quill.Attribute.ul,
+              PopupMenuButton<bool>(
+                tooltip: '글머리표',
+                enabled: !widget.readOnly,
+                style: _documentToolbarButtonStyle,
+                padding: EdgeInsets.zero,
+                iconSize: 18,
+                icon: const Icon(Icons.format_list_bulleted),
+                constraints: const BoxConstraints.tightFor(width: 64),
+                itemBuilder: (_) => [
+                  for (final (dash, symbol) in [(false, '•'), (true, '-')])
+                    PopupMenuItem(
+                      value: dash,
+                      height: 30,
+                      padding: EdgeInsets.zero,
+                      child: Center(child: Text(symbol)),
+                    ),
+                ],
+                onSelected: (dash) =>
+                    _toggle(dash ? _dashBullet : quill.Attribute.ul),
               ),
               const VerticalDivider(width: 12, indent: 8, endIndent: 8),
               IconButton(
@@ -946,6 +1073,13 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                 onPressed: widget.onInsertPhoto == null
                     ? null
                     : () => widget.onInsertPhoto!(_insertionOffset()),
+              ),
+              IconButton(
+                tooltip: '구분선 삽입',
+                icon: const Icon(Icons.horizontal_rule),
+                onPressed: widget.onInsertDivider == null
+                    ? null
+                    : () => widget.onInsertDivider!(_insertionOffset()),
               ),
               if (headings.isNotEmpty)
                 PopupMenuButton<int>(
@@ -1129,6 +1263,13 @@ class _QuillEditorBlock extends StatelessWidget {
               config: quill.QuillEditorConfig(
                 editorKey: section.editorKey,
                 embedBuilders: [_FootnoteEmbedBuilder(noteNumbers)],
+                customLeadingBlockBuilder: (_, leading) {
+                  if (leading.attribute != _dashBullet) return null;
+                  return SizedBox(
+                    width: 24,
+                    child: Text('-', style: DefaultTextStyle.of(context).style),
+                  );
+                },
                 textSpanBuilder:
                     (context, node, nodeOffset, text, style, recognizer) {
                       final issue = issuesByOffset[node.parent?.documentOffset];
@@ -1274,6 +1415,9 @@ class _ProtectedDocumentSource extends StatelessWidget {
     required this.diagnostics,
     required this.source,
     required this.readOnly,
+    required this.selectedBlock,
+    required this.onSelectBlock,
+    required this.onAlignBlock,
     required this.links,
     required this.onLinkHover,
     required this.onCodeChanged,
@@ -1282,6 +1426,9 @@ class _ProtectedDocumentSource extends StatelessWidget {
   final Map<int, DocumentDiagnostic> diagnostics;
   final String source;
   final bool readOnly;
+  final int? selectedBlock;
+  final ValueChanged<int> onSelectBlock;
+  final void Function(int, DocumentBlockAlignment) onAlignBlock;
   final List<ElementBinding> links;
   final ValueChanged<String?> onLinkHover;
   final void Function(int start, String raw, String value) onCodeChanged;
@@ -1300,8 +1447,16 @@ class _ProtectedDocumentSource extends StatelessWidget {
             ),
       ];
       final text = source.substring(start, end);
-      final photo = documentPhoto.firstMatch(text);
-      if (photo != null) return DocumentPhoto(photo.group(1)!);
+      final block = parseDocumentVisualBlock(text);
+      if (block != null) {
+        return _EditableVisualBlock(
+          block: block,
+          selected: selectedBlock == start,
+          readOnly: readOnly,
+          onSelect: () => onSelectBlock(start),
+          onAlign: (alignment) => onAlignBlock(start, alignment),
+        );
+      }
       final style = issue == null ? null : documentDiagnosticStyle(context);
       final content = segmentLinks.isEmpty
           ? SelectableText(text, style: style)
@@ -1454,6 +1609,94 @@ class _ProtectedDocumentSource extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: children,
+    );
+  }
+}
+
+class _EditableVisualBlock extends StatefulWidget {
+  const _EditableVisualBlock({
+    required this.block,
+    required this.selected,
+    required this.readOnly,
+    required this.onSelect,
+    required this.onAlign,
+  });
+
+  final DocumentVisualBlock block;
+  final bool selected, readOnly;
+  final VoidCallback onSelect;
+  final ValueChanged<DocumentBlockAlignment> onAlign;
+
+  @override
+  State<_EditableVisualBlock> createState() => _EditableVisualBlockState();
+}
+
+class _EditableVisualBlockState extends State<_EditableVisualBlock> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final view = DocumentVisualBlockView(widget.block);
+    if (widget.readOnly) return view;
+    final colors = Theme.of(context).colorScheme;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: widget.onSelect,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: widget.selected
+                      ? Border.all(color: colors.primary)
+                      : null,
+                ),
+                child: view,
+              ),
+            ),
+          ),
+          if (_hovered || widget.selected)
+            Align(
+              alignment: Alignment.center,
+              child: IconButtonTheme(
+                data: IconButtonThemeData(style: _documentToolbarButtonStyle),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final (alignment, title, icon) in [
+                      (
+                        DocumentBlockAlignment.left,
+                        '왼쪽 정렬',
+                        Icons.format_align_left,
+                      ),
+                      (
+                        DocumentBlockAlignment.center,
+                        '가운데 정렬',
+                        Icons.format_align_center,
+                      ),
+                      (
+                        DocumentBlockAlignment.right,
+                        '오른쪽 정렬',
+                        Icons.format_align_right,
+                      ),
+                    ])
+                      IconButton(
+                        tooltip:
+                            '${widget.block.photoId == null ? '구분선' : '사진'} $title',
+                        isSelected: widget.block.alignment == alignment,
+                        icon: Icon(icon),
+                        onPressed: () => widget.onAlign(alignment),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

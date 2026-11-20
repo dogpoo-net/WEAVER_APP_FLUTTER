@@ -96,8 +96,17 @@ void main() {
     expect(source.text, contains('**가[^note-1]운데**'));
     expect(source.text, contains('[^note-1]: 참고 내용'));
 
-    source.selection = TextSelection.collapsed(
-      offset: source.text.indexOf('앞 '),
+    expect(find.byTooltip('각주 관리'), findsNothing);
+    await tester.tap(find.text('서식 편집'));
+    await tester.pumpAndSettle();
+    final reopened = tester
+        .widget<quill.QuillEditor>(find.byType(quill.QuillEditor))
+        .controller;
+    reopened.updateSelection(
+      TextSelection.collapsed(
+        offset: reopened.document.toPlainText().indexOf('앞 '),
+      ),
+      quill.ChangeSource.local,
     );
     await tester.ensureVisible(find.byTooltip('각주 관리'));
     await tester.tap(find.byTooltip('각주 관리'));

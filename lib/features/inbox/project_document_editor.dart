@@ -137,10 +137,17 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     final before = _body.text;
     final photo = await chooseWorkspacePhoto(context, widget.storage);
     if (!mounted || !_canEdit || _saving || photo == null || before != _body.text) return;
-    final newline = before.indexOf('\n', offset);
-    final end = newline < 0 ? before.length : newline;
-    final markup = '${end > 0 ? '\n' : ''}<photo id="${photo.id}">${newline < 0 ? '\n' : ''}';
-    _applyRichPatch(end, end, markup);
+    _insertVisualBlock(offset, '<photo id="${photo.id}">');
+  }
+
+  void _insertVisualBlock(int offset, String block) {
+    if (!_canEdit || _saving) return;
+    final source = _body.text;
+    final newline = source.indexOf('\n', offset);
+    final end = newline < 0 ? source.length : newline;
+    final prefix = end > 0 && source[end - 1] != '\n' ? '\n' : '';
+    final suffix = newline < 0 || prefix.isEmpty ? '\n' : '';
+    _applyRichPatch(end, end, '$prefix$block$suffix');
     _finishInsertion();
   }
 
@@ -259,10 +266,8 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     _finishInsertion();
   }
 
-  Future<void> _insertFootnote({int? richOffset}) async {
+  Future<void> _insertFootnote(int caret) async {
     final before = _body.value;
-    final caret = richOffset ??
-        (before.selection.isValid ? before.selection.extentOffset : before.text.length);
     var offset = caret;
     for (final link in _body.bindings) {
       if (link.start < offset && offset < link.end) offset = link.end;
@@ -568,7 +573,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         : _preview
         ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
         : _rich
-        ? DocumentRichEditor(key: ValueKey(_richInsertionRevision), readOnly: _saving, onInsertFootnote: _saving ? null : (offset) => _insertFootnote(richOffset: offset), onInsertTable: _saving ? null : (offset) => _insertTable(richOffset: offset), onInsertPhoto: _saving ? null : _insertPhoto, onEditLines: _editLines, sourceSelection: _richLineSelection, source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty, diagnostics: _body.syntaxDiagnostics, onSyntaxDiagnostic: _showSyntaxDiagnostic)
+        ? DocumentRichEditor(key: ValueKey(_richInsertionRevision), readOnly: _saving, onInsertFootnote: _saving ? null : _insertFootnote, onInsertTable: _saving ? null : (offset) => _insertTable(richOffset: offset), onInsertPhoto: _saving ? null : _insertPhoto, onInsertDivider: _saving ? null : (offset) => _insertVisualBlock(offset, documentDivider), onEditLines: _editLines, sourceSelection: _richLineSelection, source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty, diagnostics: _body.syntaxDiagnostics, onSyntaxDiagnostic: _showSyntaxDiagnostic)
         : DocumentLineNumbers(controller: _body, scroll: _documentScroll, child: CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true,
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
@@ -596,11 +601,6 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
           key: const ValueKey('document-editor-toolbar'),
           modeSwitch: modeSwitch,
           tools: [
-            IconButton(
-              tooltip: '각주 관리',
-              onPressed: _saving ? null : _insertFootnote,
-              icon: const Text('≡¹'),
-            ),
             IconButton(
               tooltip: '표 삽입',
               onPressed: _saving ? null : _insertTable,
@@ -633,6 +633,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       '제목 안의 공백은 그대로 표시됩니다. 가장 먼저 나오는 제목을 문서 이름으로 사용합니다.\n\n'
       '굵게: **텍스트**\n기울임: //텍스트//\n밑줄: __텍스트__\n취소선: --텍스트--\n\n'
       '주석: <!-- 한 줄 또는 여러 줄 주석 -->\n\n'
+      '구분선: 한 줄에 ----- 입력\n\n'
       '왼쪽 정렬: |텍스트 |\n오른쪽 정렬: | 텍스트|\n가운데 정렬: | 텍스트 |\n\n'
       '링크: [[표시명|라벨 또는 문서 제목]]\n웹 링크: [[표시명|https://example.com]]\n'
       '[[표시명|까지 입력하면 어시스트가 열립니다. Ctrl + Space로 선택할 수 있습니다. 문서는 문서: 접두어와 굵은 제목으로 표시됩니다.\n\n'

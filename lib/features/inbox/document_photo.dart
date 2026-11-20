@@ -26,10 +26,7 @@ class _DocumentPhotoState extends State<DocumentPhoto> {
     builder: (context, snapshot) {
       final bytes = snapshot.data;
       if (bytes != null) {
-        return Align(
-          alignment: Alignment.centerLeft,
-          child: Image.memory(bytes, height: 280, fit: BoxFit.contain),
-        );
+        return Image.memory(bytes, height: 280, fit: BoxFit.contain);
       }
       if (snapshot.connectionState != ConnectionState.done) {
         return const LinearProgressIndicator();

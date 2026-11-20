@@ -1,4 +1,4 @@
-import 'document_photo.dart';
+import 'document_visual_block.dart';
 import 'document_code_block.dart';
 import 'document_table.dart';
 import 'package:flutter/gestures.dart';
@@ -218,9 +218,9 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
         offset += line.length + 1;
         continue;
       }
-      final photo = widget.formatting && !_inCode ? documentPhoto.firstMatch(line) : null;
-      if (photo != null) {
-        lines.add(DocumentPhoto(photo.group(1)!));
+      final block = widget.formatting && !_inCode ? parseDocumentVisualBlock(line) : null;
+      if (block != null) {
+        lines.add(DocumentVisualBlockView(block));
         offset += line.length + 1;
         continue;
       }
@@ -273,7 +273,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
           padding: EdgeInsetsDirectional.only(start: (marker.group(1)!.length * 8.0).clamp(0.0, 64.0)),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             SizedBox(width: number == null ? 24 : 32,
-              child: Text(number == null ? '•' : '$number.', style: style)),
+              child: Text(number == null ? (marker.group(3) == '–' ? '-' : '•') : '$number.', style: style)),
             Expanded(child: Text.rich(TextSpan(children:
               _inline(line.substring(marker.end), offset + marker.end, style)))),
           ]),

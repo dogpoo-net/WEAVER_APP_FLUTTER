@@ -43,7 +43,7 @@ String documentTitle(String text) {
           .where(
             (line) =>
                 !documentFootnoteDefinition.hasMatch(line) &&
-                !documentPhoto.hasMatch(line),
+                parseDocumentVisualBlock(line) == null,
           )
           .map((line) => line.trim())
           .where((line) => line.isNotEmpty)
@@ -74,6 +74,39 @@ final documentFootnoteDefinition = RegExp(
 );
 final documentFootnoteReference = RegExp(r'\[\^([a-zA-Z0-9_-]+)\]');
 final documentPhoto = RegExp(r'^<photo id="([a-zA-Z0-9_-]+)">$');
+const documentDivider = '-----';
+
+enum DocumentBlockAlignment { left, center, right }
+
+typedef DocumentVisualBlock = ({
+  String markup,
+  String? photoId,
+  DocumentBlockAlignment alignment,
+});
+
+DocumentVisualBlock? parseDocumentVisualBlock(String line) {
+  final wrapped = line.length > 2 && line.startsWith('|') && line.endsWith('|');
+  final inner = wrapped ? line.substring(1, line.length - 1) : line;
+  final markup = inner.trim();
+  final photo = documentPhoto.firstMatch(markup);
+  if (photo == null && markup != documentDivider) return null;
+  final alignment = !wrapped || !inner.startsWith(' ')
+      ? DocumentBlockAlignment.left
+      : inner.endsWith(' ')
+      ? DocumentBlockAlignment.center
+      : DocumentBlockAlignment.right;
+  return (markup: markup, photoId: photo?.group(1), alignment: alignment);
+}
+
+String alignDocumentVisualBlock(
+  String markup,
+  DocumentBlockAlignment alignment,
+) => switch (alignment) {
+  DocumentBlockAlignment.left => markup,
+  DocumentBlockAlignment.center => '| $markup |',
+  DocumentBlockAlignment.right => '| $markup|',
+};
+
 final _documentTokens = RegExp(
   '${codeMarkup.pattern.replaceFirst(r'|$', r'|(?![\s\S])')}|'
   r'\[\[[^\r\n]*?\]\]|(?<comment><!--[\s\S]*?(?:-->|(?![\s\S])))',
@@ -141,7 +174,7 @@ class DocumentComments {
   }
 }
 
-final documentListMarker = RegExp(r'^([ \t]*)(?:(\d{1,9})\.|-)[ \t]+');
+final documentListMarker = RegExp(r'^([ \t]*)(?:(\d{1,9})\.|(-|–))[ \t]+');
 
 /// Closed code spans occupying complete lines can be rendered as blocks.
 Iterable<RegExpMatch> documentCodeBlocks(String source) => codeMarkup
