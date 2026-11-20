@@ -5,6 +5,23 @@ import 'package:weaver/features/inbox/canvas_geometry.dart';
 import 'package:weaver/features/inbox/memo_box_region.dart';
 
 void main() {
+  test('nearby clear route is preferred over crossing another box', () {
+    const moving = Rect.fromLTWH(200, 200, 100, 100);
+    const obstacles = [Rect.fromLTWH(200, 290, 100, 100), Rect.fromLTWH(200, 140, 100, 20)];
+    final delta = releaseBox(moving, obstacles, rectangular: true);
+    final result = moving.shift(delta);
+    expect(delta.dx.abs(), greaterThan(0));
+    for (final obstacle in obstacles) { expect(result.inflate(24).overlaps(obstacle), isFalse); }
+  });
+  test('fully enclosed growth can jump beyond surrounding boxes', () {
+    const moving = Rect.fromLTWH(200, 200, 100, 100);
+    const obstacles = [Rect.fromLTWH(220, 220, 60, 60),
+      Rect.fromLTWH(100, 100, 20, 400), Rect.fromLTWH(380, 100, 20, 400),
+      Rect.fromLTWH(100, 100, 400, 20), Rect.fromLTWH(100, 380, 400, 20)];
+    final delta = releaseBox(moving, obstacles, rectangular: true);
+    expect(delta.distance, greaterThan(180));
+    for (final obstacle in obstacles) { expect(moving.shift(delta).inflate(24).overlaps(obstacle), isFalse); }
+  });
   test('width snapping chooses the closer adjacent width inside the threshold', () {
     expect(snapStackWidth(294, [280, 300]), 300);
     expect(snapStackWidth(284, [280, 300]), 280);

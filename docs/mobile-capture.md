@@ -64,7 +64,7 @@ compliance. The app still uses its narrower South Korea selection rectangle.
 Sources: https://tiles.osm.kr/ and https://tiles.osm.kr/download/.
 OSM public tile usage policy still applies; this is not an offline tile cache.
 
-An empty geolog shows a noninteractive, blurred world map centered on 20° N, 0° E
-with the existing notice at the top and readable attribution at the bottom.
-It does not request the user's location. Nonempty results retain interactive
-markers and the recorded-location camera.
+An empty geolog displays live world tiles centered on 20° N, 0° E at zoom 2,
+with a runtime blur and the existing notice at the top. It requests no location
+permission. The bottom attribution links to OpenStreetMap copyright. Switching
+away hides the map. The overview may retain it in its tab cache.

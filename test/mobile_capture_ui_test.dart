@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,9 +40,12 @@ void main() {
     expect(tester.widget<ChoiceChip>(find.byKey(const ValueKey('thought-filter-box-미분류'))).selected, isTrue);
   }, variant: TargetPlatformVariant({TargetPlatform.android}));
   testWidgets('geolog tab opens with a blurred map and top notice without requesting location', (tester) async {
+    SharedPreferences.setMockInitialValues({});
     elements.clear();
-    await tester.pumpWidget(const MaterialApp(home: AllThoughtsPage(notes: [])));
-    await tester.tap(find.text('지오로그')); await tester.pumpAndSettle();
+    await tester.pumpWidget(const MaterialApp(home: AllThoughtsPage(
+      notes: [], initialView: ThoughtView.geolog,
+    )));
+    await tester.pumpAndSettle();
     expect(find.byType(GeologPage), findsOneWidget);
     expect(find.byType(FlutterMap), findsOneWidget);
     expect(find.byType(ImageFiltered), findsOneWidget);
@@ -52,6 +56,12 @@ void main() {
     expect(find.textContaining('위치가 기록된 생각이 없습니다.'), findsOneWidget);
     expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
     expect(find.textContaining('한국 상세 타일'), findsNothing);
+    final canvasTab = find.widgetWithText(TextButton, '메모상자');
+    await tester.ensureVisible(canvasTab);
+    await tester.tap(canvasTab);
+    await tester.pumpAndSettle();
+    expect(find.byType(GeologPage), findsNothing);
+    expect(find.byType(FlutterMap), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

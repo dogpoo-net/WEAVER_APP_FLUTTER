@@ -8,8 +8,36 @@ import 'package:weaver/features/inbox/memo_box_region.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 
 void main() {
-  setUp(() { elements.clear(); memoBoxes.clear(); pageGraphLayout = GraphLayout(); });
+  setUp(() { elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); memoBoxFolderParents.clear(); pageGraphLayout = GraphLayout(); });
   for (final blocks in [false, true]) {
+    testWidgets('growing upper box escapes upward without jumping past lower box ($blocks)', (tester) async {
+      final a = elements.add('커지는 위 생각'), b = elements.add('아래 생각');
+      memoBoxes.addAll([MemoBox('위', ids: [a.id]), MemoBox('아래', ids: [b.id])]);
+      final layout = blocks ? pageGraphLayout.blockLayout : pageGraphLayout;
+      layout.positions.addAll({a.id: const Offset(700, 700), b.id: const Offset(700, 1200)});
+      await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
+      await tester.pumpAndSettle();
+      MemoBoxRegion box(String name) => tester.widget<MemoBoxRegion>(find.byKey(ValueKey('box-region-$name')));
+      final upper = box('위').bounds;
+      final header = tester.widget<GestureDetector>(
+        find.byKey(const ValueKey('box-drag-header-아래')),
+      );
+      header.onPanUpdate!(DragUpdateDetails(delta: Offset(
+        upper.center.dx - box('아래').bounds.center.dx,
+        upper.bottom + 24.1 - box('아래').bounds.top,
+      ), globalPosition: Offset.zero));
+      header.onPanEnd!(DragEndDetails());
+      await tester.pumpAndSettle();
+      final lower = box('아래').bounds;
+      layout.sizes[a.id] = Offset(blocks ? 230 : 170, blocks ? 160 : 116);
+      elements.refreshVisibility(); await tester.pumpAndSettle();
+      expect(box('위').bounds.center.dy, lessThan(lower.center.dy));
+      expect(box('위').bounds.top, lessThan(upper.top));
+      expect((box('위').bounds.center - upper.center).distance, lessThan(100));
+      expect(memoBoxRegionsOverlap(box('위').bounds, box('아래').bounds, rectangular: blocks), isFalse);
+      expect(find.byKey(const ValueKey('canvas-boundary')), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
     testWidgets('boxes overlap during drag and separate only on release ($blocks)', (tester) async {
       final a = elements.add('첫 생각'), b = elements.add('둘째 생각');
       memoBoxes.addAll([MemoBox('첫 상자', ids: [a.id]), MemoBox('둘째 상자', ids: [b.id])]);

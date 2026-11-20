@@ -909,18 +909,20 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     return bounds;
   }
   void _separateOverlappingBoxes() {
-    final placed = <Rect>[];
     for (final box in _allRegionBoxes) {
-      final original = _boxBounds(box);
-      if (original == null) continue;
-      var bounds = original;
-      while (placed.any((other) => memoBoxRegionsOverlap(bounds, other, rectangular: widget.blocks))) {
-        final bottom = placed.where((other) => memoBoxRegionsOverlap(bounds, other, rectangular: widget.blocks)).map((other) => other.bottom).reduce(math.max);
-        bounds = bounds.shift(Offset(0, bottom + 48 - bounds.top));
-      }
-      final shift = bounds.topLeft - original.topLeft;
-      if (shift != Offset.zero) _moveBox(box, shift);
-      placed.add(bounds);
+      final bounds = _boxBounds(box);
+      if (bounds == null) continue;
+      _moveBox(box, releaseBox(bounds, [
+        for (final other in _allRegionBoxes) if (!identical(other, box)) ?_boxBounds(other),
+      ], rectangular: widget.blocks));
+    }
+    // Recompute nested folder outlines after their children have grown/moved.
+    final folders = memoBoxFolders.toList()
+      ..sort((a, b) => memoFolderDepth(b).compareTo(memoFolderDepth(a)));
+    for (final folder in folders) { _releaseFolder(folder); }
+    // Ungrouped boxes must also stay outside the expanded folder outlines.
+    if (widget.blocks) {
+      for (final box in _allRegionBoxes.where((box) => box.folder == null)) { _releaseBox(box); }
     }
   }
   void _separateBoxes() {

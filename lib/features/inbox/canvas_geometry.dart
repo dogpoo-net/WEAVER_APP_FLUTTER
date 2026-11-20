@@ -16,7 +16,7 @@ Offset releaseBox(Rect moving, List<Rect> obstacles, {required bool rectangular,
     if (!needsRelease) return Offset.zero;
   }
 
-  Offset? best;
+  Offset? best, bestLocal;
   for (var i = 0; i < 128; i++) {
     final angle = i * math.pi * 2 / 128;
     final direction = Offset(math.cos(angle), math.sin(angle));
@@ -56,8 +56,11 @@ Offset releaseBox(Rect moving, List<Rect> obstacles, {required bool rectangular,
     final result = moving.shift(shift);
     if (result.left < 32 || result.top < 32) continue;
     if (best == null || shift.distanceSquared < best.distanceSquared) best = shift;
+    // Prefer escaping existing overlap without crossing a previously clear box.
+    final crossesNeighbor = intervals.any((interval) => interval.$1 > 0 && interval.$1 < distance);
+    if (!crossesNeighbor && (bestLocal == null || shift.distanceSquared < bestLocal.distanceSquared)) bestLocal = shift;
   }
-  return best ?? Offset.zero;
+  return bestLocal ?? best ?? Offset.zero;
 }
 
 /// Align a card near a stacked position, without changing its box membership.

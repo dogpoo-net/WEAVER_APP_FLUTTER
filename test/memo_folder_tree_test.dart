@@ -12,6 +12,25 @@ import 'package:weaver/features/inbox/workspace_storage.dart';
 
 void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); memoBoxFolderParents.clear(); pageGraphLayout = GraphLayout(); });
+  testWidgets('content growth separates touching folder outlines without a distant jump', (tester) async {
+    memoBoxFolders.addAll(['위', '아래']);
+    final a = elements.add('위 폴더 생각'), b = elements.add('아래 폴더 생각');
+    memoBoxes.addAll([MemoBox('위 상자', folder: '위', ids: [a.id]), MemoBox('아래 상자', folder: '아래', ids: [b.id])]);
+    final layout = pageGraphLayout.blockLayout;
+    layout.positions.addAll({a.id: const Offset(700, 700), b.id: const Offset(700, 1200)});
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpAndSettle();
+    MemoFolderRegion folder(String name) => tester.widget<MemoFolderRegion>(find.byKey(ValueKey('folder-region-$name')));
+    final upper = folder('위').bounds;
+    folder('아래').onMove(Offset(0, upper.bottom + 24.1 - folder('아래').bounds.top));
+    folder('아래').onEnd(); await tester.pumpAndSettle();
+    layout.sizes[a.id] = const Offset(230, 150);
+    elements.refreshVisibility(); await tester.pumpAndSettle();
+    expect(folder('위').bounds.inflate(24).overlaps(folder('아래').bounds), isFalse);
+    expect(folder('위').bounds.top, lessThan(upper.top));
+    expect((folder('위').bounds.center - upper.center).distance, lessThan(100));
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('folders separate on release without moving the stationary folder', (tester) async {
     memoBoxFolders.addAll(['첫 폴더', '둘째 폴더']);
     final layout = pageGraphLayout.blockLayout;
