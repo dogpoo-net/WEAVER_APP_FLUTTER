@@ -405,16 +405,20 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     final localData = local.read();
     final baseline = local.preferences.getString(OfflineWorkspace.baseline(local));
     if (localData == null || (cached != baseline && !OfflineWorkspace.hasChanges(local))) {
-      if (cached == null) {
-        final reader = WorkspaceSync(source, widget.auth.emailApi,
-          workspaceId: id, readOnly: true, isCurrent: valid);
-        try {
+      final reader = WorkspaceSync(source, widget.auth.emailApi,
+        workspaceId: id, readOnly: true, isCurrent: valid);
+      try {
+        if (cached == null) {
           await reader.initialize();
           if (!reader.ready) throw StateError(reader.error ?? '서버 자료를 가져오지 못했습니다.');
-          await reader.ensureMedia(source.read()!);
-        } finally {
-          reader.dispose();
         }
+        try {
+          await reader.ensureMedia(source.read()!);
+        } on EmailAuthFailure catch (error) {
+          if (cached == null || !error.networkUnavailable) rethrow;
+        }
+      } finally {
+        reader.dispose();
       }
       if (!valid()) return;
       await OfflineWorkspace.seed(local, source);
@@ -493,7 +497,13 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         if(active!=null)storage?.workspaceName=active['name'] as String?;
       },
     ));
-    if(current && (id!=null || !catalog.any((row)=>row['workspaceId']==selected)))await switchWorkspace(id, force:true,relinquished: !catalog.any((row)=>row['workspaceId']==selected), usePickerCatalog:true);
+    if (!current) return;
+    final stillAvailable = catalog.any((row) =>
+      row['workspaceId'] == selected && row['sharingSuspended'] != true);
+    if (!stillAvailable || (id != null && id != selected)) {
+      await switchWorkspace(id, force: !stillAvailable,
+        relinquished: !stillAvailable, usePickerCatalog: true);
+    }
   }
 
   Future<void> openNotification(Map<String,dynamic> item) async {
