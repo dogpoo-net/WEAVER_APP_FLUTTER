@@ -650,7 +650,12 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
       if (newName == '미분류' || memoBoxes.any((box) => box.name == newName)) {
         throw StateError('이미 사용 중인 상자 이름입니다.');
       }
-      setState(() => box.name = newName);
+      setState(() {
+        final bounds = pageGraphLayout.blockLayout.containerBounds;
+        final rect = bounds.remove('box:$oldName');
+        if (rect != null) bounds['box:$newName'] = rect;
+        box.name = newName;
+      });
     } else {
       final folders = switch (kind) {
         'boxFolder' => memoBoxFolders,
@@ -674,6 +679,8 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
             for (final layout in [pageGraphLayout, pageGraphLayout.blockLayout]) {
               final position = layout.folderPositions.remove(oldName);
               if (position != null) layout.folderPositions[newName] = position;
+              final rect = layout.containerBounds.remove('folder:$oldName');
+              if (rect != null) layout.containerBounds['folder:$newName'] = rect;
             }
           case 'projectFolder':
             for (final note in _notes) {
@@ -735,6 +742,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     final ids = box.elementIds.toSet();
     setState(() {
       removeMemoBoxesKeepingThoughts({name});
+      pageGraphLayout.blockLayout.containerBounds.remove('box:$name');
       if (choice == ContainerDeletion.withThoughts) {
         elements.removeAll(ids.map((id) => elements.byId(id)?.text).nonNulls.toList());
       }
@@ -752,6 +760,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
       if (choice == ContainerDeletion.containerOnly) {
         removeMemoFolderKeepingContents(folder);
         pageGraphLayout.folderPositions.remove(folder);
+        pageGraphLayout.blockLayout.containerBounds.remove('folder:$folder');
         return;
       }
       final subtree = memoBoxFolders.where((name) => memoFolderContains(folder, name)).toList()
@@ -760,7 +769,12 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
       final boxes = memoBoxes.where((box) => !box.isUnclassified && names.contains(box.folder)).toList();
       final ids = boxes.expand((box) => box.elementIds).toSet();
       removeMemoBoxesKeepingThoughts(boxes.map((box) => box.name).toSet());
+      final bounds = pageGraphLayout.blockLayout.containerBounds;
+      for (final box in boxes) {
+        bounds.remove('box:${box.name}');
+      }
       for (final name in subtree) {
+        bounds.remove('folder:$name');
         removeMemoFolderKeepingContents(name);
         pageGraphLayout.folderPositions.remove(name);
       }

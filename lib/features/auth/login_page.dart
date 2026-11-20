@@ -115,12 +115,7 @@ class LoginPage extends StatelessWidget {
                       onPressed: auth.signingInWithBrowser
                           ? null
                           : auth.useGuest,
-                      child: const Text('비회원으로 사용하기'),
-                    ),
-                    Text(
-                      '비회원은 이 기기에만 저장됩니다. 로그인 후 기기 간 동기화가 가능합니다.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall,
+                      child: const Text('이용하기'),
                     ),
                     if (auth.signingInWithBrowser)
                       TextButton(

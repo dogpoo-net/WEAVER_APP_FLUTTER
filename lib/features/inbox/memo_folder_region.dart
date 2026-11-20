@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'memo_boxes.dart';
 
-Map<String, Rect> memoFolderRegions(Map<MemoBox, Rect> boxes, Map<String, Offset> emptyPositions) {
+Map<String, Rect> memoFolderRegions(Map<MemoBox, Rect> boxes, Map<String, Offset> emptyPositions, {Map<String, Rect> manualBounds = const {}}) {
   final result = <String, Rect>{};
   Rect bounds(String folder) {
     if (result.containsKey(folder)) return result[folder]!;
     final parts = [for (final entry in boxes.entries) if (entry.key.folder == folder) entry.value,
       for (final child in memoBoxFolders.where((f) => memoFolderParent(f) == folder)) bounds(child)];
+    final manual = manualBounds['folder:$folder'];
+    if (parts.isEmpty && manual != null) return result[folder] = manual;
     final rect = parts.isEmpty
       ? (emptyPositions.putIfAbsent(folder, () => Offset(640 + memoBoxFolders.indexOf(folder) * 360, 1100)) & const Size(300, 200))
       : parts.reduce((a, b) => a.expandToInclude(b));
-    return result[folder] = Rect.fromLTRB(rect.left - 28, rect.top - 44, rect.right + 28, rect.bottom + 28);
+    final natural = Rect.fromLTRB(rect.left - 28, rect.top - 44, rect.right + 28, rect.bottom + 28);
+    return result[folder] = manual?.expandToInclude(natural) ?? natural;
   }
   for (final folder in memoBoxFolders) { bounds(folder); }
   final ordered = [...result.keys]..sort((a, b) => memoFolderDepth(a).compareTo(memoFolderDepth(b)));

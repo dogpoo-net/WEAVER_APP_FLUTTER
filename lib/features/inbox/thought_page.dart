@@ -69,6 +69,7 @@ class _CanvasState {
       retain(layout.sizes, after.layout.sizes),
       retain(layout.tags, after.layout.tags),
       retain(layout.folderPositions, after.layout.folderPositions),
+      retain(layout.containerBounds, after.layout.containerBounds),
       retain(layout.stackGroups, after.layout.stackGroups),
       retain(emptyBoxes, after.emptyBoxes),
       retain(thoughtBoxes, after.thoughtBoxes),
@@ -411,13 +412,19 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void _moveBox(MemoBox box, Offset shift) {
     for (final id in box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
     if (_emptyBoxBounds.containsKey(box)) _emptyBoxBounds[box] = _emptyBoxBounds[box]!.shift(shift);
+    _shiftContainerBounds('box:${box.name}', shift);
   }
+  void _shiftContainerBounds(String key, Offset shift) {
+    final bounds = _layout.containerBounds[key];
+    if (bounds != null) _layout.containerBounds[key] = bounds.shift(shift);
+  }
+
   MemoBox? _liftedBox;
   Offset? _boxLiftPointer;
   String? _draggedFolder;
   final _frozenFolders = <String, Rect>{};
   Map<String, Rect> _folderGeometry() => widget.blocks ? {
-    ...memoFolderRegions({for (final box in _allRegionBoxes) if (_boxBounds(box) != null) box: _boxBounds(box)!}, _layout.folderPositions),
+    ...memoFolderRegions({for (final box in _allRegionBoxes) if (_boxBounds(box) != null) box: _boxBounds(box)!}, _layout.folderPositions, manualBounds: _layout.containerBounds),
     ..._frozenFolders,
   } : {};
   void _moveSelectedTags(Offset shift) {
@@ -429,6 +436,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     for (final box in memoBoxes.where((box) => box.folder != null && memoFolderContains(name, box.folder!))) { _moveBox(box, shift); }
     for (final folder in memoBoxFolders.where((folder) => memoFolderContains(name, folder))) {
       if (_layout.folderPositions.containsKey(folder)) _layout.folderPositions[folder] = _layout.folderPositions[folder]! + shift;
+      _shiftContainerBounds('folder:$folder', shift);
     }
   }
   void _releaseFolder(String name) {
@@ -619,6 +627,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       ..sizes.addAll(_layout.sizes)
       ..tags.addAll(_tagPositions)
       ..folderPositions.addAll(_layout.folderPositions)
+      ..containerBounds.addAll(_layout.containerBounds)
       ..stackGroups.addAll(_layout.stackGroups);
     state.emptyBoxes.addAll(_emptyBoxBounds);
     for (final box in memoBoxes.where((box) => !box.isUnclassified)) {
@@ -860,7 +869,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     if (ids.isEmpty) return null;
     if (widget.blocks) {
       final bounds = ids.map((id) => positions[id]! & _size(id)).reduce((a, b) => a.expandToInclude(b));
-      return Rect.fromLTRB(bounds.left - 32, bounds.top - 52, bounds.right + 32, bounds.bottom + 32);
+      final natural = Rect.fromLTRB(bounds.left - 32, bounds.top - 52, bounds.right + 32, bounds.bottom + 32);
+      return _layout.containerBounds['box:${box.name}']?.expandToInclude(natural) ?? natural;
     }
     return memoBoxCircleBounds(ids.map((id) => positions[id]!), sizes: {for (final id in ids) positions[id]!: _size(id)});
   }
@@ -868,7 +878,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   Iterable<MemoBox> get _regionBoxes => (_filterBox != null ? [_filterBox!] :
       memoBoxes).where((box) => !box.isUnclassified && (_filters.isEmpty || _filters.boxes.contains(box) || _records.any((r) => box.elementIds.contains(r.id))));
   Iterable<MemoBox> get _allRegionBoxes => memoBoxes.where((box) => !box.isUnclassified);
-  Rect? _boxBounds(MemoBox box) => _liftBoxes[box] ?? _regionBounds(box, _positions) ?? _emptyBoxBounds[box];
+  Rect? _boxBounds(MemoBox box) => _liftBoxes[box] ?? _regionBounds(box, _positions) ?? (widget.blocks ? _layout.containerBounds['box:${box.name}'] : null) ?? _emptyBoxBounds[box];
   Rect _placeEmptyBox(double x) {
     var bounds = Rect.fromLTWH(x, 440, 260, 260);
     final occupied = [for (final box in _allRegionBoxes) ?_boxBounds(box),
@@ -936,7 +946,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void _resetArrangement(bool stacked) {
     _editCanvasLayout(() {
       _positions.clear(); _tagPositions.clear(); _emptyBoxBounds.clear(); _liftBoxes.clear();
-      _layout.sizes.clear(); _layout.folderPositions.clear(); _layout.viewport = null;
+      _layout.sizes.clear(); _layout.folderPositions.clear(); _layout.containerBounds.clear(); _layout.viewport = null;
       _layout.stackGroups.clear(); _layout.stacked = stacked; _selected.clear(); _layout.layers.clear();
       _draggingId = null; _hoverBox = null;
       _query = ''; _search.clear();
@@ -1032,6 +1042,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     removeMemoBoxesKeepingThoughts(names);
     _filters.boxes.removeWhere((box) => names.contains(box.name));
     _emptyBoxBounds.removeWhere((box, _) => names.contains(box.name));
+    for (final name in names) { _layout.containerBounds.remove('box:$name'); }
   }
 
   void _trashThoughts(Set<String> ids) {
@@ -1081,6 +1092,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void _removeFolder(String folder) {
     removeMemoFolderKeepingContents(folder);
     _layout.folderPositions.remove(folder);
+    _layout.containerBounds.remove('folder:$folder');
     _frozenFolders.remove(folder);
   }
 
@@ -1414,6 +1426,59 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _canvasUpdates.value++;
   }
 
+  Offset? _containerResizeOrigin;
+  Rect? _containerResizeStart;
+
+  Iterable<Widget> _containerResizeEdges(String key, Rect bounds) sync* {
+    final hit = (8 / _view.value.storage[0].abs()).clamp(3.0, 18.0);
+    for (final x in [-1, 0, 1]) {
+      for (final y in [-1, 0, 1]) {
+        if (x == 0 && y == 0) continue;
+        final handle = Rect.fromLTWH(
+          x < 0 ? bounds.left - hit / 2 : x > 0 ? bounds.right - hit / 2 : bounds.left + hit / 2,
+          y < 0 ? bounds.top - hit / 2 : y > 0 ? bounds.bottom - hit / 2 : bounds.top + hit / 2,
+          x == 0 ? bounds.width - hit : hit,
+          y == 0 ? bounds.height - hit : hit,
+        );
+        yield Positioned.fromRect(
+          key: ValueKey('resize-$key-$x-$y'),
+          rect: handle,
+          child: MouseRegion(
+            cursor: x == 0 ? SystemMouseCursors.resizeUpDown
+                : y == 0 ? SystemMouseCursors.resizeLeftRight
+                : x == y ? SystemMouseCursors.resizeUpLeftDownRight
+                : SystemMouseCursors.resizeUpRightDownLeft,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onScaleStart: (details) {
+                _containerResizeOrigin = details.focalPoint;
+                _containerResizeStart = bounds;
+              },
+              onScaleUpdate: (details) {
+                final origin = _containerResizeOrigin;
+                final start = _containerResizeStart;
+                if (origin == null || start == null || details.pointerCount != 1) return;
+                final delta = (details.focalPoint - origin) / _view.value.storage[0].abs();
+                if (delta == Offset.zero) return;
+                final next = Rect.fromLTRB(
+                  x < 0 ? (start.left + delta.dx).clamp(math.min(0.0, start.left), start.right - 120).toDouble() : start.left,
+                  y < 0 ? (start.top + delta.dy).clamp(math.min(0.0, start.top), start.bottom - 64).toDouble() : start.top,
+                  x > 0 ? math.max(start.left + 120, start.right + delta.dx) : start.right,
+                  y > 0 ? math.max(start.top + 64, start.bottom + delta.dy) : start.bottom,
+                );
+                _updateCanvas(() => _layout.containerBounds[key] = next);
+              },
+              onScaleEnd: (_) {
+                _containerResizeOrigin = null;
+                _containerResizeStart = null;
+              },
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildCanvas(BuildContext context, ColorScheme color) {
     final preview = _stackPreview;
     final layers = preview == null ? _layout.layers : List<String>.of(_layout.layers);
@@ -1429,7 +1494,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     }
     final visiblePositions = {
       for (final record in records)
-        record.id: preview?.positions[record.id] ?? _positions[record.id]!,
+        record.id: (record.id == preview?.moving ? null : preview?.positions[record.id]) ?? _positions[record.id]!,
     };
     final thoughtBounds = [
       for (final record in records) visiblePositions[record.id]! & _size(record.id),
@@ -1449,19 +1514,19 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final regions = <({MemoBox box, Rect bounds})>[];
     final regionBoxes = _regionBoxes.toList();
     for (final box in regionBoxes) {
-      final bounds = _regionBounds(box, visiblePositions);
+      final bounds = _regionBounds(box, widget.blocks ? _positions : visiblePositions);
       if (bounds != null) regions.add((box: box, bounds: _liftBoxes[box] ?? bounds));
     }
     var emptyX = regions.map((r) => r.bounds.right + 80).fold(
       nodeRects.values.map((r) => r.right + 80).fold(640.0, math.max), math.max);
     for (final box in regionBoxes) {
       if (box.elementIds.any(_positions.containsKey)) continue;
-      regions.add((box: box, bounds: _emptyBoxBounds.putIfAbsent(box, () => _placeEmptyBox(emptyX))));
+      regions.add((box: box, bounds: _boxBounds(box) ?? _emptyBoxBounds.putIfAbsent(box, () => _placeEmptyBox(emptyX))));
       emptyX += 340;
     }
     sceneWidth = regions.map((r) => r.bounds.right + 100).fold(sceneWidth, math.max);
     sceneHeight = regions.map((r) => r.bounds.bottom + 100).fold(sceneHeight, math.max);
-    final folders = widget.blocks ? memoFolderRegions({for (final r in regions) r.box: r.bounds}, _layout.folderPositions) : <String, Rect>{};
+    final folders = widget.blocks ? memoFolderRegions({for (final r in regions) r.box: r.bounds}, _layout.folderPositions, manualBounds: _layout.containerBounds) : <String, Rect>{};
     folders.addAll(_frozenFolders);
     if (_filterBox != null) {
       folders.removeWhere((name, _) => !regions.any((r) => r.box.folder != null && memoFolderContains(name, r.box.folder!)));
@@ -1558,7 +1623,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 },
                 onMove: (delta) => _updateCanvas(() { final previous = _positions[record.id]!; final p = previous + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
                   _stackPreview = _findStackInsertion(record.id, records);
-                  if (_stackPreview == null && _liftBoxes.isEmpty) _displaceNeighbors({record.id});
+                  if (!widget.blocks && _stackPreview == null && _liftBoxes.isEmpty) _displaceNeighbors({record.id});
                   _dropHighlights.clear();
                   if (_stackPreview case final preview?) {
                     _dropHighlights.addAll(preview.members.where((id) => id != record.id));
@@ -1821,6 +1886,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   Rect.fromLTWH(bounds.left, bounds.top, bounds.width, MemoFolderRegion.headerHeight),
               ], resizeRects: {for(final r in records)_bounds(r.id)}))),
           ))),
+          if (widget.blocks && _canEdit && !_rangeSelection) ...[
+            for (final folder in folders.entries)
+              ..._containerResizeEdges('folder:${folder.key}', folder.value),
+            for (final region in regions)
+              ..._containerResizeEdges('box:${region.box.name}', region.bounds),
+          ],
         ])))),
       )); })),
         if (_canEdit && records.any((record) => _selected.contains(record.id) &&

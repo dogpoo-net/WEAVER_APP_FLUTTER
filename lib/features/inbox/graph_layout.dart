@@ -12,13 +12,14 @@ class GraphLayout {
   final sizes = <String, Offset>{};
   final tags = <String, Offset>{};
   final folderPositions = <String, Offset>{};
+  final containerBounds = <String, Rect>{};
   List<double>? viewport;
   String query = '';
   bool hideTags = false;
   bool stacked = false;
 
   void mergeRemote(GraphLayout remote, GraphLayout baseline) {
-    void points(Map<String,Offset> local,Map<String,Offset> next,Map<String,Offset> before){
+    void points<T>(Map<String,T> local,Map<String,T> next,Map<String,T> before){
       for(final key in {...local.keys,...next.keys,...before.keys}){
         if(local[key]!=before[key])continue;
         if(next.containsKey(key)){local[key]=next[key]!;}else{local.remove(key);}
@@ -33,6 +34,7 @@ class GraphLayout {
     points(sizes,remote.sizes,baseline.sizes);
     points(tags,remote.tags,baseline.tags);
     points(folderPositions,remote.folderPositions,baseline.folderPositions);
+    points(containerBounds, remote.containerBounds, baseline.containerBounds);
     if(const ListEquality<String>().equals(layers,baseline.layers))layers..clear()..addAll(remote.layers);
     if(stacked==baseline.stacked)stacked=remote.stacked;
   }
@@ -45,6 +47,7 @@ class GraphLayout {
     sizes..clear()..addAll(other.sizes);
     tags..clear()..addAll(other.tags);
     folderPositions..clear()..addAll(other.folderPositions);
+    containerBounds..clear()..addAll(other.containerBounds);
     viewport = other.viewport?.toList();
     query = other.query;
     hideTags = other.hideTags;
@@ -57,6 +60,11 @@ class GraphLayout {
     'tags': {for (final e in tags.entries) e.key: [e.value.dx, e.value.dy]},
     'sizes': {for (final e in sizes.entries) e.key: [e.value.dx, e.value.dy]},
     'folderPositions': {for (final e in folderPositions.entries) e.key: [e.value.dx, e.value.dy]},
+    if (containerBounds.isNotEmpty)
+      'containerBounds': {
+        for (final e in containerBounds.entries)
+          e.key: [e.value.left, e.value.top, e.value.right, e.value.bottom],
+      },
     'viewport': viewport?.toList(),
     'query': query,
     'hideTags': hideTags,
@@ -93,6 +101,18 @@ class GraphLayout {
         (p.dx <= 0 || p.dy <= 0 || p.dx > 640 || p.dy > 640));
     layout.sizes.updateAll((id, p) => id.startsWith('workspace-photo-')
         ? p : Offset(p.dx.clamp(170, 640), p.dy.clamp(76, 520)));
+    final containers = data['containerBounds'];
+    if (containers is Map) {
+      for (final entry in containers.entries) {
+        final values = entry.value;
+        if (entry.key is! String || values is! List || values.length != 4 ||
+            !values.every((value) => value is num && value.isFinite)) continue;
+        final edges = values.cast<num>();
+        final rect = Rect.fromLTRB(edges[0].toDouble(), edges[1].toDouble(),
+            edges[2].toDouble(), edges[3].toDouble());
+        if (!rect.isEmpty) layout.containerBounds[entry.key as String] = rect;
+      }
+    }
     final matrix = data['viewport'];
     if (matrix is List && matrix.length == 16 && matrix.every((n) => n is num && n.isFinite)) {
       final values = matrix.map((n) => (n as num).toDouble()).toList();
