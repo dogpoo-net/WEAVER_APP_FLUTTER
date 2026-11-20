@@ -257,6 +257,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
           if(!valid())throw StateError('워크스페이스가 변경되었습니다.');
           return result;
         };
+        target.documentAiRequest = (body) => target.audioRequest!('document/summarize', body);
         target.workspaceName=catalog.firstWhere((row)=>row['workspaceId']==workspaceId)['name'] as String?;
         target.openWorkspaces=chooseWorkspace;
         target.openNotification=openNotification;
@@ -433,6 +434,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
       if(!valid())throw StateError('워크스페이스가 변경되었습니다.');
       return result;
     };
+    local.documentAiRequest = (body) => local.audioRequest!('document/summarize', body);
     local.workspaceName=catalog.firstWhere((r)=>r['workspaceId']==id)['name'];
     local.openNotification=openNotification;
     local.openWorkspaces=catalog.length==1 && catalog.first['role']=='owner' && catalog.first['plan']=='free'?null:chooseWorkspace;local.openAdmin=isAdmin?openAdmin:null;

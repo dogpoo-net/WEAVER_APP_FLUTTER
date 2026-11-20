@@ -367,6 +367,7 @@ class DocumentRichEditor extends StatefulWidget {
     this.onInsertDivider,
     this.onEditLines,
     this.sourceSelection,
+    this.onCaretChanged,
     this.readOnly = false,
     required this.modeSwitch,
     required this.dirty,
@@ -384,6 +385,7 @@ class DocumentRichEditor extends StatefulWidget {
       onInsertDivider;
   final void Function(DocumentLineAction, TextSelection)? onEditLines;
   final TextSelection? sourceSelection;
+  final ValueChanged<int>? onCaretChanged;
   final bool readOnly;
   final Widget modeSwitch;
   final bool dirty;
@@ -458,7 +460,11 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     }
     for (final section in _sections) {
       section.initialize();
-      section.controller?.addListener(() => _edited(section));
+      section.controller?.addListener(() {
+        _edited(section);
+        if (_active == section)
+          widget.onCaretChanged?.call(_insertionOffset(atCaret: true));
+      });
       section.focus?.addListener(() {
         if (mounted &&
             section.focus!.hasFocus &&
@@ -467,6 +473,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
             _active = section;
             _selectedBlock = null;
           });
+          widget.onCaretChanged?.call(_insertionOffset(atCaret: true));
         }
       });
     }

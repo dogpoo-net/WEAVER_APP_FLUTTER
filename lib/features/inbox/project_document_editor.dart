@@ -6,6 +6,7 @@ import 'document_merge_dialog.dart';
 import 'element_binding.dart';
 import 'memo_boxes.dart';
 import 'document_table.dart';
+import 'document_ai_panel.dart';
 import 'document_line_numbers.dart';
 import 'document_footnote_dialog.dart';
 import 'document_line_shortcuts.dart';
@@ -84,6 +85,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     FocusScope.of(context).unfocus();
     setState(() {
       _richLineSelection = null;
+      _richAiCaret = null;
       _rich = value;
       _preview = false;
     });
@@ -173,13 +175,13 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       _tags..clear()..addAll(widget.project!.tags);_filters.tags..clear()..addAll(_tags);_captureBase();await widget.storage?.writeDocumentDraft(_draftId,null);setState(()=>_dirty=false);_loading=false;
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('갱신하지 못했습니다. $e')));}
   }
-  final _search = TextEditingController(), _documentSearch = TextEditingController();
+  final _search = TextEditingController();
   final _dropEditorKey = GlobalKey();
   final _bodyFocus = FocusNode();
   final _tags = <String>{};
   final _filters = ThoughtFilterSelection();
   bool _dirty = false, _boxPanelOpen = false, _thoughtPanelOpen = true, _keyboardVisible = false;
-  final _thoughtScroll = ScrollController(), _documentScroll = ScrollController(), _documentReferenceScroll = ScrollController();
+  final _thoughtScroll = ScrollController(), _documentScroll = ScrollController();
   bool get _wide => MediaQuery.sizeOf(context).width >= 800;
   @override
   void initState() {
@@ -234,7 +236,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   }
   void _refresh() { if (mounted) setState(() {}); }
   @override
-  void dispose() { widget.storage?.editorResources.remove(widget.project?.id??'new-document');elements.removeListener(_refresh); _body.dispose(); _syntaxTooltip.hide(); _hoveredReference.dispose(); _bodyFocus.dispose(); _search.dispose(); _documentSearch.dispose(); _documentReferenceScroll.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
+  void dispose() { widget.storage?.editorResources.remove(widget.project?.id??'new-document');elements.removeListener(_refresh); _body.dispose(); _syntaxTooltip.hide(); _hoveredReference.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
   Future<void> _insertLabel(String word) async {
     if (_rich) _setRich(false);
     await insertAssistedLink(context, _body, word);
@@ -400,9 +402,9 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     final badge = ValueListenableBuilder<String?>(
       valueListenable: _hoveredReference,
       builder: (context, hovered, _) => WordBadge(
-        word: key, displayText: project != null || !_wide ? assistTargetTitle(key) : null,
-        project: project != null, labelTarget: !_wide && isLabelAssistTarget(key),
-        memo: !_wide && project == null && !isLabelAssistTarget(key), compact: true, dense: !_wide,
+        word: key, displayText: assistTargetTitle(key),
+        project: project != null, labelTarget: isLabelAssistTarget(key),
+        memo: project == null && !isLabelAssistTarget(key), compact: true, dense: !_wide,
         selected: hovered == targetId,
         onTap: () => project != null ? openInlineLink(context, key) : showElementMetadata(context, key),
       ),
@@ -412,48 +414,160 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     return _wide ? Draggable<InlineLinkDrag>(dragAnchorStrategy: pointerDragAnchorStrategy, data: InlineLinkDrag(key), feedback: feedback, childWhenDragging: Opacity(opacity: .4, child: badge), child: badge)
       : LongPressDraggable<InlineLinkDrag>(dragAnchorStrategy: pointerDragAnchorStrategy, data: InlineLinkDrag(key), feedback: feedback, childWhenDragging: Opacity(opacity: .4, child: badge), child: badge);
   }
-  Widget _referenceList({required bool documents}) {
-    final controller = documents ? _documentSearch : _search;
-    final query = controller.text.trim().replaceFirst('#', '').toLowerCase();
+  Widget _referenceList() {
+    final query = _search.text.trim().replaceFirst('#', '').toLowerCase();
     final targets = <String>[for (final project in indexedProjects) if (project != widget.project) 'project:${project.id}',
       ...elements.records.keys.where(isLabelAssistTarget), ...elements.records.keys.where((key) => !isLabelAssistTarget(key))].where((key) {
       final project = projectTarget(key);
-      if (_wide && documents != (project != null)) return false;
       if (project != null) return assistTargetMatches(key, query);
       final record = elements.records[key];
       return record != null && canBrowseThought(record) && _filters.matches(record) &&
         (assistTargetMatches(key, query) || record.tags.any((tag) => tag.contains(query)));
     }).toList();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      TextField(key: ValueKey(documents ? 'project-document-reference-search' : 'project-reference-search'), controller: controller,
+      TextField(key: const ValueKey('project-reference-search'), controller: _search,
         onTapOutside: _wide ? null : (_) {}, style: const TextStyle(fontSize: 12), onChanged: (_) => setState(() {}),
-        decoration: InputDecoration(hintText: documents ? '문서 제목·내용 찾기' : _wide ? '생각·해시태그 찾기' : '문서·라벨·메모 찾기', isDense: true,
+        decoration: InputDecoration(hintText: '문서, 생각, 라벨, 해시태그 찾기', isDense: true,
           contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), prefixIcon: const Icon(Icons.search, size: 18),
           prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 32))),
       const SizedBox(height: 6),
-      Expanded(child: Scrollbar(controller: documents ? _documentReferenceScroll : _thoughtScroll, child: SingleChildScrollView(
-        key: ValueKey(documents ? 'project-document-reference-scroll' : 'project-thought-scroll'),
-        controller: documents ? _documentReferenceScroll : _thoughtScroll, primary: false,
+      Expanded(child: Scrollbar(controller: _thoughtScroll, child: SingleChildScrollView(
+        key: const ValueKey('project-thought-scroll'),
+        controller: _thoughtScroll, primary: false,
         child: Wrap(spacing: 6, runSpacing: 6, children: targets.map(_referenceBadge).toList())))),
     ]);
   }
-  double _referenceSplit=.5;
-  double _referenceDragY=0,_referenceDragHeight=0;
-  Widget _referencesPanel() => !_wide ? _referenceList(documents: false) : LayoutBuilder(builder:(context,constraints){
-    final available=(constraints.maxHeight-16).clamp(0.0,double.infinity);
-    final minimum=available>0?(56/available).clamp(.15,.5):.5;
-    final split=_referenceSplit.clamp(minimum,1-minimum);
-    return Column(children:[
-      SizedBox(height:available*split,child:_referenceList(documents:false)),
-      MouseRegion(cursor:SystemMouseCursors.resizeUpDown,child:GestureDetector(
-        key:const ValueKey('document-reference-divider'),behavior:HitTestBehavior.opaque,
-        dragStartBehavior:DragStartBehavior.down,
-        onVerticalDragStart:(details){_referenceDragY=details.globalPosition.dy;_referenceDragHeight=available*split;},
-        onVerticalDragUpdate:(details){if(available>0)setState(()=>_referenceSplit=((_referenceDragHeight+details.globalPosition.dy-_referenceDragY)/available).clamp(minimum,1-minimum));},
-        child:Tooltip(message:'드래그하여 패널 높이 조절',child:SizedBox(height:16,child:Center(child:Container(width:40,height:3,decoration:BoxDecoration(color:Theme.of(context).colorScheme.outlineVariant,borderRadius:BorderRadius.circular(2)))))))),
-      Expanded(child:_referenceList(documents:true)),
-    ]);
-  });
+  int? _richAiCaret;
+  bool _showDesktopAi = true;
+  double _desktopReferenceEnd = .58;
+  double _desktopDragY = 0, _desktopDragOffset = 0;
+
+  DocumentAiThought? _aiThought(String key) {
+    final thought = elements.records[key];
+    if (thought == null || !canBrowseThought(thought)) return null;
+    return (id: thought.id, title: thought.title, text: thought.text, tags: thought.tags);
+  }
+
+  bool _insertAiResult(String text) {
+    if (!mounted || !_canEdit || _saving) return false;
+    final caret = _rich ? _richAiCaret : _body.selection.extentOffset;
+    final offset = (caret == null || caret < 0 ? _body.text.length : caret)
+        .clamp(0, _body.text.length);
+    _insertVisualBlock(offset, text);
+    return true;
+  }
+
+  Widget _aiPanel(DocumentAiRequest request, {required bool desktop}) =>
+      DocumentAiPanel(
+        thoughts: desktop ? const [] : [
+          for (final key in elements.records.keys)
+            if (_aiThought(key) case final thought?) thought,
+        ],
+        thoughtForDrag: desktop ? (drag) => _aiThought(drag.linkKey) : null,
+        request: request,
+        onInsert: _insertAiResult,
+      );
+
+  void _openAi() {
+    final request = widget.storage?.documentAiRequest;
+    if (request == null || !_canEdit || _saving) return;
+    FocusScope.of(context).unfocus();
+    if (_wide) {
+      setState(() {
+        _showDesktopAi = !_thoughtPanelOpen || !_showDesktopAi;
+        _thoughtPanelOpen = true;
+      });
+      return;
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        top: false,
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 150),
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+          child: FractionallySizedBox(
+            heightFactor: .94,
+            child: _aiPanel(request, desktop: false),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _desktopDivider({
+    required String key,
+    required double position,
+    required ValueChanged<double> onMove,
+  }) => MouseRegion(
+    cursor: SystemMouseCursors.resizeUpDown,
+    child: GestureDetector(
+      key: ValueKey(key),
+      behavior: HitTestBehavior.opaque,
+      dragStartBehavior: DragStartBehavior.down,
+      onVerticalDragStart: (details) {
+        _desktopDragY = details.globalPosition.dy;
+        _desktopDragOffset = position;
+      },
+      onVerticalDragUpdate: (details) =>
+          onMove(_desktopDragOffset + details.globalPosition.dy - _desktopDragY),
+      child: Tooltip(
+        message: '드래그하여 패널 높이 조절',
+        child: SizedBox(
+          height: 16,
+          width: double.infinity,
+          child: Center(child: Container(
+            width: 36,
+            height: 3,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.outlineVariant,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          )),
+        ),
+      ),
+    ),
+  );
+
+  Widget _desktopPane(double height, Widget child, {double minimum = 48}) {
+    final layoutHeight = height < minimum ? minimum : height;
+    return SizedBox(
+      height: height,
+      child: Offstage(
+        offstage: height == 0,
+        child: ClipRect(child: OverflowBox(
+          alignment: Alignment.topCenter,
+          minHeight: layoutHeight,
+          maxHeight: layoutHeight,
+          child: child,
+        )),
+      ),
+    );
+  }
+
+  Widget _desktopReferencePanels() {
+    final request = widget.storage?.documentAiRequest;
+    if (!_showDesktopAi || request == null || !_canEdit) return _referenceList();
+    return LayoutBuilder(builder: (context, constraints) {
+      final available = (constraints.maxHeight - 16).clamp(0.0, double.infinity);
+      if (available == 0) return const SizedBox.shrink();
+      final split = available * _desktopReferenceEnd;
+      return Column(children: [
+        _desktopPane(split, _referenceList()),
+        _desktopDivider(
+          key: 'document-ai-divider',
+          position: split,
+          onMove: (position) => setState(() => _desktopReferenceEnd =
+              (position / available).clamp(0.0, 1.0)),
+        ),
+        _desktopPane(available - split, _aiPanel(request, desktop: true), minimum: 220),
+      ]);
+    });
+  }
+
   double _mobilePanelFraction = .3;
   double _mobileDragStart = 0, _mobileDragHeight = 0;
 
@@ -556,6 +670,8 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     try{await _storeDraft();if(mounted){setState(()=>_dirty=false);WidgetsBinding.instance.addPostFrameCallback((_){if(context.mounted)Navigator.pop(context);});}}
     catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('초안을 보관하지 못했습니다. $e')));}
   }, child: Scaffold(appBar: AppBar(centerTitle: false, toolbarHeight: _wide ? null : 52, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () { _highlightReference(null); _syntaxTooltip.hide(); setState(() => _preview = !_preview); }), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _canEdit && !_saving ? _save : null),
+    if (widget.storage?.documentAiRequest != null && _canEdit)
+      IconButton(tooltip: 'AI 문장 생성', icon: const Icon(Icons.auto_awesome_outlined), onPressed: _saving ? null : _openAi),
     IconButton(tooltip: '작성 문법 안내', icon: const Icon(Icons.info_outline), onPressed: _showHelp),
    ]))]), bottomNavigationBar: _canEdit?null:SafeArea(child:Padding(padding:const EdgeInsets.all(12),child:Text('읽기 전용 워크스페이스입니다.'))), body: DesktopMenuBody(child: SafeArea(top: false, child: LayoutBuilder(builder: (context, constraints) {
       final modeSwitch = TextButton.icon(
@@ -573,7 +689,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         : _preview
         ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
         : _rich
-        ? DocumentRichEditor(key: ValueKey(_richInsertionRevision), readOnly: _saving, onInsertFootnote: _saving ? null : _insertFootnote, onInsertTable: _saving ? null : (offset) => _insertTable(richOffset: offset), onInsertPhoto: _saving ? null : _insertPhoto, onInsertDivider: _saving ? null : (offset) => _insertVisualBlock(offset, documentDivider), onEditLines: _editLines, sourceSelection: _richLineSelection, source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty, diagnostics: _body.syntaxDiagnostics, onSyntaxDiagnostic: _showSyntaxDiagnostic)
+        ? DocumentRichEditor(key: ValueKey(_richInsertionRevision), readOnly: _saving, onInsertFootnote: _saving ? null : _insertFootnote, onInsertTable: _saving ? null : (offset) => _insertTable(richOffset: offset), onInsertPhoto: _saving ? null : _insertPhoto, onInsertDivider: _saving ? null : (offset) => _insertVisualBlock(offset, documentDivider), onEditLines: _editLines, sourceSelection: _richLineSelection, onCaretChanged: (offset) => _richAiCaret = offset, source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty, diagnostics: _body.syntaxDiagnostics, onSyntaxDiagnostic: _showSyntaxDiagnostic)
         : DocumentLineNumbers(controller: _body, scroll: _documentScroll, child: CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true,
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
@@ -595,7 +711,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         onAcceptWithDetails: _dropLink, builder: (context, candidates, rejected) => KeyedSubtree(key: _dropEditorKey, child: documentBody));
       final panel = Material(key: const ValueKey('project-reference-panel'),
         color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(12),
-        child: Padding(padding: const EdgeInsets.all(4), child: _referencesPanel()));
+        child: Padding(padding: const EdgeInsets.all(4), child: _wide ? _desktopReferencePanels() : _referenceList()));
       final document = Column(children: [
         if (!_preview && !_rich && _canEdit) DocumentEditorToolbar(
           key: const ValueKey('document-editor-toolbar'),

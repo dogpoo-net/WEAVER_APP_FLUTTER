@@ -19,30 +19,34 @@ void main() {
     elements.add('닫힌 참고').hiddenFromSearch = true;
     await tester.pumpWidget(MaterialApp(home: ProjectDocumentEditor(project: WritingProject([], [], name: '필터 검증'))));
     await tester.pumpAndSettle();
-    expect(find.text('닫힌 참고'), findsOneWidget);
+    expect(find.textContaining('닫힌 참고', findRichText: true), findsOneWidget);
     showClosedThoughts = false; elements.refreshVisibility();
     await tester.pumpAndSettle();
-    expect(find.text('닫힌 참고'), findsNothing);
-    expect(find.text('열린 참고'), findsOneWidget);
+    expect(find.textContaining('닫힌 참고', findRichText: true), findsNothing);
+    expect(find.textContaining('열린 참고', findRichText: true), findsOneWidget);
     showClosedThoughts = true; elements.refreshVisibility();
     await tester.pumpAndSettle();
-    expect(find.text('닫힌 참고'), findsOneWidget);
+    expect(find.textContaining('닫힌 참고', findRichText: true), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
-  testWidgets('desktop divider resizes both reference panels without changing the document', (tester) async {
-    tester.view.physicalSize=const Size(1200,900);tester.view.devicePixelRatio=1;
-    addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
-    final doc=project();await tester.pumpWidget(MaterialApp(home:ProjectDocumentEditor(project:doc)));await tester.pumpAndSettle();
-    final top=find.byKey(const ValueKey('project-thought-scroll')),bottom=find.byKey(const ValueKey('project-document-reference-scroll')),divider=find.byKey(const ValueKey('document-reference-divider'));
-    final topHeight=tester.getSize(top).height,bottomHeight=tester.getSize(bottom).height;
-    final body=tester.widget<TextField>(find.byKey(const ValueKey('project-document'))).controller!;final text=body.text;
-    final origin=tester.getCenter(divider);final gesture=await tester.startGesture(origin);
-    for(var i=1;i<=10;i++){await gesture.moveTo(origin+Offset(0,i*10));await tester.pump();}
-    await gesture.up();await tester.pumpAndSettle();
-    expect(tester.getCenter(divider).dy-origin.dy,closeTo(100,1));
-    expect(tester.getSize(top).height,greaterThan(topHeight+60));expect(tester.getSize(bottom).height,lessThan(bottomHeight-60));expect(body.text,text);
-    await tester.drag(divider,const Offset(0,-1000));await tester.pumpAndSettle();expect(tester.getSize(top).height,greaterThan(0));expect(tester.takeException(),isNull);
-    await tester.pumpWidget(const SizedBox());
+  testWidgets('desktop can search documents and thoughts in the same list', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900); tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
+    final doc = project();
+    final reference = WritingProject([], [], name: '참고용 문서')..document = '======참고용 문서======\n문서 속 표식';
+    elements.indexProject(reference);
+    await tester.pumpWidget(MaterialApp(home: ProjectDocumentEditor(project: doc)));
+    await tester.pumpAndSettle();
+    final search = find.byKey(const ValueKey('project-reference-search'));
+    expect(find.byType(TextField).evaluate().length, greaterThanOrEqualTo(2));
+    expect(find.byKey(const ValueKey('project-document-reference-search')), findsNothing);
+    await tester.enterText(search, '참고용 문서');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('문서:참고용 문서', findRichText: true), findsOneWidget);
+    expect(find.textContaining('참고할 생각 0', findRichText: true), findsNothing);
+    await tester.enterText(search, '참고할 생각 0');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('메모:참고할 생각 0', findRichText: true), findsOneWidget);
   });
   testWidgets('desktop reference list scrolls independently above a full-width filter footer', (tester) async {
     tester.view.physicalSize = const Size(1200, 900); tester.view.devicePixelRatio = 1;

@@ -403,6 +403,7 @@ class WorkspaceStorage {
   Future<void> Function()? pullNow;
   Future<void> Function()? openSharing;
   AudioRequest? audioRequest;
+  Future<Map<String, dynamic>> Function(Map<String, Object?>)? documentAiRequest;
   bool offlineMode=false;
   Future<void> Function()? exportFile;
   Future<void> Function()? importFile;
