@@ -33,6 +33,16 @@ import 'thought_interaction.dart';
 import 'workspace_routes.dart';
 import 'graph_arrangement.dart';
 
+typedef _StackInsertion = ({
+  String moving,
+  String target,
+  List<String> members,
+  Map<String, Offset> positions,
+  double top,
+  double left,
+  double width,
+});
+
 // History keeps only changed geometry and container assignments.
 class _CanvasState {
   final layout = GraphLayout();
@@ -113,6 +123,62 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   String get _resource=>widget.blocks?'canvas:boxes':'canvas:diagram';
   bool get _canEdit=>widget.storage?.canvasWritable??true;
   late final TextEditingController _search;
+  _StackInsertion? _stackPreview;
+
+  _StackInsertion? _findStackInsertion(String moving, List<ElementRecord> records) {
+    if (!widget.blocks) return null;
+    final card = _bounds(moving);
+    final positions = Map<String, Offset>.of(_positions);
+    final origin = _thoughtDragOrigins[moving];
+    if (origin != null) {
+      closeVacatedStackSlots(positions, {...positions, moving: origin}, {moving},
+        groups: _layout.stackGroups);
+    }
+    positions.remove(moving);
+    final visible = records.map((record) => record.id).toSet();
+    String? target;
+    var bestDistance = double.infinity;
+    for (final id in visible) {
+      final position = positions[id];
+      if (position == null) continue;
+      final bounds = position & _size(id);
+      if (card.left >= bounds.right || card.right <= bounds.left ||
+          card.top < bounds.top - 32 || card.top >= bounds.bottom) continue;
+      final distance = (card.top - bounds.top).abs();
+      if (distance < bestDistance || (distance == bestDistance && id.compareTo(target!) < 0)) {
+        bestDistance = distance;
+        target = id;
+      }
+    }
+    if (target == null) return null;
+
+    final members = alignedStackMembers(target, positions, groups: _layout.stackGroups)
+        .toList()..sort((a, b) => positions[a]!.dy.compareTo(positions[b]!.dy));
+    final first = positions[members.first]!;
+    final index = members.indexWhere((id) => card.top < positions[id]!.dy + 16);
+    final slot = index < 0 ? members.length : index;
+    final reference = positions[members[slot == members.length ? slot - 1 : slot]]!;
+    final top = reference.dy + (slot == members.length ? 32 : 0);
+    for (final id in members.skip(slot)) {
+      positions[id] = positions[id]! + const Offset(0, 32);
+    }
+    positions[moving] = Offset(first.dx, top);
+    members.insert(slot, moving);
+    return (moving: moving, target: target, members: members, positions: positions,
+      left: first.dx, top: top, width: _size(target).width);
+  }
+
+  void _insertStackLayer(List<String> layers, _StackInsertion insertion) {
+    final moving = insertion.moving;
+    final index = insertion.members.indexOf(moving);
+    final next = insertion.members.skip(index + 1).where(layers.contains).firstOrNull;
+    final previous = insertion.members.take(index).where(layers.contains).lastOrNull;
+    layers.remove(moving);
+    final slot = next != null ? layers.indexOf(next)
+        : previous != null ? layers.indexOf(previous) + 1 : layers.length;
+    layers.insert(slot, moving);
+  }
+
   String? _draggingId;
   final _dragStartStacks = <String, Set<String>>{};
   final _dropHighlights = <String>{};
@@ -1312,18 +1378,28 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
 
   Widget _buildCanvas(BuildContext context, ColorScheme color) {
-    final ranks = {for (var i = 0; i < _layout.layers.length; i++) _layout.layers[i]: i};
+    final preview = _stackPreview;
+    final layers = preview == null ? _layout.layers : List<String>.of(_layout.layers);
+    if (preview != null) _insertStackLayer(layers, preview);
+    final ranks = {for (var i = 0; i < layers.length; i++) layers[i]: i};
     final records = _records..sort((a, b) {
       final priority=(a.important?1:0).compareTo(b.important?1:0);
       return priority!=0?priority:(ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0);
     });
-    if (_frontThought != null) {
+    if (_frontThought != null && preview == null) {
       final front = records.where((r) => r.id == _frontThought).firstOrNull;
       if (front != null) { records.remove(front); final firstImportant=records.indexWhere((r)=>r.important); records.insert(!front.important&&firstImportant>=0?firstImportant:records.length,front); }
     }
-    final thoughtBounds = [for (final record in records) _bounds(record.id)];
-    final coveredThoughts={for(final i in coveredCanvasItems(thoughtBounds))records[i].id};
-    final visiblePositions = {for (final r in records) r.id: _positions[r.id]!};
+    final visiblePositions = {
+      for (final record in records)
+        record.id: preview?.positions[record.id] ?? _positions[record.id]!,
+    };
+    final thoughtBounds = [
+      for (final record in records) visiblePositions[record.id]! & _size(record.id),
+    ];
+    final coveredThoughts = {
+      for (final i in coveredCanvasItems(thoughtBounds)) records[i].id,
+    };
     final labelExtent = records.where((r) => r.indexLabel.isNotEmpty).fold(180.0, (width, r) => math.max(width, ThoughtLabel.width(context, r.indexLabel) + 36));
     final tags = _hideTags ? <String>[] : (records.expand((r) => r.tags).toSet().toList()..sort());
     final tagPositions = <String, Offset>{for (final tag in tags) 'tag:$tag': _tagPositions['tag:$tag']!};
@@ -1422,14 +1498,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             {for (final r in records) r.id: {if (!_hideTags) ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
           if (records.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
             icon: const Icon(Icons.add), label: Text(_query.isNotEmpty ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
-          for (final record in records) Positioned(left: _positions[record.id]!.dx - ThoughtInteraction.hitPadding, top: _positions[record.id]!.dy - ThoughtInteraction.hitPadding,
+          for (final record in records) Positioned(key: ValueKey('canvas-card-slot-${record.id}'), left: visiblePositions[record.id]!.dx - ThoughtInteraction.hitPadding, top: visiblePositions[record.id]!.dy - ThoughtInteraction.hitPadding,
             child: ThoughtInteraction(key: ValueKey('canvas-thought-${record.id}'), size: _size(record.id), desktop: MediaQuery.sizeOf(context).width >= 760,
                 groupLifted: _selectionLifted && _selected.contains(record.id),
                 onLift: () => setState(() {
                   _liftedThought = record.id;
                   _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
                 }),
-                onActiveChanged: (active) => setState(() { if (active) { _rememberStacks(); _thoughtDragOrigins.putIfAbsent(record.id, () => _positions[record.id]!); _dragStartStacks.putIfAbsent(record.id, () => alignedStackMembers(record.id, _positions,groups:_layout.stackGroups)); } _draggingId = active ? record.id : null; if (!active) { _hoverBox = null; _dropHighlights.clear(); } }),
+                onActiveChanged: (active) => setState(() { if (active) { _rememberStacks(); _thoughtDragOrigins.putIfAbsent(record.id, () => _positions[record.id]!); _dragStartStacks.putIfAbsent(record.id, () => alignedStackMembers(record.id, _positions,groups:_layout.stackGroups)); } _draggingId = active ? record.id : null; if (!active) { _hoverBox = null; _dropHighlights.clear(); _stackPreview = null; } }),
                 onTap: () async {
                   if (_detailOpen) return;
                   if (_selectionMode) { setState(() => _toggleThoughtSelection(record.id)); return; }
@@ -1438,13 +1514,19 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   finally { _detailOpen=false; }
                 },
                 onMove: (delta) => _updateCanvas(() { final previous = _positions[record.id]!; final p = previous + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
-                  if (_liftBoxes.isEmpty) _displaceNeighbors({record.id});
-                  _rememberStacks();
-                  final target = records.where((r) => r.id != record.id && _bounds(r.id).overlaps(_bounds(record.id))).lastOrNull;
-                  final stackPositions = Map<String, Offset>.of(_positions);
-                  final origin = _thoughtDragOrigins[record.id];
-                  if (origin != null) stackPositions[record.id] = origin;
-                  _dropHighlights..clear()..addAll(target == null ? <String>{} : alignedStackMembers(target.id, stackPositions,groups:_layout.stackGroups)..remove(record.id));
+                  _stackPreview = _findStackInsertion(record.id, records);
+                  if (_stackPreview == null && _liftBoxes.isEmpty) _displaceNeighbors({record.id});
+                  _dropHighlights.clear();
+                  if (_stackPreview case final preview?) {
+                    _dropHighlights.addAll(preview.members.where((id) => id != record.id));
+                  } else if (!widget.blocks) {
+                    final target = records.where((r) =>
+                      r.id != record.id && _bounds(r.id).overlaps(_bounds(record.id))).lastOrNull;
+                    if (target != null) {
+                      _dropHighlights.addAll(alignedStackMembers(target.id, _positions,
+                        groups: _layout.stackGroups)..remove(record.id));
+                    }
+                  }
                   final center = _bounds(record.id).center;
                   _hoverBox = regions.where((r) => !r.box.elementIds.contains(record.id) && _inside(r.bounds, center)).firstOrNull?.box;
                   _saveLayout(); }),
@@ -1465,7 +1547,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   final originalStack = _dragStartStacks[record.id] ?? <String>{};
                   final nearOriginal = origin != null && (_positions[record.id]! - origin).distance <= tolerance;
                   if (origin != null && ( (_positions[record.id]! - origin).distance < .5 ||
-                      (nearOriginal && originalStack.length > 1 && originalStack.any((id) => id != record.id && _positions.containsKey(id) && _bounds(id).overlaps(_bounds(record.id)))))) {
+                      (!widget.blocks && nearOriginal && originalStack.length > 1 && originalStack.any((id) => id != record.id && _positions.containsKey(id) && _bounds(id).overlaps(_bounds(record.id)))))) {
                     _positions[record.id] = origin;
                     _dropHighlights.clear(); _liftBoxes.clear();
                     _saveLayout(flush: true);
@@ -1474,18 +1556,29 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
                   final center = scene?.globalToLocal(pointer) ?? _bounds(record.id).center;
                   _rememberStacks();
-                  final target = records.where((r) => r.id != record.id && _bounds(r.id).overlaps(_bounds(record.id))).lastOrNull;
-                  final snap = target == null
-                    ? snapThought(_bounds(record.id), records.where((r) => r.id != record.id).map((r) => _bounds(r.id)),
-                        tolerance: (24 / _view.value.storage[0].abs()).clamp(12, 48))
-                    : nextStackSlot(target.id, record.id, _positions) - _positions[record.id]!;
-                  final snapped = _positions[record.id]! + snap;
-                  if (snapped.dx >= 32 && snapped.dy >= 32) _positions[record.id] = snapped;
-                  _joinStack([record.id],target?.id);
-                  if (target != null) {
-                    _layout.layers.remove(record.id);
-                    _layout.layers.add(record.id);
-                    final box = memoBoxes.where((box) => !box.isUnclassified && box.elementIds.contains(target.id)).firstOrNull;
+                  final insertion = _findStackInsertion(record.id, records);
+                  final targetId = insertion?.target ?? (widget.blocks ? null :
+                    records.where((r) => r.id != record.id && _bounds(r.id).overlaps(_bounds(record.id))).lastOrNull?.id);
+                  if (insertion != null) {
+                    _positions.addAll(insertion.positions);
+                    _insertStackLayer(_layout.layers, insertion);
+                    // The projected positions already close the source slot.
+                    _thoughtDragOrigins.remove(record.id);
+                  } else {
+                    final snap = targetId == null
+                      ? snapThought(_bounds(record.id), records.where((r) => r.id != record.id).map((r) => _bounds(r.id)),
+                          tolerance: (24 / _view.value.storage[0].abs()).clamp(12, 48))
+                      : nextStackSlot(targetId, record.id, _positions) - _positions[record.id]!;
+                    final snapped = _positions[record.id]! + snap;
+                    if (snapped.dx >= 32 && snapped.dy >= 32) _positions[record.id] = snapped;
+                  }
+                  _joinStack([record.id], targetId);
+                  if (targetId != null) {
+                    if (insertion == null) {
+                      _layout.layers.remove(record.id);
+                      _layout.layers.add(record.id);
+                    }
+                    final box = memoBoxes.where((box) => !box.isUnclassified && box.elementIds.contains(targetId)).firstOrNull;
                     if (box != null) { moveThoughtToBox(record.id, box); }
                     else { for (final box in memoBoxes.where((box) => !box.isUnclassified)) { box.elementIds.remove(record.id); } }
                     _liftBoxes.clear(); _changed(); _saveLayout(flush: true);
@@ -1520,7 +1613,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   }
                   if (detached.isNotEmpty) _changed();
                   _saveLayout(flush: true);
-                }, onEnd: () { setState(() { _liftedThought = null; if (_resizingThought == null) _closeMovedSlots(_thoughtDragOrigins); _resizingThought = null; _resizeNeighbors.clear(); _thoughtDragOrigins.remove(record.id); _dragStartStacks.remove(record.id); _dropHighlights.clear(); _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
+                }, onEnd: () { setState(() { _liftedThought = null; if (_resizingThought == null) _closeMovedSlots(_thoughtDragOrigins); _resizingThought = null; _resizeNeighbors.clear(); _thoughtDragOrigins.remove(record.id); _dragStartStacks.remove(record.id); _dropHighlights.clear(); _stackPreview = null; _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
                 child: Card(margin: EdgeInsets.zero, color: wordBackgroundColor(context, record.text),
                   shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _dropHighlights.contains(record.id) || _draggingId == record.id || (!_rangeSelection && _selected.isEmpty && _linkHoverTarget == record.id) ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) ? 3 : 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
                     color: _dropHighlights.contains(record.id) || _draggingId == record.id || (!_rangeSelection && _selected.isEmpty && _linkHoverTarget == record.id) ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) || _draggingId == record.id ? 3 : 2)),
@@ -1573,6 +1666,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               onScaleEnd: (_) => _endPinch(),
               child: AnimatedScale(scale: _selectionLifted && _selected.contains('tag:$tag') ? 1.04 : 1, duration: const Duration(milliseconds: 100), child: Tooltip(message: '#$tag', child: Material(key:ValueKey('graph-tag-body-$tag'), shape: StadiumBorder(side: BorderSide(color: Color(hashtagColors[tag] ?? 0xFF90A4AE), width: 2.5)),
               color: Color.alphaBlend(Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: .3), color.surface),child:Padding(padding:const EdgeInsets.symmetric(horizontal:10,vertical:5),child:Center(child:Text('#$tag',style:Theme.of(context).textTheme.labelLarge,maxLines:1,overflow:TextOverflow.ellipsis)))))))),
+          if (preview != null)
+            Positioned(
+              left: preview.left,
+              top: preview.top - 2,
+              width: preview.width,
+              child: IgnorePointer(child: ColoredBox(color: color.primary,
+                child: const SizedBox(height: 3))),
+            ),
           if (_rangeSelection || _selected.isNotEmpty) Positioned.fill(child: Listener(
             onPointerDown: (event) {
               if (_selectionPointers.isEmpty) {
