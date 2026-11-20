@@ -21,6 +21,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'element_store.dart';
+import 'inbox_page.dart' show showThoughtCapture;
+import '../capture/voice_transcription.dart' show fillVoiceBody;
 import 'tag_colors.dart';
 import 'hashtags.dart';
 import 'memo_boxes.dart';
@@ -1078,16 +1080,20 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void _storeChanged() { if (mounted && tabActive && _routeVisible && _appActive) setState(_sync); }
   void _changed() { widget.onChanged(); setState(_sync); }
   Future<void> _create() async {
-    var draft = '';
-    final text = await showDialog<String>(context: context, builder: (context) => AlertDialog(
-      title: const Text('생각 만들기'), content: TextField(onChanged: (value) => draft = value, autofocus: true,
-        minLines: 3, maxLines: 8, decoration: const InputDecoration(hintText: '생각을 적어주세요')),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-        FilledButton(onPressed: () { if (parseTaggedInput(draft).text.isNotEmpty) Navigator.pop(context, draft); }, child: const Text('만들기'))]));
-    if (text == null || !mounted) return;
-    final r = elements.add(text);
-    if (_filterBox != null) { moveThoughtToBox(r.id, _filterBox!); }
+    final record = await showThoughtCapture(context, widget.storage);
+    if (record == null || !mounted) return;
+    final box = _filterBox;
+    if (box != null) moveThoughtToBox(record.id, box);
     _changed();
+    fillVoiceBody(record);
+    final save = widget.onSave ?? saveWorkspaceContent;
+    try {
+      await save?.call();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('생각을 동기화하지 못했습니다. $error')),
+      );
+    }
   }
   @override
   void dispose() {

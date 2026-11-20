@@ -19,6 +19,8 @@ import 'memo_boxes.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'element_store.dart';
+import 'inbox_page.dart' show showThoughtCapture;
+import '../capture/voice_transcription.dart' show fillVoiceBody;
 import 'word_badge.dart';
 import 'packed_badges.dart';
 import 'workspace_routes.dart';
@@ -68,17 +70,21 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware, Retai
   int _scaleColumns = 2;
   void _changed() { setState(() {}); widget.onChanged?.call(); }
   Future<void> _createThought() async {
-    var draft='';
-    final text=await showDialog<String>(context:context,builder:(context)=>AlertDialog(
-      title:const Text('생각 만들기'),content:TextField(autofocus:true,minLines:3,maxLines:8,onChanged:(value)=>draft=value,decoration:const InputDecoration(hintText:'생각을 적어주세요')),
-      actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('취소')),FilledButton(onPressed:(){if(parseTaggedInput(draft).text.isNotEmpty)Navigator.pop(context,draft);},child:const Text('만들기'))]));
-    if(text==null || !mounted)return;
-    try{
-      await widget.storage?.writable();if(!mounted)return;
-      final record=elements.add(text);if(_filterBox!=null)moveThoughtToBox(record.id,_filterBox!);
-      _changed();await saveWorkspaceContent?.call();
-    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('생각을 저장하지 못했습니다. $e')));}
+    final record = await showThoughtCapture(context, widget.storage);
+    if (record == null || !mounted) return;
+    final box = _filterBox;
+    if (box != null) moveThoughtToBox(record.id, box);
+    _changed();
+    fillVoiceBody(record);
+    try {
+      await saveWorkspaceContent?.call();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('생각을 동기화하지 못했습니다. $error')),
+      );
+    }
   }
+
   ModalRoute<dynamic>? _route;
   void _refresh() { if (mounted && tabActive) setState(() {}); }
   @override
