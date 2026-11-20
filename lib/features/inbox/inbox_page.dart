@@ -1048,43 +1048,98 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     ],
   ]);
 
-  Widget _noticeBoard() {
-    final notices = elements.records.values
-        .where((thought) => thought.noticeBoardAt != null && canBrowseThought(thought))
-        .toList()
-      ..sort((a, b) {
-        final byDate = b.noticeBoardAt!.compareTo(a.noticeBoardAt!);
-        return byDate != 0 ? byDate : a.id.compareTo(b.id);
+  List<ElementRecord> _orderedNotices() => elements.records.values
+      .where((thought) => thought.noticeBoardAt != null)
+      .toList()
+    ..sort((a, b) {
+      final byOrder = (a.noticeBoardOrder ?? -1).compareTo(b.noticeBoardOrder ?? -1);
+      if (byOrder != 0) return byOrder;
+      final byDate = b.noticeBoardAt!.compareTo(a.noticeBoardAt!);
+      return byDate != 0 ? byDate : a.id.compareTo(b.id);
+    });
+
+  Future<void> _reorderNotices(List<ElementRecord> visible, int from, int to) async {
+    if (from == to || _restoreBlocked) return;
+    final visibleIds = visible.map((thought) => thought.id).toList();
+    try {
+      await widget.storage?.writable();
+      if (!mounted) return;
+      final ordered = _orderedNotices();
+      final current = ordered.where(canBrowseThought).take(noticeBoardLimit);
+      if (!listEquals(visibleIds, current.map((thought) => thought.id).toList())) return;
+      final visibleSet = visibleIds.toSet();
+      final reordered = current.toList();
+      reordered.insert(to, reordered.removeAt(from));
+      var next = 0;
+      setState(() {
+        for (var i = 0; i < ordered.length; i++) {
+          if (visibleSet.contains(ordered[i].id)) ordered[i] = reordered[next++];
+          ordered[i].noticeBoardOrder = i;
+        }
       });
-    final visibleNotices = notices.take(noticeBoardLimit).toList();
+      await _saveAndSync();
+    } catch (error) {
+      if (mounted) _captureError('알림판 순서를 저장하지 못했습니다. $error');
+    }
+  }
+
+  Widget _noticeBoard({required bool mobile}) {
+    final visible = _orderedNotices().where(canBrowseThought).take(noticeBoardLimit).toList();
+    final canReorder = visible.length > 1 && !_restoreBlocked &&
+        (widget.storage?.canvasWritable ?? true);
+    final divider = Divider(
+      height: 18,
+      thickness: 1,
+      color: colors.outlineVariant.withValues(alpha: .45),
+    );
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Divider(height: 18, thickness: 1, color: colors.outlineVariant.withValues(alpha: .45)),
-      _homeSectionTitle('알림판', count: visibleNotices.length),
+      divider,
+      _homeSectionTitle('알림판', count: visible.length),
       const SizedBox(height: 6),
-      if (visibleNotices.isEmpty)
+      if (visible.isEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Text('지금은 알릴 만한 게 없습니다.', style: TextStyle(color: colors.onSurfaceVariant)),
+        )
+      else
+        ReorderableListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          buildDefaultDragHandles: false,
+          itemCount: visible.length,
+          onReorderItem: (from, to) => _reorderNotices(visible, from, to),
+          itemBuilder: (context, index) {
+            final thought = visible[index];
+            const icon = Padding(
+              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+              child: Icon(Icons.drag_handle, size: 18),
+            );
+            return ListTile(
+              key: ValueKey('notice-board-${thought.id}'),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              minTileHeight: 38,
+              leading: canReorder
+                ? ReorderableDragStartListener(
+                    index: index,
+                    child: const Tooltip(message: '순서 바꾸기', child: icon),
+                  )
+                : icon,
+              title: Text(thought.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+              onTap: () => showElementMetadata(context, thought.text),
+            );
+          },
         ),
-      for (final thought in visibleNotices)
-        ListTile(
-          key: ValueKey('notice-board-${thought.id}'),
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          minTileHeight: 38,
-          leading: const Icon(Icons.push_pin_outlined, size: 18),
-          title: Text(thought.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-          onTap: () => showElementMetadata(context, thought.text),
-        ),
+      if (mobile) divider,
     ]);
   }
 
-  Widget _composerWithNoticeBoard(double maxHeight) => Column(
+  Widget _composerWithNoticeBoard(double maxHeight, {bool mobile = false}) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       _composer(maxHeight),
       const SizedBox(height: 4),
-      _noticeBoard(),
+      _noticeBoard(mobile: mobile),
     ],
   );
 
@@ -1335,7 +1390,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
                                 )
                               : Column(
                                   children: [
-                                    RepaintBoundary(child: _composerWithNoticeBoard(composerHeight)),
+                                    RepaintBoundary(child: _composerWithNoticeBoard(composerHeight, mobile: true)),
                                     const SizedBox(height: 24),
                                     RepaintBoundary(child: _list()),
                                   ],

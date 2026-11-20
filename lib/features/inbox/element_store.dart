@@ -51,6 +51,7 @@ class ElementRecord {
   final List<PhotoAttachment> photos = [];
   bool important = false;
   DateTime? noticeBoardAt;
+  int? noticeBoardOrder;
   bool voiceTextPending = false;
   bool hiddenFromSearch = false;
   int? labelColor;
@@ -126,6 +127,7 @@ class ElementStore extends ChangeNotifier {
         record.noticeBoardAt ??= DateTime.now().toUtc();
       } else {
         record.noticeBoardAt = null;
+        record.noticeBoardOrder = null;
       }
     }
     if (inlineLinks != null) { record.inlineLinks = List.of(inlineLinks); }
@@ -180,6 +182,7 @@ class ElementStore extends ChangeNotifier {
       if (removed == null) continue;
       removed.deletedAt = deletedAt;
       removed.noticeBoardAt = null;
+      removed.noticeBoardOrder = null;
       trash[removed.id] = removed;
       changed = true;
     }
