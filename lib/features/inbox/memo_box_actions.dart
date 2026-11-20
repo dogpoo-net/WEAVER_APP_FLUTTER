@@ -46,16 +46,16 @@ class MemoBoxActions extends StatelessWidget {
       }
     },
     itemBuilder: (_) => [
-      const PopupMenuItem(value: 'thought', child: _CreateMenuLabel(Icons.edit_note_rounded, '생각')),
-      const PopupMenuItem(value: 'box', child: _CreateMenuLabel(Icons.inventory_2_outlined, '메모상자')),
+      const PopupMenuItem(value: 'thought', child: CreateMenuLabel(Icons.edit_note_rounded, '생각')),
+      const PopupMenuItem(value: 'box', child: CreateMenuLabel(Icons.inventory_2_outlined, '메모상자')),
       if (onCreatePhoto != null)
-        const PopupMenuItem(value: 'photo', child: _CreateMenuLabel(Icons.image_outlined, '사진')),
+        const PopupMenuItem(value: 'photo', child: CreateMenuLabel(Icons.image_outlined, '사진')),
     ],
   );
 }
 
-class _CreateMenuLabel extends StatelessWidget {
-  const _CreateMenuLabel(this.icon, this.label);
+class CreateMenuLabel extends StatelessWidget {
+  const CreateMenuLabel(this.icon, this.label);
 
   final IconData icon;
   final String label;

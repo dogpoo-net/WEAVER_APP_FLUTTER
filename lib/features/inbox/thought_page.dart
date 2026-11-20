@@ -1163,8 +1163,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _deletingContainer = false;
     }
   }
-  Future<void> _createBox() async {
-    final box = await createMemoBox(context);
+  Future<void> _createBox({String? folder}) async {
+    final box = await createMemoBox(context, folder: folder);
     if (mounted && box != null) _changed();
   }
   void _remoteLayoutChanged(){
@@ -1194,11 +1194,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   void _storeChanged() { if (mounted && tabActive && _routeVisible && _appActive) setState(_sync); }
   void _changed() { widget.onChanged(); setState(_sync); }
-  Future<void> _create() async {
+  Future<void> _create({MemoBox? target, bool useFilter = true}) async {
     final record = await showThoughtCapture(context, widget.storage);
     if (record == null || !mounted) return;
-    final box = _filterBox;
-    if (box != null) moveThoughtToBox(record.id, box);
+    final box = target ?? (useFilter ? _filterBox : null);
+    if (memoBoxes.contains(box)) moveThoughtToBox(record.id, box!);
     _changed();
     fillVoiceBody(record);
     final save = widget.onSave ?? saveWorkspaceContent;
@@ -1212,6 +1212,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   @override
   void dispose() {
+    _setCanvasBrowserMenu(false);
     HardwareKeyboard.instance.removeHandler(_controlSelection);
     _activeCanvasPointers.clear();
     if(tabActive)_saveLayout(flush: true);
@@ -1479,6 +1480,58 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     }
   }
 
+  final _canvasMenu = MenuController();
+  final _canvasMenuKey = GlobalKey();
+  MemoBox? _canvasMenuBox;
+  String? _canvasMenuFolder;
+  bool _canvasOwnsBrowserMenu = false;
+  bool _canvasHovered = false;
+
+  void _setCanvasBrowserMenu(bool suppress) {
+    if (!kIsWeb || _canvasOwnsBrowserMenu == suppress) return;
+    _canvasOwnsBrowserMenu = suppress;
+    unawaited(suppress ? BrowserContextMenu.disableContextMenu()
+        : BrowserContextMenu.enableContextMenu());
+  }
+
+  List<Widget> _canvasMenuItems() {
+    final box = _canvasMenuBox;
+    final folder = _canvasMenuFolder;
+    return [
+      SubmenuButton(
+        menuChildren: [
+          if (folder == null)
+            MenuItemButton(
+              onPressed: () => _create(target: box, useFilter: false),
+              child: const CreateMenuLabel(Icons.edit_note_rounded, '생각'),
+            ),
+          if (box == null)
+            MenuItemButton(
+              onPressed: () => _createBox(folder: folder),
+              child: const CreateMenuLabel(Icons.inventory_2_outlined, '메모상자'),
+            ),
+          if (box == null && folder == null)
+            MenuItemButton(
+              onPressed: () => createWorkspacePhoto(context, widget.storage, onChanged: _changed),
+              child: const CreateMenuLabel(Icons.image_outlined, '사진'),
+            ),
+        ],
+        child: const Text('추가'),
+      ),
+      if (box != null || folder != null)
+        MenuItemButton(
+          onPressed: () {
+            if (box != null) {
+              _deleteCanvasBox(box);
+            } else {
+              _deleteCanvasFolder(folder!);
+            }
+          },
+          child: Text('‘${box?.name ?? folder}’ 삭제', overflow: TextOverflow.ellipsis),
+        ),
+    ];
+  }
+
   Widget _buildCanvas(BuildContext context, ColorScheme color) {
     final preview = _stackPreview;
     final layers = preview == null ? _layout.layers : List<String>.of(_layout.layers);
@@ -1548,15 +1601,44 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               viewport.maxHeight / 2 - (top + bottom) / 2 * scale, 0);
           });
         }
-        return Listener(
+        final canvas = Listener(
+          behavior: HitTestBehavior.opaque,
           onPointerDown:(event){
+            if (event.buttons == kSecondaryMouseButton) {
+              if (!widget.blocks || !_canEdit) return;
+              final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
+              final anchor = _canvasMenuKey.currentContext?.findRenderObject() as RenderBox?;
+              if (scene == null || anchor == null) return;
+              final point = scene.globalToLocal(event.position);
+              if (nodeRects.values.any((bounds) => bounds.contains(point))) return;
+              final box = regions.where((r) => r.bounds.contains(point)).lastOrNull;
+              final folder = box == null
+                  ? folders.entries.where((f) => f.value.contains(point)).lastOrNull
+                  : null;
+              if (box != null && _boxHeaderBounds(box.bounds).contains(point)) return;
+              if (folder != null &&
+                  point.dy < folder.value.top + MemoFolderRegion.headerHeight) return;
+              final position = anchor.globalToLocal(event.position);
+              _canvasMenu.close();
+              setState(() {
+                _canvasMenuBox = box?.box;
+                _canvasMenuFolder = folder?.key;
+              });
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted && _canEdit && _canvasMenuKey.currentContext != null) {
+                  _canvasMenu.open(position: position);
+                }
+              });
+              return;
+            }
             if (widget.blocks && _canEdit && _activeCanvasPointers.isEmpty) {
               _gestureBefore = _captureCanvas();
             }
             _activeCanvasPointers.add(event.pointer);widget.storage?.canvasInteracting=true;if(_canvasTapPointer!=null){_canvasTapDown=null;return;}_canvasTapPointer=event.pointer;_canvasTapDown=event.position;},
           onPointerMove:(event){if(_canvasTapDown!=null&&(event.position-_canvasTapDown!).distance>4)_canvasTapDown=null;},
-          onPointerCancel:(event){_pointerFinished(event.pointer);_canvasTapDown=null;_canvasTapPointer=null;},
+          onPointerCancel:(event){if (!_activeCanvasPointers.contains(event.pointer)) return;_pointerFinished(event.pointer);_canvasTapDown=null;_canvasTapPointer=null;},
           onPointerUp:(event){
+            if (!_activeCanvasPointers.contains(event.pointer)) return;
             _pointerFinished(event.pointer);
             final click=_canvasTapPointer==event.pointer&&_canvasTapDown!=null;
             _canvasTapDown=null;_canvasTapPointer=null;
@@ -1893,7 +1975,25 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               ..._containerResizeEdges('box:${region.box.name}', region.bounds),
           ],
         ])))),
-      )); })),
+      ));
+        if (!widget.blocks || !_canEdit) return canvas;
+        return MouseRegion(
+          onEnter: (_) {
+            _canvasHovered = true;
+            _setCanvasBrowserMenu(true);
+          },
+          onExit: (_) {
+            _canvasHovered = false;
+            if (!_canvasMenu.isOpen) _setCanvasBrowserMenu(false);
+          },
+          child: MenuAnchor(
+            controller: _canvasMenu,
+            onClose: () => _setCanvasBrowserMenu(_canvasHovered),
+            menuChildren: _canvasMenuItems(),
+            child: SizedBox.expand(key: _canvasMenuKey, child: canvas),
+          ),
+        );
+      })),
         if (_canEdit && records.any((record) => _selected.contains(record.id) &&
             !workspacePhotos.containsKey(record.id)))
           Positioned(bottom: 8, left: 0, right: 0, child: Center(

@@ -42,7 +42,7 @@ class MemoDrag {
   final String id;
 }
 
-Future<MemoBox?> createMemoBox(BuildContext context) async {
+Future<MemoBox?> createMemoBox(BuildContext context, {String? folder}) async {
   var draft = '';
   final name = await showDialog<String>(context: context, builder: (context) => AlertDialog(
     title: const Text('메모상자 만들기'),
@@ -56,7 +56,7 @@ Future<MemoBox?> createMemoBox(BuildContext context) async {
   if (name == '미분류') return ensureUnclassifiedBox();
   final existing = memoBoxes.where((box) => box.name == name);
   if (existing.isNotEmpty) return existing.first;
-  final box = MemoBox(name);
+  final box = MemoBox(name, folder: memoBoxFolders.contains(folder) ? folder : null);
   memoBoxes.add(box);
   return box;
 }
