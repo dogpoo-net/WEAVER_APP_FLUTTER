@@ -6,6 +6,7 @@ import '../inbox/memo_comments.dart';
 import 'package:collection/collection.dart';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data' show Uint8List;
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import '../auth/email_auth.dart';
@@ -386,6 +387,16 @@ class WorkspaceSync extends ChangeNotifier {
     for(final raw in result['changes'] as List){final item=Map<String,dynamic>.from(raw as Map);item['value']=item['payload']==null?null:jsonDecode(item.remove('payload') as String);base[itemKey(item['kind'],item['id'])]=item;}
     cursor=result['revision'] as int;
   }
+  late final Future<Uint8List?> Function(String) _readAttachment = (id) async {
+    try {
+      final result = await request('media/read', {'mediaId': id});
+      return base64Decode(result['data'] as String);
+    } on EmailAuthFailure {
+      // A missing or temporarily unavailable attachment can be opened again.
+      return null;
+    }
+  };
+
   Future<void> ensureMedia(String raw) async {
     final snapshot=WorkspaceSnapshot.decode(raw);
     final ids = {
@@ -435,12 +446,19 @@ class WorkspaceSync extends ChangeNotifier {
           if(local[key]==null){displayed.remove(key);}else{displayed[key]=local[key]!;}
         }
       }
-      final raw=joinWorkspace(displayed);await ensureMedia(raw);
-      await storage.replaceFromBackup(raw);
+      final raw = joinWorkspace(displayed);
+      if (serverCanvas || storage.read() == null ||
+          {...local.keys, ...displayed.keys}.any((key) => !sameItem(local[key], displayed[key]))) {
+        await storage.replaceFromBackup(raw);
+      }
       if(serverCanvas)await storage.preferences.remove(_canvasOutbox);
       _lastSynced=joinWorkspace(base);
       await saveBase();_observedRevision=result['revision'] as int;ready=true;error=null;
     }catch(e){if(networkPending&&!wasPending){base=initialBase;await storage.preferences.setString(recoveryKey,jsonEncode(base));}error=networkPending?null:e.toString();}
+    final attachmentOwner = storage.owner;
+    if (!_disposed && isCurrent() && attachmentOwner != null) {
+      MediaStorage.remoteReaders[attachmentOwner] = _readAttachment;
+    }
     storage.canvasWritable=!readOnly;storage.syncCanvas=flushCanvas;
     storage.itemMetadata=(kind,id)=>base[itemKey(kind,id)];
     storage.comments=request;storage.commentsWritable=!readOnly;
@@ -648,5 +666,10 @@ class WorkspaceSync extends ChangeNotifier {
     await storage.flush();if(storage.read()==_lastSynced){final raw=storage.read();await storage.clear();await storage.preferences.remove(storage.syncKey);
       if(raw!=null){final snapshot=WorkspaceSnapshot.decode(raw);for(final r in [...snapshot.records,...snapshot.trashRecords]){for(final id in [...r.photos.map((p)=>p.id),...r.recordings.map((c)=>c.id)]){try{await MediaStorage.delete(id,owner:storage.owner);}catch(_){}await storage.preferences.remove(storage.scoped('media-sent.$id'));}}}}
   }
-  @override void dispose(){memoCommentCounts.value={};_disposed=true;_networkTimer?.cancel();_canvasTimer?.cancel();storage.syncCanvas=null;storage.comments=null;storage.commentsWritable=false;storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.watchRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;storage.inspectLease=null;storage.acquireLease=null;super.dispose();}
+  @override void dispose(){
+    final owner = storage.owner;
+    if (owner != null && identical(MediaStorage.remoteReaders[owner], _readAttachment)) {
+      MediaStorage.remoteReaders.remove(owner);
+    }
+    memoCommentCounts.value={};_disposed=true;_networkTimer?.cancel();_canvasTimer?.cancel();storage.syncCanvas=null;storage.comments=null;storage.commentsWritable=false;storage.onChanged=null;storage.syncNow=null;storage.syncDeleted=null;storage.syncFolders=null;storage.refreshNow=null;storage.checkRemote=null;storage.watchRemote=null;storage.syncContent=null;storage.syncResource=null;storage.reloadResource=null;storage.takeLease=null;storage.inspectLease=null;storage.acquireLease=null;super.dispose();}
 }

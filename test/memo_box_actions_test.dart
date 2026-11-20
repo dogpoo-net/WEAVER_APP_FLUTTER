@@ -6,7 +6,6 @@ import 'package:weaver/features/inbox/workspace_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/memo_box_actions.dart';
 import 'package:weaver/features/inbox/memo_boxes.dart';
-import 'package:weaver/features/inbox/thought_filters.dart';
 import 'package:weaver/features/inbox/all_thoughts_page.dart';
 import 'package:weaver/features/inbox/workspace_menu.dart';
 
@@ -18,22 +17,24 @@ void main() {
     final storage=WorkspaceStorage(await SharedPreferences.getInstance());await storage.write(WorkspaceSnapshot.encode([]));
     var deleted=0,folders=0;storage.syncDeleted=()async{deleted++;};storage.syncFolders=()async{folders++;};
     await tester.pumpWidget(MaterialApp(home:InboxPage(storage:storage,themeMode:ThemeMode.light,onThemeChanged:(_){})));await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('메뉴 열기'));await tester.pumpAndSettle();await tester.ensureVisible(find.byTooltip('폴더 폴더 관리'));await tester.tap(find.byTooltip('폴더 폴더 관리'));await tester.pumpAndSettle();await tester.tap(find.text('폴더 삭제'));await tester.pumpAndSettle();await tester.tap(find.text('삭제'));await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('메뉴 열기'));await tester.pumpAndSettle();await tester.ensureVisible(find.byTooltip('폴더 폴더 관리'));await tester.tap(find.byTooltip('폴더 폴더 관리'));await tester.pumpAndSettle();await tester.tap(find.text('폴더 삭제'));await tester.pumpAndSettle();await tester.tap(find.text('내용 유지'));await tester.pumpAndSettle();
     expect(folders,1);expect(memoBoxFolders,isEmpty);expect(memoBoxes.firstWhere((b)=>b.name=='상자').folder,isNull);expect(elements.records,contains('보관된 메모'));
     await tester.tap(find.byTooltip('메뉴 닫기'));await tester.pumpAndSettle();await tester.tap(find.byKey(const ValueKey('thoughts-all')));await tester.pumpAndSettle();await tester.tap(find.text('메모상자').last);await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('thought-filter-box-상자')));await tester.pumpAndSettle();await tester.tap(find.byTooltip('메모상자 관리'));await tester.pumpAndSettle();await tester.tap(find.text('상자 삭제'));await tester.pumpAndSettle();await tester.tap(find.text('삭제'));await tester.pumpAndSettle();await tester.tap(find.text('삭제'));await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('상자 상자 삭제'));await tester.pumpAndSettle();
+    await tester.tap(find.text('내용 유지'));await tester.pumpAndSettle();
     expect(deleted,0);expect(elements.records,contains('보관된 메모'));expect(ensureUnclassifiedBox().elementIds,contains(record.id));expect(elements.trash,isEmpty);expect(memoBoxes.any((b)=>b.name=='상자'),isFalse);
     expect(WorkspaceSnapshot.decode(storage.read()!).records,hasLength(1));await tester.pumpWidget(const SizedBox());
   });
-  testWidgets('Box deletion requires selection and two confirmations; cancel changes nothing', (tester) async {
-    final box=MemoBox('삭제 대상');memoBoxes.add(box);ensureUnclassifiedBox();final filters=ThoughtFilterSelection(initialBox:box);Set<String>? deleted;
-    await tester.pumpWidget(MaterialApp(home:Scaffold(body:MemoBoxActions(filters:filters,onCreate:(){},onDelete:(names)async{deleted=names;}))));
-    await tester.tap(find.byTooltip('메모상자 관리'));await tester.pumpAndSettle();await tester.tap(find.text('메모상자 삭제'));await tester.pumpAndSettle();
-    expect(deleted,isNull);expect(find.text('삭제 대상'),findsOneWidget);
-    await tester.tap(find.text('삭제'));await tester.pumpAndSettle();expect(find.text('정말 삭제하시겠습니까?'),findsOneWidget);expect(find.textContaining('포함된 메모는 전부 사라지고'),findsOneWidget);
-    await tester.tap(find.text('취소'));await tester.pumpAndSettle();expect(deleted,isNull);
-    await tester.tap(find.byTooltip('메모상자 관리'));await tester.pumpAndSettle();await tester.tap(find.text('메모상자 삭제'));await tester.pumpAndSettle();await tester.tap(find.text('삭제'));await tester.pumpAndSettle();await tester.tap(find.text('삭제'));await tester.pumpAndSettle();expect(deleted,{'삭제 대상'});
-    await tester.pumpWidget(const SizedBox());filters.dispose();
+  testWidgets('The box add menu only offers creation actions', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: MemoBoxActions(
+      onCreate: () {},
+      onCreateThought: () {},
+    ))));
+    await tester.tap(find.byTooltip('메모상자 관리'));
+    await tester.pumpAndSettle();
+    expect(find.text('생각 만들기'), findsOneWidget);
+    expect(find.text('상자 만들기'), findsOneWidget);
+    expect(find.text('상자 삭제'), findsNothing);
   });
   testWidgets('Opening overview and selecting another tab requests fresh server changes', (tester) async {
     var reads=0;await tester.pumpWidget(MaterialApp(home:AllThoughtsPage(notes:[],onRefresh:()async{reads++;})));

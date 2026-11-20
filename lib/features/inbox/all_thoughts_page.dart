@@ -79,11 +79,6 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware, Retai
       _changed();await saveWorkspaceContent?.call();
     }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('생각을 저장하지 못했습니다. $e')));}
   }
-  Future<void> _removeBoxes(Set<String> names)async{
-    await widget.storage?.writable();if(!mounted)return;
-    removeMemoBoxesKeepingThoughts(names);_filters.boxes.removeWhere((box)=>names.contains(box.name));
-    _changed();await saveWorkspaceContent?.call();await widget.storage?.syncFolders?.call();
-  }
   ModalRoute<dynamic>? _route;
   void _refresh() { if (mounted && tabActive) setState(() {}); }
   @override
@@ -215,7 +210,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware, Retai
       IconButton(tooltip: '음성 있는 생각', isSelected: _audioOnly,
         style: IconButton.styleFrom(backgroundColor: _audioOnly ? Theme.of(context).colorScheme.primaryContainer : null),
         icon: const Icon(Icons.volume_up_outlined), onPressed: () => setState(() => _audioOnly = !_audioOnly)),
-      if(widget.storage?.canvasWritable??true)MemoBoxActions(filters: _filters, preserveThoughts:true,onCreateThought:_createThought,onDelete:_removeBoxes, onCreate: () async { final box = await createMemoBox(context); if (mounted && box != null) _changed(); }),
+      if(widget.storage?.canvasWritable??true)MemoBoxActions(onCreateThought:_createThought, onCreate: () async { final box = await createMemoBox(context); if (mounted && box != null) _changed(); }),
       IconButton(tooltip: _square ? '바둑판식 보기 · 행으로 전환' : '행으로 보기 · 바둑판으로 전환', icon: Icon(_square ? Icons.grid_view : Icons.view_stream), onPressed:_toggleViewMode),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('생각 보기 안내'),

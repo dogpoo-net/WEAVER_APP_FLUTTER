@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'memo_boxes.dart';
-import 'thought_filters.dart';
 
 enum ContainerDeletion { containerOnly, withThoughts }
 
@@ -26,57 +24,29 @@ Future<ContainerDeletion?> confirmContainerDeletion(
 );
 
 class MemoBoxActions extends StatelessWidget {
-  const MemoBoxActions({super.key, required this.filters, required this.onCreate, this.onDelete,this.onCreateThought,this.preserveThoughts=false,this.onDeleteWithContents});
-  final ThoughtFilterSelection filters;
-  final VoidCallback onCreate;
-  final VoidCallback? onCreateThought;
-  final bool preserveThoughts;
-  String get boxLabel=>preserveThoughts?'상자':'메모상자';
-  final Future<void> Function(Set<String>)? onDelete;
-  final Future<void> Function(Set<String>, ContainerDeletion)? onDeleteWithContents;
-  Future<void> remove(BuildContext context) async {
-    final candidates = (filters.boxes.isEmpty ? memoBoxes : filters.boxes).where((b) => !b.isUnclassified).toList();
-    final selected = filters.boxes.where((b) => !b.isUnclassified).map((b) => b.name).toSet();
-    final accepted = await showDialog<bool>(context: context, builder: (context) => StatefulBuilder(builder: (context, update) => AlertDialog(
-      title: Text('$boxLabel 삭제'),
-      content: SizedBox(width: 360, child: candidates.isEmpty ? const Text('삭제할 메모상자가 없습니다. 미분류 상자는 삭제할 수 없습니다.') : SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        for (final b in candidates) CheckboxListTile(contentPadding: EdgeInsets.zero, title: Text(b.name), value: selected.contains(b.name), onChanged: (value) => update(() { if (value == true) { selected.add(b.name); } else { selected.remove(b.name); } })),
-      ]))),
-      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')), TextButton(onPressed: selected.isEmpty ? null : () => Navigator.pop(context, true), child: const Text('삭제'))],
-    )));
-    if (accepted != true || !context.mounted) return;
-    final deleteWithContents = onDeleteWithContents;
-    if (deleteWithContents != null) {
-      final choice = await confirmContainerDeletion(
-        context, selected.join(', '),
-      );
-      if (choice == null || !context.mounted) return;
-      try {
-        await deleteWithContents(selected, choice);
-      } catch (error) {
-        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('상자 삭제를 저장하지 못했습니다. $error')),
-        );
+  const MemoBoxActions({super.key, required this.onCreate, required this.onCreateThought});
+
+  final VoidCallback onCreate, onCreateThought;
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<String>(
+    style: IconButton.styleFrom(
+      fixedSize: const Size(36, 40),
+      padding: EdgeInsets.zero,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    ),
+    tooltip: '메모상자 관리',
+    icon: const Icon(Icons.add),
+    onSelected: (action) {
+      if (action == 'thought') {
+        onCreateThought();
+      } else {
+        onCreate();
       }
-      return;
-    }
-    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
-      title: const Text('정말 삭제하시겠습니까?'),
-      content: Text('${selected.join(', ')}\n\n${preserveThoughts?'포함된 생각은 삭제하지 않고 미분류로 이동합니다.':'포함된 메모는 전부 사라지고 되돌릴 수 없어요.'}'),
-      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')), TextButton(style: TextButton.styleFrom(foregroundColor: const Color(0xFFD64550)), onPressed: () => Navigator.pop(context, true), child: const Text('삭제'))],
-    ));
-    if (confirmed != true || !context.mounted) return;
-    try {
-      await onDelete?.call(selected);
-      filters.boxes.removeWhere((b) => selected.contains(b.name)); filters.toggle(null, null);
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('메모상자를 삭제했습니다.')));
-    } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('삭제 동기화를 완료하지 못했습니다. 다시 시도해주세요. $e')));
-    }
-  }
-  @override Widget build(BuildContext context) => PopupMenuButton<String>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '메모상자 관리', icon: const Icon(Icons.add), onSelected: (action) { if(action=='thought'){onCreateThought?.call();}else if (action == 'create') { onCreate(); } else { remove(context); } }, itemBuilder: (_) => [
-    if(onCreateThought!=null)const PopupMenuItem(value:'thought',child:Text('생각 만들기')),
-    PopupMenuItem(value: 'create', child: Text('$boxLabel 만들기')),
-    PopupMenuItem(value: 'delete', enabled: onDelete != null || onDeleteWithContents != null, child: Text('$boxLabel 삭제')),
-  ]);
+    },
+    itemBuilder: (_) => const [
+      PopupMenuItem(value: 'thought', child: Text('생각 만들기')),
+      PopupMenuItem(value: 'create', child: Text('상자 만들기')),
+    ],
+  );
 }

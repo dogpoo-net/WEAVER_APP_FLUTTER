@@ -90,12 +90,12 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     }
   }
 
-  Future<void> open() async {
+  Future<void> open({bool usePickerCatalog = false}) async {
     final run = ++generation;
     bool valid() => current && run == generation && !erasingAccount;
     try {
       final owned = OwnedWorkspaces(widget.root);
-      await owned.initialize();
+      if (!usePickerCatalog) await owned.initialize();
       if (!valid()) return;
       WorkspaceStorage target;
       if (account == 'guest') {
@@ -135,8 +135,24 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         }
         Map<String,dynamic> list;
         final catalogKey='weaver.catalog.$account';
-        try{list=await widget.auth.emailApi.workspace('catalog', {});await widget.root.preferences.setString(catalogKey,jsonEncode(list));}
-        catch(e){if(e is! EmailAuthFailure||!e.networkUnavailable)rethrow;final cached=widget.root.preferences.getString(catalogKey);if(cached==null)rethrow;list=Map<String,dynamic>.from(jsonDecode(cached));}
+        if (usePickerCatalog) {
+          list = {
+            'workspaces': catalog,
+            'defaultWorkspaceId': primaryWorkspace,
+            'isAdmin': isAdmin,
+            'invitations': pendingInvites,
+          };
+        } else {
+          try {
+            list = await widget.auth.emailApi.workspace('catalog', {});
+            await widget.root.preferences.setString(catalogKey, jsonEncode(list));
+          } catch (e) {
+            if (e is! EmailAuthFailure || !e.networkUnavailable) rethrow;
+            final cached = widget.root.preferences.getString(catalogKey);
+            if (cached == null) rethrow;
+            list = Map<String, dynamic>.from(jsonDecode(cached));
+          }
+        }
 
         if (!valid()) return;
         catalog = list['workspaces'] as List;
@@ -385,9 +401,23 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
   }
   Future<void> openOffline(OwnedWorkspaces owned,WorkspaceStorage source,String id,bool Function() valid)async{
     final local=owned.scope(OfflineWorkspace.owner(account,id));
-    if(local.read()==null||!OfflineWorkspace.hasChanges(local)){
-      if(source.read()==null){final reader=WorkspaceSync(source,widget.auth.emailApi,workspaceId:id,readOnly:true,isCurrent:valid);try{await reader.initialize();if(!reader.ready)throw StateError(reader.error??'서버 자료를 가져오지 못했습니다.');}finally{reader.dispose();}}
-      await OfflineWorkspace.seed(local,source);
+    final cached = source.read();
+    final localData = local.read();
+    final baseline = local.preferences.getString(OfflineWorkspace.baseline(local));
+    if (localData == null || (cached != baseline && !OfflineWorkspace.hasChanges(local))) {
+      if (cached == null) {
+        final reader = WorkspaceSync(source, widget.auth.emailApi,
+          workspaceId: id, readOnly: true, isCurrent: valid);
+        try {
+          await reader.initialize();
+          if (!reader.ready) throw StateError(reader.error ?? '서버 자료를 가져오지 못했습니다.');
+          await reader.ensureMedia(source.read()!);
+        } finally {
+          reader.dispose();
+        }
+      }
+      if (!valid()) return;
+      await OfflineWorkspace.seed(local, source);
     }
     if(!valid())return;
     await local.preferences.setBool(OfflineWorkspace.activeKey(local),true);
@@ -422,7 +452,14 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     if(current){final result=await widget.auth.emailApi.workspace('catalog',{});if(current)setState(()=>isAdmin=result['isAdmin']==true);storage?.openAdmin=isAdmin?openAdmin:null;}
   }
   Future<void> chooseWorkspace()async{
-    try{final result=await widget.auth.emailApi.workspace('catalog',{});if(!current)return;catalog=result['workspaces'] as List;}catch(_){if(!mounted)return;ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('워크스페이스 목록을 불러오지 못했습니다.')));return;}
+    try{final result=await widget.auth.emailApi.workspace('catalog',{});if(!current)return;
+      catalog=result['workspaces'] as List;
+      primaryWorkspace=result['defaultWorkspaceId'] as String?;
+      isAdmin=result['isAdmin']==true;
+      pendingInvites=result['invitations'] as List;
+      invitations=pendingInvites.length;
+      unawaited(widget.root.preferences.setString('weaver.catalog.$account',jsonEncode(result)).then<void>((_) {}, onError:(Object _) {}));
+    }catch(_){if(!mounted)return;ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('워크스페이스 목록을 불러오지 못했습니다.')));return;}
     if(!mounted)return;
     final id=await showDialog<String>(context:context,builder:(context)=>WorkspacePicker(
       workspaces:catalog,selected:selected,
@@ -456,7 +493,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         if(active!=null)storage?.workspaceName=active['name'] as String?;
       },
     ));
-    if(current && (id!=null || !catalog.any((row)=>row['workspaceId']==selected)))await switchWorkspace(id, force:true,relinquished: !catalog.any((row)=>row['workspaceId']==selected));
+    if(current && (id!=null || !catalog.any((row)=>row['workspaceId']==selected)))await switchWorkspace(id, force:true,relinquished: !catalog.any((row)=>row['workspaceId']==selected), usePickerCatalog:true);
   }
 
   Future<void> openNotification(Map<String,dynamic> item) async {
@@ -477,7 +514,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     }
   }
 
-  Future<void> switchWorkspace(String? id,{bool force=false,bool relinquished=false}) async {
+  Future<void> switchWorkspace(String? id,{bool force=false,bool relinquished=false,bool usePickerCatalog=false}) async {
     if (!current || (!force && selected == id)) return;
     if (storage?.hasUnsavedInput?.call() == true) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -509,7 +546,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
       storage = null;
       failure = null;
     });
-    await open();
+    await open(usePickerCatalog:usePickerCatalog);
   }
 
   @override
