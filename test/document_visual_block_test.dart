@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/document_markup.dart';
 import 'package:weaver/features/inbox/document_rich_editor.dart';
@@ -32,11 +33,18 @@ void main() {
     );
     await tester.pump();
     final divider = find.byType(DocumentVisualBlockView).first;
+    final originalPhotoTop = tester
+        .getTopLeft(find.byType(DocumentVisualBlockView).last)
+        .dy;
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: Offset.zero);
     await mouse.moveTo(tester.getCenter(divider));
     await tester.pump();
     final center = find.byTooltip('구분선 가운데 정렬');
+    expect(
+      tester.getTopLeft(find.byType(DocumentVisualBlockView).last).dy,
+      originalPhotoTop,
+    );
     expect(
       tester.getCenter(center).dy,
       greaterThan(tester.getBottomLeft(divider).dy),
@@ -46,8 +54,12 @@ void main() {
     await tester.tap(center);
     await tester.pump();
     expect(source, contains('| ----- |'));
+    await tester.tap(find.byTooltip('구분선 너비 늘리기'));
+    await tester.pump();
+    expect(source, contains('| ----- {width=70%} |'));
     await mouse.removePointer();
     await tester.pump();
+    expect(center, findsNothing);
 
     final photo = find.byType(DocumentVisualBlockView).last;
     await tester.tap(photo);
@@ -55,6 +67,9 @@ void main() {
     await tester.tap(find.byTooltip('사진 오른쪽 정렬'));
     await tester.pump();
     expect(source, contains('| <photo id="photo-1">|'));
+    await tester.tap(find.byTooltip('사진 너비 줄이기'));
+    await tester.pump();
+    expect(source, contains('| <photo id="photo-1" width="90%">|'));
 
     await tester.pumpWidget(
       MaterialApp(
@@ -69,7 +84,52 @@ void main() {
         .toList();
     expect(blocks[0].block.alignment, DocumentBlockAlignment.center);
     expect(blocks[1].block.alignment, DocumentBlockAlignment.right);
+    expect(blocks.map((view) => view.block.widthPercent), [70, 90]);
   });
+
+  testWidgets(
+    'selected visual blocks can be deleted with keyboard or toolbar',
+    (tester) async {
+      var source = '본문\n-----\n-----\n-----\n끝';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DocumentRichEditor(
+              source: source,
+              links: const [],
+              onPatch: (start, end, replacement) =>
+                  source = source.replaceRange(start, end, replacement),
+              onLinkHover: (_) {},
+              onInsertFootnote: null,
+              onInsertTable: null,
+              modeSwitch: const SizedBox(),
+              dirty: false,
+              diagnostics: const [],
+              onSyntaxDiagnostic: (_, _, {touch = false}) {},
+            ),
+          ),
+        ),
+      );
+      for (final key in [
+        LogicalKeyboardKey.backspace,
+        LogicalKeyboardKey.delete,
+      ]) {
+        await tester.tap(find.byType(DocumentVisualBlockView).first);
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(key);
+        await tester.pumpAndSettle();
+      }
+      expect(find.byType(DocumentVisualBlockView), findsOneWidget);
+      await tester.tap(find.byType(DocumentVisualBlockView));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('구분선 삭제'));
+      await tester.pumpAndSettle();
+      expect(find.byType(DocumentVisualBlockView), findsNothing);
+      expect(source, startsWith('본문\n'));
+      expect(source, endsWith('\n끝'));
+      expect(source, isNot(contains('-----')));
+    },
+  );
 
   testWidgets('the rich toolbar adds a five-hyphen divider to source', (
     tester,

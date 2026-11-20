@@ -66,8 +66,8 @@ void main() {
       TextSelection.collapsed(offset: plain.indexOf('가운데') + 1),
       quill.ChangeSource.local,
     );
-    await tester.ensureVisible(find.byTooltip('각주 관리'));
-    await tester.tap(find.byTooltip('각주 관리'));
+    await tester.ensureVisible(find.byTooltip('각주'));
+    await tester.tap(find.byTooltip('각주'));
     await tester.pumpAndSettle();
     expect(find.text('아직 각주가 없습니다.'), findsOneWidget);
     await tester.tap(find.byTooltip('각주 추가'));
@@ -96,7 +96,7 @@ void main() {
     expect(source.text, contains('**가[^note-1]운데**'));
     expect(source.text, contains('[^note-1]: 참고 내용'));
 
-    expect(find.byTooltip('각주 관리'), findsNothing);
+    expect(find.byTooltip('각주'), findsNothing);
     await tester.tap(find.text('서식 편집'));
     await tester.pumpAndSettle();
     final reopened = tester
@@ -108,8 +108,8 @@ void main() {
       ),
       quill.ChangeSource.local,
     );
-    await tester.ensureVisible(find.byTooltip('각주 관리'));
-    await tester.tap(find.byTooltip('각주 관리'));
+    await tester.ensureVisible(find.byTooltip('각주'));
+    await tester.tap(find.byTooltip('각주'));
     await tester.pumpAndSettle();
     expect(find.text('참고 내용'), findsOneWidget);
     await tester.tap(find.text('삽입'));

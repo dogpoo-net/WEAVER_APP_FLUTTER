@@ -28,6 +28,10 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
+      elements.records['담을 생각']!.indexLabel = '자료 라벨';
+      elements.indexProject(
+        WritingProject([], [], name: '참고 문서')..document = '======참고 문서======',
+      );
       Map<String, Object?>? sent;
       final workspace = await storage()
         ..documentAiRequest = (input) async {
@@ -47,19 +51,34 @@ void main() {
       controller.selection = const TextSelection.collapsed(offset: 1);
       await tester.tap(find.byTooltip('AI 문장 생성'));
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.descendant(
-          of: find.byType(DocumentAiPanel),
-          matching: find.text('담을 생각'),
-        ),
-      );
+      final panel = find.byType(DocumentAiPanel);
+      final search = find.widgetWithText(TextField, '생각, 라벨 찾기');
+      await tester.enterText(search, '참고 문서');
       await tester.pumpAndSettle();
+      expect(find.text('담을 생각이 없습니다.'), findsOneWidget);
+      await tester.enterText(search, '자료 라벨');
+      await tester.pumpAndSettle();
+      final label = find.descendant(
+        of: panel,
+        matching: find.textContaining('라벨:자료 라벨', findRichText: true),
+      );
+      await tester.tap(label);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('생성'));
       await tester.tap(find.text('생성'));
       await tester.pumpAndSettle();
       expect(sent!['material'], '담을 생각');
       expect(sent!['length'], 'medium');
       expect(find.text('정리한 문장'), findsOneWidget);
-      await tester.tap(find.text('커서 아래에 삽입'));
+      final copy = find.byTooltip('복사');
+      final insert = find.widgetWithText(FilledButton, '현재 위치에 삽입');
+      expect(copy, findsOneWidget);
+      expect(
+        tester.getCenter(copy).dy,
+        closeTo(tester.getCenter(insert).dy, 1),
+      );
+
+      await tester.tap(find.text('현재 위치에 삽입'));
       await tester.pumpAndSettle();
       expect(controller.text, '첫 줄\n정리한 문장\n다음 줄');
     },
@@ -131,7 +150,7 @@ void main() {
       final composeTab = find.widgetWithText(InkWell, 'AI 문장 생성');
       expect(
         tester.getSize(resultTab).width,
-        closeTo(tester.getSize(panel).width / 2, 1),
+        closeTo((tester.getSize(panel).width - 10) / 2, 1),
       );
       expect(tester.getRect(composeTab).right, tester.getRect(resultTab).left);
       expect(
@@ -158,13 +177,29 @@ void main() {
       target.onAcceptWithDetails!(
         DragTargetDetails(data: badgeDrag.data!, offset: start),
       );
-      final editor = tester.widget<quill.QuillEditor>(input).controller;
-      editor.replaceText(
-        1,
-        0,
-        ' 사이에 입력 ',
-        const TextSelection.collapsed(offset: 9),
-      );
+      await tester.pumpAndSettle();
+      await tester.tapAt(end);
+      await tester.pump();
+      final editor = tester.widget<quill.QuillEditor>(input);
+      expect(editor.focusNode.hasFocus, isTrue);
+      expect(tester.testTextInput.hasAnyClients, isTrue);
+      var caret = 1;
+      for (final chunk in [' 사이에', ' 입력 ']) {
+        final original = editor.controller.plainTextEditingValue.text;
+        tester.testTextInput.updateEditingValue(
+          TextEditingValue(
+            text: original.replaceRange(caret, caret, chunk),
+            selection: TextSelection.collapsed(offset: caret + chunk.length),
+          ),
+        );
+        caret += chunk.length;
+        await tester.pump();
+        expect(
+          tester.widget<quill.QuillEditor>(input).focusNode,
+          same(editor.focusNode),
+        );
+        expect(editor.focusNode.hasFocus, isTrue);
+      }
       await tester.pumpAndSettle();
       await tester.tap(find.text('생성'));
       await tester.pumpAndSettle();

@@ -443,7 +443,8 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   double _desktopDragY = 0, _desktopDragOffset = 0;
 
   DocumentAiThought? _aiThought(String key) {
-    final thought = elements.records[key];
+    if (projectTarget(key) != null) return null;
+    final thought = labelTarget(key) ?? elements.records[key];
     if (thought == null || !canBrowseThought(thought)) return null;
     return (id: thought.id, title: thought.title, text: thought.text, tags: thought.tags);
   }
@@ -483,14 +484,14 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      showDragHandle: true,
+      showDragHandle: false,
       builder: (context) => SafeArea(
         top: false,
         child: AnimatedPadding(
           duration: const Duration(milliseconds: 150),
           padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
           child: FractionallySizedBox(
-            heightFactor: .94,
+            heightFactor: .99,
             child: _aiPanel(request, desktop: false),
           ),
         ),

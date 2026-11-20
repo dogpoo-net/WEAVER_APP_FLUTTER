@@ -16,13 +16,10 @@ class DocumentVisualBlockView extends StatelessWidget {
       DocumentBlockAlignment.right => Alignment.centerRight,
     };
     final id = block.photoId;
-    if (id != null) {
-      return Align(alignment: alignment, child: DocumentPhoto(id));
-    }
     return FractionallySizedBox(
-      widthFactor: .6,
+      widthFactor: block.widthPercent / 100,
       alignment: alignment,
-      child: const Divider(),
+      child: id == null ? const Divider() : DocumentPhoto(id),
     );
   }
 }

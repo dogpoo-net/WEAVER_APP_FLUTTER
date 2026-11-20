@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show MatrixUtils;
+import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill/quill_delta.dart' show Delta;
 
@@ -718,18 +722,19 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     section.focus!.requestFocus();
   }
 
-  void _alignBlock(
+  void _editVisualBlock(
     _Section section,
     int start,
-    DocumentBlockAlignment alignment,
+    String Function(DocumentVisualBlock) edit,
   ) {
     final newline = section.source.indexOf('\n', start);
     final end = newline < 0 ? section.source.length : newline;
-    final block = parseDocumentVisualBlock(
-      section.source.substring(start, end),
-    );
-    if (block == null || block.alignment == alignment) return;
-    final value = alignDocumentVisualBlock(block.markup, alignment);
+    final current = section.source.substring(start, end);
+    final block = parseDocumentVisualBlock(current);
+    if (block == null) return;
+    final value = edit(block);
+    if (value == current) return;
+    if (value.isEmpty) _selectedBlock = null;
     _updateSection(
       section,
       section.source.replaceRange(start, end, value),
@@ -738,6 +743,16 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
       replacement: value,
     );
   }
+
+  void _alignBlock(
+    _Section section,
+    int start,
+    DocumentBlockAlignment alignment,
+  ) => _editVisualBlock(
+    section,
+    start,
+    (block) => alignDocumentVisualBlock(block.markup, alignment),
+  );
 
   Widget _alignmentButton(
     String label,
@@ -944,6 +959,13 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                 },
                 onAlignBlock: (start, alignment) =>
                     _alignBlock(section, start, alignment),
+                onResizeBlock: (start, width) => _editVisualBlock(
+                  section,
+                  start,
+                  (block) => resizeDocumentVisualBlock(block, width),
+                ),
+                onDeleteBlock: (start) =>
+                    _editVisualBlock(section, start, (_) => ''),
                 links: [
                   for (final link in widget.links)
                     if (link.start >= sectionStart && link.end <= sectionEnd)
@@ -1059,13 +1081,11 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
               ),
               const VerticalDivider(width: 12, indent: 8, endIndent: 8),
               IconButton(
-                tooltip: '각주 관리',
-                icon: const Text('≡¹'),
-                onPressed: widget.onInsertFootnote == null
+                tooltip: '구분선 삽입',
+                icon: const Icon(Icons.horizontal_rule),
+                onPressed: widget.onInsertDivider == null
                     ? null
-                    : () => widget.onInsertFootnote!(
-                        _insertionOffset(atCaret: true),
-                      ),
+                    : () => widget.onInsertDivider!(_insertionOffset()),
               ),
               IconButton(
                 tooltip: '표 삽입',
@@ -1082,11 +1102,13 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                     : () => widget.onInsertPhoto!(_insertionOffset()),
               ),
               IconButton(
-                tooltip: '구분선 삽입',
-                icon: const Icon(Icons.horizontal_rule),
-                onPressed: widget.onInsertDivider == null
+                tooltip: '각주',
+                icon: const Text('≡¹'),
+                onPressed: widget.onInsertFootnote == null
                     ? null
-                    : () => widget.onInsertDivider!(_insertionOffset()),
+                    : () => widget.onInsertFootnote!(
+                        _insertionOffset(atCaret: true),
+                      ),
               ),
               if (headings.isNotEmpty)
                 PopupMenuButton<int>(
@@ -1425,6 +1447,8 @@ class _ProtectedDocumentSource extends StatelessWidget {
     required this.selectedBlock,
     required this.onSelectBlock,
     required this.onAlignBlock,
+    required this.onResizeBlock,
+    required this.onDeleteBlock,
     required this.links,
     required this.onLinkHover,
     required this.onCodeChanged,
@@ -1436,6 +1460,8 @@ class _ProtectedDocumentSource extends StatelessWidget {
   final int? selectedBlock;
   final ValueChanged<int> onSelectBlock;
   final void Function(int, DocumentBlockAlignment) onAlignBlock;
+  final void Function(int, int) onResizeBlock;
+  final ValueChanged<int> onDeleteBlock;
   final List<ElementBinding> links;
   final ValueChanged<String?> onLinkHover;
   final void Function(int start, String raw, String value) onCodeChanged;
@@ -1457,11 +1483,14 @@ class _ProtectedDocumentSource extends StatelessWidget {
       final block = parseDocumentVisualBlock(text);
       if (block != null) {
         return _EditableVisualBlock(
+          key: ValueKey((start, block.photoId)),
           block: block,
           selected: selectedBlock == start,
           readOnly: readOnly,
           onSelect: () => onSelectBlock(start),
           onAlign: (alignment) => onAlignBlock(start, alignment),
+          onResize: (width) => onResizeBlock(start, width),
+          onDelete: () => onDeleteBlock(start),
         );
       }
       final style = issue == null ? null : documentDiagnosticStyle(context);
@@ -1622,56 +1651,88 @@ class _ProtectedDocumentSource extends StatelessWidget {
 
 class _EditableVisualBlock extends StatefulWidget {
   const _EditableVisualBlock({
+    super.key,
     required this.block,
     required this.selected,
     required this.readOnly,
     required this.onSelect,
     required this.onAlign,
+    required this.onResize,
+    required this.onDelete,
   });
 
   final DocumentVisualBlock block;
   final bool selected, readOnly;
-  final VoidCallback onSelect;
+  final VoidCallback onSelect, onDelete;
   final ValueChanged<DocumentBlockAlignment> onAlign;
+  final ValueChanged<int> onResize;
 
   @override
   State<_EditableVisualBlock> createState() => _EditableVisualBlockState();
 }
 
 class _EditableVisualBlockState extends State<_EditableVisualBlock> {
+  final _portal = OverlayPortalController();
+  final _focus = FocusNode();
   bool _hovered = false;
 
+  void _enter() {
+    if (!_hovered) setState(() => _hovered = true);
+    if (!_portal.isShowing) _portal.show();
+  }
+
+  void _leave() {
+    _hovered = false;
+    // A pointer moving onto the toolbar can enter it in the same dispatch.
+    scheduleMicrotask(() {
+      if (!mounted || _hovered) return;
+      setState(() {});
+      if (!widget.selected) _portal.hide();
+    });
+  }
+
   @override
-  Widget build(BuildContext context) {
-    final view = DocumentVisualBlockView(widget.block);
-    if (widget.readOnly) return view;
-    final colors = Theme.of(context).colorScheme;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              onTap: widget.onSelect,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  border: widget.selected
-                      ? Border.all(color: colors.primary)
-                      : null,
-                ),
-                child: view,
-              ),
-            ),
-          ),
-          if (_hovered || widget.selected)
-            Align(
-              alignment: Alignment.center,
-              child: IconButtonTheme(
-                data: IconButtonThemeData(style: _documentToolbarButtonStyle),
-                child: Row(
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  Widget _toolbar(BuildContext context, OverlayChildLayoutInfo layout) {
+    if (widget.readOnly || (!_hovered && !widget.selected))
+      return const SizedBox.shrink();
+    final label = widget.block.photoId == null ? '구분선' : '사진';
+    final width = widget.block.widthPercent;
+    const toolbarWidth = 128.0;
+    const toolbarHeight = 64.0;
+    final anchor = MatrixUtils.transformRect(
+      layout.childPaintTransform,
+      Offset.zero & layout.childSize,
+    );
+    final size = layout.overlaySize;
+    if (!anchor.overlaps(Offset.zero & size)) return const SizedBox.shrink();
+    final above = anchor.bottom + toolbarHeight > size.height;
+    final top = (above ? anchor.top - toolbarHeight : anchor.bottom)
+        .clamp(0.0, (size.height - toolbarHeight).clamp(0.0, double.infinity));
+    return Positioned(
+      left: (anchor.center.dx - toolbarWidth / 2).clamp(
+        0.0,
+        (size.width - toolbarWidth).clamp(0.0, double.infinity),
+      ),
+      top: top,
+      width: toolbarWidth,
+      child: MouseRegion(
+        onEnter: (_) => _enter(),
+        onExit: (_) => _leave(),
+        child: Material(
+          elevation: 4,
+          color: Theme.of(context).colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(8),
+          child: IconButtonTheme(
+            data: IconButtonThemeData(style: _documentToolbarButtonStyle),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     for (final (alignment, title, icon) in [
@@ -1692,17 +1753,91 @@ class _EditableVisualBlockState extends State<_EditableVisualBlock> {
                       ),
                     ])
                       IconButton(
-                        tooltip:
-                            '${widget.block.photoId == null ? '구분선' : '사진'} $title',
+                        tooltip: '$label $title',
                         isSelected: widget.block.alignment == alignment,
                         icon: Icon(icon),
                         onPressed: () => widget.onAlign(alignment),
                       ),
+                    IconButton(
+                      tooltip: '$label 삭제',
+                      icon: const Icon(Icons.close),
+                      onPressed: widget.onDelete,
+                    ),
                   ],
                 ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: '$label 너비 줄이기',
+                      icon: const Icon(Icons.remove),
+                      onPressed: width <= 10
+                          ? null
+                          : () => widget.onResize(width - 10),
+                    ),
+                    Text(
+                      '$width%',
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                    IconButton(
+                      tooltip: '$label 너비 늘리기',
+                      icon: const Icon(Icons.add),
+                      onPressed: width >= 100
+                          ? null
+                          : () => widget.onResize(width + 10),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final view = DocumentVisualBlockView(widget.block);
+    if (widget.readOnly) return view;
+    return OverlayPortal.overlayChildLayoutBuilder(
+      controller: _portal,
+      overlayChildBuilder: _toolbar,
+      child: Focus(
+        focusNode: _focus,
+        onKeyEvent: (_, event) {
+          if (widget.selected &&
+              event is KeyDownEvent &&
+              (event.logicalKey == LogicalKeyboardKey.backspace ||
+                  event.logicalKey == LogicalKeyboardKey.delete)) {
+            widget.onDelete();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: MouseRegion(
+          onEnter: (_) => _enter(),
+          onExit: (_) => _leave(),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              canRequestFocus: false,
+              onTap: () {
+                widget.onSelect();
+                _focus.requestFocus();
+                if (!_portal.isShowing) _portal.show();
+              },
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: widget.selected
+                      ? Border.all(color: Theme.of(context).colorScheme.primary)
+                      : null,
+                ),
+                child: view,
               ),
             ),
-        ],
+          ),
+        ),
       ),
     );
   }

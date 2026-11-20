@@ -73,14 +73,18 @@ final documentFootnoteDefinition = RegExp(
   r'^\[\^([a-zA-Z0-9_-]+)\]:[ \t]+(.+)$',
 );
 final documentFootnoteReference = RegExp(r'\[\^([a-zA-Z0-9_-]+)\]');
-final documentPhoto = RegExp(r'^<photo id="([a-zA-Z0-9_-]+)">$');
+final documentPhoto = RegExp(
+  r'^<photo id="([a-zA-Z0-9_-]+)"(?: width="(\d{1,3})%")?>$',
+);
 const documentDivider = '-----';
+final _sizedDivider = RegExp(r'^----- \{width=(\d{1,3})%\}$');
 
 enum DocumentBlockAlignment { left, center, right }
 
 typedef DocumentVisualBlock = ({
   String markup,
   String? photoId,
+  int widthPercent,
   DocumentBlockAlignment alignment,
 });
 
@@ -89,13 +93,23 @@ DocumentVisualBlock? parseDocumentVisualBlock(String line) {
   final inner = wrapped ? line.substring(1, line.length - 1) : line;
   final markup = inner.trim();
   final photo = documentPhoto.firstMatch(markup);
-  if (photo == null && markup != documentDivider) return null;
+  final sizedDivider = _sizedDivider.firstMatch(markup);
+  if (photo == null && markup != documentDivider && sizedDivider == null)
+    return null;
+  final defaultWidth = photo == null ? 60 : 100;
+  final width = int.tryParse(photo?.group(2) ?? sizedDivider?.group(1) ?? '');
+
   final alignment = !wrapped || !inner.startsWith(' ')
       ? DocumentBlockAlignment.left
       : inner.endsWith(' ')
       ? DocumentBlockAlignment.center
       : DocumentBlockAlignment.right;
-  return (markup: markup, photoId: photo?.group(1), alignment: alignment);
+  return (
+    markup: markup,
+    photoId: photo?.group(1),
+    widthPercent: (width ?? defaultWidth).clamp(10, 100),
+    alignment: alignment,
+  );
 }
 
 String alignDocumentVisualBlock(
@@ -106,6 +120,17 @@ String alignDocumentVisualBlock(
   DocumentBlockAlignment.center => '| $markup |',
   DocumentBlockAlignment.right => '| $markup|',
 };
+
+String resizeDocumentVisualBlock(DocumentVisualBlock block, int width) {
+  final id = block.photoId;
+  final percent = width.clamp(10, 100);
+  final markup = id == null
+      ? (percent == 60 ? documentDivider : '$documentDivider {width=$percent%}')
+      : (percent == 100
+            ? '<photo id="$id">'
+            : '<photo id="$id" width="$percent%">');
+  return alignDocumentVisualBlock(markup, block.alignment);
+}
 
 final _documentTokens = RegExp(
   '${codeMarkup.pattern.replaceFirst(r'|$', r'|(?![\s\S])')}|'

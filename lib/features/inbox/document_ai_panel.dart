@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 
 import 'label_links.dart';
-import 'memo_boxes.dart';
+import 'word_badge.dart';
 
 typedef DocumentAiRequest = Future<Map<String, dynamic>> Function(
   Map<String, Object?> input,
@@ -38,11 +38,12 @@ class DocumentAiPanel extends StatefulWidget {
 
 class _DocumentAiPanelState extends State<DocumentAiPanel> {
   final _material = quill.QuillController.basic();
+  final _materialFocus = FocusNode();
+  final _materialScroll = ScrollController();
   final _editor = GlobalKey<quill.EditorState>();
   final _input = GlobalKey();
   final _instruction = TextEditingController();
   final _tokens = <String, DocumentAiThought>{};
-  final _boxes = <MemoBox>{};
   final _tags = <String>{};
   var _nextToken = 0;
   var _query = '', _length = 'medium';
@@ -171,6 +172,8 @@ class _DocumentAiPanelState extends State<DocumentAiPanel> {
   void dispose() {
     _material.removeListener(_materialChanged);
     _material.dispose();
+    _materialFocus.dispose();
+    _materialScroll.dispose();
     _instruction.dispose();
     super.dispose();
   }
@@ -180,75 +183,80 @@ class _DocumentAiPanelState extends State<DocumentAiPanel> {
         widget.thoughts.expand((thought) => thought.tags).toSet().toList()
           ..sort();
     final matches = widget.thoughts.where((thought) {
-      final inFilter =
-          (_boxes.isEmpty && _tags.isEmpty) ||
-          _boxes.any((box) => box.elementIds.contains(thought.id)) ||
-          thought.tags.any(_tags.contains);
-      return inFilter && thought.text.toLowerCase().contains(_query);
+      final inFilter = _tags.isEmpty || thought.tags.any(_tags.contains);
+      return inFilter &&
+          (thought.title.toLowerCase().contains(_query) ||
+              thought.text.toLowerCase().contains(_query) ||
+              thought.tags.any((tag) => tag.toLowerCase().contains(_query)));
     }).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         TextField(
-          decoration: const InputDecoration(
-            labelText: '생각 검색',
+          style: const TextStyle(fontSize: 12),
+          decoration: InputDecoration(
+            hintText: '생각, 라벨 찾기',
+            filled: true,
+            fillColor: _fieldFill,
+            border: _filledBorder,
+            enabledBorder: _filledBorder,
+            focusedBorder: _filledBorder,
             isDense: true,
-            prefixIcon: Icon(Icons.search, size: 18),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 5,
+              horizontal: 8,
+            ),
+            prefixIcon: const Icon(Icons.search, size: 16),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 28,
+              minHeight: 28,
+            ),
           ),
           onChanged: (query) =>
               setState(() => _query = query.trim().toLowerCase()),
         ),
-        SizedBox(
-          height: 100,
+        const SizedBox(height: 4),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 100),
           child: matches.isEmpty
-              ? const Center(child: Text('담을 생각이 없습니다.'))
-              : ListView.builder(
-                  primary: false,
-                  itemCount: matches.length,
-                  itemBuilder: (context, index) {
-                    final thought = matches[index];
-                    return ListTile(
-                      dense: true,
-                      title: Text(
-                        thought.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: const Icon(Icons.add, size: 18),
-                      enabled: !_busy,
-                      onTap: () => _add(thought, _material.document.length - 1),
-                    );
-                  },
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: Text('담을 생각이 없습니다.'),
+                )
+              : SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: [
+                      for (final thought in matches)
+                        WordBadge(
+                          word: thought.text,
+                          displayText: thought.title,
+                          labelTarget: thought.title != thought.text,
+                          query: _query,
+                          fullText: true,
+                          onTap: () =>
+                              _add(thought, _material.document.length - 1),
+                        ),
+                    ],
+                  ),
                 ),
         ),
-        _filterRow(Icons.inventory_2_outlined, [
-          for (final box in memoBoxes)
-            FilterChip(
-              label: Text(box.name),
-              selected: _boxes.contains(box),
-              onSelected: (selected) => setState(() {
-                if (selected) {
-                  _boxes.add(box);
-                } else {
-                  _boxes.remove(box);
-                }
-              }),
-            ),
-        ]),
-        _filterRow(Icons.tag, [
-          for (final tag in tags)
-            FilterChip(
-              label: Text('#$tag'),
-              selected: _tags.contains(tag),
-              onSelected: (selected) => setState(() {
-                if (selected) {
-                  _tags.add(tag);
-                } else {
-                  _tags.remove(tag);
-                }
-              }),
-            ),
-        ]),
+        if (tags.isNotEmpty)
+          _filterRow(Icons.tag, [
+            for (final tag in tags)
+              FilterChip(
+                label: Text('#$tag'),
+                selected: _tags.contains(tag),
+                onSelected: (selected) => setState(() {
+                  if (selected) {
+                    _tags.add(tag);
+                  } else {
+                    _tags.remove(tag);
+                  }
+                }),
+              ),
+          ]),
       ],
     );
   }
@@ -336,7 +344,10 @@ class _DocumentAiPanelState extends State<DocumentAiPanel> {
             _move(token, offset);
           case InlineLinkDrag drag:
             final thought = widget.thoughtForDrag?.call(drag);
-            if (thought != null) _add(thought, offset);
+            if (thought != null) {
+              _add(thought, offset);
+              _materialFocus.requestFocus();
+            }
         }
       },
       builder: (context, candidates, _) => Container(
@@ -351,6 +362,8 @@ class _DocumentAiPanelState extends State<DocumentAiPanel> {
         clipBehavior: Clip.antiAlias,
         child: quill.QuillEditor.basic(
           controller: _material,
+          focusNode: _materialFocus,
+          scrollController: _materialScroll,
           config: quill.QuillEditorConfig(
             editorKey: _editor,
             placeholder: _mobile ? '생각을 담거나 자료를 입력하세요' : '생각을 끌어놓거나 자료를 입력하세요',
@@ -448,139 +461,165 @@ class _DocumentAiPanelState extends State<DocumentAiPanel> {
     );
   }
 
+  Widget _promptControls() => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _instruction,
+          readOnly: _busy,
+          maxLength: 100,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: _fieldFill,
+            border: _filledBorder,
+            enabledBorder: _filledBorder,
+            focusedBorder: _filledBorder,
+            labelText: '프롬프트',
+            hintText: '톤, 느낌, 목적',
+            counterText: '',
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            const Text('문장 길이'),
+            const SizedBox(width: 6),
+            _lengthMenu(),
+          ],
+        ),
+        if (_error case final error?)
+          Text(
+            error,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+      ],
+    ),
+  );
+
+  Widget _generateButton() => SizedBox(
+    height: 34,
+    child: FilledButton(
+      onPressed: _busy || _material.document.length <= 1 ? null : _generate,
+      child: Text(_busy ? '생성 중...' : '생성'),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     return Localizations.override(
       context: context,
       delegates: const [quill.FlutterQuillLocalizations.delegate],
-      child: LayoutBuilder(
-        builder: (context, constraints) => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Semantics(
-              role: SemanticsRole.tabBar,
-              child: SizedBox(
-                height: 34,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _tab(
-                      'AI 문장 생성',
-                      selected: !_showResult,
-                      onPressed: () => setState(() => _showResult = false),
+      child: Padding(
+        padding: const EdgeInsets.all(5),
+        child: LayoutBuilder(
+          builder: (context, constraints) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_mobile)
+                SizedBox(
+                  height: 8,
+                  child: Center(
+                    child: Container(
+                      width: 28,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                    _tab(
-                      '결과',
-                      selected: _showResult,
-                      onPressed: _result == null
-                          ? null
-                          : () => setState(() => _showResult = true),
-                    ),
-                  ],
+                  ),
+                ),
+              Semantics(
+                role: SemanticsRole.tabBar,
+                child: SizedBox(
+                  height: 34,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _tab(
+                        'AI 문장 생성',
+                        selected: !_showResult,
+                        onPressed: () => setState(() => _showResult = false),
+                      ),
+                      _tab(
+                        '결과',
+                        selected: _showResult,
+                        onPressed: _result == null
+                            ? null
+                            : () => setState(() => _showResult = true),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            if ((_showResult ? _result : null) case final text?) ...[
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(8),
-                  child: SelectableText(text),
+              if ((_showResult ? _result : null) case final text?) ...[
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(8),
+                    child: SelectableText(text),
+                  ),
                 ),
-              ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Wrap(
-                  spacing: 4,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    TextButton(
+                    IconButton(
+                      tooltip: '복사',
+                      icon: const Icon(Icons.copy_outlined, size: 16),
                       onPressed: () => _copy(text),
-                      child: const Text('복사'),
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size.square(30),
+                        padding: EdgeInsets.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
                     ),
+                    const SizedBox(width: 4),
                     FilledButton(
                       onPressed: () {
                         if (widget.onInsert(text) && _mobile)
                           Navigator.pop(context);
                       },
-                      child: const Text('커서 아래에 삽입'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 30),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        textStyle: const TextStyle(fontSize: 12),
+                      ),
+                      child: const Text('현재 위치에 삽입'),
                     ),
                   ],
                 ),
-              ),
-            ] else ...[
-              Expanded(
-                child: _mobile
-                    ? ListView(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        children: [
-                          _mobileThoughts(),
-                          const SizedBox(height: 6),
-                          _materialInput(
-                            (constraints.maxHeight * .42).clamp(130.0, 400.0),
+              ] else ...[
+                Expanded(
+                  child: _mobile
+                      ? ListView(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          children: [
+                            _mobileThoughts(),
+                            const SizedBox(height: 6),
+                            _materialInput(
+                              (constraints.maxHeight * .42).clamp(130.0, 400.0),
+                            ),
+                            const SizedBox(height: 6),
+                            _promptControls(),
+                            _generateButton(),
+                          ],
+                        )
+                      : Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: LayoutBuilder(
+                            builder: (context, input) =>
+                                _materialInput(input.maxHeight),
                           ),
-                        ],
-                      )
-                    : Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: LayoutBuilder(
-                          builder: (context, input) =>
-                              _materialInput(input.maxHeight),
                         ),
-                      ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextField(
-                      controller: _instruction,
-                      readOnly: _busy,
-                      maxLength: 100,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: _fieldFill,
-                        border: _filledBorder,
-                        enabledBorder: _filledBorder,
-                        focusedBorder: _filledBorder,
-                        labelText: '프롬프트',
-                        hintText: '톤, 느낌, 목적',
-                        counterText: '',
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 8,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Text('문장 길이'),
-                        const SizedBox(width: 6),
-                        _lengthMenu(),
-                      ],
-                    ),
-                    if (_error case final error?)
-                      Text(
-                        error,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                  ],
                 ),
-              ),
-              SizedBox(
-                height: 34,
-                child: FilledButton(
-                  onPressed: _busy || _material.document.length <= 1
-                      ? null
-                      : _generate,
-                  child: Text(_busy ? '생성 중...' : '생성'),
-                ),
-              ),
+                if (!_mobile) ...[_promptControls(), _generateButton()],
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
