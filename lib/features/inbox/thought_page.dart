@@ -31,6 +31,46 @@ import 'thought_interaction.dart';
 import 'workspace_routes.dart';
 import 'graph_arrangement.dart';
 
+// History keeps only changed geometry and container assignments.
+class _CanvasState {
+  final layout = GraphLayout();
+  final emptyBoxes = <MemoBox, Rect>{};
+  final thoughtBoxes = <String, MemoBox>{};
+  final boxFolders = <MemoBox, String>{};
+  final folderParents = <String, String>{};
+
+  bool keepChangesAgainst(_CanvasState after) {
+    bool retain<K, V>(Map<K, V> before, Map<K, V> next) {
+      final unchanged = before.keys.where((key) => before[key] == next[key]).toList();
+      for (final key in unchanged) {
+        before.remove(key);
+        next.remove(key);
+      }
+      return before.isNotEmpty || next.isNotEmpty;
+    }
+
+    final changes = [
+      retain(layout.positions, after.layout.positions),
+      retain(layout.sizes, after.layout.sizes),
+      retain(layout.tags, after.layout.tags),
+      retain(layout.folderPositions, after.layout.folderPositions),
+      retain(layout.stackGroups, after.layout.stackGroups),
+      retain(emptyBoxes, after.emptyBoxes),
+      retain(thoughtBoxes, after.thoughtBoxes),
+      retain(boxFolders, after.boxFolders),
+      retain(folderParents, after.folderParents),
+      layout.stacked != after.layout.stacked,
+    ];
+    if (listEquals(layout.layers, after.layout.layers)) {
+      layout.layers.clear();
+      after.layout.layers.clear();
+    } else {
+      changes.add(true);
+    }
+    return changes.contains(true);
+  }
+}
+
 /// A live workspace over the same thoughts and tags.
 class ThoughtPage extends StatefulWidget {
   const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.box, this.blocks = false, this.viewSelector, this.filters, this.onDeleteBoxes});
@@ -61,6 +101,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   late final GraphLayout _layout;
   GraphLayout get _targetLayout{final base=widget.box?.layout??pageGraphLayout;return widget.blocks?base.blockLayout:base;}
   late GraphLayout _publishedLayout;
+  static const _historyLimit = 50;
+  final _undo = <({_CanvasState before, _CanvasState after})>[];
+  final _redo = <({_CanvasState before, _CanvasState after})>[];
+  _CanvasState? _gestureBefore;
+  final _searchFocus = FocusNode();
+
   final _activeCanvasPointers=<int>{};
   String get _resource=>widget.blocks?'canvas:boxes':'canvas:diagram';
   bool get _canEdit=>widget.storage?.canvasWritable??true;
@@ -86,6 +132,20 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   bool get _rangeSelection => _selectionMode || _ctrlPressed || _shiftPressed || _selectionStart != null;
   bool _controlSelection(KeyEvent event) {
     if(!tabActive || !_routeVisible)return false;
+    if (widget.blocks && _canEdit && !_searchFocus.hasFocus &&
+        _activeCanvasPointers.isEmpty && event is KeyDownEvent &&
+        HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isAltPressed &&
+        !HardwareKeyboard.instance.isShiftPressed) {
+      if (event.logicalKey == LogicalKeyboardKey.keyZ && _undo.isNotEmpty) {
+        _stepHistory(redo: false);
+        return true;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.keyY && _redo.isNotEmpty) {
+        _stepHistory(redo: true);
+        return true;
+      }
+    }
     if (mounted && tabActive && _routeVisible && event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.escape &&
         (_selectionMode || _selected.isNotEmpty || _selectionStart != null)) {
@@ -456,6 +516,102 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _sync();
     _rememberStacks();
   }
+  _CanvasState _captureCanvas() {
+    final state = _CanvasState();
+    state.layout
+      ..stacked = _layout.stacked
+      ..layers.addAll(_layout.layers)
+      ..positions.addAll(_positions)
+      ..sizes.addAll(_layout.sizes)
+      ..tags.addAll(_tagPositions)
+      ..folderPositions.addAll(_layout.folderPositions)
+      ..stackGroups.addAll(_layout.stackGroups);
+    state.emptyBoxes.addAll(_emptyBoxBounds);
+    for (final box in memoBoxes.where((box) => !box.isUnclassified)) {
+      for (final id in box.elementIds) {
+        state.thoughtBoxes[id] = box;
+      }
+      if (box.folder case final folder?) state.boxFolders[box] = folder;
+    }
+    state.folderParents.addAll(memoBoxFolderParents);
+    return state;
+  }
+
+  void _rememberEdit(_CanvasState? before) {
+    if (before == null) return;
+    final after = _captureCanvas();
+    if (!before.keepChangesAgainst(after)) return;
+    setState(() {
+      _undo.add((before: before, after: after));
+      if (_undo.length > _historyLimit) _undo.removeAt(0);
+      _redo.clear();
+    });
+  }
+
+  void _editCanvasLayout(VoidCallback edit) {
+    final before = widget.blocks ? _captureCanvas() : null;
+    setState(edit);
+    _rememberEdit(before);
+    _saveLayout(flush: true);
+  }
+
+  void _stepHistory({required bool redo}) {
+    final source = redo ? _redo : _undo;
+    final destination = redo ? _undo : _redo;
+    if (!_canEdit || source.isEmpty || _activeCanvasPointers.isNotEmpty) return;
+    final entry = source.removeLast();
+    final expected = redo ? entry.before : entry.after;
+    final desired = redo ? entry.after : entry.before;
+    final current = _captureCanvas();
+    var containersChanged = false;
+    setState(() {
+      _layout.positions..clear()..addAll(_positions);
+      _layout.tags..clear()..addAll(_tagPositions);
+      // Apply inverse changes only where the current value still matches the edit.
+      _layout.mergeRemote(desired.layout, expected.layout);
+      _positions..clear()..addAll(_layout.positions);
+      _tagPositions..clear()..addAll(_layout.tags);
+      for (final box in {...expected.emptyBoxes.keys, ...desired.emptyBoxes.keys}) {
+        if (!memoBoxes.contains(box) || _emptyBoxBounds[box] != expected.emptyBoxes[box]) continue;
+        final bounds = desired.emptyBoxes[box];
+        if (bounds == null) {
+          _emptyBoxBounds.remove(box);
+        } else {
+          _emptyBoxBounds[box] = bounds;
+        }
+      }
+      for (final id in {...expected.thoughtBoxes.keys, ...desired.thoughtBoxes.keys}) {
+        if (elements.byId(id) == null || current.thoughtBoxes[id] != expected.thoughtBoxes[id]) continue;
+        final box = desired.thoughtBoxes[id];
+        if (box != null && !memoBoxes.contains(box)) continue;
+        moveThoughtToBox(id, box ?? ensureUnclassifiedBox());
+        containersChanged = true;
+      }
+      for (final box in {...expected.boxFolders.keys, ...desired.boxFolders.keys}) {
+        if (!memoBoxes.contains(box) || box.folder != expected.boxFolders[box]) continue;
+        final folder = desired.boxFolders[box];
+        if (folder != null && !memoBoxFolders.contains(folder)) continue;
+        box.folder = folder;
+        containersChanged = true;
+      }
+      for (final folder in {...expected.folderParents.keys, ...desired.folderParents.keys}) {
+        final parent = desired.folderParents[folder];
+        if (memoFolderParent(folder) != expected.folderParents[folder] ||
+            !canMoveMemoFolder(folder, parent)) continue;
+        moveMemoFolder(folder, parent);
+        containersChanged = true;
+      }
+      _selected.clear();
+      _rangeAnchor = null;
+      _sync();
+      destination.add(entry);
+    });
+    _saveTimer?.cancel();
+    _saveTimer = null;
+    _flushLayout(mergeRemote: false);
+    if (containersChanged) widget.onChanged();
+  }
+
   void _saveLayout({bool flush = false}) {
     if (flush) {
       _saveTimer?.cancel(); _saveTimer = null;
@@ -468,7 +624,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       });
     }
   }
-  void _flushLayout() {
+  void _flushLayout({bool mergeRemote = true}) {
     // Keep the pre-drag merge baseline until all pointers are released. Publishing
     // midway makes a delayed server snapshot look newer than the user's drop.
     if(!_canEdit || _activeCanvasPointers.isNotEmpty)return;
@@ -478,7 +634,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _layout.query = _query;
     _layout.hideTags = _hideTags;
     if(widget.storage!=null){
-      _layout.mergeRemote(_targetLayout,_publishedLayout);
+      if (mergeRemote) _layout.mergeRemote(_targetLayout,_publishedLayout);
       _positions..clear()..addAll(_layout.positions);
       _tagPositions..clear()..addAll(_layout.tags);
       _targetLayout.copyFrom(_layout,includeBlocks:false);
@@ -658,8 +814,23 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _positions[id] = Offset(640 + (i % 6) * 250, bottom + 120 + (i ~/ 6) * 160); i++;
     }
   }
+  Future<void> _confirmResetArrangement(bool stacked) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('초기화 할까요?'),
+        content: const Text('지금까지 정리한 내용이 초기화됩니다.\n되돌릴까요?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('초기화')),
+        ],
+      ),
+    );
+    if (mounted && confirmed == true && _canEdit) _resetArrangement(stacked);
+  }
+
   void _resetArrangement(bool stacked) {
-    setState(() {
+    _editCanvasLayout(() {
       _positions.clear(); _tagPositions.clear(); _emptyBoxBounds.clear(); _liftBoxes.clear();
       _layout.sizes.clear(); _layout.folderPositions.clear(); _layout.viewport = null;
       _layout.stackGroups.clear(); _layout.stacked = stacked; _selected.clear(); _layout.layers.clear();
@@ -668,7 +839,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _centered = false; _sync();
       _arrangeThoughts(stacked);
     });
-    _saveLayout(flush: true);
   }
   void _arrangeThoughts(bool stacked) {
     final boxes = memoBoxes.where((box) => !box.isUnclassified).toList();
@@ -895,7 +1065,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     widget.storage?.canvasInteracting=_activeCanvasPointers.isNotEmpty;
     // A pointer release publishes locally; it must not acknowledge that publication
     // as a server snapshot, or the next delayed snapshot can undo the drag.
-    if(_activeCanvasPointers.isEmpty)scheduleMicrotask((){if(mounted){_saveLayout(flush:true);}});
+    if (_activeCanvasPointers.isEmpty) {
+      final before = _gestureBefore;
+      _gestureBefore = null;
+      scheduleMicrotask(() {
+        if (!mounted) return;
+        _rememberEdit(before);
+        _saveLayout(flush: true);
+      });
+    }
   }
   void _storeChanged() { if (mounted && tabActive && _routeVisible && _appActive) setState(_sync); }
   void _changed() { widget.onChanged(); setState(_sync); }
@@ -925,7 +1103,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     if (widget.filters == null) _filters.dispose();
     elements.removeListener(_storeChanged);
     _view.removeListener(_saveLayout);
-    _view.dispose(); _search.dispose(); _canvasUpdates.dispose();
+    _view.dispose(); _searchFocus.dispose(); _search.dispose(); _canvasUpdates.dispose();
     super.dispose();
   }
   Offset? _rangeAnchorPoint;
@@ -1187,7 +1365,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           });
         }
         return Listener(
-          onPointerDown:(event){_activeCanvasPointers.add(event.pointer);widget.storage?.canvasInteracting=true;if(_canvasTapPointer!=null){_canvasTapDown=null;return;}_canvasTapPointer=event.pointer;_canvasTapDown=event.position;},
+          onPointerDown:(event){
+            if (widget.blocks && _canEdit && _activeCanvasPointers.isEmpty) {
+              _gestureBefore = _captureCanvas();
+            }
+            _activeCanvasPointers.add(event.pointer);widget.storage?.canvasInteracting=true;if(_canvasTapPointer!=null){_canvasTapDown=null;return;}_canvasTapPointer=event.pointer;_canvasTapDown=event.position;},
           onPointerMove:(event){if(_canvasTapDown!=null&&(event.position-_canvasTapDown!).distance>4)_canvasTapDown=null;},
           onPointerCancel:(event){_pointerFinished(event.pointer);_canvasTapDown=null;_canvasTapPointer=null;},
           onPointerUp:(event){
@@ -1494,16 +1676,16 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           child: IntrinsicWidth(child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(mainAxisSize: MainAxisSize.min, children: [
               IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '레이어 위로', icon: const Icon(Icons.arrow_upward, size: 18), onPressed: () {
-                setState(() { moveThoughtLayers(_layout.layers, _selected, up: false); reorderStackPositions(_positions, _selected, up: true,groups:_layout.stackGroups); alignStackLayers(_layout.layers, _positions, _layout.stackGroups); }); _saveLayout(flush: true);
+                _editCanvasLayout(() { moveThoughtLayers(_layout.layers, _selected, up: false); reorderStackPositions(_positions, _selected, up: true,groups:_layout.stackGroups); alignStackLayers(_layout.layers, _positions, _layout.stackGroups); });
               }),
               IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '레이어 아래로', icon: const Icon(Icons.arrow_downward, size: 18), onPressed: () {
-                setState(() { moveThoughtLayers(_layout.layers, _selected, up: true); reorderStackPositions(_positions, _selected, up: false,groups:_layout.stackGroups); alignStackLayers(_layout.layers, _positions, _layout.stackGroups); }); _saveLayout(flush: true);
+                _editCanvasLayout(() { moveThoughtLayers(_layout.layers, _selected, up: true); reorderStackPositions(_positions, _selected, up: false,groups:_layout.stackGroups); alignStackLayers(_layout.layers, _positions, _layout.stackGroups); });
               }),
             ]),
             if (_selected.length > 1) TextButton.icon(
               style: TextButton.styleFrom(minimumSize: const Size(0, 24), padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2), tapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.standard, textStyle: const TextStyle(fontSize: 11)),
               icon: const Icon(Icons.swap_vert, size: 15), label: const Text('순서 반전'), onPressed: () {
-                setState(() { reverseThoughtLayers(_layout.layers, _selected); reorderStackPositions(_positions, _selected,groups:_layout.stackGroups); alignStackLayers(_layout.layers, _positions, _layout.stackGroups); }); _saveLayout(flush: true);
+                _editCanvasLayout(() { reverseThoughtLayers(_layout.layers, _selected); reorderStackPositions(_positions, _selected,groups:_layout.stackGroups); alignStackLayers(_layout.layers, _positions, _layout.stackGroups); });
               }),
           ])),
         )),
@@ -1527,23 +1709,40 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
 
   Widget _build(BuildContext context) {
     final color = Theme.of(context).colorScheme;
-    return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filters.singleBox?.name ?? '전체 보기'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
+    final actionWidth = math.max(0.0, MediaQuery.sizeOf(context).width - 76);
+    return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filters.singleBox?.name ?? '전체 보기'), actions: [ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: actionWidth),
+      child: SingleChildScrollView(scrollDirection: Axis.horizontal,
+        child: IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40), maximumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
       if(widget.storage!=null)ValueListenableBuilder<String>(valueListenable:widget.storage!.canvasSaveState,builder:(context,state,_)=>Tooltip(message:state,child:Padding(padding:const EdgeInsets.symmetric(horizontal:4),child:Icon(state=='저장됨'?Icons.cloud_done_outlined:state=='저장 중'?Icons.cloud_upload_outlined:Icons.cloud_queue,size:18)))),
+      if (widget.blocks && _canEdit) ...[
+        IconButton(tooltip: '실행 취소 (Ctrl+Z)', icon: const Icon(Icons.undo),
+          onPressed: _undo.isEmpty ? null : () => _stepHistory(redo: false)),
+        IconButton(tooltip: '다시 실행 (Ctrl+Y)', icon: const Icon(Icons.redo),
+          onPressed: _redo.isEmpty ? null : () => _stepHistory(redo: true)),
+      ],
       if(_canEdit)MemoBoxActions(onCreate:_createBox,onCreateThought:_create),
-      PopupMenuButton<String>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt), onSelected: (value) {if(value=='all'){setState(() => _centered=false);}else if(_canEdit){_resetArrangement(value=='stack');}},
-        itemBuilder: (_) => const [PopupMenuItem(value:'all',child:Text('전체 보기')),PopupMenuItem(value: 'spread', child: Text('펼쳐보기')), PopupMenuItem(value: 'stack', child: Text('겹쳐보기'))]),
+      IconButton(tooltip: '전체 보기', icon: const Icon(Icons.fit_screen_outlined),
+        onPressed: () => setState(() => _centered = false)),
+      PopupMenuButton<bool>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+        enabled: _canEdit, tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt),
+        onSelected: _confirmResetArrangement,
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: false, child: Text('펼쳐보기')),
+          PopupMenuItem(value: true, child: Text('겹쳐보기')),
+        ]),
       if (!widget.blocks) IconButton(tooltip: '저장 (Ctrl+S)', onPressed: _canEdit?_saveCanvas:null, icon: const Icon(Icons.save_outlined)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('사용 안내'),
           content: const Text('생각·태그를 드래그해 배치하세요. 생각을 누르면 수정할 수 있습니다. 라벨을 누르는 동안 해당 생각을 앞으로 볼 수 있습니다.'),
           actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))]))),
-    ]))]), body: DesktopMenuBody(child: Column(children: [
+    ]))))]), body: DesktopMenuBody(child: Column(children: [
       if (widget.viewSelector != null) widget.viewSelector!,
       if (!_canEdit) const Padding(key:ValueKey('canvas-readonly-notice'),padding:EdgeInsets.all(4),child:Text('읽기 전용 워크스페이스입니다.')),
       Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 0), child: Row(children: [
-        Expanded(child: TextField(key: const ValueKey('graph-search'), controller: _search,
+        Expanded(child: TextField(key: const ValueKey('graph-search'), controller: _search, focusNode: _searchFocus,
           style: TextStyle(fontSize: MediaQuery.sizeOf(context).width < 1000 ? 13 : 14),
           decoration: const InputDecoration(hintText: '생각·해시태그 찾기', prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 36), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), isDense: true),
           onChanged: (value) => setState(() { _query = value.trim().replaceFirst(RegExp(r'^#'), '').toLowerCase(); _centered = false; _sync(); }))),
