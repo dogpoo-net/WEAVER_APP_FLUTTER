@@ -73,21 +73,49 @@ Future<void> showThoughtSettings(BuildContext context, SharedPreferences? prefer
         const Divider(),
         if (guest) const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.person_outline),
           title: Text('비회원 · 로컬 저장 전용'), subtitle: Text('클라우드 저장·가져오기는 로그인 후 사용할 수 있습니다. 저장한 로컬 데이터는 로그인 후에도 유지됩니다.')),
-        if(!offline || onSyncReview != null)ExpansionTile(tilePadding:EdgeInsets.zero,title:Text('동기화 관리', style: Theme.of(context).textTheme.bodySmall),children:[
-        if (onSyncReview != null) ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.sync),
-          title: const Text('동기화'),
-          onTap: busy ? null : () => run(onSyncReview),
-        ),
-        if (!offline) ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_upload_outlined), title: const Text('변경사항 동기화'), enabled: cloudEnabled && !busy,
-          onTap: busy || !cloudEnabled || onUpload == null ? null : () => run(onUpload)),
-        if (!offline) ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.cloud_download_outlined), title: const Text('서버 변경 불러오기'), enabled: cloudEnabled && !busy,
-          onTap: busy || !cloudEnabled || onDownload == null ? null : () => run(onDownload)),
-        ]),
+        if (!offline || onSyncReview != null || onExportFile != null || onImportFile != null)
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: const EdgeInsetsDirectional.only(start: 12),
+            shape: const Border(),
+            collapsedShape: const Border(),
+            title: Text('동기화 관리', style: Theme.of(context).textTheme.bodySmall),
+            children: [
+              if (onSyncReview != null) ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.sync),
+                title: const Text('동기화'),
+                onTap: busy ? null : () => run(onSyncReview),
+              ),
+              if (!offline) ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.cloud_upload_outlined),
+                title: const Text('클라우드에 저장'),
+                enabled: cloudEnabled && !busy,
+                onTap: busy || !cloudEnabled || onUpload == null ? null : () => run(onUpload),
+              ),
+              if (!offline) ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.cloud_download_outlined),
+                title: const Text('클라우드에서 불러오기'),
+                enabled: cloudEnabled && !busy,
+                onTap: busy || !cloudEnabled || onDownload == null ? null : () => run(onDownload),
+              ),
+              if (onExportFile != null) ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.file_upload_outlined),
+                title: const Text('데이터 내보내기'),
+                onTap: busy ? null : () => run(onExportFile),
+              ),
+              if (onImportFile != null) ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.file_download_outlined),
+                title: const Text('데이터 가져오기'),
+                onTap: busy ? null : () => run(onImportFile),
+              ),
+            ],
+          ),
         if(offline)const ListTile(contentPadding:EdgeInsets.zero,leading:Icon(Icons.offline_bolt_outlined),title:Text('오프라인 모드'),subtitle:Text('이 기기에만 저장됩니다.')),
-        if(onExportFile!=null)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.file_upload_outlined),title:const Text('데이터 내보내기'),onTap:busy?null:()=>run(onExportFile)),
-        if(onImportFile!=null)ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.file_download_outlined),title:const Text('데이터 가져오기'),onTap:busy?null:()=>run(onImportFile)),
         ListTile(contentPadding: EdgeInsets.zero, title: Text('항목 수 숨기기', style: Theme.of(context).textTheme.bodySmall),
           onTap: busy ? null : () => run(() async {
             final hidden = !hideMenuCounts.value;
