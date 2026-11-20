@@ -18,9 +18,12 @@ void main(){
   final record=elements.add('음성 메모 시간')..voiceTextPending=true;
   record.recordings.add(attachVoiceDraft('clip',draft));
   expect(record.recordings.single.transcript,isEmpty);
+  final saved = WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([]));
+  expect(saved.records.single.recordings.single.pendingTranscription, isTrue);
   response.complete({'text':'회의 내용'});await draft.transcription!.completion;
   expect(record.text,'음성 추출 텍스트\n회의 내용');expect(record.voiceTextPending,isFalse);
   expect(record.recordings.single.transcript,'회의 내용');expect(saves,1);
+  expect(record.recordings.single.pendingTranscription, isFalse);
  });
  test('late completion does not overwrite manual text or deleted audio',()async{
   final response=Completer<Map<String,dynamic>>();

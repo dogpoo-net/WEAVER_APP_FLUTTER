@@ -213,7 +213,12 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     _events=widget.storage?.watchRemote?.call(_remoteChanged,(connected){_eventsConnected=connected;});
     _events?.resume();
     if(widget.storage?.checkRemote!=null)_liveTimer=Timer.periodic(const Duration(seconds:15),(_){if(!_eventsConnected)_pollRemote();});
-    if (!_restoreBlocked) _cleanupDeletedMedia().catchError((Object _) {});
+    if (!_restoreBlocked) {
+      _cleanupDeletedMedia().catchError((Object _) {});
+      if (widget.storage?.canvasWritable == true) {
+        unawaited(resumePendingVoiceTranscriptions());
+      }
+    }
   }
 
   void _elementRenamed(String oldText, String newText) {

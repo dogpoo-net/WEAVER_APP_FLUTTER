@@ -4,6 +4,8 @@ import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill/quill_delta.dart' show Delta;
 
 import 'document_syntax.dart';
+import 'document_photo.dart';
+import 'document_line_shortcuts.dart';
 import 'document_table.dart';
 import 'document_diagnostics.dart';
 import 'canvas_link_text.dart';
@@ -79,6 +81,21 @@ List<Map<String, Object>> _decodeLine(
   void inline(String input, Map<String, Object> attrs) {
     var start = 0;
     for (var i = 0; i + 1 < input.length; i++) {
+      final code = documentCodeOpening.matchAsPrefix(input, i);
+      if (code != null) {
+        final close = input.indexOf('</code>', code.end);
+        if (close >= 0) {
+          i = close + 6;
+          continue;
+        }
+      }
+      if (input.startsWith('[[', i)) {
+        final close = input.indexOf(']]', i + 2);
+        if (close >= 0) {
+          i = close + 1;
+          continue;
+        }
+      }
       final marker = input.substring(i, i + 2);
       final attr = _marks[marker];
       if (attr == null || (marker == '//' && i > 0 && input[i - 1] == ':'))
@@ -212,10 +229,36 @@ class _Section {
     if (protected) return;
     final ops = <Map<String, Object>>[];
     var inCode = false;
+    final comments = DocumentComments(source);
+    final literalRanges = [
+      ...codeMarkup
+          .allMatches(comments.maskedText)
+          .where((match) => match.group(0)!.contains('\n')),
+      ...comments.ranges,
+    ]..sort((a, b) => a.start.compareTo(b.start));
+    final literals = literalRanges.iterator;
+    var hasLiteral = literals.moveNext();
+    var offset = 0;
     for (final line in source.split('\n')) {
-      final isCode = documentCodeBlocks(line).isNotEmpty;
-      ops.addAll(_decodeLine(line, showCodeLanguage: isCode && !inCode));
+      while (hasLiteral && literals.current.end <= offset) {
+        hasLiteral = literals.moveNext();
+      }
+      final raw = hasLiteral && literals.current.start < offset + line.length;
+      final isCode = !raw && documentCodeBlocks(line).isNotEmpty;
+      if (raw) {
+        // Preserve the original line boundaries and delimiters so selecting
+        // across code and prose can use one editor.
+        if (line.isNotEmpty)
+          ops.add({
+            'insert': line,
+            'attributes': {'code': true},
+          });
+        ops.add({'insert': '\n'});
+      } else {
+        ops.addAll(_decodeLine(line, showCodeLanguage: isCode && !inCode));
+      }
       inCode = isCode;
+      offset += line.length + 1;
     }
     final document = quill.Document.fromJson(ops);
     projected = _encodeLines(document);
@@ -277,6 +320,9 @@ class DocumentRichEditor extends StatefulWidget {
     required this.onLinkHover,
     required this.onInsertFootnote,
     required this.onInsertTable,
+    this.onInsertPhoto,
+    this.onEditLines,
+    this.sourceSelection,
     required this.modeSwitch,
     required this.dirty,
     required this.diagnostics,
@@ -287,7 +333,9 @@ class DocumentRichEditor extends StatefulWidget {
   final List<ElementBinding> links;
   final void Function(int start, int end, String replacement) onPatch;
   final ValueChanged<String?> onLinkHover;
-  final ValueChanged<int>? onInsertFootnote, onInsertTable;
+  final ValueChanged<int>? onInsertFootnote, onInsertTable, onInsertPhoto;
+  final void Function(DocumentLineAction, TextSelection)? onEditLines;
+  final TextSelection? sourceSelection;
   final Widget modeSwitch;
   final bool dirty;
   final List<DocumentDiagnostic> diagnostics;
@@ -306,21 +354,12 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
   void initState() {
     super.initState();
     final documentComments = DocumentComments(widget.source);
-    final editableCodeLines = {
-      for (final block in documentCodeBlocks(documentComments.maskedText))
-        if (!block.group(0)!.contains('\n') &&
-            documentCodeLanguage(block.group(0)!) == null)
-          block.start,
-    };
-    final code = codeMarkup
-        .allMatches(documentComments.maskedText)
-        .where((match) => !editableCodeLines.contains(match.start))
-        .toList();
+    final code = codeMarkup.allMatches(documentComments.maskedText).iterator;
+    var hasCode = code.moveNext();
     final comments = documentComments.ranges.iterator;
     var hasComment = comments.moveNext();
     final group = <String>[];
     bool? protected;
-    bool? codeRun;
     var offset = 0;
     void finish() {
       if (group.isEmpty) return;
@@ -343,20 +382,22 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
       while (hasComment && comments.current.end <= offset) {
         hasComment = comments.moveNext();
       }
+      while (hasCode && code.current.end <= offset) {
+        hasCode = code.moveNext();
+      }
+      final literal =
+          (hasCode && code.current.start < end) ||
+          (hasComment && comments.current.start < end);
       final isProtected =
-          (hasComment && comments.current.start < end) ||
-          code.any((match) => match.start <= end && match.end > offset) ||
-          widget.links.any((link) => link.start <= end && link.end > offset) ||
-          (documentListMarker.firstMatch(line)?.group(1)?.isNotEmpty ??
-              false) ||
-          tableColumns != null ||
-          (line.startsWith('|') && _sourceAlignment(line) == null) ||
-          line.contains('[[') ||
-          documentFootnoteReference.hasMatch(line);
-      final isCodeRun = !isProtected && editableCodeLines.contains(offset);
-      if (isProtected != protected || isCodeRun != codeRun) finish();
+          !literal &&
+          ((documentListMarker.firstMatch(line)?.group(1)?.isNotEmpty ??
+                  false) ||
+              tableColumns != null ||
+              (line.startsWith('|') && _sourceAlignment(line) == null) ||
+              documentPhoto.hasMatch(line) ||
+              documentFootnoteReference.hasMatch(line));
+      if (isProtected != protected) finish();
       protected = isProtected;
-      codeRun = isCodeRun;
       group.add(line);
       offset = end + 1;
     }
@@ -375,6 +416,50 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
       });
     }
     _active = _sections.where((section) => !section.protected).firstOrNull;
+    final selection = widget.sourceSelection;
+    if (selection == null || !selection.isValid) return;
+    var start = 0;
+    for (final section in _sections) {
+      final end = start + section.source.length;
+      if (!section.protected &&
+          selection.extentOffset >= start &&
+          selection.extentOffset <= end) {
+        final offsets = <int>[];
+        final controller = section.controller!;
+        _encodeLines(controller.document, contentOffsets: offsets);
+        if (offsets.isEmpty) break;
+        int editorOffset(int position) {
+          final positionInSection = (position - start).clamp(
+            0,
+            section.source.length,
+          );
+          final prefix = section.source.substring(0, positionInSection);
+          final row = '\n'
+              .allMatches(prefix)
+              .length
+              .clamp(0, offsets.length - 1);
+          final column = prefix.length - prefix.lastIndexOf('\n') - 1;
+          final last = row + 1 < offsets.length
+              ? offsets[row + 1] - 1
+              : controller.document.length - 1;
+          return (offsets[row] + column).clamp(offsets[row], last);
+        }
+
+        _active = section;
+        controller.updateSelection(
+          TextSelection(
+            baseOffset: editorOffset(selection.baseOffset),
+            extentOffset: editorOffset(selection.extentOffset),
+          ),
+          quill.ChangeSource.local,
+        );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) section.focus!.requestFocus();
+        });
+        break;
+      }
+      start = end + 1;
+    }
   }
 
   bool _appendSectionOnEdit = false;
@@ -530,6 +615,41 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
     },
   );
 
+  void _editLines(_Section section, DocumentLineAction action) {
+    final controller = section.controller!;
+    final selection = controller.selection;
+    if (!selection.isValid) return;
+    final offsets = <int>[];
+    _encodeLines(controller.document, contentOffsets: offsets);
+    var sectionStart = 0;
+    for (final other in _sections) {
+      if (identical(other, section)) break;
+      sectionStart += other.source.length + 1;
+    }
+    final lines = section.source.split('\n');
+    int sourceOffset(int position) {
+      final row = offsets
+          .lastIndexWhere((offset) => offset <= position)
+          .clamp(0, lines.length - 1);
+      final start =
+          sectionStart +
+          lines
+              .take(row)
+              .fold<int>(0, (length, line) => length + line.length + 1);
+      if (offsets.isEmpty) return start;
+      final column = position - offsets[row];
+      return start + column.clamp(0, lines[row].length);
+    }
+
+    widget.onEditLines?.call(
+      action,
+      TextSelection(
+        baseOffset: sourceOffset(selection.baseOffset),
+        extentOffset: sourceOffset(selection.extentOffset),
+      ),
+    );
+  }
+
   int _insertionOffset() {
     final section = _active;
     final controller = section?.controller;
@@ -623,6 +743,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
               )
             : _QuillEditorBlock(
                 section: section,
+                onEditLines: (action) => _editLines(section, action),
                 firstLine: firstLine,
                 diagnostics: diagnoses,
                 onSyntaxDiagnostic: widget.onSyntaxDiagnostic,
@@ -642,17 +763,6 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
             key: const ValueKey('document-editor-toolbar'),
             modeSwitch: widget.modeSwitch,
             tools: [
-              _formatButton('코드 블록', Icons.code, quill.Attribute.codeBlock),
-              _formatButton(
-                '번호 목록',
-                Icons.format_list_numbered,
-                quill.Attribute.ol,
-              ),
-              _formatButton(
-                '글머리표',
-                Icons.format_list_bulleted,
-                quill.Attribute.ul,
-              ),
               _formatButton('굵게', Icons.format_bold, quill.Attribute.bold),
               _formatButton('기울임', Icons.format_italic, quill.Attribute.italic),
               _formatButton(
@@ -665,6 +775,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                 Icons.strikethrough_s,
                 quill.Attribute.strikeThrough,
               ),
+              const VerticalDivider(width: 12, indent: 8, endIndent: 8),
               _alignmentButton(
                 '왼쪽 정렬',
                 Icons.format_align_left,
@@ -680,6 +791,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                 Icons.format_align_right,
                 quill.Attribute.rightAlignment,
               ),
+              const VerticalDivider(width: 12, indent: 8, endIndent: 8),
               PopupMenuButton<int>(
                 tooltip: '제목 단계',
                 style: _documentToolbarButtonStyle,
@@ -701,9 +813,20 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                   section.focus!.requestFocus();
                 },
               ),
+              _formatButton(
+                '번호 목록',
+                Icons.format_list_numbered,
+                quill.Attribute.ol,
+              ),
+              _formatButton(
+                '글머리표',
+                Icons.format_list_bulleted,
+                quill.Attribute.ul,
+              ),
+              const VerticalDivider(width: 12, indent: 8, endIndent: 8),
               IconButton(
                 tooltip: '각주 삽입',
-                icon: const Icon(Icons.format_list_numbered),
+                icon: const Text('[1]'),
                 onPressed: widget.onInsertFootnote == null
                     ? null
                     : () => widget.onInsertFootnote!(_insertionOffset()),
@@ -714,6 +837,13 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                 onPressed: widget.onInsertTable == null
                     ? null
                     : () => widget.onInsertTable!(_insertionOffset()),
+              ),
+              IconButton(
+                tooltip: '사진 삽입',
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                onPressed: widget.onInsertPhoto == null
+                    ? null
+                    : () => widget.onInsertPhoto!(_insertionOffset()),
               ),
               if (headings.isNotEmpty)
                 PopupMenuButton<int>(
@@ -741,6 +871,7 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                     entry.section.focus!.requestFocus();
                   },
                 ),
+              _formatButton('코드 블록', Icons.code, quill.Attribute.codeBlock),
             ],
           ),
           Expanded(
@@ -824,11 +955,13 @@ class _QuillEditorBlock extends StatelessWidget {
   const _QuillEditorBlock({
     super.key,
     required this.section,
+    required this.onEditLines,
     required this.firstLine,
     required this.diagnostics,
     required this.onSyntaxDiagnostic,
   });
   final _Section section;
+  final ValueChanged<DocumentLineAction> onEditLines;
   final int firstLine;
   final Map<int, DocumentDiagnostic> diagnostics;
   final void Function(String? message, Offset position, {bool touch})
@@ -848,66 +981,75 @@ class _QuillEditorBlock extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: _gutterWidth),
-          child: quill.QuillEditor.basic(
-            controller: controller,
-            focusNode: section.focus!,
-            scrollController: section.scroll!,
-            config: quill.QuillEditorConfig(
-              editorKey: section.editorKey,
-              textSpanBuilder:
-                  (context, node, nodeOffset, text, style, recognizer) {
-                    final issue = issuesByOffset[node.parent?.documentOffset];
-                    if (issue == null) {
-                      return quill.defaultSpanBuilder(
-                        context,
-                        node,
-                        nodeOffset,
-                        text,
-                        style,
-                        recognizer,
+          child: CallbackShortcuts(
+            bindings: {
+              for (final entry in documentLineShortcuts.entries)
+                entry.key: () => onEditLines(entry.value),
+            },
+            child: quill.QuillEditor.basic(
+              controller: controller,
+              focusNode: section.focus!,
+              scrollController: section.scroll!,
+              config: quill.QuillEditorConfig(
+                editorKey: section.editorKey,
+                textSpanBuilder:
+                    (context, node, nodeOffset, text, style, recognizer) {
+                      final issue = issuesByOffset[node.parent?.documentOffset];
+                      if (issue == null) {
+                        return quill.defaultSpanBuilder(
+                          context,
+                          node,
+                          nodeOffset,
+                          text,
+                          style,
+                          recognizer,
+                        );
+                      }
+                      return TextSpan(
+                        text: text,
+                        style: (style ?? const TextStyle()).merge(
+                          documentDiagnosticStyle(context),
+                        ),
+                        recognizer: recognizer,
+                        onEnter: (event) =>
+                            onSyntaxDiagnostic(issue.message, event.position),
+                        onExit: (event) =>
+                            onSyntaxDiagnostic(null, event.position),
                       );
-                    }
-                    return TextSpan(
-                      text: text,
-                      style: (style ?? const TextStyle()).merge(
-                        documentDiagnosticStyle(context),
-                      ),
-                      recognizer: recognizer,
-                      onEnter: (event) =>
-                          onSyntaxDiagnostic(issue.message, event.position),
-                      onExit: (event) =>
-                          onSyntaxDiagnostic(null, event.position),
+                    },
+                onTapUp: (details, positionAt) {
+                  if (details.kind != PointerDeviceKind.touch ||
+                      issuesByOffset.isEmpty)
+                    return false;
+                  final plain = controller.document.toPlainText();
+                  final offset = positionAt(details.globalPosition).offset
+                      .clamp(0, plain.length);
+                  final start = offset == 0
+                      ? 0
+                      : plain.lastIndexOf('\n', offset - 1) + 1;
+                  final issue = issuesByOffset[start];
+                  if (issue != null)
+                    onSyntaxDiagnostic(
+                      issue.message,
+                      details.globalPosition,
+                      touch: true,
                     );
-                  },
-              onTapUp: (details, positionAt) {
-                if (details.kind != PointerDeviceKind.touch ||
-                    issuesByOffset.isEmpty)
                   return false;
-                final plain = controller.document.toPlainText();
-                final offset = positionAt(details.globalPosition).offset
-                    .clamp(0, plain.length);
-                final start = offset == 0
-                    ? 0
-                    : plain.lastIndexOf('\n', offset - 1) + 1;
-                final issue = issuesByOffset[start];
-                if (issue != null)
-                  onSyntaxDiagnostic(
-                    issue.message,
-                    details.globalPosition,
-                    touch: true,
-                  );
-                return false;
-              },
-              scrollable: false,
-              showCodeBlockLineNumbers: false,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              customStyles: quill.DefaultStyles(
-                code: quill.DefaultTextBlockStyle(
-                  documentCodeStyle(context),
-                  const quill.HorizontalSpacing(10, 10),
-                  const quill.VerticalSpacing(4, 4),
-                  const quill.VerticalSpacing(2, 2),
-                  documentCodeDecoration(context),
+                },
+                scrollable: false,
+                showCodeBlockLineNumbers: false,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                customStyles: quill.DefaultStyles(
+                  code: quill.DefaultTextBlockStyle(
+                    documentCodeStyle(context),
+                    const quill.HorizontalSpacing(10, 10),
+                    const quill.VerticalSpacing(4, 4),
+                    const quill.VerticalSpacing(2, 2),
+                    documentCodeDecoration(context),
+                  ),
                 ),
               ),
             ),
@@ -1019,6 +1161,8 @@ class _ProtectedDocumentSource extends StatelessWidget {
             ),
       ];
       final text = source.substring(start, end);
+      final photo = documentPhoto.firstMatch(text);
+      if (photo != null) return DocumentPhoto(photo.group(1)!);
       final style = issue == null ? null : documentDiagnosticStyle(context);
       final content = segmentLinks.isEmpty
           ? SelectableText(text, style: style)

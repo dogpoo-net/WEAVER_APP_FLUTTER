@@ -121,7 +121,7 @@ class _VoiceRecorderDialogState extends State<VoiceRecorderDialog> with WidgetsB
     } catch (_) {
       if (mounted) setState(() => _error = '녹음을 완료하지 못했습니다. 다시 녹음해주세요.');
     } finally { if (mounted) setState(() => _busy = false); }
-    if(mounted && _enabled && _draft!=null)await _transcribe();
+    if(mounted && _allowed && _enabled && _draft!=null)await _transcribe();
   }
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -154,7 +154,7 @@ class _VoiceRecorderDialogState extends State<VoiceRecorderDialog> with WidgetsB
       else if(!_allowed)const Text('AI 텍스트 변환은 구독 중인 계정에서 사용할 수 있습니다.')
       else if(!_enabled)const Text('현재 텍스트 변환을 사용할 수 없습니다. 녹음은 첨부할 수 있습니다.'),
       if(_transcribing)const Text('텍스트로 변환하고 있습니다…'),
-      if(_enabled && _transcriptionFailed && _draft!=null && !_recording)TextButton(onPressed:_transcribing?null:_transcribe,child:const Text('텍스트 변환 다시 시도')),
+      if(_allowed && _enabled && _transcriptionFailed && _draft!=null && !_recording)TextButton(onPressed:_transcribing?null:_transcribe,child:const Text('텍스트 변환 다시 시도')),
       if (_error != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
       FilledButton.tonalIcon(onPressed: _busy || _policyLoading || _transcribing ? null : (_recording ? _stop : _start),
         icon: Icon(_recording ? Icons.stop : Icons.mic), label: Text(_recording ? '녹음 종료' : _draft == null ? '녹음 시작' : '다시 녹음')),

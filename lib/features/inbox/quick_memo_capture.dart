@@ -661,7 +661,10 @@ mixin _QuickMemoCapture<T extends StatefulWidget> on State<T> {
     record.important = _draftImportant;
     if (_draftLocation != null || _editing != null)
       record.location = _draftLocation;
-    if (_savedVoice != null) record.recordings.add(_savedVoice!);
+    if (_savedVoice != null) {
+      record.recordings.add(_savedVoice!);
+      fillVoiceBody(record);
+    }
     record.photos.addAll(_savedPhotos);
     final links = List<ElementBinding>.of(cleaned.links);
     setState(() {

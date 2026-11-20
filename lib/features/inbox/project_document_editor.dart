@@ -7,6 +7,8 @@ import 'element_binding.dart';
 import 'memo_boxes.dart';
 import 'document_table.dart';
 import 'document_line_numbers.dart';
+import 'document_line_shortcuts.dart';
+import 'workspace_photo_actions.dart';
 import 'edit_lock.dart' show confirmReload;
 import 'workspace_storage.dart';
 import 'save_shortcuts.dart';
@@ -80,24 +82,67 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     _syntaxTooltip.hide();
     FocusScope.of(context).unfocus();
     setState(() {
+      _richLineSelection = null;
       _rich = value;
       _preview = false;
     });
   }
 
-  void _applyRichPatch(int start, int end, String replacement) {
+  void _applyRichPatch(int start, int end, String replacement, {TextSelection? selection, List<DocumentLineSlice>? slices}) {
+    final source = _body.text;
     final delta = replacement.length - (end - start);
-    final text = _body.text.replaceRange(start, end, replacement);
-    final links = [
-      for (final link in _body.bindings)
-        if (link.start >= end)
-          ElementBinding(link.id, link.start + delta, link.end + delta)
-        else
-          link,
-    ];
-    _body.loadDocument(text, links,
-      selection: TextSelection.collapsed(offset: start + replacement.length));
+    final links = <ElementBinding>[];
+    final used = <int>{};
+    for (final link in _body.bindings) {
+      if (link.end <= start) {
+        links.add(link);
+      } else if (link.start >= end) {
+        links.add(ElementBinding(link.id, link.start + delta, link.end + delta));
+      } else if (slices != null) {
+        for (final slice in slices) {
+          if (link.start < slice.start || link.end > slice.end) continue;
+          final shift = slice.destination - slice.start;
+          links.add(ElementBinding(link.id, link.start + shift, link.end + shift));
+        }
+      } else if (link.start >= start && link.end <= end) {
+        final label = source.substring(link.start, link.end);
+        var position = replacement.indexOf(label);
+        while (position >= 0 && used.contains(position)) {
+          position = replacement.indexOf(label, position + label.length);
+        }
+        if (position >= 0) {
+          used.add(position);
+          links.add(ElementBinding(link.id, start + position, start + position + label.length));
+        }
+      }
+    }
+    links.sort((a, b) => a.start.compareTo(b.start));
+    _body.loadDocument(source.replaceRange(start, end, replacement), links,
+      selection: selection ?? TextSelection.collapsed(offset: start + replacement.length));
   }
+
+  void _editLines(DocumentLineAction action, TextSelection selection) {
+    if (_saving || !_canEdit) return;
+    final edit = editDocumentLines(_body.text, selection, action);
+    if (edit == null) return;
+    _applyRichPatch(edit.start, edit.end, edit.replacement, selection: edit.selection, slices: edit.slices);
+    if (_rich) setState(() {
+      _richLineSelection = edit.selection;
+      _richInsertionRevision++;
+    });
+  }
+
+  Future<void> _insertPhoto(int offset) async {
+    final before = _body.text;
+    final photo = await chooseWorkspacePhoto(context, widget.storage);
+    if (!mounted || !_canEdit || _saving || photo == null || before != _body.text) return;
+    final newline = before.indexOf('\n', offset);
+    final end = newline < 0 ? before.length : newline;
+    final markup = '${end > 0 ? '\n' : ''}<photo id="${photo.id}">${newline < 0 ? '\n' : ''}';
+    _applyRichPatch(end, end, markup);
+    _finishInsertion();
+  }
+
   String get _draftId=>widget.project?.id??'new-document';
   Map<String,dynamic>? _original;
   bool get _canEdit=>widget.storage?.canvasWritable??true;
@@ -196,6 +241,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     _tags.add(tag); _bodyFocus.requestFocus();
   }
   int _richInsertionRevision = 0;
+  TextSelection? _richLineSelection;
 
   Future<void> _insertTable({int? richOffset}) async {
     final before = _body.value;
@@ -263,7 +309,10 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
 
   void _finishInsertion() {
     if (_rich) {
-      setState(() => _richInsertionRevision++);
+      setState(() {
+        _richLineSelection = null;
+        _richInsertionRevision++;
+      });
     } else {
       _bodyFocus.requestFocus();
     }
@@ -431,7 +480,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         : _preview
         ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
         : _rich
-        ? DocumentRichEditor(key: ValueKey(_richInsertionRevision), onInsertFootnote: _saving ? null : (offset) => _insertFootnote(richOffset: offset), onInsertTable: _saving ? null : (offset) => _insertTable(richOffset: offset), source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty, diagnostics: _body.syntaxDiagnostics, onSyntaxDiagnostic: _showSyntaxDiagnostic)
+        ? DocumentRichEditor(key: ValueKey(_richInsertionRevision), onInsertFootnote: _saving ? null : (offset) => _insertFootnote(richOffset: offset), onInsertTable: _saving ? null : (offset) => _insertTable(richOffset: offset), onInsertPhoto: _saving ? null : _insertPhoto, onEditLines: _editLines, sourceSelection: _richLineSelection, source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty, diagnostics: _body.syntaxDiagnostics, onSyntaxDiagnostic: _showSyntaxDiagnostic)
         : DocumentLineNumbers(controller: _body, scroll: _documentScroll, child: CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true,
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
@@ -441,11 +490,11 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
             _syntaxTouch = event.kind == PointerDeviceKind.touch ? event.position : null;
             _syntaxTooltip.hide();
           },
-          child: TextField(key: const ValueKey('project-document'), readOnly: _saving, controller: _body, focusNode: _bodyFocus, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
+          child: CallbackShortcuts(bindings: {for (final entry in documentLineShortcuts.entries) entry.key: () => _editLines(entry.value, _body.selection)}, child: TextField(key: const ValueKey('project-document'), readOnly: _saving, controller: _body, focusNode: _bodyFocus, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
           onTapOutside: _wide ? null : (_) {},
           inputFormatters: const [DocumentListInput()],
           onTap: _tapSource, textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
-          decoration: InputDecoration(contentPadding:EdgeInsets.fromLTRB(12,16,12,_dirty?36:16),fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder()))),
+          decoration: InputDecoration(contentPadding:EdgeInsets.fromLTRB(12,16,12,_dirty?36:16),fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder())))),
           if(_dirty)const Positioned(left:12,right:12,bottom:8,child:IgnorePointer(child:Text('아직 저장되지 않았습니다.',textAlign:TextAlign.center,style:TextStyle(color:Colors.red,fontSize:12)))),
         ])));
       final documentInput = !_canEdit || _preview || _rich ? documentBody : DragTarget<Object>(key: const ValueKey('document-link-drop'),
@@ -462,7 +511,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
             IconButton(
               tooltip: '각주 삽입',
               onPressed: _saving ? null : _insertFootnote,
-              icon: const Icon(Icons.format_list_numbered),
+              icon: const Text('[1]'),
             ),
             IconButton(
               tooltip: '표 삽입',
@@ -502,7 +551,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       '제목 1: ======제목======\n제목 2: =====제목=====\n제목 3: ====제목====\n제목 4: ===제목===\n제목 5: ==제목==\n'
       '제목 안의 공백은 그대로 표시됩니다. 가장 먼저 나오는 제목을 문서 이름으로 사용합니다.\n\n'
       '굵게: **텍스트**\n기울임: //텍스트//\n밑줄: __텍스트__\n취소선: --텍스트--\n\n'
-      '주석: // 한 줄 주석\n여러 줄 주석: /* 여러 줄 주석 */\n\n'
+      '주석: <!-- 한 줄 또는 여러 줄 주석 -->\n\n'
       '왼쪽 정렬: |텍스트 |\n오른쪽 정렬: | 텍스트|\n가운데 정렬: | 텍스트 |\n\n'
       '링크: [[표시명|라벨 또는 문서 제목]]\n웹 링크: [[표시명|https://example.com]]\n'
       '[[표시명|까지 입력하면 어시스트가 열립니다. Ctrl + Space로 선택할 수 있습니다. 문서는 문서: 접두어와 굵은 제목으로 표시됩니다.\n\n'

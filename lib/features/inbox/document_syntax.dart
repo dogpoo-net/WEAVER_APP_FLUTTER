@@ -40,7 +40,11 @@ String documentTitle(String text) {
   }
   return fallbackHeading ??
       lines
-          .where((line) => !documentFootnoteDefinition.hasMatch(line))
+          .where(
+            (line) =>
+                !documentFootnoteDefinition.hasMatch(line) &&
+                !documentPhoto.hasMatch(line),
+          )
           .map((line) => line.trim())
           .where((line) => line.isNotEmpty)
           .firstOrNull ??
@@ -69,13 +73,10 @@ final documentFootnoteDefinition = RegExp(
   r'^\[\^([a-zA-Z0-9_-]+)\]:[ \t]+(.+)$',
 );
 final documentFootnoteReference = RegExp(r'\[\^([a-zA-Z0-9_-]+)\]');
-// A paired, non-space-prefixed // span remains the existing italic markup.
+final documentPhoto = RegExp(r'^<photo id="([a-zA-Z0-9_-]+)">$');
 final _documentTokens = RegExp(
   '${codeMarkup.pattern.replaceFirst(r'|$', r'|(?![\s\S])')}|'
-  r'\[\[[^\r\n]*?\]\]|\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s<>\[\]]+|'
-  r'//[^/\s][^\r\n]*?//|(?<comment>/\*[\s\S]*?(?:\*/|(?![\s\S]))|'
-  r'^[ \t]*<!--[^\r\n]*-->[ \t]*(?=\r?$)|//[^\r\n]*)',
-  multiLine: true,
+  r'\[\[[^\r\n]*?\]\]|(?<comment><!--[\s\S]*?(?:-->|(?![\s\S])))',
 );
 
 class DocumentComments {
@@ -95,9 +96,23 @@ class DocumentComments {
     return token.group(0)!.replaceAll(RegExp(r'[^\r\n]'), ' ');
   });
 
-  late final List<({int start, int end})> removals = [
-    for (final range in ranges) _removal(range),
-  ];
+  late final List<({int start, int end})> removals = _removals();
+
+  List<({int start, int end})> _removals() {
+    final result = <({int start, int end})>[];
+    for (final range in ranges.map(_removal)) {
+      if (result.isNotEmpty && result.last.end >= range.start) {
+        final previous = result.removeLast();
+        result.add((
+          start: previous.start,
+          end: range.end > previous.end ? range.end : previous.end,
+        ));
+      } else {
+        result.add(range);
+      }
+    }
+    return result;
+  }
 
   ({int start, int end}) _removal(RegExpMatch range) {
     final lineStart = range.start == 0
@@ -117,8 +132,9 @@ class DocumentComments {
     final buffer = StringBuffer();
     var start = 0;
     for (final range in removals) {
-      buffer.write(source.substring(start, range.start));
-      start = range.end;
+      if (range.start > start)
+        buffer.write(source.substring(start, range.start));
+      if (range.end > start) start = range.end;
     }
     buffer.write(source.substring(start));
     return buffer.toString();

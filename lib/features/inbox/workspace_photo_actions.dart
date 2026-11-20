@@ -8,14 +8,14 @@ import '../capture/capture_models.dart';
 import '../capture/media_storage.dart';
 import '../capture/photo_gallery.dart';
 import 'element_store.dart';
+import 'document_syntax.dart';
 import 'memo_boxes.dart';
 import 'overview_collections.dart' show StoredThumbnail;
-import 'thought_settings.dart';
 import 'workspace_photo.dart';
 import 'workspace_routes.dart';
 import 'workspace_storage.dart';
 
-enum _PhotoSource { thought, upload }
+enum _PhotoSource { existing, upload }
 
 void _photoMessage(BuildContext context, String message) {
   if (context.mounted)
@@ -122,14 +122,34 @@ Future<void> createWorkspacePhoto(
   MemoBox? box,
   required VoidCallback onChanged,
 }) async {
+  final photo = await chooseWorkspacePhoto(
+    context,
+    storage,
+    copyExisting: true,
+  );
+  if (photo == null || !context.mounted) return;
+  try {
+    if (box != null && memoBoxes.contains(box)) moveThoughtToBox(photo.id, box);
+    onChanged();
+    await saveWorkspaceContent?.call();
+  } catch (error) {
+    _photoMessage(context, '사진을 저장하지 못했습니다. $error');
+  }
+}
+
+Future<PhotoAttachment?> chooseWorkspacePhoto(
+  BuildContext context,
+  WorkspaceStorage? storage, {
+  bool copyExisting = false,
+}) async {
   final source = await showDialog<_PhotoSource>(
     context: context,
     builder: (context) => SimpleDialog(
       title: const Text('사진'),
       children: [
         SimpleDialogOption(
-          onPressed: () => Navigator.pop(context, _PhotoSource.thought),
-          child: const Text('생각에서 가져오기'),
+          onPressed: () => Navigator.pop(context, _PhotoSource.existing),
+          child: const Text('가져오기'),
         ),
         SimpleDialogOption(
           onPressed: () => Navigator.pop(context, _PhotoSource.upload),
@@ -138,61 +158,86 @@ Future<void> createWorkspacePhoto(
       ],
     ),
   );
-  if (source == null || !context.mounted) return;
+  if (source == null || !context.mounted) return null;
   try {
     Uint8List? bytes;
     String name;
-    if (source == _PhotoSource.thought) {
-      final attachments = [
-        for (final thought in elements.records.values.where(canBrowseThought))
-          for (final photo in thought.photos) (thought: thought, photo: photo),
-      ];
+    if (source == _PhotoSource.existing) {
+      final attachments = {
+        for (final thought in elements.records.values)
+          for (final photo in thought.photos) photo.id: photo,
+        for (final photo in workspacePhotos.values) photo.id: photo.attachment,
+      }.values.toList();
+      var columns = 3;
       final attachment = await showDialog<PhotoAttachment>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('생각에서 사진 가져오기'),
-          content: SizedBox(
-            width: 400,
-            height: 320,
-            child: attachments.isEmpty
-                ? const Center(child: Text('생각에 첨부된 사진이 없습니다.'))
-                : ListView.builder(
-                    itemCount: attachments.length,
-                    itemBuilder: (context, index) {
-                      final entry = attachments[index];
-                      return ListTile(
-                        leading: SizedBox.square(
-                          dimension: 42,
-                          child: StoredThumbnail(
-                            id: entry.photo.id,
-                            name: entry.photo.name,
-                            owner: storage?.owner,
-                          ),
-                        ),
-                        title: Text(
-                          entry.thought.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          entry.photo.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onTap: () => Navigator.pop(context, entry.photo),
-                      );
-                    },
+        builder: (context) => StatefulBuilder(
+          builder: (context, update) => AlertDialog(
+            title: const Text('사진 가져오기'),
+            content: SizedBox(
+              width: 480,
+              height: 360,
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: Text('${attachments.length}장')),
+                      const Text('열'),
+                      const SizedBox(width: 8),
+                      DropdownButton<int>(
+                        value: columns,
+                        items: [
+                          for (var count = 2; count <= 6; count++)
+                            DropdownMenuItem(
+                              value: count,
+                              child: Text('$count'),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) update(() => columns = value);
+                        },
+                      ),
+                    ],
                   ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('취소'),
+                  Expanded(
+                    child: attachments.isEmpty
+                        ? const Center(child: Text('가져올 사진이 없습니다.'))
+                        : GridView.builder(
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: columns,
+                                  crossAxisSpacing: 4,
+                                  mainAxisSpacing: 4,
+                                ),
+                            itemCount: attachments.length,
+                            itemBuilder: (context, index) {
+                              final photo = attachments[index];
+                              return InkWell(
+                                onTap: () => Navigator.pop(context, photo),
+                                child: StoredThumbnail(
+                                  id: photo.id,
+                                  name: photo.name,
+                                  owner: storage?.owner,
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
             ),
-          ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('취소'),
+              ),
+            ],
+          ),
         ),
       );
-      if (attachment == null || !context.mounted) return;
+      if (attachment == null || !context.mounted) return null;
+      if (!copyExisting && workspacePhotos.containsKey(attachment.id))
+        return attachment;
       name = attachment.name;
       bytes = await MediaStorage.read(attachment.id, owner: storage?.owner);
     } else {
@@ -202,16 +247,16 @@ Future<void> createWorkspacePhoto(
         maxHeight: 2048,
         imageQuality: 85,
       );
-      if (photo == null || !context.mounted) return;
+      if (photo == null || !context.mounted) return null;
       if (await photo.length() > 10 * 1024 * 1024) {
         _photoMessage(context, '사진 한 장은 10MB 이하로 선택해주세요.');
-        return;
+        return null;
       }
       name = photo.name;
       bytes = await photo.readAsBytes();
     }
     if (bytes == null || bytes.isEmpty) throw StateError('사진을 읽을 수 없습니다.');
-    if (!context.mounted) return;
+    if (!context.mounted) return null;
     await storage?.writable();
     final codec = await ui.instantiateImageCodec(bytes);
     final ui.FrameInfo frame;
@@ -222,24 +267,25 @@ Future<void> createWorkspacePhoto(
     }
     final ratio = frame.image.width / frame.image.height;
     frame.image.dispose();
-    if (!context.mounted) return;
+    if (!context.mounted) return null;
     final created = DateTime.now().toUtc();
     final id = 'workspace-photo-${created.microsecondsSinceEpoch}';
     await MediaStorage.write(id, bytes, owner: storage?.owner);
     if (!context.mounted) {
       await MediaStorage.delete(id, owner: storage?.owner);
-      return;
+      return null;
     }
     workspacePhotos[id] = WorkspacePhoto(
       PhotoAttachment(id, name),
       created,
       ratio,
     );
-    if (box != null && memoBoxes.contains(box)) moveThoughtToBox(id, box);
-    onChanged();
-    await saveWorkspaceContent?.call();
+    elements.refreshVisibility();
+    if (!copyExisting) await saveWorkspaceContent?.call();
+    return workspacePhotos[id]?.attachment;
   } catch (error) {
     _photoMessage(context, '사진을 저장하지 못했습니다. $error');
+    return null;
   }
 }
 
@@ -267,6 +313,21 @@ Future<void> deleteWorkspacePhoto(
     ),
   );
   if (confirmed != true || !context.mounted) return;
+  if (thoughtId == null &&
+      elements.sources.values
+          .expand((entries) => entries)
+          .any(
+            (entry) =>
+                entry.isProject &&
+                DocumentComments(entry.text).visibleText
+                    .split('\n')
+                    .any(
+                      (line) => documentPhoto.firstMatch(line)?.group(1) == id,
+                    ),
+          )) {
+    _photoMessage(context, '문서에서 사용 중인 사진이에요. 문서에서 먼저 제거해주세요.');
+    return;
+  }
   try {
     await storage?.writable();
     if (!context.mounted) return;

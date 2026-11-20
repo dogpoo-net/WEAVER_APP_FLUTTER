@@ -53,6 +53,10 @@ Future<void> retrySavedVoice(String memoId,String audioId,{Future<Uint8List?> Fu
 Future<void> _retrySavedVoice(String memoId,String audioId,String? owner,Future<Uint8List?> Function()? load)async{
   final request=voiceAudioRequest;
   if(request==null)throw StateError('구독 중인 계정으로 로그인해주세요.');
+  final active = elements.byId(memoId)?.recordings.where((clip) => clip.id == audioId).firstOrNull;
+  if (active?.transcription case final job?) {
+    try { await job.completion; return; } catch (_) {}
+  }
   final policy=await request('audio/policy',{});
   if(policy['allowed']!=true)throw StateError('AI 텍스트 변환은 구독 중인 계정에서 사용할 수 있습니다.');
   if(policy['enabled']!=true)throw StateError('현재 텍스트 변환을 사용할 수 없습니다.');
@@ -63,15 +67,30 @@ Future<void> _retrySavedVoice(String memoId,String audioId,String? owner,Future<
   if(record==null || index<0 || bytes==null)throw StateError('녹음 파일을 찾을 수 없습니다.');
   final clip=record.recordings[index];
   if(clip.transcript.isNotEmpty)return;
-  if(clip.transcription!=null){
-    try{await clip.transcription!.completion;if(clip.transcript.isNotEmpty)return;}catch(_){}
-    if(owner!=MediaStorage.activeOwner || !identical(elements.byId(memoId),record))return;
-  }
   final draft=beginVoiceTranscription(VoiceDraft(bytes,clip.durationMs),request);
   final currentIndex=record.recordings.indexWhere((a)=>a.id==audioId);
   if(currentIndex<0)return;
   record.recordings[currentIndex]=attachVoiceDraft(audioId,draft);
   await draft.transcription!.completion;
+}
+
+Future<void> resumePendingVoiceTranscriptions() async {
+  if (voiceAudioRequest == null) return;
+  final owner = MediaStorage.activeOwner;
+  final pending = [
+    for (final record in elements.records.values)
+      for (final clip in record.recordings)
+        if (clip.pendingTranscription && clip.transcription == null)
+          (record.id, clip.id),
+  ];
+  for (final (memoId, audioId) in pending) {
+    if (owner != MediaStorage.activeOwner) return;
+    try {
+      await retrySavedVoice(memoId, audioId);
+    } catch (_) {
+      // The saved pending record can be retried on the next workspace open.
+    }
+  }
 }
 
 final voiceBodyEditors=<String,int>{};

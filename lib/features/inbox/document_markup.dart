@@ -1,3 +1,4 @@
+import 'document_photo.dart';
 import 'document_code_block.dart';
 import 'document_table.dart';
 import 'package:flutter/gestures.dart';
@@ -32,6 +33,8 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
     }
   }
 
+  String? _hoveredFootnote;
+
   Widget _footnoteMarker(String id, TextStyle style) {
     final number = '[${_numbers[id]}]';
     final key = _noteKeys.putIfAbsent(id, GlobalKey.new);
@@ -41,6 +44,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
     };
     final marker = InkWell(
       mouseCursor: SystemMouseCursors.click,
+      onHover: (hover) => setState(() => _hoveredFootnote = hover ? id : null),
       onTap: () async {
         if (!mobile) {
           _jump(key);
@@ -59,8 +63,9 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
         if (mounted && jump == true) _jump(key);
       },
       child: Text(number, style: style.copyWith(
-        color: Theme.of(context).colorScheme.primary,
-        decoration: TextDecoration.underline,
+        color: Colors.orange.shade800,
+        fontSize: (style.fontSize ?? 14) * .72,
+        decoration: _hoveredFootnote == id ? TextDecoration.underline : TextDecoration.none,
       )),
     );
     return mobile ? marker : Tooltip(message: _footnotes[id]!, child: marker);
@@ -105,7 +110,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
           flush();
           _numbers.putIfAbsent(id, () => _numbers.length + 1);
           result.add(WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
+            alignment: PlaceholderAlignment.top,
             child: _footnoteMarker(id, style),
           ));
           i = reference!.end;
@@ -210,6 +215,12 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
       }
       if (widget.formatting && !_inCode &&
           documentFootnoteDefinition.hasMatch(line)) {
+        offset += line.length + 1;
+        continue;
+      }
+      final photo = widget.formatting && !_inCode ? documentPhoto.firstMatch(line) : null;
+      if (photo != null) {
+        lines.add(DocumentPhoto(photo.group(1)!));
         offset += line.length + 1;
         continue;
       }

@@ -21,7 +21,7 @@ class ThoughtLocation {
   }
 }
 
-/// In-memory work survives closing the recorder; only the resulting text is persisted.
+/// In-memory work survives closing the recorder.
 class VoiceTranscriptionJob {
   String? text;
   final attachmentIds=<String>{};
@@ -31,17 +31,19 @@ class VoiceTranscriptionJob {
 class VoiceAttachment {
   // Preserve the public transcript argument while exposing live job results.
   // ignore: prefer_initializing_formals
-  const VoiceAttachment(this.id, this.durationMs, {String transcript = '', this.transcription}) : _transcript=transcript;
+  const VoiceAttachment(this.id, this.durationMs, {String transcript = '', this.transcription, bool pendingTranscription = false}) : _transcript=transcript, _pendingTranscription=pendingTranscription;
+  final bool _pendingTranscription;
+  bool get pendingTranscription => transcription == null ? _pendingTranscription : transcription!.text == null;
   final String _transcript;
   final VoiceTranscriptionJob? transcription;
   String get transcript => transcription?.text ?? _transcript;
   final String id;
   final int durationMs;
-  Map<String, dynamic> toJson() => {'id': id, 'durationMs': durationMs, if (transcript.isNotEmpty) 'transcript': transcript};
+  Map<String, dynamic> toJson() => {'id': id, 'durationMs': durationMs, if (transcript.isNotEmpty) 'transcript': transcript, if (pendingTranscription) 'pendingTranscription': true};
   factory VoiceAttachment.fromJson(dynamic json) {
     final id = json['id'] as String, duration = json['durationMs'] as int;
     if (id.isEmpty || duration < 0 || duration > 86400000) throw const FormatException('Invalid voice attachment');
-    return VoiceAttachment(id, duration, transcript: json['transcript'] as String? ?? '');
+    return VoiceAttachment(id, duration, transcript: json['transcript'] as String? ?? '', pendingTranscription: json['pendingTranscription'] == true);
   }
 }
 
