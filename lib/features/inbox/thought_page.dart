@@ -900,10 +900,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         bounds = bounds.shift(Offset(0, bottom + 48 - bounds.top));
       }
       final shift = bounds.topLeft - original.topLeft;
-      if (shift != Offset.zero) {
-        for (final id in box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
-        if (!box.elementIds.any(_positions.containsKey)) _emptyBoxBounds[box] = bounds;
-      }
+      if (shift != Offset.zero) _moveBox(box, shift);
       placed.add(bounds);
     }
   }
@@ -1429,6 +1426,42 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
 
   Offset? _containerResizeOrigin;
   Rect? _containerResizeStart;
+  List<Rect> _resizeObstacles = const [];
+
+  Iterable<Rect> _containerResizeObstacles(String key) sync* {
+    final isFolder = key.startsWith('folder:');
+    final name = key.substring(key.indexOf(':') + 1);
+    final parent = isFolder ? name
+        : _allRegionBoxes.where((box) => box.name == name).firstOrNull?.folder;
+    for (final box in _allRegionBoxes) {
+      if (!isFolder && box.name == name) continue;
+      if (isFolder && box.folder != null && memoFolderContains(name, box.folder!)) continue;
+      final bounds = _boxBounds(box);
+      if (bounds != null) yield bounds;
+    }
+    for (final entry in _folderGeometry().entries) {
+      final folder = entry.key;
+      if (parent != null && memoFolderContains(folder, parent)) continue;
+      if (isFolder && memoFolderContains(name, folder)) continue;
+      yield entry.value;
+    }
+  }
+
+  Rect _limitContainerResize(Rect start, Rect requested, Iterable<Rect> obstacles) {
+    var result = requested;
+    for (final obstacle in obstacles) {
+      if (!result.inflate(24).overlaps(obstacle)) continue;
+      // Clamp the edge being dragged. Let the existing content bounds continue
+      // to drive automatic growth when a child is moved independently.
+      result = Rect.fromLTRB(
+        obstacle.right <= start.left ? math.max(result.left, math.min(start.left, obstacle.right + 24)) : result.left,
+        obstacle.bottom <= start.top ? math.max(result.top, math.min(start.top, obstacle.bottom + 24)) : result.top,
+        obstacle.left >= start.right ? math.min(result.right, math.max(start.right, obstacle.left - 24)) : result.right,
+        obstacle.top >= start.bottom ? math.min(result.bottom, math.max(start.bottom, obstacle.top - 24)) : result.bottom,
+      );
+    }
+    return result;
+  }
 
   Iterable<Widget> _containerResizeEdges(String key, Rect bounds) sync* {
     final hit = (8 / _view.value.storage[0].abs()).clamp(3.0, 18.0);
@@ -1454,6 +1487,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               onScaleStart: (details) {
                 _containerResizeOrigin = details.focalPoint;
                 _containerResizeStart = bounds;
+                _resizeObstacles = _containerResizeObstacles(key).toList();
               },
               onScaleUpdate: (details) {
                 final origin = _containerResizeOrigin;
@@ -1467,11 +1501,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   x > 0 ? math.max(start.left + 120, start.right + delta.dx) : start.right,
                   y > 0 ? math.max(start.top + 64, start.bottom + delta.dy) : start.bottom,
                 );
-                _updateCanvas(() => _layout.containerBounds[key] = next);
+                final limited = _limitContainerResize(start, next, _resizeObstacles);
+                _updateCanvas(() => _layout.containerBounds[key] = limited);
               },
               onScaleEnd: (_) {
                 _containerResizeOrigin = null;
                 _containerResizeStart = null;
+                _resizeObstacles = const [];
               },
             ),
           ),
