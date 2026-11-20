@@ -362,7 +362,17 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     }, rename: rename);
   }
   Widget _boxFolder(String folder) {
-    final label = Row(children: [const Icon(Icons.folder_outlined, size: 20), const SizedBox(width: 8), Expanded(child: _countedTitle(folder, memoBoxes.where((box) => !box.isUnclassified && box.folder != null && memoFolderContains(folder, box.folder!)).length, 'box-folder-count-$folder'))]);
+    final thoughtIds = <String>{
+      for (final box in memoBoxes)
+        if (!box.isUnclassified && box.folder != null &&
+            memoFolderContains(folder, box.folder!))
+          ...box.elementIds.where(_activeThoughtIds.contains),
+    };
+    final label = Row(children: [
+      const Icon(Icons.folder_outlined, size: 20),
+      const SizedBox(width: 8),
+      Expanded(child: _countedTitle(folder, thoughtIds.length, 'box-folder-count-$folder')),
+    ]);
     final feedback = Material(child: Padding(padding: const EdgeInsets.all(12), child: Text(folder)));
     final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
     final title = desktop
