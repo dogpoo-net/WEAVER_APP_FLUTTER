@@ -1,3 +1,6 @@
+import 'package:google_maps_flutter/google_maps_flutter.dart' as google;
+import 'workspace_map_surface.dart';
+import 'google_thought_map.dart';
 import '../inbox/overview_tab_activity.dart';
 import 'location_editor.dart';
 import 'media_storage.dart';
@@ -29,6 +32,8 @@ class GeologPage extends StatefulWidget {
 }
 class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<GeologPage> {
   final _map = MapController();
+  google.GoogleMapController? _googleMap;
+  bool _osmReady = false;
   String _query = '';
   late final _filters = widget.filters ?? ThoughtFilterSelection(initialBox: widget.box);
   bool _tileError = false;
@@ -43,6 +48,20 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
   LatLng _point(ElementRecord record) => LatLng(record.location!.latitude, record.location!.longitude);
   void _fit(List<ElementRecord> records) {
     if (records.isEmpty) return;
+    final controller = _googleMap;
+    if (controller != null) {
+      final bounds = LatLngBounds.fromPoints(records.map(_point).toList());
+      final update = bounds.southWest == bounds.northEast
+          ? google.CameraUpdate.newLatLngZoom(googlePoint(bounds.southWest), 15)
+          : google.CameraUpdate.newLatLngBounds(
+              google.LatLngBounds(
+                southwest: googlePoint(bounds.southWest),
+                northeast: googlePoint(bounds.northEast),
+              ), 48);
+      controller.moveCamera(update);
+      return;
+    }
+    if (!_osmReady) return;
     if (records.length == 1) { _map.move(_point(records.first), 15); }
     else { _map.fitCamera(CameraFit.bounds(bounds: LatLngBounds.fromPoints(records.map(_point).toList()), padding: const EdgeInsets.all(48), maxZoom: 16)); }
   }
@@ -120,8 +139,34 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
         Positioned.fill(child: ClipRect(child: ImageFiltered(
           enabled: records.isEmpty,
           imageFilter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-          child: IgnorePointer(ignoring: records.isEmpty, child: FlutterMap(key: ValueKey('$_mapRevision-${records.isEmpty}'), mapController: _map,
-          options: MapOptions(initialCenter: records.isEmpty ? const LatLng(20, 0) : _point(records.first), initialZoom: records.isEmpty ? 2 : 14, minZoom: 2, maxZoom: 19,
+          child: IgnorePointer(ignoring: records.isEmpty, child: WorkspaceMapSurface(
+          googleMap: (_) => GoogleThoughtMap(
+            initialCameraPosition: google.CameraPosition(
+              target: records.isEmpty ? const google.LatLng(20, 0) : googlePoint(_point(records.first)),
+              zoom: records.isEmpty ? 2 : 14,
+            ),
+            onMapCreated: (controller) {
+              _googleMap = controller;
+              if (_records.length > 1) _fit(_records);
+            },
+            pins: [
+              for (final entry in groups.entries)
+                GoogleThoughtPin(
+                  id: entry.key,
+                  position: googlePoint(_point(entry.value.first)),
+                  color: entry.value.every((r) => r.hiddenFromSearch)
+                      ? Colors.grey : locationMarkerColor(entry.value.first.location!),
+                  label: entry.value.length > 1
+                      ? '${entry.value.length}개의 생각' : entry.value.first.text,
+                  onTap: () => _open(entry.value),
+                ),
+            ],
+          ),
+          osmMap: (_) => FlutterMap(key: ValueKey('$_mapRevision-${records.isEmpty}'), mapController: _map,
+          options: MapOptions(onMapReady: () {
+            _googleMap = null;
+            _osmReady = true;
+          }, initialCenter: records.isEmpty ? const LatLng(20, 0) : _point(records.first), initialZoom: records.isEmpty ? 2 : 14, minZoom: 2, maxZoom: 19,
             initialCameraFit: records.length > 1 ? CameraFit.bounds(bounds: LatLngBounds.fromPoints(records.map(_point).toList()), padding: const EdgeInsets.all(48), maxZoom: 16) : null),
           children: [
             RegionalTileLayer(onError: _tileFailed),
@@ -144,11 +189,11 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
                 Icon(Icons.location_on, color: group.every((r) => r.hiddenFromSearch) ? Colors.grey : locationMarkerColor(group.first.location!), size: 28,
                   shadows: const [Shadow(color: Colors.white, blurRadius: 3)]),
               ]))))]),
-          ]))))),
+            const MapAttribution(),
+          ])))))),
         if (records.isEmpty) Positioned(top: 16, left: 16, right: 16,
           child: Card(child: Padding(padding: const EdgeInsets.all(16),
             child: Text('위치가 기록된 생각이 없습니다.\n우측 상단 +로 생각을 남기거나 빠른 메모에서 현재 위치를 기록해주세요.', textAlign: TextAlign.center)))),
-        const Positioned(right: 0, bottom: 0, child: MapAttribution()),
       ])),
       ThoughtFilters(tags: _scope.expand((r) => r.tags).toSet().toList()..sort(), selection: _filters,
         onChanged: () { widget.onChanged(); setState(() {}); }, onFilter: _filters.toggle),

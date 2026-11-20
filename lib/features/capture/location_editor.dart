@@ -1,3 +1,6 @@
+import 'package:google_maps_flutter/google_maps_flutter.dart' as google;
+import 'workspace_map_surface.dart';
+import 'google_thought_map.dart';
 import 'voice_transcription.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -74,6 +77,8 @@ class LocationEditor extends StatefulWidget {
 
 class _LocationEditorState extends State<LocationEditor> {
   final map = MapController();
+  google.GoogleMapController? _googleMap;
+  bool _osmReady = false;
   final text = TextEditingController();
   Timer? locateTimer;
   final owner = MediaStorage.activeOwner;
@@ -258,7 +263,12 @@ class _LocationEditorState extends State<LocationEditor> {
             ? point
             : point.withMarkerColor(markerColor!),
       );
-      map.move(LatLng(point.latitude, point.longitude), 16);
+      final position = LatLng(point.latitude, point.longitude);
+      if (_googleMap case final controller?) {
+        await controller.moveCamera(google.CameraUpdate.newLatLngZoom(googlePoint(position), 16));
+      } else if (_osmReady) {
+        map.move(position, 16);
+      }
     } catch (_) {
       if (mounted && request == generation) {
         setState(() => error = '현재 위치를 찾지 못했습니다. 지도에서 원하는 위치를 선택해주세요.');
@@ -383,9 +393,27 @@ class _LocationEditorState extends State<LocationEditor> {
                   Text(error!, style: Theme.of(context).textTheme.bodySmall),
                 Expanded(
                   child: ClipRect(
-                    child: Stack(
-                      children: [
-                        FlutterMap(
+                    child: WorkspaceMapSurface(
+                      googleMap: (_) => GoogleThoughtMap(
+                        initialCameraPosition: google.CameraPosition(
+                          target: point == null
+                              ? const google.LatLng(20, 0)
+                              : google.LatLng(point.latitude, point.longitude),
+                          zoom: point == null ? 2 : 16,
+                        ),
+                        onMapCreated: (controller) => _googleMap = controller,
+                        onTap: saving ? null : (position) =>
+                            select(LatLng(position.latitude, position.longitude)),
+                        pins: [
+                          if (point != null)
+                            GoogleThoughtPin(
+                              id: 'location',
+                              position: google.LatLng(point.latitude, point.longitude),
+                              color: locationMarkerColor(point),
+                            ),
+                        ],
+                      ),
+                      osmMap: (_) => FlutterMap(
                           mapController: map,
                           options: MapOptions(
                             initialCenter: point == null
@@ -394,6 +422,10 @@ class _LocationEditorState extends State<LocationEditor> {
                             initialZoom: point == null ? 2 : 16,
                             minZoom: 2,
                             maxZoom: 19,
+                            onMapReady: () {
+                              _googleMap = null;
+                              _osmReady = true;
+                            },
                             onTap: saving ? null : (_, position) => select(position),
                           ),
                           children: [
@@ -417,10 +449,9 @@ class _LocationEditorState extends State<LocationEditor> {
                                   ),
                               ],
                             ),
+                            const MapAttribution(),
                           ],
                         ),
-                        const MapAttribution(),
-                      ],
                     ),
                   ),
                 ),

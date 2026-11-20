@@ -52,6 +52,7 @@ dependencies:
   kakao_flutter_sdk_user: ^1.9.7+3
   file_picker: ^13.4.0
   flutter_quill: ^11.6.0
+  google_maps_flutter: ^2.19.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

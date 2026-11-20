@@ -1,3 +1,4 @@
+import '../capture/workspace_map_surface.dart';
 import 'workspace_photo.dart';
 import 'memo_box_actions.dart';
 import '../capture/voice_transcription.dart';
@@ -170,6 +171,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     workspaceMemoAuthor=(id)=>overviewAuthor(widget.storage,'list:elements',id);
     if(widget.storage?.comments==null)memoCommentCounts.value={};
     voiceAudioRequest=widget.storage?.audioRequest;
+    workspaceMapRequest=widget.storage?.audioRequest;
     memoCommentRequest=widget.storage?.comments;memoCommentsWritable=widget.storage?.commentsWritable??false;
     widget.storage?.applyServerSnapshot=_applyRemoteSnapshot;
     desktopMenu.visible = true;
@@ -514,7 +516,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     WidgetsBinding.instance.removeObserver(this);
     if(openWorkspaceDocument == _openDocumentById)openWorkspaceDocument=null;
     if(refreshWorkspaceForRead == _refreshForBrowse)refreshWorkspaceForRead=null;
-    if(saveWorkspaceContent == _saveAndSync){saveWorkspaceContent=null;workspaceMemoAuthor=null;voiceAudioRequest=null;memoCommentRequest=null;memoCommentsWritable=false;}
+    if(saveWorkspaceContent == _saveAndSync){saveWorkspaceContent=null;workspaceMemoAuthor=null;voiceAudioRequest=null;workspaceMapRequest=null;memoCommentRequest=null;memoCommentsWritable=false;}
     WidgetsBinding.instance.addPostFrameCallback((_) => desktopMenu.detach(this));
     elements.removeListener(_elementDeleted);
     elements.onRenamed = null;
