@@ -4,8 +4,9 @@ import '../inbox/memo_comments.dart' show commentAge;
 
 typedef NotificationRequest = Future<Map<String,dynamic>> Function(String,Map<String,Object?>);
 class NotificationBell extends StatefulWidget {
-  const NotificationBell({super.key,required this.request,this.onOpen});
+  const NotificationBell({super.key,required this.request,this.onOpen,this.startupSyncPending=false});
   final NotificationRequest request;
+  final bool startupSyncPending;
   final Future<void> Function(Map<String,dynamic>)? onOpen;
   @override State<NotificationBell> createState()=>_NotificationBellState();
 }
@@ -21,17 +22,21 @@ class _NotificationBellState extends State<NotificationBell> with WidgetsBinding
     try{final data=await widget.request('notifications',{'countOnly':true});if(mounted)setState(()=>unread=(data['unread'] as num?)?.toInt()??0);}catch(_){/* Retry when active; the modal offers a visible error and retry. */}finally{loading=false;}
   }
   Future<void> open()async{
-    final item=await showDialog<Map<String,dynamic>>(context:context,builder:(_)=>NotificationInbox(request:widget.request,onUnread:(count){if(mounted)setState(()=>unread=count);}));
+    final item=await showDialog<Map<String,dynamic>>(context:context,builder:(_)=>NotificationInbox(request:widget.request,startupSyncPending:widget.startupSyncPending,onUnread:(count){if(mounted)setState(()=>unread=count);}));
     if(item!=null&&mounted){try{await widget.onOpen?.call(item);}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('알림을 열지 못했습니다. $e')));}}
     if(mounted)await refresh();
   }
-  @override Widget build(BuildContext context)=>IconButton(tooltip:unread>0?'알림 · 읽지 않음 $unread개':'알림',onPressed:open,
-    icon:Badge(key:const ValueKey('notification-badge'),isLabelVisible:unread>0,label:Text(unread>99?'99+':'$unread'),child:const Icon(Icons.notifications_none)));
+  @override Widget build(BuildContext context) {
+    final count=unread+(widget.startupSyncPending?1:0);
+    return IconButton(tooltip:count>0?'알림 · 읽지 않음 $count개':'알림',onPressed:open,
+      icon:Badge(key:const ValueKey('notification-badge'),isLabelVisible:count>0,label:Text(count>99?'99+':'$count'),child:const Icon(Icons.notifications_none)));
+  }
 }
 class NotificationInbox extends StatefulWidget {
-  const NotificationInbox({super.key,required this.request,required this.onUnread});
+  const NotificationInbox({super.key,required this.request,required this.onUnread,this.startupSyncPending=false});
   final NotificationRequest request;
   final ValueChanged<int> onUnread;
+  final bool startupSyncPending;
   @override State<NotificationInbox> createState()=>_NotificationInboxState();
 }
 class _NotificationInboxState extends State<NotificationInbox>{
@@ -72,6 +77,12 @@ class _NotificationInboxState extends State<NotificationInbox>{
     content:SizedBox(width:480,height:440,child:Column(children:[
       if(loading)const LinearProgressIndicator(),
       if(error!=null)...[Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error)),TextButton(onPressed:loading?null:load,child:const Text('다시 시도'))],
+      if(widget.startupSyncPending)ListTile(
+        leading:const Icon(Icons.sync_problem),
+        title:const Text('동기화가 필요한 기기 자료가 있어요'),
+        subtitle:const Text('서버 자료와 비교하고 남길 항목을 선택하세요.'),
+        onTap:()=>Navigator.pop(context,<String,dynamic>{'kind':'startup-sync'}),
+      ),
       Expanded(child:items.isEmpty?Center(child:Text(loading?'알림을 불러오는 중입니다.':'새 알림이 없습니다.')):
         ListView.separated(itemCount:items.length+(more?1:0),separatorBuilder:(_,i)=>const Divider(height:1),itemBuilder:(context,i){
           if(i==items.length)return TextButton(onPressed:loading?null:()=>load(older:true),child:const Text('이전 알림 더보기'));

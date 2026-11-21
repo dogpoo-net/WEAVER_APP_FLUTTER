@@ -1,3 +1,4 @@
+import 'startup_recovery.dart';
 import 'network_recovery.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -44,9 +45,10 @@ List<Map<String,dynamic>> reviewChanges(List<SyncDifference> differences,Map<Str
   }];
 }
 class WorkspaceSyncReviewPage extends StatefulWidget {
-  const WorkspaceSyncReviewPage({super.key,required this.engine,required this.source});
+  const WorkspaceSyncReviewPage({super.key,required this.engine,required this.source,this.startupRecovery=false});
   final WorkspaceSync engine;
   final WorkspaceStorage source;
+  final bool startupRecovery;
   @override State<WorkspaceSyncReviewPage> createState()=>_WorkspaceSyncReviewPageState();
 }
 class _WorkspaceSyncReviewPageState extends State<WorkspaceSyncReviewPage>{
@@ -58,14 +60,21 @@ class _WorkspaceSyncReviewPageState extends State<WorkspaceSyncReviewPage>{
     setState((){busy=true;error=null;});
     try{
       await widget.source.flush();
-      await OfflineWorkspace.preserveRecovery(widget.source,widget.engine.storage);
+      if(!widget.startupRecovery)await OfflineWorkspace.preserveRecovery(widget.source,widget.engine.storage);
       final result=await widget.engine.request('read',{'since':0});
       final next=<String,Map<String,dynamic>>{};
       for(final raw in result['changes'] as List){final item=Map<String,dynamic>.from(raw);item['value']=item['payload']==null?null:jsonDecode(item['payload']);next[itemKey(item['kind'],item['id'])]=item;}
       if(!mounted)return;
       local=splitWorkspace(widget.source.read());remote=next;revision=result['revision'] as int;
       choices.clear();
-      if(widget.engine.networkPending){
+      if(widget.startupRecovery){
+        final pending=startupRecoveryItems(widget.source);
+        local=Map.of(remote);
+        for(final entry in pending.entries){local[entry.key]=entry.value;}
+        differences=syncDifferences(local,remote);
+        final pruned={for(final item in pending.entries)if(!sameItem(item.value,remote[item.key]))item.key:item.value};
+        if(!await widget.source.preferences.setString(startupRecoveryKey(widget.source),jsonEncode(pruned)))throw StateError('복구 목록을 저장하지 못했습니다.');
+      }else if(widget.engine.networkPending){
         final plan=NetworkRecoveryPlan(widget.engine.recoveryBase,local,remote);
         local=plan.merged;differences=syncDifferences(local,remote);
         for(final d in differences){if(!d.keys.any(plan.conflicts.contains))choices[d.id]=true;}
@@ -112,7 +121,9 @@ class _WorkspaceSyncReviewPageState extends State<WorkspaceSyncReviewPage>{
         await widget.engine.request('save',{'since':revision,'changes':changes,'offlineReconcile':true});
       }
       await widget.engine.discardLocalAndPull(discardCanvasOutbox:true);
-      if(widget.source.owner!=widget.engine.storage.owner){
+      if(widget.startupRecovery){
+        if(!await widget.source.preferences.setString(startupRecoveryKey(widget.source),'{}'))throw StateError('복구 목록을 지우지 못했습니다.');
+      }else if(widget.source.owner!=widget.engine.storage.owner){
         final raw=widget.engine.storage.read()!;
         await OfflineWorkspace.copyMedia(raw,widget.engine.storage.owner,widget.source.owner);
         await widget.source.replaceFromBackup(raw);

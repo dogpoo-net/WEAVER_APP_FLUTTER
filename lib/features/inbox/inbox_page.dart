@@ -1,3 +1,4 @@
+import '../sync/startup_recovery.dart';
 import '../capture/workspace_map_surface.dart';
 import 'workspace_photo.dart';
 import 'memo_box_actions.dart';
@@ -1349,6 +1350,8 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
       appBar: MainAppBar(
         auth:GoogleAuthScope.maybeOf(context),
         onNotification:widget.storage?.openNotification,
+        startupSyncPending: widget.storage?.openSyncReview != null &&
+            startupRecoveryItems(widget.storage!).isNotEmpty,
         onTitle:MediaQuery.sizeOf(context).width >= 1000 ? () => navigateHome(context) : null,
         leading: AnimatedBuilder(animation: desktopMenu, builder: (context, _) =>
           MediaQuery.sizeOf(context).width >= 1000 && _menuVisible

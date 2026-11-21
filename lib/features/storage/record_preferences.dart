@@ -35,7 +35,7 @@ class RecordPreferences implements SharedPreferences {
     }
   }
 
-  static Future<RecordPreferences> open(SharedPreferences settings) async {
+  static Future<RecordPreferences> open(SharedPreferences settings, {bool migrateLegacy = true}) async {
     // Same Hive directory as MediaStorage, a separate database file/IDB box.
     final result = await RecordLock().exclusive(() async {
       await Hive.initFlutter('weaver-media');
@@ -49,7 +49,7 @@ class RecordPreferences implements SharedPreferences {
         reopen: () => Hive.openBox<String>('workspace-records-v1'),
       );
     });
-    await result.migrate();
+    if (migrateLegacy) await result.migrate();
     return result;
   }
 

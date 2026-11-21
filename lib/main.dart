@@ -1,4 +1,4 @@
-import 'features/storage/record_preferences.dart';
+import 'features/storage/startup_preferences.dart';
 import 'features/inbox/menu_display_preferences.dart';
 import 'features/sync/owned_workspace_gate.dart';
 import 'features/sync/owned_workspace.dart';
@@ -15,7 +15,6 @@ import 'features/inbox/workspace_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'features/inbox/workspace_storage.dart';
 
@@ -37,23 +36,11 @@ Future<void> main() async {
       'Pretendard',
     ], await rootBundle.loadString('assets/fonts/OFL.txt'));
   });
-  WorkspaceStorage? storage;
-  try {
-    await Future.wait<void>([
-      prepareFont(),
-      SharedPreferences.getInstance()
-          .then(RecordPreferences.open)
-          .then((preferences) { storage = WorkspaceStorage(preferences); }),
-    ]);
-  } catch (_) {
-    runApp(MaterialApp(home: Scaffold(body: SafeArea(child: Center(child: Padding(
-      padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('기기의 저장 자료를 준비하지 못했습니다. 기존 자료는 삭제하지 않았습니다. 저장 공간을 확인한 뒤 다시 시도해주세요.'),
-        const SizedBox(height: 16), TextButton(onPressed: main, child: const Text('다시 시도')),
-      ])))))));
-    return;
-  }
-  runApp(MyApp(storage: storage));
+  // A web font failure can use the theme's fallback font.
+  final font = prepareFont().catchError((Object _) {});
+  final preferences = await openStartupPreferences();
+  await font;
+  runApp(MyApp(storage: WorkspaceStorage(preferences)));
 }
 
 class MyApp extends StatefulWidget {
@@ -201,7 +188,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         dismissKeyboard();
         return null;
       }),
-    }, child: child!)),
+    }, child: _withStorageNotice(child!))),
     scaffoldMessengerKey: _messenger,
     navigatorObservers: [workspaceRouteObserver],
     debugShowCheckedModeBanner: false,
@@ -217,6 +204,25 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         setState(() => _verificationToken = null);
       }) : widget.requireLogin && !_auth.isGuest && _auth.identity == null ? LoginPage(auth: _auth,invitationPending:_inviteToken!=null) : widget.requireLogin && widget.storage != null ? OwnedWorkspaceGate(root:widget.storage!,auth:_auth,builder:_inbox,inviteToken:_inviteToken,onInviteHandled:(){if(kIsWeb)SystemNavigator.routeInformationUpdated(uri:Uri(path:Uri.base.path),replace:true);if(mounted)setState(()=>_inviteToken=null);}) : _inbox(widget.storage),
   )));
+
+  Widget _withStorageNotice(Widget child) {
+    final preferences = widget.storage?.preferences;
+    if (preferences is! RecoveryPreferences || !preferences.isTemporary) {
+      return child;
+    }
+    return Column(children: [
+      const Material(
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: EdgeInsets.all(8),
+            child: Text('기기에 저장할 수 없어 임시로 열었어요. 앱을 닫기 전에 서버 동기화를 확인해주세요.'),
+          ),
+        ),
+      ),
+      Expanded(child: child),
+    ]);
+  }
 
   Widget _inbox(WorkspaceStorage? storage) => InboxPage(
       storage: storage,

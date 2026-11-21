@@ -1,3 +1,4 @@
+import 'startup_recovery.dart';
 import '../inbox/main_app_bar.dart';
 import '../inbox/memo_comments.dart';
 import 'dart:async';
@@ -198,6 +199,10 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         _recoveryPrompted=false;
         await engine.initialize(serverCanvas:returningOffline);
         if (!valid()) return;
+        if(engine.ready){
+          try{await discardStartupRecovery(engine);}catch(_){/* Retry cache cleanup on the next online open. */}
+        }
+        if (!valid()) return;
         if (!engine.ready && target.read() == null) {
           throw StateError(engine.error ?? '서버 자료를 불러오지 못했습니다.');
         }
@@ -381,7 +386,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     }
   }
 
-  Future<void> reviewSync(WorkspaceStorage target,WorkspaceSync engine,{WorkspaceStorage? source})async{
+  Future<void> reviewSync(WorkspaceStorage target,WorkspaceSync engine,{WorkspaceStorage? source,bool startup=false})async{
     if(target.hasUnsavedInput?.call()==true){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('작성 중인 입력을 로컬에 저장한 뒤 비교해주세요.')));return;}
     await engine.beginReview();
     try{
@@ -391,8 +396,14 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
       // Resolve current online drafts first; an offline review must not discard them.
       final selectedSource=source??(engine.networkPending?target:onlinePending?target:OfflineWorkspace.hasChanges(offline)?offline:target);
       if(!mounted||!current)return;
-      final applied=await Navigator.of(context).push<bool>(MaterialPageRoute(builder:(_)=>WorkspaceSyncReviewPage(engine:engine,source:selectedSource)));
+      final showStartup=startup||source==null&&!engine.networkPending&&!onlinePending&&!OfflineWorkspace.hasChanges(offline)&&startupRecoveryItems(target).isNotEmpty;
+      if(showStartup&&(engine.networkPending||onlinePending)){
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('현재 작업의 동기화를 마친 뒤 복구 자료를 비교해주세요.')));
+        return;
+      }
+      final applied=await Navigator.of(context).push<bool>(MaterialPageRoute(builder:(_)=>WorkspaceSyncReviewPage(engine:engine,source:showStartup?target:selectedSource,startupRecovery:showStartup)));
       if(applied==true&&current){if(engine.networkPending)await engine.completeNetworkRecovery();target.applyServerSnapshot?.call();if(mounted)setState(()=>epoch++);}
+      else if(mounted&&current&&showStartup){setState(()=>epoch++);}
     }finally{engine.endReview();}
   }
 
@@ -511,6 +522,12 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
 
   Future<void> openNotification(Map<String,dynamic> item) async {
     if (!current) return;
+    if(item['kind']=='startup-sync'){
+      final engine=sync;
+      final target=storage;
+      if(engine!=null&&target!=null&&!engine.readOnly){await reviewSync(target,engine,startup:true);}
+      return;
+    }
     if (item['kind']=='subscription') {
       if(storage?.openPlan!=null){await storage!.openPlan!();}
       else { await showDialog<void>(context:context,builder:(context)=>AlertDialog(title:Text(item['title'] as String? ?? '구독 알림'),content:Text(item['body'] as String? ?? ''),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('닫기'))])); }
