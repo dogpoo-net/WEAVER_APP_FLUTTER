@@ -12,7 +12,7 @@ void main(){testWidgets('Ctrl marquee selects and moves a tag together with its 
  elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();final a=elements.add('태그 메모');a.tags.add('검색');
  final layout=pageGraphLayout.blockLayout;
  layout.positions[a.id]=const Offset(500,500);layout.tags['tag:검색']=const Offset(900,540);layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
- await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));await tester.pumpAndSettle();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));await tester.pumpAndSettle();
  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
  final box=tester.renderObject<RenderBox>(find.byKey(const ValueKey('canvas-selection')));final gesture=await tester.startGesture(box.localToGlobal(const Offset(460,460)));
  await gesture.moveTo(box.localToGlobal(const Offset(1040,650)));await tester.pump();await gesture.up();
@@ -36,7 +36,7 @@ void main(){testWidgets('Ctrl marquee selects and moves a tag together with its 
  final layout=pageGraphLayout.blockLayout;
  layout.positions[a.id]=const Offset(500,500);layout.tags['tag:태그']=const Offset(900,540);
  layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
- await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,storage:storage,onChanged:(){})));await tester.pumpAndSettle();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(storage:storage,onChanged:(){})));await tester.pumpAndSettle();
  final before=layout.tags['tag:태그']!;
  final gesture=await tester.startGesture(tester.getCenter(find.byKey(const ValueKey('graph-tag-태그'))));
  await gesture.moveBy(const Offset(20,0));await tester.pump();
@@ -53,7 +53,7 @@ void main(){testWidgets('Ctrl marquee selects and moves a tag together with its 
  final layout=pageGraphLayout.blockLayout;
  layout.positions[a.id]=const Offset(600,600);layout.tags['tag:짧음']=const Offset(800,400);
  layout.viewport=(Matrix4.diagonal3Values(zoom,zoom,zoom)..setTranslationRaw(300-800*zoom,200-400*zoom,0)).storage.toList();
- await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));await tester.pumpAndSettle();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));await tester.pumpAndSettle();
  final tag=find.byKey(const ValueKey('graph-tag-짧음'));
  final original=tester.getCenter(tag);
  final gesture=await tester.startGesture(original);await gesture.moveBy(const Offset(25,0));await tester.pump();

@@ -58,7 +58,7 @@ void main() {
       final b = elements.add('생각 B');
       final box = MemoBox('상자', ids: [a.id, b.id]); memoBoxes.add(box);
       var saves = 0;
-      final layout = inBox ? box.layout : pageGraphLayout;
+      final layout = (inBox ? box.layout : pageGraphLayout).blockLayout;
       await tester.pumpWidget(MaterialApp(home: ThoughtPage(box: inBox ? box : null,
         onChanged: () {}, onLayoutChanged: () => saves++)));
       await tester.pump(const Duration(seconds: 5));
@@ -93,10 +93,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 64));
     navigator.currentState!.push(MaterialPageRoute<void>(builder: (_) => const Scaffold(body: Text('다른 화면'))));
     await tester.pumpAndSettle();
-    final covered = Map.of(pageGraphLayout.positions);
+    final covered = Map.of(pageGraphLayout.blockLayout.positions);
     final count = saves;
     await tester.pump(const Duration(seconds: 2));
-    expect(pageGraphLayout.positions, covered);
+    expect(pageGraphLayout.blockLayout.positions, covered);
     expect(saves, count, reason: 'A covered graph must not rebuild or save on store notifications.');
     navigator.currentState!.pop();
     await tester.pumpAndSettle();
@@ -107,10 +107,10 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     final paused = saves;
-    final background = Map.of(pageGraphLayout.positions);
+    final background = Map.of(pageGraphLayout.blockLayout.positions);
     await tester.pump(const Duration(seconds: 2));
     expect(saves, paused);
-    expect(pageGraphLayout.positions, background);
+    expect(pageGraphLayout.blockLayout.positions, background);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);

@@ -1,18 +1,15 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 
 /// Find the shortest free translation along sampled directions, keeping the
 /// stationary boxes fixed. Collision intervals are merged along each ray.
-Offset releaseBox(Rect moving, List<Rect> obstacles, {required bool rectangular, double gap = 24}) {
+Offset releaseBox(Rect moving, List<Rect> obstacles, {double gap = 24}) {
   // A stationary box already outside every collision interval has a zero-cost
   // solution. Leave near-touching and out-of-bounds cases to the ray solver.
   if (moving.left >= 32 && moving.top >= 32) {
     final padded = moving.inflate(gap + .01);
-    final needsRelease = obstacles.any((other) {
-      if (rectangular) return padded.overlaps(other);
-      final radius = (moving.width + other.width) / 2 + gap + .01;
-      return (moving.center - other.center).distanceSquared < radius * radius;
-    });
+    final needsRelease = obstacles.any(padded.overlaps);
     if (!needsRelease) return Offset.zero;
   }
 
@@ -24,26 +21,20 @@ Offset releaseBox(Rect moving, List<Rect> obstacles, {required bool rectangular,
     for (final other in obstacles) {
       double start, end;
       final relative = moving.center - other.center;
-      if (rectangular) {
-        final half = Offset((moving.width + other.width) / 2 + gap, (moving.height + other.height) / 2 + gap);
-        start = double.negativeInfinity; end = double.infinity;
-        var misses = false;
-        for (final axis in [(relative.dx, direction.dx, half.dx), (relative.dy, direction.dy, half.dy)]) {
-          if (axis.$2.abs() < 1e-8) {
-            if (axis.$1.abs() >= axis.$3) misses = true;
-          } else {
-            final a = (-axis.$3 - axis.$1) / axis.$2, b = (axis.$3 - axis.$1) / axis.$2;
-            start = math.max(start, math.min(a, b)); end = math.min(end, math.max(a, b));
-          }
+      final half = Offset((moving.width + other.width) / 2 + gap, (moving.height + other.height) / 2 + gap);
+      start = double.negativeInfinity; end = double.infinity;
+      var misses = false;
+      for (final axis in [(relative.dx, direction.dx, half.dx), (relative.dy, direction.dy, half.dy)]) {
+        if (axis.$2.abs() < 1e-8) {
+          if (axis.$1.abs() >= axis.$3) misses = true;
+        } else {
+          final a = (-axis.$3 - axis.$1) / axis.$2;
+          final b = (axis.$3 - axis.$1) / axis.$2;
+          start = math.max(start, math.min(a, b));
+          end = math.min(end, math.max(a, b));
         }
-        if (misses || start >= end) continue;
-      } else {
-        final radius = (moving.width + other.width) / 2 + gap;
-        final projection = relative.dx * direction.dx + relative.dy * direction.dy;
-        final discriminant = projection * projection - relative.distanceSquared + radius * radius;
-        if (discriminant <= 0) continue;
-        start = -projection - math.sqrt(discriminant); end = -projection + math.sqrt(discriminant);
       }
+      if (misses || start >= end) continue;
       if (end >= 0) intervals.add((start, end));
     }
     intervals.sort((a, b) => a.$1.compareTo(b.$1));
@@ -89,6 +80,33 @@ void moveThoughtLayers(List<String> order, Set<String> selected, {required bool 
       if (selected.contains(order[i]) && !selected.contains(order[i - 1])) {
         final id = order[i]; order[i] = order[i - 1]; order[i - 1] = id;
       }
+    }
+  }
+}
+
+/// Move selected cards one paint slot and update any stack whose order changed.
+void stepCanvasLayers(
+  List<String> layers,
+  Map<String, Offset> positions,
+  Set<String> selected, {
+  required bool up,
+  required Map<String, String> groups,
+}) {
+  final before = List<String>.of(layers);
+  moveThoughtLayers(layers, selected, up: up);
+  final visited = <String>{};
+  for (final id in selected) {
+    if (!positions.containsKey(id) || visited.contains(id)) continue;
+    final stack = alignedStackMembers(id, positions, groups: groups);
+    visited.addAll(stack);
+    if (stack.length < 2) continue;
+    final previous = before.where(stack.contains).toList();
+    final next = layers.where(stack.contains).toList();
+    if (listEquals(previous, next)) continue;
+    final slots = previous.map((id) => positions[id]!).toList()
+      ..sort((a, b) => a.dy.compareTo(b.dy));
+    for (var index = 0; index < next.length; index++) {
+      positions[next[index]] = slots[index];
     }
   }
 }

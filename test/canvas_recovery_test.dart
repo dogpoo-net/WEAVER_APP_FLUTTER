@@ -7,10 +7,10 @@ import 'package:weaver/features/inbox/thought_page.dart';
 
 void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); pageGraphLayout = GraphLayout(); });
-  for (final blocks in [false, true]) {
+  for (final blocks in [true]) {
     testWidgets('empty canvas pans at minimum zoom without moving contents ($blocks)', (tester) async {
       final record = elements.add('위치 유지');
-      await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
+      await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
       await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       final layout = blocks ? pageGraphLayout.blockLayout : pageGraphLayout;
       final before = layout.positions[record.id];
@@ -33,14 +33,14 @@ void main() {
       layout.positions[a.id] = const Offset(1700, 1700);
       layout.sizes[a.id] = const Offset(500, 400);
       other.positions[a.id] = const Offset(77, 88);
-      await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
+      await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('배치 초기화')); await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('정리하기')); await tester.pumpAndSettle();
       expect(find.text('펼쳐보기'), findsOneWidget);
       expect(find.text('겹쳐보기'), findsOneWidget);
       Navigator.of(tester.element(find.text('펼쳐보기'))).pop(); await tester.pumpAndSettle();
       expect(layout.sizes[a.id], const Offset(500, 400));
-      await tester.tap(find.byTooltip('배치 초기화')); await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('정리하기')); await tester.pumpAndSettle();
       await tester.tap(find.text('펼쳐보기')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(layout.sizes, isEmpty);
       expect(layout.positions[a.id], isNot(const Offset(1700, 1700)));
@@ -54,9 +54,9 @@ void main() {
   testWidgets('stacked layout uses several columns and survives reopening', (tester) async {
     final records = List.generate(18, (i) => elements.add('생각 $i #태그'));
     memoBoxes.add(MemoBox('역순으로 담은 상자', ids: records.reversed.map((r) => r.id)));
-    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('배치 초기화')); await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('정리하기')); await tester.pumpAndSettle();
     await tester.tap(find.text('겹쳐보기')); await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 300));
     final layout = pageGraphLayout.blockLayout;
@@ -67,7 +67,7 @@ void main() {
     expect(layout.layers, records.map((r) => r.id).toList());
     expect(GraphLayout.fromJson(layout.toJson()).stacked, isTrue);
     await tester.pumpWidget(const SizedBox());
-    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
     await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
     expect(layout.positions, before);
     await tester.pumpWidget(const SizedBox());

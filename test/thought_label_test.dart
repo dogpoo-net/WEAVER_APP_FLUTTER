@@ -50,7 +50,7 @@ void main() {
     final layout = pageGraphLayout.blockLayout;
     layout.positions.addAll({a.id: const Offset(640, 400), b.id: const Offset(640, 432)});
     layout.layers.addAll([a.id, b.id]);
-    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
     await tester.pumpAndSettle();
     final order = List<String>.of(layout.layers);
     final listener = tester.widget<Listener>(find.byKey(ValueKey('label-hold-${a.id}')));
@@ -70,7 +70,7 @@ void main() {
     final layout = pageGraphLayout.blockLayout;
     layout.positions.addAll({a.id: const Offset(640, 400), b.id: const Offset(640, 432), c.id: const Offset(640, 464)});
     layout.layers.addAll([a.id, b.id, c.id]);
-    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
     await tester.pumpAndSettle();
     ThoughtInteraction card(String id) => tester.widget<ThoughtInteraction>(find.byKey(ValueKey('canvas-thought-$id')));
     final before = layout.positions[b.id], order = List<String>.of(layout.layers);
@@ -93,7 +93,7 @@ void main() {
     final layout=pageGraphLayout.blockLayout;
     layout.positions.addAll({a.id:const Offset(640,400),b.id:const Offset(640,432),c.id:const Offset(640,464),d.id:const Offset(640,496)});
     layout.layers.addAll([a.id,b.id,c.id,d.id]);
-    await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));
+    await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));
     await tester.pumpAndSettle();
     ThoughtInteraction card()=>tester.widget<ThoughtInteraction>(find.byKey(ValueKey('canvas-thought-${b.id}')));
     card().onActiveChanged!(true);card().onMove(const Offset(500,0));await tester.pump();
@@ -119,7 +119,7 @@ void main() {
     final layout = pageGraphLayout.blockLayout;
     layout.positions.addAll({a.id: const Offset(500, 400), b.id: const Offset(850, 400)});
     layout.viewport = (Matrix4.identity()..setTranslationRaw(-300, -200, 0)).storage.toList();
-    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
     await tester.pumpAndSettle();
     await tester.tap(find.text('선택')); await tester.pumpAndSettle();
     final overlay = tester.renderObject<RenderBox>(find.byKey(const ValueKey('canvas-selection')));
@@ -136,7 +136,7 @@ void main() {
     final record = elements.add('상자에 넣을 메모');
     final box = MemoBox('목적 상자'); memoBoxes.add(box);
     pageGraphLayout.blockLayout.positions[record.id] = const Offset(500, 400);
-    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
     await tester.pumpAndSettle();
     await tester.tap(find.text('선택')); await tester.pumpAndSettle();
     final overlay = tester.renderObject<RenderBox>(find.byKey(const ValueKey('canvas-selection')));

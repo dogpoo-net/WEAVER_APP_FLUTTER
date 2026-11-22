@@ -24,7 +24,7 @@ void main() {
   }
   testWidgets('selection two-finger translation preserves a non-unit zoom', (tester) async {
     elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); pageGraphLayout = GraphLayout();
-    pageGraphLayout.viewport = (Matrix4.diagonal3Values(.6, .6, 1)..setTranslationRaw(-150, -150, 0)).storage.toList();
+    pageGraphLayout.blockLayout.viewport = (Matrix4.diagonal3Values(.6, .6, 1)..setTranslationRaw(-150, -150, 0)).storage.toList();
     await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
     await tester.pumpAndSettle();
     await tester.tap(find.text('선택')); await tester.pumpAndSettle();
@@ -50,7 +50,7 @@ void main() {
       final layout = pageGraphLayout.blockLayout;
       layout.folderPositions['폴더'] = const Offset(500, 500);
       layout.viewport = (Matrix4.identity()..setTranslationRaw(-400, -350, 0)).storage.toList();
-      await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+      await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
       await tester.pumpAndSettle();
       if (selection) { await tester.tap(find.text('선택')); await tester.pumpAndSettle(); }
       final top = tester.getTopLeft(find.byType(MemoFolderRegion));

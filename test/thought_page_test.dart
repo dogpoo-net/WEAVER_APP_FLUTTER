@@ -8,7 +8,7 @@ import 'package:weaver/features/inbox/memo_box_region.dart';
 
 void main() {
   setUp(() { pageGraphLayout = GraphLayout(); memoBoxes.clear(); });
-  for (final blocks in [false, true]) {
+  for (final blocks in [true]) {
     testWidgets('unclassified thoughts stay on the canvas without a box region ($blocks)', (tester) async {
       elements.clear();
       final free = elements.add('자유로운 생각');
@@ -17,7 +17,7 @@ void main() {
       final box = MemoBox('실제 상자', ids: [filed.id]); memoBoxes.add(box);
       pageGraphLayout.positions[free.id] = const Offset(900, 900);
       pageGraphLayout.positions[filed.id] = const Offset(1400, 900);
-      await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
+      await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
       await tester.pumpAndSettle();
       expect(find.text('자유로운 생각'), findsOneWidget);
       expect(find.byWidgetPredicate((w) => w is MemoBoxRegion && w.box.isUnclassified), findsNothing);
@@ -31,10 +31,10 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
-  for (final blocks in [false, true]) {
+  for (final blocks in [true]) {
     testWidgets('single tap opens thought editor without selection actions ($blocks)', (tester) async {
       elements.clear(); elements.add('바로 수정할 생각');
-      await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
+      await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
       await tester.pumpAndSettle();
       expect(tester.widget<InteractiveViewer>(find.byType(InteractiveViewer)).maxScale, 12);
       await tester.tap(find.text('바로 수정할 생각'));
@@ -81,14 +81,14 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
-  for (final blocks in [false, true]) { for (final inBox in [false, true]) {
+  for (final blocks in [true]) { for (final inBox in [false, true]) {
     testWidgets('graph search, unlinked review and tag dragging (blocks=$blocks box=$inBox)', (tester) async {
       elements.clear();
       final a = elements.add('연결된 생각 #독서');
       final b = elements.add('참고 생각');
       final c = elements.add('홀로 생각 #검토');
       final box = MemoBox('검토 상자', ids: [a.id, b.id, c.id]);
-      await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, box: inBox ? box : null, onChanged: () {})));
+      await tester.pumpWidget(MaterialApp(home: ThoughtPage(box: inBox ? box : null, onChanged: () {})));
       await tester.pumpAndSettle();
       final tag = find.byKey(const ValueKey('graph-tag-독서'));
       final before = tester.getCenter(tag);

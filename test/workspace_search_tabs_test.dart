@@ -1,3 +1,4 @@
+import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,6 +10,78 @@ import 'package:weaver/features/inbox/project_page.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/capture/capture_models.dart';
 void main(){
+ testWidgets('a parent box search can include or exclude its child boxes', (tester) async {
+  elements.clear();
+  memoBoxes.clear();
+  memoBoxFolders.clear();
+  memoBoxFolderParents.clear();
+  addTearDown(() {
+    elements.clear();
+    memoBoxes.clear();
+  });
+  final top = elements.add('프로젝트 생각 #인용후보');
+  final child = elements.add('인터뷰 생각 #인용후보');
+  memoBoxFolders.add('프로젝트 상자');
+  memoBoxes.add(MemoBox('인터뷰 상자', folder: '프로젝트 상자', ids: [child.id]));
+  convertLegacyMemoFolders();
+  final parent = memoBoxes.singleWhere((box) => box.name == '프로젝트 상자');
+  moveThoughtToBox(top.id, parent);
+  expect(canMoveMemoBox(parent, childMemoBoxes(parent).single), isFalse);
+  final controller = TextEditingController(text: '#인용후보');
+  addTearDown(controller.dispose);
+  await tester.pumpWidget(MaterialApp(home: WorkspaceSearch(
+    notes: const [], selector: const SizedBox(), controller: controller,
+  )));
+  await tester.tap(find.byTooltip('검색 필터'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byTooltip('범위'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(parent.name));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byTooltip('필터 닫기'));
+  await tester.pumpAndSettle();
+  expect(find.byKey(ValueKey('search-생각-${child.id}')), findsOneWidget);
+  await tester.tap(find.byTooltip('검색 필터'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('하위 상자 포함'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byTooltip('필터 닫기'));
+  await tester.pumpAndSettle();
+  expect(find.byKey(ValueKey('search-생각-${top.id}')), findsOneWidget);
+  expect(find.byKey(ValueKey('search-생각-${child.id}')), findsNothing);
+  await tester.pumpWidget(const SizedBox());
+ });
+ testWidgets('right drawer combines type checkboxes and date radios', (tester) async {
+  elements.clear();
+  memoBoxes.clear();
+  addTearDown(elements.clear);
+  final now = DateTime.now();
+  final recent = ElementRecord.restored('recent', 'recent thought', now);
+  final dated = ElementRecord.restored('old', 'old thought', now.subtract(const Duration(days: 5)));
+  recent.recordings.add(const VoiceAttachment('voice', 1000, transcript: 'recent transcript'));
+  dated.recordings.add(const VoiceAttachment('old-voice', 1000, transcript: 'old transcript'));
+  for (final record in [recent, dated]) { elements.records[record.text] = record; }
+  final controller = TextEditingController();
+  addTearDown(controller.dispose);
+  await tester.pumpWidget(MaterialApp(home: WorkspaceSearch(
+    notes: const [], selector: const SizedBox(), controller: controller,
+  )));
+  await tester.tap(find.byTooltip('검색 필터'));
+  await tester.pumpAndSettle();
+  final drawer = find.byType(Drawer);
+  expect(find.descendant(of: drawer, matching: find.byType(CheckboxListTile)), findsNWidgets(4));
+  await tester.tap(find.descendant(of: drawer, matching: find.text('생각')));
+  await tester.scrollUntilVisible(find.text('1일 전'), 160,
+    scrollable: find.descendant(of: drawer, matching: find.byType(Scrollable)));
+  await tester.tap(find.text('1일 전'));
+  await tester.tapAt(const Offset(12, 100));
+  await tester.pumpAndSettle();
+  expect(find.byKey(const ValueKey('search-음성텍스트-recent-voice')), findsOneWidget);
+  expect(find.byKey(const ValueKey('search-음성텍스트-old-old-voice')), findsNothing);
+  expect(find.byKey(const ValueKey('search-생각-recent')), findsNothing);
+  expect(find.byKey(const ValueKey('search-생각-old')), findsNothing);
+  await tester.pumpWidget(const SizedBox());
+ });
  testWidgets('empty search shows newest records and appends twenty on scroll',(tester)async{
   elements.clear();final controller=TextEditingController();addTearDown(controller.dispose);addTearDown(elements.clear);
   for(var i=0;i<45;i++){

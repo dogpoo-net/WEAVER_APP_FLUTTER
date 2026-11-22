@@ -20,7 +20,7 @@ void main() {
    ]),'front');
  });
 
- for(final blocks in [true,false]) {
+ for(final blocks in [true]) {
  for(final destination in ['empty','self','occupied']) {
  for(final left in [true,false]) {
  testWidgets('hold label transfers to closest edge blocks=$blocks destination=$destination left=$left',(tester)async{
@@ -33,7 +33,7 @@ void main() {
   final layout=blocks?pageGraphLayout.blockLayout:pageGraphLayout;
   layout.positions.addAll({source.id:const Offset(640,400),if(target!=source)target.id:const Offset(940,400),other.id:const Offset(640,550)});
   layout.layers.addAll({source.id,target.id,other.id});
-  await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,onChanged:(){})));
+  await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));
   await tester.pumpAndSettle();
   final rect=tester.getRect(find.byKey(ValueKey('canvas-thought-${target.id}')));
   final label=find.byKey(ValueKey('thought-label-${source.id}'));

@@ -44,7 +44,7 @@ class _DocumentAiPanelState extends State<DocumentAiPanel> {
   final _input = GlobalKey();
   final _instruction = TextEditingController();
   final _tokens = <String, DocumentAiThought>{};
-  final _tags = <String>{};
+  double _thoughtPaneFraction = .28;
   var _nextToken = 0;
   var _query = '', _length = 'medium';
   bool _busy = false, _showResult = false;
@@ -179,23 +179,22 @@ class _DocumentAiPanelState extends State<DocumentAiPanel> {
   }
 
   Widget _mobileThoughts() {
-    final tags =
-        widget.thoughts.expand((thought) => thought.tags).toSet().toList()
-          ..sort();
-    final matches = widget.thoughts.where((thought) {
-      final inFilter = _tags.isEmpty || thought.tags.any(_tags.contains);
-      return inFilter &&
-          (thought.title.toLowerCase().contains(_query) ||
-              thought.text.toLowerCase().contains(_query) ||
-              thought.tags.any((tag) => tag.toLowerCase().contains(_query)));
-    }).toList();
+    final tagQuery = _query.startsWith('#')
+        ? _query.substring(1).trim()
+        : _query;
+    final matches = widget.thoughts.where(
+      (thought) =>
+          thought.title.toLowerCase().contains(_query) ||
+          thought.text.toLowerCase().contains(_query) ||
+          thought.tags.any((tag) => tag.toLowerCase().contains(tagQuery)),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         TextField(
           style: const TextStyle(fontSize: 12),
           decoration: InputDecoration(
-            hintText: '생각, 라벨 찾기',
+            hintText: '생각, 라벨, 해시태그 찾기',
             filled: true,
             fillColor: _fieldFill,
             border: _filledBorder,
@@ -216,67 +215,89 @@ class _DocumentAiPanelState extends State<DocumentAiPanel> {
               setState(() => _query = query.trim().toLowerCase()),
         ),
         const SizedBox(height: 4),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 100),
-          child: matches.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4),
-                  child: Text('담을 생각이 없습니다.'),
-                )
-              : SingleChildScrollView(
-                  child: Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
-                    children: [
-                      for (final thought in matches)
-                        WordBadge(
-                          word: thought.text,
-                          displayText: thought.title,
-                          labelTarget: thought.title != thought.text,
-                          query: _query,
-                          fullText: true,
-                          onTap: () =>
-                              _add(thought, _material.document.length - 1),
-                        ),
-                    ],
-                  ),
+        if (matches.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 4),
+            child: Text('담을 생각이 없습니다.'),
+          )
+        else
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              for (final thought in matches)
+                WordBadge(
+                  word: thought.text,
+                  displayText: thought.title,
+                  labelTarget: thought.title != thought.text,
+                  query: _query,
+                  fullText: true,
+                  onTap: () => _add(thought, _material.document.length - 1),
                 ),
-        ),
-        if (tags.isNotEmpty)
-          _filterRow(Icons.tag, [
-            for (final tag in tags)
-              FilterChip(
-                label: Text('#$tag'),
-                selected: _tags.contains(tag),
-                onSelected: (selected) => setState(() {
-                  if (selected) {
-                    _tags.add(tag);
-                  } else {
-                    _tags.remove(tag);
-                  }
-                }),
-              ),
-          ]),
+            ],
+          ),
       ],
     );
   }
 
-  Widget _filterRow(IconData icon, List<Widget> items) => SizedBox(
-    height: 32,
-    child: Row(
-      children: [
-        Icon(icon, size: 16),
-        const SizedBox(width: 8),
-        Expanded(
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: items.length,
-            itemBuilder: (_, i) => items[i],
-            separatorBuilder: (_, _) => const SizedBox(width: 4),
+  Widget _mobileGeneration() => LayoutBuilder(
+    builder: (context, constraints) {
+      final handleHeight = constraints.maxHeight.clamp(0.0, 18.0);
+      final available = constraints.maxHeight - handleHeight;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: available * _thoughtPaneFraction,
+            child: SingleChildScrollView(
+              key: const ValueKey('ai-mobile-thought-pane'),
+              padding: const EdgeInsets.only(top: 6),
+              child: _mobileThoughts(),
+            ),
           ),
-        ),
-      ],
-    ),
+          GestureDetector(
+            key: const ValueKey('ai-mobile-pane-divider'),
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragUpdate: available == 0
+                ? null
+                : (details) {
+                    setState(() {
+                      _thoughtPaneFraction =
+                          (_thoughtPaneFraction + details.delta.dy / available)
+                              .clamp(.12, .78);
+                    });
+                  },
+            child: Tooltip(
+              message: '드래그하여 패널 높이 조절',
+              child: SizedBox(
+                height: handleHeight,
+                child: Center(
+                  child: Container(
+                    width: 36,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              children: [
+                _materialInput((available * .42).clamp(130.0, 400.0)),
+                const SizedBox(height: 6),
+                _promptControls(),
+                _generateButton(),
+              ],
+            ),
+          ),
+        ],
+      );
+    },
   );
 
   Widget _badge(String token) {
@@ -595,19 +616,7 @@ class _DocumentAiPanelState extends State<DocumentAiPanel> {
               ] else ...[
                 Expanded(
                   child: _mobile
-                      ? ListView(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          children: [
-                            _mobileThoughts(),
-                            const SizedBox(height: 6),
-                            _materialInput(
-                              (constraints.maxHeight * .42).clamp(130.0, 400.0),
-                            ),
-                            const SizedBox(height: 6),
-                            _promptControls(),
-                            _generateButton(),
-                          ],
-                        )
+                      ? _mobileGeneration()
                       : Padding(
                           padding: const EdgeInsets.symmetric(vertical: 6),
                           child: LayoutBuilder(

@@ -84,7 +84,7 @@ class _LocationEditorState extends State<LocationEditor> {
   final owner = MediaStorage.activeOwner;
   final photos = <PhotoDraft>[];
   VoiceDraft? voice;
-  bool attaching = false, saving = false, important = false;
+  bool attaching = false, saving = false;
   int? markerColor;
   Future<void> recordVoice() async {
     setState(() => attaching = true);
@@ -179,7 +179,6 @@ class _LocationEditorState extends State<LocationEditor> {
         LocationEntry(
           point,
           text.text.trim(),
-          important: important,
           photos: images,
           recordings: recordings,
         ),
@@ -338,25 +337,6 @@ class _LocationEditorState extends State<LocationEditor> {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ),
-                    if (widget.compose)
-                      IconButton(
-                        key: const ValueKey('geolog-important'),
-                        tooltip: '중요 생각',
-                        isSelected: important,
-                        onPressed: saving || attaching
-                            ? null
-                            : () => setState(() => important = !important),
-                        style: IconButton.styleFrom(
-                          minimumSize: const Size(32, 32),
-                          maximumSize: const Size(32, 32),
-                          padding: EdgeInsets.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          backgroundColor: important
-                              ? Theme.of(context).colorScheme.secondaryContainer
-                              : null,
-                        ),
-                        icon: const Icon(Icons.priority_high, size: 20),
-                      ),
                     IconButton(
                       tooltip: '마커 색상',
                       style: IconButton.styleFrom(

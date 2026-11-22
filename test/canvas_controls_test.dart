@@ -7,11 +7,11 @@ import 'package:weaver/features/inbox/thought_page.dart';
 import 'package:weaver/features/inbox/thought_interaction.dart';
 
 void main() {
-  for (final blocks in [false, true]) {
+  for (final blocks in [true]) {
     testWidgets('link guidance overlays the canvas and cards have no drag link control ($blocks)', (tester) async {
       elements.clear(); memoBoxes.clear(); pageGraphLayout = GraphLayout();
       elements.add('넓게 표시할 생각');
-      await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
+      await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
       await tester.pumpAndSettle();
       expect(tester.widget<Text>(find.text('넓게 표시할 생각')).maxLines, 3);
       expect(tester.widget<AppBar>(find.byType(AppBar)).centerTitle, isFalse);

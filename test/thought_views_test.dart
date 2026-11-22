@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/all_thoughts_page.dart';
@@ -9,44 +10,31 @@ import 'package:weaver/features/inbox/thought_page.dart';
 import 'package:weaver/features/inbox/thought_interaction.dart';
 
 void main() {
-  setUp(() { elements.clear(); memoBoxes.clear(); pageGraphLayout = GraphLayout(); });
+  setUp(() { SharedPreferences.setMockInitialValues({}); elements.clear(); memoBoxes.clear(); pageGraphLayout = GraphLayout(); });
   for (final scoped in [false, true]) {
-    testWidgets('three views share data and preserve box scope (scoped=$scoped)', (tester) async {
+    testWidgets('thought list and memo-box canvas share data and preserve box scope (scoped=$scoped)', (tester) async {
       final a = elements.add('안쪽 생각 #안쪽');
       final b = elements.add('연결된 생각');
       elements.add('바깥 생각 #바깥');
       final box = MemoBox('검토함', ids: [a.id, b.id]); memoBoxes.add(box);
-      await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(notes: const [], initialBox: scoped ? box : null)));
-      await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
-      expect(find.byType(ThoughtBoxView), findsOneWidget);
-      await tester.tap(find.text('다이어그램')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpWidget(MaterialApp(home: AllThoughtsPage(notes: const [], initialView: ThoughtView.page, initialBox: scoped ? box : null)));
+      await tester.pumpAndSettle();
       expect(find.byType(ThoughtPage), findsOneWidget);
-      expect(find.text('안쪽 생각'), findsOneWidget);
-      expect(find.text('바깥 생각'), scoped ? findsNothing : findsOneWidget);
-      final diagram = Map.of((scoped ? box.layout : pageGraphLayout).positions);
-      await tester.tap(find.text('생각')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
-      expect(find.byType(ThoughtBoxView), findsOneWidget);
-      expect(find.byKey(ValueKey('thought-${a.id}')), findsOneWidget);
-      expect(find.text('바깥 생각'), scoped ? findsNothing : findsOneWidget);
-      await tester.tap(find.text('메모상자')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
-      expect(tester.widget<ThoughtPage>(find.byType(ThoughtPage)).blocks, isTrue);
       expect(find.byWidgetPredicate((w) => w is Card && w.shape is RoundedRectangleBorder), findsWidgets);
-      expect(find.text('#안쪽'), findsNWidgets(2));
-      expect(tester.widget<MemoBoxRegion>(find.byWidgetPredicate((w) => w is MemoBoxRegion && identical(w.box, box))).rectangular, isTrue);
+      expect(find.text('#안쪽'), findsWidgets);
+      expect(find.byWidgetPredicate((w) => w is MemoBoxRegion && identical(w.box, box)), findsOneWidget);
       expect(find.text('바깥 생각'), scoped ? findsNothing : findsOneWidget);
-      final layout = scoped ? box.layout : pageGraphLayout;
+      await tester.pump(const Duration(milliseconds: 500));
+      final layout = pageGraphLayout;
       expect(layout.blockLayout.positions.keys, containsAll([a.id, b.id]));
       expect(GraphLayout.fromJson(layout.toJson()).blockLayout.positions, layout.blockLayout.positions);
-      await tester.tap(find.text('다이어그램')); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
-      expect(tester.widget<ThoughtPage>(find.byType(ThoughtPage)).blocks, isFalse);
-      expect(layout.positions, diagram);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     });
   }
   testWidgets('page notes do not auto-connect when dragged beside each other', (tester) async {
     elements.add('윗 블록'); elements.add('아랫 블록');
-    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
     await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
     final viewer = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
     final node = tester.widget<ThoughtInteraction>(find.ancestor(of: find.text('윗 블록'), matching: find.byType(ThoughtInteraction)));

@@ -19,7 +19,7 @@ void main() {
   final layout=pageGraphLayout.blockLayout;
   layout.positions.addAll({a.id:const Offset(500,500),b.id:const Offset(800,500)});
   layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
-  await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));await tester.pumpAndSettle();
+  await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));await tester.pumpAndSettle();
   final card=find.byKey(ValueKey('canvas-thought-${a.id}'));
   await tester.tap(find.descendant(of:card,matching:find.byKey(const ValueKey('resize-right'))));await tester.pumpAndSettle();
   expect(find.byType(AlertDialog),findsNothing);

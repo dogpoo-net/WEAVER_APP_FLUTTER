@@ -86,7 +86,7 @@ void main() {
     expect(find.byKey(ValueKey('thought-${b.id}')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
-  for (final view in [ThoughtView.diagram, ThoughtView.page, ThoughtView.geolog]) {
+  for (final view in [ThoughtView.page, ThoughtView.geolog]) {
     testWidgets('box entry keeps all footer choices in $view', (tester) async {
       final first = elements.add('첫 생각 #독서'), second = elements.add('다른 생각 #여행');
       final one = MemoBox('하나', ids: [first.id]), two = MemoBox('둘', ids: [second.id]);
@@ -149,7 +149,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
-  for (final view in [ThoughtView.diagram, ThoughtView.page]) {
+  for (final view in [ThoughtView.page]) {
     testWidgets('canvas filters boxes and tags without navigation ($view)', (tester) async {
       final first = elements.add('첫 메모 #독서');
       elements.add('다른 메모 #여행');

@@ -25,11 +25,11 @@ void main(){
   await tester.tap(find.byKey(const ValueKey('thought-filter-all')));await tester.pump();await tester.pump(const Duration(milliseconds:300));expect(filters.isEmpty,isTrue);
   await tester.pumpWidget(const SizedBox());filters.dispose();
  });}
- testWidgets('legacy diagram entry mounts only memo box canvas and keeps diagram data untouched',(tester)async{
+ testWidgets('memo box canvas preserves legacy layout data',(tester)async{
   final r=elements.add('생각');pageGraphLayout.positions[r.id]=const Offset(123,456);
-  await tester.pumpWidget(const MaterialApp(home:AllThoughtsPage(notes:[],initialView:ThoughtView.diagram)));await tester.pump();await tester.pump(const Duration(milliseconds:300));
-  expect(find.text('다이어그램'),findsNothing);expect(activeThoughtViews,hasLength(6));
-  expect(tester.widget<ThoughtPage>(find.byType(ThoughtPage)).blocks,isTrue);
+  await tester.pumpWidget(const MaterialApp(home:AllThoughtsPage(notes:[],initialView:ThoughtView.page)));await tester.pump();await tester.pump(const Duration(milliseconds:300));
+  expect(find.text('다이어그램'),findsNothing);expect(activeThoughtViews,hasLength(7));
+  expect(find.byType(ThoughtPage),findsOneWidget);
   expect(pageGraphLayout.positions[r.id],const Offset(123,456));
   await tester.pumpWidget(const SizedBox());
  });

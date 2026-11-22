@@ -123,7 +123,7 @@ String? editResource(Map<String,dynamic>? item) {
   if (item == null) return null;
   if (item['kind'] == 'layout') {
     final path = jsonDecode(item['id'] as String) as List;
-    return path.length > 1 && path[1] == 'blocks' ? 'canvas:boxes' : 'canvas:diagram';
+    return path.length > 1 && path[1] == 'blocks' ? 'canvas:boxes' : null;
   }
   final value = item['value'];
   return item['kind'] == 'list:notes' && value is Map && value['project'] is Map ? value['project']['id'] as String? : null;
@@ -443,6 +443,25 @@ class WorkspaceSync extends ChangeNotifier {
       for(final key in {...beforeRead.keys,...local.keys,...previousBase.keys}){
         if((!serverCanvas && !readOnly && sharedCanvasItem(local[key]??previousBase[key]) && !sameItem(local[key],previousBase[key])) || localCanvasView(local[key]) || !sameItem(local[key],beforeRead[key]) || (_pendingSaves>ignoredPendingSaves && !sameItem(local[key],previousBase[key]))){
           if(local[key]==null){displayed.remove(key);}else{displayed[key]=local[key]!;}
+        }
+      }
+      // A box move has two parts. Canvas leaves are queued separately from
+      // the parent change, so a refresh must preserve the unsent parent too.
+      if (!readOnly && !serverCanvas) {
+        for (final entry in local.entries) {
+          final item = entry.value;
+          final prior = previousBase[entry.key]?['value'];
+          final remote = displayed[entry.key];
+          final proposed = item['value'];
+          if (item['kind'] != 'list:memoBoxes' || prior is! Map ||
+              proposed is! Map || remote == null || remote['deleted'] == true ||
+              remote['value'] is! Map || prior['folder'] == proposed['folder']) {
+            continue;
+          }
+          displayed[entry.key] = {
+            ...remote,
+            'value': {...remote['value'] as Map, 'folder': proposed['folder']},
+          };
         }
       }
       final raw = joinWorkspace(displayed);

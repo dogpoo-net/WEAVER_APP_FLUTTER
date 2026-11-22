@@ -6,7 +6,7 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 
 void main() {
-  for (final blocks in [false, true]) {
+  for (final blocks in [true]) {
     for (final zoom in [.5, 1.0]) {
     testWidgets('range selection moves thoughts together without panning ($blocks, zoom=$zoom)', (tester) async {
       elements.clear(); memoBoxes.clear(); pageGraphLayout = GraphLayout();
@@ -17,7 +17,7 @@ void main() {
       layout.positions[a.id] = const Offset(500, 500);
       layout.positions[b.id] = const Offset(800, 500);
       layout.viewport = (Matrix4.diagonal3Values(zoom, zoom, zoom)..setTranslationRaw(100 - 500 * zoom, 100 - 500 * zoom, 0)).storage.toList();
-      await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: blocks, onChanged: () {})));
+      await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
       await tester.pumpAndSettle();
       final viewer = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
       final transform = List<double>.of(viewer.transformationController!.value.storage);

@@ -663,6 +663,9 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
         final rect = bounds.remove('box:$oldName');
         if (rect != null) bounds['box:$newName'] = rect;
         box.name = newName;
+        for (final child in memoBoxes.where((child) => child.folder == oldName)) {
+          child.folder = newName;
+        }
       });
     } else {
       final folders = switch (kind) {
@@ -931,7 +934,6 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     setState(() {
       _clearCapture();
       _draftLocation = elements.records[note.content.trim()]?.location;
-      _draftImportant = elements.records[note.content.trim()]?.important ?? false;
       _editing = note;
       final tags = elements.records[note.content.trim()]?.tags ?? <String>{};
       _draftTags.clear();
@@ -972,6 +974,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
         onTagMoved: _moveTag,
         onTagColorChanged: _persist,
         onBoxChanged: _persist,
+        canMoveBoxes: widget.storage?.canvasWritable ?? true,
         onRename: (widget.storage?.canvasWritable ?? true) ? _renameMenuContainer : null,
         onRenameDocument: (widget.storage?.canvasWritable ?? true) ? _renameMenuDocument : null,
         onDeleteFolder: _deleteFolder,
@@ -982,7 +985,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
         projectFolderNames: projects.map((n) => n.project!.folder).toList(),
       ),
     );
-    await _selectMenu(choice, projects, tags);
+    await _selectMenu(choice, projects);
     if (mounted &&
         (choice == WorkspaceMenu.refresh || choice == WorkspaceMenu.createFolder ||
             choice == WorkspaceMenu.createTagFolder ||
@@ -994,7 +997,6 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
   Future<void> _selectMenu(
     int? choice,
     List<Note> projects,
-    List<String> tags,
   ) async {
     if (!mounted || choice == null || choice == -1) return;
     if (choice == WorkspaceMenu.home) { await navigateHome(context); if (mounted && !Navigator.of(context).canPop()) { try { await _refreshForBrowse(); } catch (e) { if (mounted) _captureError('서버 변경을 확인하지 못했습니다. $e'); } } return; }
@@ -1014,10 +1016,17 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     if (choice <= -1100000 && choice > -2000000) {
       final index = -1100000 - choice;
       if (index < memoBoxes.length) {
-        await _allThoughts(memoBoxes[index]);
+        await _allThoughts(memoBoxes[index], ThoughtView.page);
       }
       return;
     }
+    final destination = switch (choice) {
+      WorkspaceMenu.documents => ThoughtView.documents,
+      WorkspaceMenu.thoughts => ThoughtView.boxes,
+      _ => null,
+    };
+    if (destination != null) { await _allThoughts(null, destination); return; }
+    if (choice == WorkspaceMenu.search) { await _allThoughts(null, ThoughtView.search); return; }
     if (choice == WorkspaceMenu.allThoughts) { await _allThoughts(); return; }
     if (choice <= -3000000) {
       final index = -3000000 - choice;
@@ -1049,13 +1058,14 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
       await _createFolder(tag: true);
       return;
     }
-    if (choice <= -3) {
-      await Navigator.push(
+    if (choice == WorkspaceMenu.hashtags) {
+      await Navigator.push<void>(
         context,
-        MaterialPageRoute(
-          builder: (_) =>
-              TagPage(tag: tags[-3 - choice], notes: _notes, onOpen: _open),
-        ),
+        MaterialPageRoute(builder: (_) => TagListPage(
+          tags: () => _allTags,
+          notes: _notes,
+          onOpen: _open,
+        )),
       );
     } else if (choice == -2) {
       await _allThoughts();
@@ -1108,19 +1118,21 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     }
   }
 
+  Widget _homeSectionDivider({Key? key}) => Divider(
+    key: key,
+    height: 18,
+    thickness: 1,
+    color: colors.outlineVariant.withValues(alpha: .45),
+  );
+
   Widget _noticeBoard({required bool mobile}) {
     final visible = _orderedNotices().where(canBrowseThought).take(noticeBoardLimit).toList();
     final canReorder = visible.length > 1 && !_restoreBlocked &&
         (widget.storage?.canvasWritable ?? true);
-    final divider = Divider(
-      height: 18,
-      thickness: 1,
-      color: colors.outlineVariant.withValues(alpha: .45),
-    );
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      divider,
-      _homeSectionTitle('알림판', count: visible.length),
-      const SizedBox(height: 6),
+      _homeSectionDivider(),
+      Padding(padding: const EdgeInsets.only(bottom: 6),
+        child: _homeSectionTitle('알림판', count: visible.length)),
       if (visible.isEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
@@ -1155,7 +1167,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
             );
           },
         ),
-      if (mobile) divider,
+      if (mobile) _homeSectionDivider(),
     ]);
   }
 
@@ -1163,7 +1175,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       _composer(maxHeight),
-      const SizedBox(height: 4),
+      if (!mobile) const SizedBox(height: 4),
       _noticeBoard(mobile: mobile),
     ],
   );
@@ -1236,8 +1248,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
             onPressed: () => _allThoughts(null, ThoughtView.page), child: const Text('모두보기')),
         ]),
         if (projects.isNotEmpty) ...[
-          Divider(key: const ValueKey('main-project-divider'),
-            height: 18, thickness: 1, color: colors.outlineVariant.withValues(alpha: .45)),
+          _homeSectionDivider(key: const ValueKey('main-project-divider')),
           Padding(padding: const EdgeInsets.only(bottom: 6),
             child: _homeSectionTitle('문서', count: projects.length)),
           for (final note in projects.take(_projectLimit))
@@ -1313,6 +1324,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
                 onTagMoved: _moveTag,
         onTagColorChanged: _persist,
         onBoxChanged: _persist,
+        canMoveBoxes: widget.storage?.canvasWritable ?? true,
         onRename: (widget.storage?.canvasWritable ?? true) ? _renameMenuContainer : null,
         onRenameDocument: (widget.storage?.canvasWritable ?? true) ? _renameMenuDocument : null,
         onDeleteFolder: _deleteFolder,
@@ -1324,7 +1336,6 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
                 onSelected: (choice) => _selectMenu(
                   choice,
                   _notes.where((n) => n.project != null).toList(),
-                  _allTags,
                 ),
               ),
             );
@@ -1384,12 +1395,22 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
                         const SizedBox(height: 4),
                         Wrap(
                           spacing: 8,
-                          runSpacing: 8,
+                          runSpacing: MediaQuery.sizeOf(context).width < 760 ? 0 : 8,
                           children: [
-                            TextButton.icon(onPressed: _allThoughts, icon: const Icon(Icons.bubble_chart_outlined, size: 18),
-                              label: const Text('전체 보기')),
+                            TextButton.icon(onPressed: () => _allThoughts(null, ThoughtView.search), icon: const Icon(Icons.search, size: 18),
+                              label: const Text('검색')),
                             TextButton.icon(
-                              onPressed: () => _allThoughts(ensureUnclassifiedBox()),
+                              onPressed: () => _allThoughts(null, ThoughtView.page),
+                              icon: const Icon(Icons.inventory_2_outlined, size: 18),
+                              label: const Text('메모상자'),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => _allThoughts(null, ThoughtView.documents),
+                              icon: const Icon(Icons.description_outlined, size: 18),
+                              label: const Text('문서'),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => _allThoughts(ensureUnclassifiedBox(), ThoughtView.page),
                               icon: const Icon(
                                 Icons.inventory_2_outlined,
                                 size: 18,
@@ -1418,7 +1439,6 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
                               : Column(
                                   children: [
                                     RepaintBoundary(child: _composerWithNoticeBoard(composerHeight, mobile: true)),
-                                    const SizedBox(height: 24),
                                     RepaintBoundary(child: _list()),
                                   ],
                                 ),

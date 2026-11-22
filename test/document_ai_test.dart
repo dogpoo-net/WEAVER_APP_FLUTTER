@@ -28,7 +28,9 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      elements.records['담을 생각']!.indexLabel = '자료 라벨';
+      elements.records['담을 생각']!
+        ..indexLabel = '자료 라벨'
+        ..tags.add('회의기록');
       elements.indexProject(
         WritingProject([], [], name: '참고 문서')..document = '======참고 문서======',
       );
@@ -52,11 +54,21 @@ void main() {
       await tester.tap(find.byTooltip('AI 문장 생성'));
       await tester.pumpAndSettle();
       final panel = find.byType(DocumentAiPanel);
-      final search = find.widgetWithText(TextField, '생각, 라벨 찾기');
+      final divider = find.byKey(const ValueKey('ai-mobile-pane-divider'));
+      final originalHeight = tester.getCenter(divider).dy;
+      await tester.drag(divider, const Offset(0, 70));
+      await tester.pumpAndSettle();
+      expect(tester.getCenter(divider).dy, greaterThan(originalHeight));
+      final tallerHeight = tester.getCenter(divider).dy;
+      await tester.drag(divider, const Offset(0, -70));
+      await tester.pumpAndSettle();
+      expect(tester.getCenter(divider).dy, lessThan(tallerHeight));
+      expect(find.byType(FilterChip), findsNothing);
+      final search = find.widgetWithText(TextField, '생각, 라벨, 해시태그 찾기');
       await tester.enterText(search, '참고 문서');
       await tester.pumpAndSettle();
       expect(find.text('담을 생각이 없습니다.'), findsOneWidget);
-      await tester.enterText(search, '자료 라벨');
+      await tester.enterText(search, '#회의기록');
       await tester.pumpAndSettle();
       final label = find.descendant(
         of: panel,

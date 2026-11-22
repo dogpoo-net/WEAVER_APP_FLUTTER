@@ -321,10 +321,7 @@ class WorkspaceSnapshot {
     normalizeBoxMemberships();
     memoBoxFolders..clear()..addAll(boxFolders);
     memoBoxFolderParents..clear()..addAll(boxFolderParents);
-    normalizeMemoFolders();
-    for (final box in boxes) {
-      if (box.folder != null && !memoBoxFolders.contains(box.folder)) memoBoxFolders.add(box.folder!);
-    }
+    convertLegacyMemoFolders();
     hashtagColors..clear()..addAll(tagColors);
     hashtagFolders
       ..clear()

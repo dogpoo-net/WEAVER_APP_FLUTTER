@@ -69,7 +69,6 @@ mixin _QuickMemoCapture<T extends StatefulWidget> on State<T> {
   final _draft = LabelTextController();
   final _draftTags = <String>{};
   ThoughtLocation? _draftLocation;
-  bool _draftImportant = false;
   VoiceDraft? _voiceDraft;
   final _photoDrafts = <PhotoDraft>[];
   VoiceAttachment? _savedVoice;
@@ -77,7 +76,6 @@ mixin _QuickMemoCapture<T extends StatefulWidget> on State<T> {
   bool _locationBusy = false, _captureSaving = false, _photoBusy = false;
   int _locationGeneration = 0;
   void _clearCapture() {
-    _draftImportant = false;
     _locationGeneration++;
     _draftLocation = null;
     _locationBusy = false;
@@ -658,7 +656,6 @@ mixin _QuickMemoCapture<T extends StatefulWidget> on State<T> {
       record = elements.addLinked(input, cleaned.links, tags);
     }
     if (voiceOnly) record.voiceTextPending = true;
-    record.important = _draftImportant;
     if (_draftLocation != null || _editing != null)
       record.location = _draftLocation;
     if (_savedVoice != null) {
@@ -710,26 +707,6 @@ mixin _QuickMemoCapture<T extends StatefulWidget> on State<T> {
                   ),
                 ],
                 ...[
-                  IconButton(
-                    key: const ValueKey('quick-important'),
-                    tooltip: '중요 생각',
-                    isSelected: _draftImportant,
-                    style: IconButton.styleFrom(
-                      minimumSize: const Size(36, 36),
-                      maximumSize: const Size(36, 36),
-                      padding: EdgeInsets.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      backgroundColor: _draftImportant
-                          ? colors.secondaryContainer
-                          : null,
-                    ),
-                    onPressed: _captureSaving
-                        ? null
-                        : () => setState(
-                            () => _draftImportant = !_draftImportant,
-                          ),
-                    icon: const Icon(Icons.priority_high, size: 20),
-                  ),
                   IconButton(
                     key: const ValueKey('quick-location'),
                     tooltip: _locationBusy

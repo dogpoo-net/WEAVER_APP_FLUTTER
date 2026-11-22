@@ -10,6 +10,12 @@ class ThoughtFilterSelection extends ChangeNotifier {
   bool get isEmpty => boxes.isEmpty && tags.isEmpty;
   MemoBox? get singleBox => boxes.length == 1 && tags.isEmpty ? boxes.single : null;
   bool matches(ElementRecord record) => isEmpty || boxes.any((box) => box.elementIds.contains(record.id)) || record.tags.any(tags.contains);
+  void openBox(MemoBox? box) {
+    boxes.clear();
+    tags.clear();
+    if (box != null) boxes.add(box);
+    notifyListeners();
+  }
   void toggle(MemoBox? box, String? tag) {
     if (box == null && tag == null) { boxes.clear(); tags.clear(); }
     else if (box != null) { if (!boxes.add(box)) boxes.remove(box); }

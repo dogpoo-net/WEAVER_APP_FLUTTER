@@ -18,7 +18,7 @@ void main() {
     memoBoxes.addAll([MemoBox('위 상자', folder: '위', ids: [a.id]), MemoBox('아래 상자', folder: '아래', ids: [b.id])]);
     final layout = pageGraphLayout.blockLayout;
     layout.positions.addAll({a.id: const Offset(700, 700), b.id: const Offset(700, 1200)});
-    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
     await tester.pumpAndSettle();
     MemoFolderRegion folder(String name) => tester.widget<MemoFolderRegion>(find.byKey(ValueKey('folder-region-$name')));
     final upper = folder('위').bounds;
@@ -35,7 +35,7 @@ void main() {
     memoBoxFolders.addAll(['첫 폴더', '둘째 폴더']);
     final layout = pageGraphLayout.blockLayout;
     layout.folderPositions.addAll({'첫 폴더': const Offset(640, 400), '둘째 폴더': const Offset(1100, 400)});
-    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
     await tester.pumpAndSettle();
     MemoFolderRegion folder(String name) => tester.widget<MemoFolderRegion>(find.byKey(ValueKey('folder-region-$name')));
     final fixed = folder('둘째 폴더').bounds;
@@ -53,7 +53,7 @@ void main() {
     memoBoxes.addAll([inside, outside]);
     pageGraphLayout.blockLayout.positions.addAll({a.id: const Offset(640, 400), b.id: const Offset(1200, 400)});
     var changes = 0;
-    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () => changes++)));
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () => changes++)));
     await tester.pumpAndSettle();
     MemoBoxRegion box(String name) => tester.widget<MemoBoxRegion>(find.byKey(ValueKey('box-region-$name')));
     Rect folderBounds() => tester.widget<MemoFolderRegion>(find.byKey(const ValueKey('folder-region-폴더'))).bounds;
@@ -83,7 +83,7 @@ void main() {
     final record = elements.add('상자 생각');
     final box = MemoBox('상자', ids: [record.id]); memoBoxes.add(box);
     layout.positions[record.id] = const Offset(1700, 400);
-    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
     await tester.pumpAndSettle();
     MemoFolderRegion folder(String name) => tester.widget<MemoFolderRegion>(find.byKey(ValueKey('folder-region-$name')));
     Offset center(String name) => tester.getCenter(find.byKey(ValueKey('folder-region-$name')));
@@ -143,7 +143,7 @@ void main() {
     final thought = elements.add('자료 메모'), loose = elements.add('폴더에 넣을 수 없는 메모');
     memoBoxFolders.addAll(['상위', '하위', '빈폴더']); moveMemoFolder('하위', '상위');
     final box = MemoBox('자료', folder: '하위', ids: [thought.id]); memoBoxes.add(box);
-    await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks: true, onChanged: () {})));
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
     await tester.pumpAndSettle();
     final outer = tester.widget<MemoFolderRegion>(find.byKey(const ValueKey('folder-region-상위')));
     final inner = tester.widget<MemoFolderRegion>(find.byKey(const ValueKey('folder-region-하위')));

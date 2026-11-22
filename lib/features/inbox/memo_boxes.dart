@@ -55,10 +55,86 @@ Future<MemoBox?> createMemoBox(BuildContext context, {String? folder}) async {
   if (name == null) return null;
   if (name == '미분류') return ensureUnclassifiedBox();
   final existing = memoBoxes.where((box) => box.name == name);
-  if (existing.isNotEmpty) return existing.first;
-  final box = MemoBox(name, folder: memoBoxFolders.contains(folder) ? folder : null);
+  if (existing.isNotEmpty) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이미 사용 중인 상자 이름입니다.')),
+      );
+    }
+    return null;
+  }
+  final box = MemoBox(name, folder: memoBoxes.any((box) => !box.isUnclassified && box.name == folder) || memoBoxFolders.contains(folder) ? folder : null);
   memoBoxes.add(box);
   return box;
+}
+
+MemoBox? parentMemoBox(MemoBox box) => memoBoxes
+    .where((candidate) => candidate != box && !candidate.isUnclassified &&
+        candidate.name == box.folder)
+    .firstOrNull;
+
+Iterable<MemoBox> childMemoBoxes(MemoBox? box) => memoBoxes
+    .where((candidate) => !candidate.isUnclassified && parentMemoBox(candidate) == box);
+
+bool memoBoxContains(MemoBox ancestor, MemoBox box) {
+  final seen = <MemoBox>{};
+  for (MemoBox? current = box; current != null && seen.add(current);
+      current = parentMemoBox(current)) {
+    if (current == ancestor) return true;
+  }
+  return false;
+}
+
+bool canMoveMemoBox(MemoBox box, MemoBox? parent) {
+  final seen = <MemoBox>{box};
+  for (var current = parent; current != null; current = parentMemoBox(current)) {
+    if (current.isUnclassified || !seen.add(current)) return false;
+  }
+  return !box.isUnclassified;
+}
+
+String memoBoxPath(MemoBox box) {
+  final seen = <MemoBox>{};
+  final names = <String>[];
+  for (MemoBox? current = box; current != null && seen.add(current); current = parentMemoBox(current)) {
+    names.add(current.name);
+  }
+  return names.reversed.join(' / ');
+}
+
+Set<String> memoBoxContents(MemoBox box, {required bool includeChildren}) {
+  final seen = <MemoBox>{};
+  final pending = [box];
+  final contents = <String>{};
+  while (pending.isNotEmpty) {
+    final current = pending.removeLast();
+    if (!seen.add(current)) continue;
+    contents.addAll(current.elementIds);
+    if (includeChildren) pending.addAll(childMemoBoxes(current));
+  }
+  return contents;
+}
+
+void convertLegacyMemoFolders() {
+  normalizeMemoFolders();
+  final names = <String, String>{};
+  final occupied = memoBoxes.map((box) => box.name).toSet()..add('미분류');
+  for (final folder in memoBoxFolders) {
+    var name = folder;
+    for (var suffix = 2; occupied.contains(name); suffix++) {
+      name = '$folder ($suffix)';
+    }
+    occupied.add(name);
+    names[folder] = name;
+  }
+  for (final box in memoBoxes) {
+    box.folder = names[box.folder] ?? box.folder;
+  }
+  for (final entry in names.entries) {
+    memoBoxes.add(MemoBox(entry.value, folder: names[memoFolderParent(entry.key)]));
+  }
+  memoBoxFolders.clear();
+  memoBoxFolderParents.clear();
 }
 
 class MemoBoxTarget extends StatelessWidget {
@@ -139,6 +215,16 @@ class MemoFolderDrag {
 void removeMemoBoxesKeepingThoughts(Set<String> names){
   final removed=memoBoxes.where((b)=>!b.isUnclassified&&names.contains(b.name)).toList();
   final ids=removed.expand((b)=>b.elementIds).toSet();
+  for (final box in memoBoxes.where((box) => !removed.contains(box))) {
+    var parent = parentMemoBox(box);
+    final visited = <MemoBox>{box};
+    while (parent != null && removed.contains(parent) && visited.add(parent)) {
+      parent = parentMemoBox(parent);
+    }
+    if (removed.any((old) => old.name == box.folder)) {
+      box.folder = parent != null && !removed.contains(parent) ? parent.name : null;
+    }
+  }
   memoBoxes.removeWhere(removed.contains);
   for(final box in memoBoxes.where((b)=>!b.isUnclassified)){box.elementIds.removeAll(ids);}
   ensureUnclassifiedBox();

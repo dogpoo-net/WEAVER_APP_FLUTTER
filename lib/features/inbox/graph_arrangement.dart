@@ -1,21 +1,20 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-const graphThoughtSize = Size(170, 96);
 const graphTagSize = Size(178, 48);
 const _columns = 6;
 const _pitchX = 250.0;
 const _originX = 640.0;
 
-Rect thoughtBounds(Offset p) => p & graphThoughtSize;
 Rect tagBounds(Offset center) => Rect.fromCenter(center: center, width: graphTagSize.width, height: graphTagSize.height);
 
-/// Allocate only missing nodes. Existing/manual positions and filtered nodes stay put.
-void arrangeGraph({required List<String> thoughts, required List<String> tags,
-  required Map<String, Offset> positions, required Map<String, Offset> tagPositions, Map<String, Size> sizes = const {}}) {
-  final occupied = <Rect>[
-    ...positions.entries.map((e) => e.value & (sizes[e.key] ?? graphThoughtSize)), ...tagPositions.values.map(tagBounds),
-  ];
+/// Allocate new tags without moving existing tags or cards.
+void arrangeCanvasTags({
+  required List<String> tags,
+  required Iterable<Rect> cardBounds,
+  required Map<String, Offset> tagPositions,
+}) {
+  final occupied = <Rect>[...cardBounds, ...tagPositions.values.map(tagBounds)];
   bool free(Rect candidate) => !occupied.any((r) => r.inflate(12).overlaps(candidate));
   final tagRows = math.max(1, (tags.length / _columns).ceil());
   var tagSlot = 0;
@@ -31,19 +30,6 @@ void arrangeGraph({required List<String> thoughts, required List<String> tags,
       final rect = p & graphTagSize;
       if (!free(rect)) continue;
       tagPositions[id] = rect.center; occupied.add(rect); break;
-    }
-  }
-  final bottom = tagPositions.values.map((p) => tagBounds(p).bottom).fold(160.0, math.max);
-  final thoughtTop = bottom + 100;
-  var slot = 0;
-  for (final id in thoughts) {
-    if (positions.containsKey(id)) continue;
-    while (true) {
-      final p = Offset(_originX + (slot % _columns) * _pitchX, thoughtTop + (slot ~/ _columns) * 160);
-      slot++;
-      final rect = thoughtBounds(p);
-      if (!free(rect)) continue;
-      positions[id] = p; occupied.add(rect); break;
     }
   }
 }

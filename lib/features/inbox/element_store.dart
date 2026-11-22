@@ -301,7 +301,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   bool _movingTags = false;
   late String _word;
   int? _labelColor;
-  late bool _closed, _important;
+  late bool _closed;
   bool? _noticeBoardChange;
   String? _error;
   final _photoUploads=<String,List<PhotoDraft>>{};
@@ -343,7 +343,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     _labelEditor = TextEditingController(text: record.indexLabel);
     _labelOnLeft = record.labelOnLeft; _indexLabelColor = record.indexLabelColor;
     _tags = Set.of(record.tags);
-    _labelColor = record.labelColor; _closed = record.hiddenFromSearch; _important = record.important;
+    _labelColor = record.labelColor; _closed = record.hiddenFromSearch;
     _editor = LabelTextController(record.text, record.inlineLinks)..addListener(_extractTags);
   }
 
@@ -493,7 +493,6 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               )),
               const Divider(key:ValueKey('element-attachments-divider'),height:9,thickness:1),
               Row(children:[
-                IconButton(key:const ValueKey('detail-important'),tooltip:'중요 생각',isSelected:_important,style:captureStyle.copyWith(backgroundColor:WidgetStatePropertyAll(_important?Theme.of(context).colorScheme.secondaryContainer:null)),onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_important=!_important),icon:const Icon(Icons.priority_high,size:20)),
                 IconButton(tooltip:'위치 기록',style:captureStyle,onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.location_on_outlined,size:20)),
                 IconButton(tooltip:'음성 녹음',style:captureStyle,onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const Icon(Icons.mic_none,size:20)),
                 IconButton(tooltip:'사진 업로드',style:captureStyle,onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'photo'),icon:const Icon(Icons.add_photo_alternate_outlined,size:20)),
@@ -607,7 +606,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               for(final id in written){try{await MediaStorage.delete(id,owner:_mediaOwner);}catch(_){}}
               if(mounted)setState((){_attachmentBusy=false;_error='첨부 저장에 실패했습니다. $e';});return;
             }
-            final error = elements.update(word, cleaned.text, inlineLinks: cleaned.links, tags: {..._tags, ...cleaned.tags}, labelColor: _labelColor, hiddenFromSearch: _closed, important: _important, onNoticeBoard: _noticeBoardChange, indexLabel: _labelEditor.text, labelOnLeft: _labelOnLeft, indexLabelColor: _indexLabelColor);
+            final error = elements.update(word, cleaned.text, inlineLinks: cleaned.links, tags: {..._tags, ...cleaned.tags}, labelColor: _labelColor, hiddenFromSearch: _closed, onNoticeBoard: _noticeBoardChange, indexLabel: _labelEditor.text, labelOnLeft: _labelOnLeft, indexLabelColor: _indexLabelColor);
             if (error != null) {
               for(final id in written){await MediaStorage.delete(id,owner:_mediaOwner);}
               if(mounted)setState(() { _attachmentBusy=false;_error = error; });

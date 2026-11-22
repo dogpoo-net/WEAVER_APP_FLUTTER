@@ -29,10 +29,10 @@ void main() {
     expect(saves, 0);
     await tester.pump(const Duration(milliseconds: 200));
     expect(saves, 1);
-    expect(pageGraphLayout.viewport![12], 10);
+    expect(pageGraphLayout.blockLayout.viewport![12], 10);
     controller.value = Matrix4.identity()..setTranslationRaw(30, 0, 0);
     await tester.pumpWidget(const SizedBox());
-    expect(pageGraphLayout.viewport![12], 30);
+    expect(pageGraphLayout.blockLayout.viewport![12], 30);
     expect(saves, 2);
   });
 
@@ -97,7 +97,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       expect(saved, isNotNull);
       expect(contentSaves, 0);
-      final layout = inBox ? box.layout : pageGraphLayout;
+      final layout = (inBox ? box.layout : pageGraphLayout).blockLayout;
       // Compare the last rendered coordinates, including movement since the
       // throttled save. Leaving the page must flush those latest coordinates.
       Offset renderedPosition(String text) {
@@ -112,7 +112,7 @@ void main() {
       WorkspaceSnapshot.decode(saved!).apply();
       await tester.pumpWidget(MaterialApp(home: ThoughtPage(box: inBox ? memoBoxes.single : null, onChanged: () => contentSaves++, onLayoutChanged: persist)));
       await tester.pumpAndSettle();
-      final restored = inBox ? memoBoxes.single.layout : pageGraphLayout;
+      final restored = (inBox ? memoBoxes.single.layout : pageGraphLayout).blockLayout;
       expect(restored.positions, positions);
       expect({a.id: renderedPosition('생각 A'), b.id: renderedPosition('생각 B')}, positions);
       expect(restored.tags, tags);

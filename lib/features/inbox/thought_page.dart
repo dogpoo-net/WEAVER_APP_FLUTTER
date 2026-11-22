@@ -27,7 +27,6 @@ import 'element_store.dart';
 import 'inbox_page.dart' show showThoughtCapture;
 import '../capture/voice_transcription.dart' show fillVoiceBody;
 import 'tag_colors.dart';
-import 'hashtags.dart';
 import 'memo_boxes.dart';
 import 'memo_box_region.dart';
 import 'word_badge.dart';
@@ -89,14 +88,14 @@ class _CanvasState {
 
 /// A live workspace over the same thoughts and tags.
 class ThoughtPage extends StatefulWidget {
-  const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.box, this.blocks = false, this.viewSelector, this.filters, this.onDeleteBoxes});
+  const ThoughtPage({super.key, required this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.box, this.viewSelector, this.filters, this.onDeleteBoxes, this.onSearchTag});
   final Future<void> Function(Set<String>)? onDeleteBoxes;
   final VoidCallback onChanged;
   final VoidCallback? onLayoutChanged;
+  final ValueChanged<String>? onSearchTag;
   final Future<void> Function()? onSave;
   final WorkspaceStorage? storage;
   final MemoBox? box;
-  final bool blocks;
   final ThoughtFilterSelection? filters;
   final Widget? viewSelector;
   @override
@@ -115,7 +114,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   final _view = TransformationController();
   Timer? _saveTimer;
   late final GraphLayout _layout;
-  GraphLayout get _targetLayout{final base=widget.box?.layout??pageGraphLayout;return widget.blocks?base.blockLayout:base;}
+  GraphLayout get _targetLayout{final base=widget.box?.layout??pageGraphLayout;return base.blockLayout;}
   late GraphLayout _publishedLayout;
   static const _historyLimit = 50;
   final _undo = <({_CanvasState before, _CanvasState after})>[];
@@ -124,13 +123,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   final _searchFocus = FocusNode();
 
   final _activeCanvasPointers=<int>{};
-  String get _resource=>widget.blocks?'canvas:boxes':'canvas:diagram';
+  String get _resource=>'canvas:boxes';
   bool get _canEdit=>widget.storage?.canvasWritable??true;
   late final TextEditingController _search;
   _StackInsertion? _stackPreview;
 
   _StackInsertion? _findStackInsertion(String moving, List<ElementRecord> records) {
-    if (!widget.blocks || workspacePhotos.containsKey(moving)) return null;
+    if (workspacePhotos.containsKey(moving)) return null;
     final card = _bounds(moving);
     final positions = Map<String, Offset>.of(_positions);
     final origin = _thoughtDragOrigins[moving];
@@ -197,7 +196,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
 
   String? _draggingId;
-  final _dragStartStacks = <String, Set<String>>{};
   final _dropHighlights = <String>{};
   final _thoughtDragOrigins = <String, Offset>{};
   String? _linkHoverSource, _linkHoverTarget;
@@ -217,7 +215,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   bool get _rangeSelection => _selectionMode || _ctrlPressed || _shiftPressed || _selectionStart != null;
   bool _controlSelection(KeyEvent event) {
     if(!tabActive || !_routeVisible)return false;
-    if (widget.blocks && _canEdit && !_searchFocus.hasFocus &&
+    if (_canEdit && !_searchFocus.hasFocus &&
         _activeCanvasPointers.isEmpty && event is KeyDownEvent &&
         HardwareKeyboard.instance.isControlPressed &&
         !HardwareKeyboard.instance.isAltPressed &&
@@ -301,7 +299,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _selectionPointers.clear(); _selectionZoomBase = null; _selectionZoomDistance = null; _selectionZoomAnchor = null; _selectionPinched = false;
   });
   Rect _boxHeaderBounds(Rect bounds) {
-    final width = widget.blocks ? bounds.width - 64 : bounds.width * .45;
+    final width = bounds.width - 64;
     return Rect.fromLTWH(bounds.center.dx - width / 2, bounds.top + 8, width, 32);
   }
 
@@ -397,14 +395,24 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _saveLayout();
   });
   void _displaceNeighbors(Set<String> edited) {
-    final boxes=_allRegionBoxes.toList();
-    final fixed=boxes.where((box)=>box.elementIds.any(edited.contains)).toSet();
-    final occupied=<Rect>[for(final box in fixed)?_boxBounds(box)];
-    for(final box in boxes.where((box)=>!fixed.contains(box))){
-      final bounds=_boxBounds(box);if(bounds==null)continue;
-      final shift=releaseBox(bounds,occupied,rectangular:widget.blocks);
-      if(shift!=Offset.zero)_moveBox(box,shift);
-      occupied.add(bounds.shift(shift));
+    final boxes = _allRegionBoxes.toList();
+    final owners = boxes.where((box) => box.elementIds.any(edited.contains)).toList();
+    final fixed = boxes.where((box) =>
+        owners.any((owner) => memoBoxContains(box, owner))).toSet();
+    final occupied = <MemoBox, Rect>{
+      for (final box in fixed)
+        if (_boxBounds(box) case final bounds?) box: bounds,
+    };
+    for (final box in boxes.where((box) => !fixed.contains(box))) {
+      final bounds = _boxBounds(box);
+      if (bounds == null) continue;
+      final shift = releaseBox(bounds, [
+        for (final entry in occupied.entries)
+          if (!memoBoxContains(box, entry.key) && !memoBoxContains(entry.key, box))
+            entry.value,
+      ]);
+      if (shift != Offset.zero) _moveBox(box, shift);
+      occupied[box] = bounds.shift(shift);
     }
   }
   Size _fitThought(ElementRecord record, bool horizontal, bool vertical) {
@@ -418,20 +426,27 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final width=horizontal?(painter.width+16+iconWidth+2).ceilToDouble().clamp(170.0,640.0):current.width;
     painter.layout(maxWidth:width-16-iconWidth);
     var footer=0.0;
-    if((widget.blocks||(_layout.stacked&&!_hideTags))&&record.tags.isNotEmpty){
+    if(record.tags.isNotEmpty){
       final tags=TextPainter(text:TextSpan(text:record.tags.map((tag)=>'#$tag').join('  '),
         style:Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize:10)),
         textDirection:Directionality.of(context),textScaler:MediaQuery.textScalerOf(context),maxLines:1)..layout(maxWidth:width-20);
       footer=tags.height+8;tags.dispose();
     }
-    if(_layout.stacked&&(record.tags.isEmpty||(!widget.blocks&&_hideTags)))footer+=24;
+    if(_layout.stacked&&record.tags.isEmpty)footer+=24;
     final height=vertical?(math.max(painter.height,icons*13.0)+16+footer+2).ceilToDouble().clamp(76.0,520.0):current.height;
     painter.dispose();return Size(width,height);
   }
   void _moveBox(MemoBox box, Offset shift) {
-    for (final id in box.elementIds.where(_positions.containsKey)) { _positions[id] = _positions[id]! + shift; }
-    if (_emptyBoxBounds.containsKey(box)) _emptyBoxBounds[box] = _emptyBoxBounds[box]!.shift(shift);
-    _shiftContainerBounds('box:${box.name}', shift);
+    final movedBoxes = memoBoxes.where((child) => memoBoxContains(box, child));
+    for (final moved in movedBoxes) {
+      for (final id in moved.elementIds.where(_positions.containsKey)) {
+        _positions[id] = _positions[id]! + shift;
+      }
+      if (_emptyBoxBounds[moved] case final bounds?) {
+        _emptyBoxBounds[moved] = bounds.shift(shift);
+      }
+      _shiftContainerBounds('box:${moved.name}', shift);
+    }
   }
   void _shiftContainerBounds(String key, Offset shift) {
     final bounds = _layout.containerBounds[key];
@@ -442,10 +457,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   Offset? _boxLiftPointer;
   String? _draggedFolder;
   final _frozenFolders = <String, Rect>{};
-  Map<String, Rect> _folderGeometry() => widget.blocks ? {
+  Map<String, Rect> _folderGeometry() => {
     ...memoFolderRegions({for (final box in _allRegionBoxes) if (_boxBounds(box) != null) box: _boxBounds(box)!}, _layout.folderPositions, manualBounds: _layout.containerBounds),
     ..._frozenFolders,
-  } : {};
+  };
   void _moveSelectedTags(Offset shift) {
     for (final id in _selected.where(_tagPositions.containsKey)) {
       _tagPositions[id] = _tagPositions[id]! + shift;
@@ -468,7 +483,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       for (final box in _allRegionBoxes)
         if (box.folder == null || !memoFolderContains(name, box.folder!)) ?_boxBounds(box),
     ];
-    _moveFolder(name, releaseBox(bounds, obstacles, rectangular: true));
+    _moveFolder(name, releaseBox(bounds, obstacles));
   }
   String? _liftedFolder;
   Offset? _folderLiftPointer;
@@ -527,6 +542,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void _liftBox(MemoBox box, Offset pointer) {
     setState(() {
       _liftedBox = box; _boxLiftPointer = pointer; _frozenFolders.clear();
+      _liftBoxes
+        ..clear()
+        ..addEntries(_allRegionBoxes
+            .where((parent) => parent != box && memoBoxContains(parent, box))
+            .expand((parent) => [if (_boxBounds(parent) case final bounds?) MapEntry(parent, bounds)]));
       if (box.folder != null) {
         _frozenFolders.addEntries(_folderGeometry().entries.where((e) => memoFolderContains(e.key, box.folder!)));
       }
@@ -546,35 +566,46 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     setState(() {
       final oldFolder = box.folder;
       final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
-      if (identical(_liftedBox, box) && _boxLiftPointer != null && scene != null) {
-        final point = scene.globalToLocal(_boxLiftPointer!);
-        final targets = _folderGeometry().entries.where((e) => e.value.contains(point)).toList()
+      final lifted = identical(_liftedBox, box);
+      if (pointer != null && scene != null) {
+        final point = scene.globalToLocal(pointer);
+        final targetBox = _boxAt(point, where: (target) => canMoveMemoBox(box, target));
+        final legacyTargets = _folderGeometry().entries
+            .where((entry) => entry.value.contains(point)).toList()
           ..sort((a, b) => memoFolderDepth(b.key).compareTo(memoFolderDepth(a.key)));
-        final target = targets.firstOrNull?.key;
+        final target = targetBox?.name ?? (lifted ? legacyTargets.firstOrNull?.key : oldFolder);
         if (oldFolder != target) {
           if (oldFolder != null && _frozenFolders.containsKey(oldFolder)) {
             _layout.folderPositions[oldFolder] = _frozenFolders[oldFolder]!.topLeft + const Offset(28, 44);
           }
-          box.folder = target; changed = true;
+          if (_emptyBoxBounds[box] case final bounds?) {
+            _layout.containerBounds.putIfAbsent('box:${box.name}', () => bounds);
+          }
+          box.folder = target;
+          changed = true;
         }
       }
-      _liftedBox = null; _boxLiftPointer = null; _frozenFolders.clear();
+      _liftedBox = null;
+      _boxLiftPointer = null;
+      _frozenFolders.clear();
+      _liftBoxes.clear();
       final beforeRelease = _boxBounds(box)?.topLeft;
-      _releaseBox(box);
+      if (!changed) _releaseBox(box);
       for (String? parent = box.folder; parent != null; parent = memoFolderParent(parent)) { _releaseFolder(parent); }
       if (beforeRelease != null) _moveSelectedTags(_boxBounds(box)!.topLeft - beforeRelease);
     });
-    if (changed) widget.onChanged();
+    // Publish the drop geometry before the membership save captures the snapshot.
     _saveLayout(flush: true);
+    if (changed) widget.onChanged();
   }
   void _releaseBox(MemoBox box) {
     final bounds = _boxBounds(box);
     if (bounds == null) return;
     _moveBox(box, releaseBox(bounds, [
-      for (final other in _allRegionBoxes) if (!identical(other, box)) ?_boxBounds(other),
+      for (final other in _allRegionBoxes) if (!memoBoxContains(box, other) && !memoBoxContains(other, box)) ?_boxBounds(other),
       for (final folder in _folderGeometry().entries)
         if (box.folder == null || !memoFolderContains(folder.key, box.folder!)) folder.value,
-    ], rectangular: widget.blocks));
+    ]));
   }
   void _dragBox(MemoBox box, Offset delta) {
     final bounds = _boxBounds(box);
@@ -588,14 +619,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   ModalRoute<dynamic>? _route;
   Size _size(String id) {
     final size = _layout.sizes[id];
-    final photo = widget.blocks ? workspacePhotos[id] : null;
+    final photo = workspacePhotos[id];
     if (photo != null) {
       final ratio = photo.aspectRatio;
       final width = math.min(size?.dx ?? 230.0, 640.0 * ratio);
       return Size(width, width / ratio);
     }
     return size == null
-        ? (widget.blocks ? const Size(230, 120) : graphThoughtSize)
+        ? const Size(230, 120)
         : Size(size.dx, size.dy);
   }
 
@@ -619,7 +650,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     widget.storage?.liveChanges.addListener(_remoteLayoutChanged);
     _filters.addListener(_filterChanged);
     final base = widget.box?.layout ?? pageGraphLayout;
-    final target=widget.blocks?base.blockLayout:base;
+    final target=base.blockLayout;
     _layout = widget.storage==null?target:GraphLayout.fromJson(target.toJson());
     _publishedLayout=GraphLayout.fromJson(_layout.toJson());
     _positions.addAll(_layout.positions);
@@ -671,7 +702,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
 
   void _editCanvasLayout(VoidCallback edit) {
-    final before = widget.blocks ? _captureCanvas() : null;
+    final before = _captureCanvas();
     setState(edit);
     _rememberEdit(before);
     _saveLayout(flush: true);
@@ -805,8 +836,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   final _photoCanvasRecords = <String, ElementRecord>{};
   List<ElementRecord> get _scopeRecords => [
     ...elements.records.values,
-    if (widget.blocks)
-      for (final photo in workspacePhotos.values)
+    for (final photo in workspacePhotos.values)
         _photoCanvasRecords.putIfAbsent(photo.id, () =>
           ElementRecord.restored(photo.id, photo.displayTitle, photo.createdAt))
           ..text = photo.displayTitle
@@ -846,18 +876,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final order = (at.firstOrNull ?? '\uffff').compareTo(bt.firstOrNull ?? '\uffff');
       return order != 0 ? order : a.createdAt.compareTo(b.createdAt);
     });
-    if (widget.blocks) {
-      _arrangeBlocks(ordered);
-      arrangeGraph(thoughts: [], tags: tags, positions: _positions, tagPositions: _tagPositions,
-        sizes: {for (final id in _positions.keys) id: _size(id)});
-    } else {
-      arrangeGraph(thoughts: ordered.map((r) => r.id).toList(), tags: tags,
-        positions: _positions, tagPositions: _tagPositions,
-        sizes: {for (final id in _positions.keys) id: _size(id)});
-      if (!hadPositions) _separateBoxes();
-    }
-    _separateOverlappingBoxes();
-    if (hadPositions || widget.blocks) {
+    _arrangeBlocks(ordered);
+    arrangeCanvasTags(tags: tags, cardBounds: _positions.keys.map(_bounds), tagPositions: _tagPositions);
+    if (newIds.isNotEmpty) _separateOverlappingBoxes();
+    {
       final loose = newIds.where((id) => !memoBoxes.any((box) => !box.isUnclassified && box.elementIds.contains(id))).toList();
       final occupied = [
         for (final id in _positions.keys.where((id) => !loose.contains(id))) _bounds(id),
@@ -883,21 +905,63 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       index++;
     }
   }
-  Rect? _regionBounds(MemoBox box, Map<String, Offset> positions) {
-    final ids = box.elementIds.where(positions.containsKey).toList();
-    if (ids.isEmpty) return null;
-    if (widget.blocks) {
-      final bounds = ids.map((id) => positions[id]! & _size(id)).reduce((a, b) => a.expandToInclude(b));
-      final natural = Rect.fromLTRB(bounds.left - 32, bounds.top - 52, bounds.right + 32, bounds.bottom + 32);
-      return _layout.containerBounds['box:${box.name}']?.expandToInclude(natural) ?? natural;
-    }
-    return memoBoxCircleBounds(ids.map((id) => positions[id]!), sizes: {for (final id in ids) positions[id]!: _size(id)});
+  Rect? _regionBounds(MemoBox box, Map<String, Offset> positions, {Set<MemoBox> ancestors = const {}, bool includeManual = true, bool hitTest = false}) {
+    if (ancestors.contains(box)) return null;
+    final path = {...ancestors, box};
+    final enclosed = [
+      for (final id in box.elementIds.where(positions.containsKey))
+        positions[id]! & _size(id),
+      for (final child in childMemoBoxes(box))
+        ?(_frozenBoxBounds(child, hitTest: hitTest) ?? _regionBounds(child, positions, ancestors: path, hitTest: hitTest) ?? _layout.containerBounds['box:${child.name}'] ?? _emptyBoxBounds[child]),
+    ];
+    if (enclosed.isEmpty) return null;
+    final bounds = enclosed.reduce((a, b) => a.expandToInclude(b));
+    final natural = Rect.fromLTRB(bounds.left - 32, bounds.top - 52, bounds.right + 32, bounds.bottom + 32);
+    final manual = includeManual ? _layout.containerBounds['box:${box.name}'] : null;
+    return manual?.expandToInclude(natural) ?? natural;
   }
-  bool _inside(Rect bounds, Offset point) => widget.blocks ? bounds.contains(point) : (point - bounds.center).distance <= bounds.width / 2;
-  Iterable<MemoBox> get _regionBoxes => (_filterBox != null ? [_filterBox!] :
-      memoBoxes).where((box) => !box.isUnclassified && (_filters.isEmpty || _filters.boxes.contains(box) || _records.any((r) => box.elementIds.contains(r.id))));
+  bool _inside(Rect bounds, Offset point) => bounds.contains(point);
+  Iterable<MemoBox> get _regionBoxes => (_filterBox != null ?
+      [_filterBox!, ...childMemoBoxes(_filterBox)] : memoBoxes).where((box) =>
+        !box.isUnclassified && (_filters.isEmpty || _filters.boxes.contains(box) ||
+        parentMemoBox(box) == _filterBox || _records.any((r) => box.elementIds.contains(r.id))));
   Iterable<MemoBox> get _allRegionBoxes => memoBoxes.where((box) => !box.isUnclassified);
-  Rect? _boxBounds(MemoBox box) => _liftBoxes[box] ?? _regionBounds(box, _positions) ?? (widget.blocks ? _layout.containerBounds['box:${box.name}'] : null) ?? _emptyBoxBounds[box];
+  Rect? _frozenBoxBounds(MemoBox box, {required bool hitTest}) =>
+      hitTest || _liftedThought != null || _selectionLifted || _liftedBox != null
+          ? _liftBoxes[box] : null;
+  Rect? _boxBounds(MemoBox box, {bool hitTest = false}) =>
+      _frozenBoxBounds(box, hitTest: hitTest) ??
+      _regionBounds(box, _positions, hitTest: hitTest) ??
+      _layout.containerBounds['box:${box.name}'] ?? _emptyBoxBounds[box];
+
+  MemoBox? _boxAt(Offset point, {required bool Function(MemoBox) where}) {
+    final targets = [
+      for (final box in _regionBoxes.where(where))
+        if (_boxBounds(box, hitTest: true) case final bounds? when bounds.contains(point))
+          (box: box, area: bounds.width * bounds.height),
+    ]..sort((a, b) => a.area.compareTo(b.area));
+    return targets.firstOrNull?.box;
+  }
+
+  bool _dropIntoBox(Offset point, Iterable<String> ids) {
+    final moving = ids.where(_positions.containsKey).toList();
+    if (moving.isEmpty) return false;
+    final box = _boxAt(point, where: (_) => true);
+    if (box == null || moving.every(box.elementIds.contains)) return false;
+    _joinStack(moving, null);
+    for (final id in moving) {
+      final old = memoBoxes.where((box) => !box.isUnclassified && box.elementIds.contains(id)).firstOrNull;
+      if (old != null) {
+        final bounds = _boxBounds(old);
+        if (bounds != null) _emptyBoxBounds[old] = bounds;
+      }
+      moveThoughtToBox(id, box);
+    }
+    _liftBoxes.clear();
+    _changed();
+    return true;
+  }
+
   Rect _placeEmptyBox(double x) {
     var bounds = Rect.fromLTWH(x, 440, 260, 260);
     final occupied = [for (final box in _allRegionBoxes) ?_boxBounds(box),
@@ -913,39 +977,34 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final bounds = _boxBounds(box);
       if (bounds == null) continue;
       _moveBox(box, releaseBox(bounds, [
-        for (final other in _allRegionBoxes) if (!identical(other, box)) ?_boxBounds(other),
-      ], rectangular: widget.blocks));
+        for (final other in _allRegionBoxes) if (!memoBoxContains(box, other) && !memoBoxContains(other, box)) ?_boxBounds(other),
+      ]));
     }
     // Recompute nested folder outlines after their children have grown/moved.
     final folders = memoBoxFolders.toList()
       ..sort((a, b) => memoFolderDepth(b).compareTo(memoFolderDepth(a)));
     for (final folder in folders) { _releaseFolder(folder); }
     // Ungrouped boxes must also stay outside the expanded folder outlines.
-    if (widget.blocks) {
-      for (final box in _allRegionBoxes.where((box) => box.folder == null)) { _releaseBox(box); }
-    }
+    for (final box in _allRegionBoxes.where((box) => box.folder == null)) { _releaseBox(box); }
   }
-  void _separateBoxes() {
-    var x = 640.0;
-    final assigned = <String>{};
-    final top = _tagPositions.values.map((p) => tagBounds(p).bottom + 100).fold(400.0, math.max);
-    var bottom = top;
-    for (final box in memoBoxes.where((box) => !box.isUnclassified)) {
-      final ids = box.elementIds.where((id) => _positions.containsKey(id) && !assigned.contains(id)).toList();
-      if (ids.isEmpty) continue;
-      for (var i = 0; i < ids.length; i++) { _positions[ids[i]] = Offset(x + (i % 3) * 220, 600 + (i ~/ 3) * 140); }
-      final bounds = _regionBounds(box, _positions)!;
-      final shift = Offset(x - bounds.left, math.max(0, top - bounds.top));
-      for (final id in ids) { _positions[id] = _positions[id]! + shift; }
-      final moved = bounds.shift(shift);
-      x = moved.right + 100; bottom = math.max(bottom, moved.bottom);
-      assigned.addAll(ids);
-    }
-    var i = 0;
-    for (final id in _positions.keys.where((id) => !assigned.contains(id)).toList()) {
-      _positions[id] = Offset(640 + (i % 6) * 250, bottom + 120 + (i ~/ 6) * 160); i++;
-    }
+
+  void _compactBoxSpace() {
+    final boxes = _allRegionBoxes.toList()
+      ..sort((a, b) => memoBoxPath(b).length.compareTo(memoBoxPath(a).length));
+    _editCanvasLayout(() {
+      for (final box in boxes) {
+        final key = 'box:${box.name}';
+        final manual = _layout.containerBounds[key];
+        if (manual == null) continue;
+        final natural = _regionBounds(box, _positions, includeManual: false);
+        if (natural != null && manual.expandToInclude(natural) != natural) {
+          _layout.containerBounds.remove(key);
+          _emptyBoxBounds.remove(box);
+        }
+      }
+    });
   }
+
   Future<void> _confirmResetArrangement(bool stacked) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1189,10 +1248,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _deletingContainer = false;
     }
   }
-  Future<void> _createBox({String? folder}) async {
-    final box = await createMemoBox(context, folder: folder);
+  Future<void> _createBox() async {
+    final box = await createMemoBox(context);
     if (mounted && box != null) _changed();
   }
+
   void _remoteLayoutChanged(){
     if(!mounted || !tabActive || _activeCanvasPointers.isNotEmpty)return;
     _layout.positions..clear()..addAll(_positions);
@@ -1338,8 +1398,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final scene=_sceneKey.currentContext?.findRenderObject() as RenderBox?;
       final point=scene?.globalToLocal(global)??_bounds(anchor).center;
       final target=_selectionHasPhoto ? null : records.where((r)=>!workspacePhotos.containsKey(r.id)&&!_selected.contains(r.id)&&_bounds(r.id).overlaps(_bounds(anchor))).lastOrNull;
-      if(target!=null){_snapSelection(records);}
-      else if(widget.blocks && folders.values.any((bounds)=>bounds.contains(point))&&!regions.any((r)=>_inside(r.bounds,point))){
+      if (_dropIntoBox(point, _selected)) {
+        // Membership was decided by the drop point.
+      } else if(target!=null){_snapSelection(records);}
+      else if(folders.values.any((bounds)=>bounds.contains(point))&&!regions.any((r)=>_inside(r.bounds,point))){
         for(final e in _selectionDragOrigins.entries){_setSelectionPoint(e.key,e.value);}
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('생각은 메모상자 안에 담아주세요. 폴더에는 직접 넣을 수 없습니다.')));
       }else{
@@ -1388,18 +1450,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _layout.layers.removeWhere(_selected.contains); _layout.layers.addAll(moved);
       final box = memoBoxes.where((box) => !box.isUnclassified && box.elementIds.contains(target.id)).firstOrNull;
       for (final id in _selected) {
-        if (box != null) { if (_positions.containsKey(id)) moveThoughtToBox(id, box); }
-        else { for (final box in memoBoxes.where((box) => !box.isUnclassified)) { box.elementIds.remove(id); } }
+        if (box != null && _selectionLifted) { if (_positions.containsKey(id)) moveThoughtToBox(id, box); }
+        else if (box == null && _selectionLifted) { for (final box in memoBoxes.where((box) => !box.isUnclassified)) { box.elementIds.remove(id); } }
       }
       _changed();
-    } else {
-      final candidates = _allRegionBoxes.where((box) => !_selected.any(box.elementIds.contains) &&
-        _boxBounds(box) != null && _inside(_boxBounds(box)!, _bounds(anchor).center)).toList()
-        ..sort((a, b) => (_boxBounds(a)!.width * _boxBounds(a)!.height).compareTo(_boxBounds(b)!.width * _boxBounds(b)!.height));
-      if (candidates.isNotEmpty) {
-        for (final id in _selected) { if (_positions.containsKey(id)) moveThoughtToBox(id, candidates.first); }
-        _changed();
-      }
     }
   }
   String? _frontThought, _liftedLabel;
@@ -1577,10 +1631,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               onPressed: () => _create(target: box, useFilter: false),
               child: const CreateMenuLabel(Icons.edit_note_rounded, '생각'),
             ),
-          if (box == null)
+          if (box == null && folder == null)
             MenuItemButton(
               style: compact,
-              onPressed: () => _createBox(folder: folder),
+              onPressed: _createBox,
               child: const CreateMenuLabel(Icons.inventory_2_outlined, '메모상자'),
             ),
           if (box == null && folder == null)
@@ -1612,13 +1666,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final layers = preview == null ? _layout.layers : List<String>.of(_layout.layers);
     if (preview != null) _insertStackLayer(layers, preview);
     final ranks = {for (var i = 0; i < layers.length; i++) layers[i]: i};
-    final records = _records..sort((a, b) {
-      final priority=(a.important?1:0).compareTo(b.important?1:0);
-      return priority!=0?priority:(ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0);
-    });
+    final records = _records..sort(
+      (a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0),
+    );
     if (_frontThought != null && preview == null) {
       final front = records.where((r) => r.id == _frontThought).firstOrNull;
-      if (front != null) { records.remove(front); final firstImportant=records.indexWhere((r)=>r.important); records.insert(!front.important&&firstImportant>=0?firstImportant:records.length,front); }
+      if (front != null) {
+        records.remove(front);
+        records.add(front);
+      }
     }
     final visiblePositions = {
       for (final record in records)
@@ -1642,19 +1698,20 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final regions = <({MemoBox box, Rect bounds})>[];
     final regionBoxes = _regionBoxes.toList();
     for (final box in regionBoxes) {
-      final bounds = _regionBounds(box, widget.blocks ? _positions : visiblePositions);
-      if (bounds != null) regions.add((box: box, bounds: _liftBoxes[box] ?? bounds));
+      final bounds = _regionBounds(box, _positions);
+      if (bounds != null) regions.add((box: box, bounds: _frozenBoxBounds(box, hitTest: false) ?? bounds));
     }
     var emptyX = regions.map((r) => r.bounds.right + 80).fold(
       nodeRects.values.map((r) => r.right + 80).fold(640.0, math.max), math.max);
     for (final box in regionBoxes) {
-      if (box.elementIds.any(_positions.containsKey)) continue;
+      if (regions.any((region) => region.box == box)) continue;
       regions.add((box: box, bounds: _boxBounds(box) ?? _emptyBoxBounds.putIfAbsent(box, () => _placeEmptyBox(emptyX))));
       emptyX += 340;
     }
+    regions.sort((a, b) => (b.bounds.width * b.bounds.height).compareTo(a.bounds.width * a.bounds.height));
     sceneWidth = regions.map((r) => r.bounds.right + 100).fold(sceneWidth, math.max);
     sceneHeight = regions.map((r) => r.bounds.bottom + 100).fold(sceneHeight, math.max);
-    final folders = widget.blocks ? memoFolderRegions({for (final r in regions) r.box: r.bounds}, _layout.folderPositions, manualBounds: _layout.containerBounds) : <String, Rect>{};
+    final folders = memoFolderRegions({for (final r in regions) r.box: r.bounds}, _layout.folderPositions, manualBounds: _layout.containerBounds);
     folders.addAll(_frozenFolders);
     if (_filterBox != null) {
       folders.removeWhere((name, _) => !regions.any((r) => r.box.folder != null && memoFolderContains(name, r.box.folder!)));
@@ -1677,7 +1734,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           });
         }
         void openCanvasMenu(Offset globalPosition) {
-          if (!widget.blocks || !_canEdit) return;
+          if (!_canEdit) return;
           final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
           final anchor = _canvasMenuKey.currentContext?.findRenderObject() as RenderBox?;
           if (scene == null || anchor == null) return;
@@ -1715,7 +1772,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               openCanvasMenu(event.position);
               return;
             }
-            if (widget.blocks && _canEdit && _activeCanvasPointers.isEmpty) {
+            if (_canEdit && _activeCanvasPointers.isEmpty) {
               _gestureBefore = _captureCanvas();
             }
             _activeCanvasPointers.add(event.pointer);widget.storage?.canvasInteracting=true;if(_canvasTapPointer!=null){_canvasTapDown=null;return;}_canvasTapPointer=event.pointer;_canvasTapDown=event.position;},
@@ -1760,7 +1817,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               final shift = Offset(math.max(delta.dx, 32 - folder.value.left), math.max(delta.dy, 32 - folder.value.top));
               _moveFolder(folder.key, shift); _moveSelectedTags(shift); _saveLayout();
             })),
-          for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds,showLabel:false, highlighted: identical(_hoverBox, region.box) || identical(_liftedBox, region.box), rectangular: widget.blocks),
+          for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds,showLabel:false, highlighted: identical(_hoverBox, region.box) || identical(_liftedBox, region.box)),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
             nodeRects,
             {for (final r in records) r.id: {if (!_hideTags) ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
@@ -1773,7 +1830,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   _liftedThought = record.id;
                   _liftBoxes..clear()..addEntries(regions.where((r) => r.box.elementIds.contains(record.id)).map((r) => MapEntry(r.box, r.bounds)));
                 }),
-                onActiveChanged: (active) => setState(() { if (active) { _rememberStacks(); _thoughtDragOrigins.putIfAbsent(record.id, () => _positions[record.id]!); _dragStartStacks.putIfAbsent(record.id, () => alignedStackMembers(record.id, _positions,groups:_layout.stackGroups)); } _draggingId = active ? record.id : null; if (!active) { _hoverBox = null; _dropHighlights.clear(); _stackPreview = null; } }),
+                onActiveChanged: (active) => setState(() { if (active) {
+                  _rememberStacks();
+                  _thoughtDragOrigins.putIfAbsent(record.id, () => _positions[record.id]!);
+                  _liftBoxes
+                    ..clear()
+                    ..addEntries(regions.where((region) => region.box.elementIds.contains(record.id))
+                        .map((region) => MapEntry(region.box, region.bounds)));
+                } _draggingId = active ? record.id : null; if (!active) { _hoverBox = null; _dropHighlights.clear(); _stackPreview = null; } }),
                 onTap: () async {
                   if (_detailOpen) return;
                   if (_selectionMode) { setState(() => _toggleThoughtSelection(record.id)); return; }
@@ -1789,20 +1853,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 },
                 onMove: (delta) => _updateCanvas(() { final previous = _positions[record.id]!; final p = previous + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
                   _stackPreview = _findStackInsertion(record.id, records);
-                  if (!widget.blocks && _stackPreview == null && _liftBoxes.isEmpty) _displaceNeighbors({record.id});
                   _dropHighlights.clear();
                   if (_stackPreview case final preview?) {
                     _dropHighlights.addAll(preview.members.where((id) => id != record.id));
-                  } else if (!widget.blocks) {
-                    final target = records.where((r) =>
-                      r.id != record.id && _bounds(r.id).overlaps(_bounds(record.id))).lastOrNull;
-                    if (target != null) {
-                      _dropHighlights.addAll(alignedStackMembers(target.id, _positions,
-                        groups: _layout.stackGroups)..remove(record.id));
-                    }
                   }
                   final center = _bounds(record.id).center;
-                  _hoverBox = regions.where((r) => !r.box.elementIds.contains(record.id) && _inside(r.bounds, center)).firstOrNull?.box;
+                  _hoverBox = _boxAt(center, where: (box) => !box.elementIds.contains(record.id));
                   _saveLayout(); }),
                 onBorderTap: () {
                   if (_selectionMode) {
@@ -1830,11 +1886,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 },
                 onDrop: (pointer) {
                   final origin = _thoughtDragOrigins[record.id];
-                  final tolerance = (48 / _view.value.storage[0].abs()).clamp(24, 96);
-                  final originalStack = _dragStartStacks[record.id] ?? <String>{};
-                  final nearOriginal = origin != null && (_positions[record.id]! - origin).distance <= tolerance;
-                  if (origin != null && ( (_positions[record.id]! - origin).distance < .5 ||
-                      (!widget.blocks && nearOriginal && originalStack.length > 1 && originalStack.any((id) => id != record.id && _positions.containsKey(id) && _bounds(id).overlaps(_bounds(record.id)))))) {
+                  if (origin != null && (_positions[record.id]! - origin).distance < .5) {
                     _positions[record.id] = origin;
                     _dropHighlights.clear(); _liftBoxes.clear();
                     _saveLayout(flush: true);
@@ -1842,10 +1894,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   }
                   final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
                   final center = scene?.globalToLocal(pointer) ?? _bounds(record.id).center;
+                  if (_dropIntoBox(center, [record.id])) {
+                    _saveLayout(flush: true);
+                    return;
+                  }
                   _rememberStacks();
                   final insertion = _findStackInsertion(record.id, records);
-                  final targetId = insertion?.target ?? (widget.blocks ? null :
-                    records.where((r) => r.id != record.id && _bounds(r.id).overlaps(_bounds(record.id))).lastOrNull?.id);
+                  final targetId = insertion?.target;
                   if (insertion != null) {
                     _positions.addAll(insertion.positions);
                     _insertStackLayer(_layout.layers, insertion);
@@ -1866,16 +1921,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                       _layout.layers.add(record.id);
                     }
                     final box = memoBoxes.where((box) => !box.isUnclassified && box.elementIds.contains(targetId)).firstOrNull;
-                    if (box != null) { moveThoughtToBox(record.id, box); }
-                    else { for (final box in memoBoxes.where((box) => !box.isUnclassified)) { box.elementIds.remove(record.id); } }
+                    if (box != null && _liftedThought == record.id) { moveThoughtToBox(record.id, box); }
+                    else if (box == null && _liftedThought == record.id) { for (final box in memoBoxes.where((box) => !box.isUnclassified)) { box.elementIds.remove(record.id); } }
                     _liftBoxes.clear(); _changed(); _saveLayout(flush: true);
                     return;
                   }
-                  // Ordinary dragging rearranges the current box. Only a long-press
-                  // lift may detach/reparent a memo or be rejected by a folder.
-                  // The captured region bounds can also precede the last drag frame.
+                  // A lift can remove a memo when dropped outside every box.
                   if (_liftedThought != record.id) { _saveLayout(flush: true); return; }
-                  if (widget.blocks && folders.values.any((bounds) => bounds.contains(center)) &&
+                  if (folders.values.any((bounds) => bounds.contains(center)) &&
                       !regions.any((region) => _inside(region.bounds, center))) {
                     final origin = _thoughtDragOrigins[record.id];
                     if (origin != null) _positions[record.id] = origin;
@@ -1900,12 +1953,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   }
                   if (detached.isNotEmpty) _changed();
                   _saveLayout(flush: true);
-                }, onEnd: () { setState(() { _liftedThought = null; if (_resizingThought == null) _closeMovedSlots(_thoughtDragOrigins); _resizingThought = null; _resizeNeighbors.clear(); _thoughtDragOrigins.remove(record.id); _dragStartStacks.remove(record.id); _dropHighlights.clear(); _stackPreview = null; _liftBoxes.clear(); _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
+                }, onEnd: () { setState(() { final resized = _resizingThought != null; _liftedThought = null; if (!resized) _closeMovedSlots(_thoughtDragOrigins); _resizingThought = null; _resizeNeighbors.clear(); _thoughtDragOrigins.remove(record.id); _dropHighlights.clear(); _stackPreview = null; _liftBoxes.clear(); if (!resized) _separateOverlappingBoxes(); _draggingId = null; _hoverBox = null; }); _saveLayout(flush: true); },
                 child: Card(margin: EdgeInsets.zero,
                   clipBehavior: workspacePhotos.containsKey(record.id) ? Clip.antiAlias : Clip.none,
                   color: wordBackgroundColor(context, record.text),
-                  shape: widget.blocks ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _dropHighlights.contains(record.id) || _draggingId == record.id || (!_rangeSelection && _selected.isEmpty && _linkHoverTarget == record.id) ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) ? 3 : 2)) : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(
-                    color: _dropHighlights.contains(record.id) || _draggingId == record.id || (!_rangeSelection && _selected.isEmpty && _linkHoverTarget == record.id) ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) || _draggingId == record.id ? 3 : 2)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6), side: BorderSide(color: _dropHighlights.contains(record.id) || _draggingId == record.id || (!_rangeSelection && _selected.isEmpty && _linkHoverTarget == record.id) ? color.primary : color.outlineVariant, width: _dropHighlights.contains(record.id) ? 3 : 2)),
                   child: workspacePhotos.containsKey(record.id)
                   ? StoredThumbnail(key: ValueKey(record.id), id: record.id, owner: widget.storage?.owner, name: record.text)
                   : SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1913,9 +1965,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                       if(AttachmentIndicators.hasAttachments(record)||commentCount>0)...[FittedBox(fit:BoxFit.scaleDown,child:AttachmentIndicators(record:record,commentCount:commentCount)),const SizedBox(width:4)],
                       Expanded(child:CanvasLinkText(text:record.text,links:record.inlineLinks,onLinkHover:(link)=>_hoverMemoLink(record.id,link),enabled:MediaQuery.sizeOf(context).width >= 760 && !_rangeSelection && _selected.isEmpty,style:TextStyle(color:wordColor(context,record.text)))),
                     ])))),
-                    if ((widget.blocks || (_layout.stacked && !_hideTags)) && record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 8, 8), child: Align(alignment: Alignment.centerLeft,
+                    if (record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 8, 8), child: Align(alignment: Alignment.centerLeft,
                       child: Text(record.tags.map((tag) => '#$tag').join('  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)))),
-                    if (_layout.stacked && (record.tags.isEmpty || (!widget.blocks && _hideTags))) const SizedBox(height: 24),
+                    if (_layout.stacked && record.tags.isEmpty) const SizedBox(height: 24),
                   ])))),
             ),
           for (final record in records.where((r) => r.indexLabel.isNotEmpty)) Positioned(key: ValueKey('label-position-${record.id}'),
@@ -1936,7 +1988,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               onLongPressMoveUpdate: (d) => _moveLiftedBox(region.box, d.globalPosition),
               onLongPressEnd: (d) => _finishBoxDrag(region.box, d.globalPosition),
               onPanUpdate: (d) => _updateCanvas(() => _dragBox(region.box, d.delta)),
-              onPanEnd: (_) => _finishBoxDrag(region.box),
+              onPanEnd: (details) => _finishBoxDrag(region.box, details.globalPosition),
               onPanCancel: () { if (!identical(_liftedBox, region.box)) _finishBoxDrag(region.box); },
               child:Row(mainAxisAlignment:MainAxisAlignment.center,children:[Flexible(child:Text(region.box.name,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:Color(region.box.color),fontSize:13,fontWeight:FontWeight.w600))),
                 if(_canEdit&&!region.box.isUnclassified)IconButton(tooltip:'${region.box.name} 상자 삭제',onPressed:()=>_deleteCanvasBox(region.box),style:IconButton.styleFrom(minimumSize:const Size.square(24),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap),icon:const Icon(Icons.close,size:16)),
@@ -1993,7 +2045,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               else if (_shiftPressed && _rangeAnchor != null && nodeRects.containsKey(_rangeAnchor)) {
                 final range = Rect.fromPoints(_rangeAnchorPoint ?? _selectionBounds(_rangeAnchor!).center, d.localPosition).inflate(.5);
                 for (var i=0;i<records.length;i++) {
-                  if (selectsVisibleThought(range,_bounds(records[i].id),records.skip(i+1).map((r)=>_bounds(r.id)),radius:widget.blocks?6:12)) _selected.add(records[i].id);
+                  if (selectsVisibleThought(range,_bounds(records[i].id),records.skip(i+1).map((r)=>_bounds(r.id)),radius:6)) _selected.add(records[i].id);
                 }
                 for(final id in tagPositions.keys){if(range.overlaps(nodeRects[id]!))_selected.add(id);}
               } else {
@@ -2012,6 +2064,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               _selectionStart = _selectionDown ?? d.localFocalPoint; _selectionEnd = d.localFocalPoint;
               if (!_movingSelection) { _selected.clear(); _rangeAnchor=null; _rangeAnchorPoint=null; }
               _selectionDragOrigins..clear()..addEntries(_selected.map((id) => MapEntry(id, _selectionPoint(id))));
+              _liftBoxes
+                ..clear()
+                ..addEntries(regions.where((region) => region.box.elementIds.any(_selected.contains))
+                    .map((region) => MapEntry(region.box, region.bounds)));
             }),
             onScaleUpdate: (d) => _updateCanvas(() {
               if (d.pointerCount > 1) {
@@ -2021,6 +2077,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               if (_selectionPinched || _selectionStart == null) return;
               if (_movingSelection) {
                 if (_selectionPointers.isEmpty || _selectionGlobalDown == null || _selectionDragOrigins.isEmpty) return;
+                _selectionEnd = d.localFocalPoint;
                 final delta = (_selectionPointers.values.first - _selectionGlobalDown!) / _view.value.storage[0].abs();
                 final left = _selectionDragOrigins.values.map((p) => p.dx).reduce(math.min);
                 final top = _selectionDragOrigins.values.map((p) => p.dy).reduce(math.min);
@@ -2035,24 +2092,29 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 for(final id in tagPositions.keys){if(rect.overlaps(nodeRects[id]!))_selected.add(id);}
                 for (var i = 0; i < records.length; i++) {
                   if (selectsVisibleThought(rect, _bounds(records[i].id), records.skip(i + 1).map((r) => _bounds(r.id)),
-                      radius: widget.blocks ? 6 : 12)) { _selected.add(records[i].id); _rangeAnchor ??= records[i].id; _rangeAnchorPoint ??= _selectionStart; }
+                      radius: 6)) { _selected.add(records[i].id); _rangeAnchor ??= records[i].id; _rangeAnchorPoint ??= _selectionStart; }
                 }
               }
             }),
-            onScaleEnd: (_) { setState(() { _snapSelection(records); _closeMovedSlots(_selectionDragOrigins); _selectionAnchor = null; _dropHighlights.clear(); _selectionStart = null; _selectionEnd = null; _movingSelection = false; }); _endPinch(); },
+            onScaleEnd: (_) { setState(() {
+              final drop = _selectionEnd;
+              if (!_movingSelection || drop == null || drop == _selectionStart || !_dropIntoBox(drop, _selected)) {
+                _snapSelection(records);
+              }
+              _closeMovedSlots(_selectionDragOrigins); _liftBoxes.clear(); _selectionAnchor = null; _dropHighlights.clear(); _selectionStart = null; _selectionEnd = null; _movingSelection = false; }); _endPinch(); },
             child: TweenAnimationBuilder<double>(
               tween: Tween<double>(begin: 1, end: _selectionLifted ? 1.04 : 1),
               duration: const Duration(milliseconds: 100),
               builder: (context, scale, child) => CustomPaint(painter: _SelectionPainter(
               [for (final r in records) (rect: _bounds(r.id), selected: _selected.contains(r.id)), for(final id in tagPositions.keys)(rect:nodeRects[id]!,selected:_selected.contains(id))],
               !_movingSelection && _selectionStart != null && _selectionEnd != null ? Rect.fromPoints(_selectionStart!, _selectionEnd!) : null,
-              color.primary, widget.blocks ? 6 : 12, captureAll: _rangeSelection, liftScale: scale, containerHeaders: [
+              color.primary, 6, captureAll: _rangeSelection, liftScale: scale, containerHeaders: [
                 for (final region in regions) _boxHeaderBounds(region.bounds),
                 for (final bounds in folders.values)
                   Rect.fromLTWH(bounds.left, bounds.top, bounds.width, MemoFolderRegion.headerHeight),
               ], resizeRects: {for(final r in records)_bounds(r.id)}))),
           ))),
-          if (widget.blocks && _canEdit && !_rangeSelection) ...[
+          if (_canEdit && !_rangeSelection) ...[
             for (final folder in folders.entries)
               ..._containerResizeEdges('folder:${folder.key}', folder.value),
             for (final region in regions)
@@ -2060,7 +2122,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           ],
         ])))),
       ));
-        if (!widget.blocks || !_canEdit) return canvas;
+        if (!_canEdit) return canvas;
         return MouseRegion(
           onEnter: (_) {
             _canvasHovered = true;
@@ -2110,10 +2172,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           child: IntrinsicWidth(child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(mainAxisSize: MainAxisSize.min, children: [
               IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '레이어 위로', icon: const Icon(Icons.arrow_upward, size: 18), onPressed: () {
-                _editCanvasLayout(() { moveThoughtLayers(_layout.layers, _selected, up: false); reorderStackPositions(_positions, _selected, up: true,groups:_layout.stackGroups); alignStackLayers(_layout.layers, _positions, _layout.stackGroups); });
+                _editCanvasLayout(() { stepCanvasLayers(_layout.layers, _positions, _selected, up: true, groups: _layout.stackGroups); });
               }),
               IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '레이어 아래로', icon: const Icon(Icons.arrow_downward, size: 18), onPressed: () {
-                _editCanvasLayout(() { moveThoughtLayers(_layout.layers, _selected, up: true); reorderStackPositions(_positions, _selected, up: false,groups:_layout.stackGroups); alignStackLayers(_layout.layers, _positions, _layout.stackGroups); });
+                _editCanvasLayout(() { stepCanvasLayers(_layout.layers, _positions, _selected, up: false, groups: _layout.stackGroups); });
               }),
             ]),
             if (_selected.length > 1) TextButton.icon(
@@ -2151,25 +2213,31 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(36, 40), maximumSize: const Size(36, 40),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const DesktopMenuAction(),
       if(widget.storage!=null)ValueListenableBuilder<String>(valueListenable:widget.storage!.canvasSaveState,builder:(context,state,_)=>Tooltip(message:state,child:Padding(padding:const EdgeInsets.symmetric(horizontal:4),child:Icon(state=='저장됨'?Icons.cloud_done_outlined:state=='저장 중'?Icons.cloud_upload_outlined:Icons.cloud_queue,size:18)))),
-      if (widget.blocks && _canEdit) ...[
+      if (_canEdit) ...[
         IconButton(tooltip: '실행 취소 (Ctrl+Z)', icon: const Icon(Icons.undo),
           onPressed: _undo.isEmpty ? null : () => _stepHistory(redo: false)),
         IconButton(tooltip: '다시 실행 (Ctrl+Y)', icon: const Icon(Icons.redo),
           onPressed: _redo.isEmpty ? null : () => _stepHistory(redo: true)),
       ],
       if(_canEdit)MemoBoxActions(onCreate:_createBox,onCreateThought:_create,
-        onCreatePhoto: widget.blocks ? () => createWorkspacePhoto(
-          context, widget.storage, box: _filterBox, onChanged: _changed) : null),
+        onCreatePhoto: () => createWorkspacePhoto(
+          context, widget.storage, box: _filterBox, onChanged: _changed)),
       IconButton(tooltip: '전체 보기', icon: const Icon(Icons.fit_screen_outlined),
         onPressed: () => setState(() => _centered = false)),
-      PopupMenuButton<bool>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-        enabled: _canEdit, tooltip: '배치 초기화', icon: const Icon(Icons.restart_alt),
-        onSelected: _confirmResetArrangement,
+      PopupMenuButton<String>(style: IconButton.styleFrom(fixedSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+        enabled: _canEdit, tooltip: '정리하기', icon: const Icon(Icons.auto_awesome_motion_outlined),
+        onSelected: (action) {
+          if (action == 'space') {
+            _compactBoxSpace();
+          } else {
+            _confirmResetArrangement(action == 'stack');
+          }
+        },
         itemBuilder: (_) => const [
-          PopupMenuItem(value: false, child: Text('펼쳐보기')),
-          PopupMenuItem(value: true, child: Text('겹쳐보기')),
+          PopupMenuItem(value: 'space', child: Text('공간정리')),
+          PopupMenuItem(value: 'spread', child: Text('펼쳐보기')),
+          PopupMenuItem(value: 'stack', child: Text('겹쳐보기')),
         ]),
-      if (!widget.blocks) IconButton(tooltip: '저장 (Ctrl+S)', onPressed: _canEdit?_saveCanvas:null, icon: const Icon(Icons.save_outlined)),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('사용 안내'),
           content: const Text('생각·태그를 드래그해 배치하세요. 생각을 누르면 수정할 수 있습니다. 라벨을 누르는 동안 해당 생각을 앞으로 볼 수 있습니다.'),
@@ -2195,7 +2263,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       )),
       ThoughtFilters(tags: _scopeRecords.expand((r) => r.tags).toSet().toList()..sort(),
         selection: _filters, onChanged: _changed,
-        onFilter: _filters.toggle),
+        onFilter: (box, tag) {
+          if (tag != null && widget.onSearchTag != null) {
+            widget.onSearchTag!(tag);
+          } else {
+            _filters.toggle(box, tag);
+          }
+        }),
     ])));
   }
 }

@@ -23,7 +23,7 @@ void main() {
         layout.positions[a.id] = const Offset(500, 500);
         layout.tags.addAll({'tag:선택': const Offset(950, 500), 'tag:고정': const Offset(950, 750)});
         layout.viewport = (Matrix4.identity()..setTranslationRaw(-300,-300,0)).storage.toList();
-        await tester.pumpWidget(MaterialApp(home: ThoughtPage(blocks:true,onChanged:(){})));
+        await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged:(){})));
         await tester.pumpAndSettle();
         await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft); await tester.pump();
         await tester.tapAt(tester.getCenter(find.byKey(const ValueKey('graph-tag-선택')))); await tester.pump();

@@ -8,7 +8,7 @@ void main() {
   test('nearby clear route is preferred over crossing another box', () {
     const moving = Rect.fromLTWH(200, 200, 100, 100);
     const obstacles = [Rect.fromLTWH(200, 290, 100, 100), Rect.fromLTWH(200, 140, 100, 20)];
-    final delta = releaseBox(moving, obstacles, rectangular: true);
+    final delta = releaseBox(moving, obstacles);
     final result = moving.shift(delta);
     expect(delta.dx.abs(), greaterThan(0));
     for (final obstacle in obstacles) { expect(result.inflate(24).overlaps(obstacle), isFalse); }
@@ -18,7 +18,7 @@ void main() {
     const obstacles = [Rect.fromLTWH(220, 220, 60, 60),
       Rect.fromLTWH(100, 100, 20, 400), Rect.fromLTWH(380, 100, 20, 400),
       Rect.fromLTWH(100, 100, 400, 20), Rect.fromLTWH(100, 380, 400, 20)];
-    final delta = releaseBox(moving, obstacles, rectangular: true);
+    final delta = releaseBox(moving, obstacles);
     expect(delta.distance, greaterThan(180));
     for (final obstacle in obstacles) { expect(moving.shift(delta).inflate(24).overlaps(obstacle), isFalse); }
   });
@@ -69,26 +69,24 @@ void main() {
     expect(GraphLayout.fromJson(layout.toJson()).layers, order);
     expect(GraphLayout.fromJson({}).layers, isEmpty);
   });
-  for (final rectangular in [false, true]) {
-    test('release moves only the dragged box toward the nearest free side ($rectangular)', () {
-      const fixed = Rect.fromLTWH(300, 300, 200, 200);
-      const moving = Rect.fromLTWH(470, 300, 200, 200);
-      final shift = releaseBox(moving, [fixed], rectangular: rectangular);
-      expect(shift.dx, closeTo(54, .1));
-      expect(shift.dy.abs(), lessThan(.1));
-      expect(memoBoxRegionsOverlap(moving.shift(shift), fixed, rectangular: rectangular), isFalse);
-    });
-    test('release clears several obstacles and stays within canvas ($rectangular)', () {
-      const moving = Rect.fromLTWH(50, 50, 200, 200);
-      const others = [Rect.fromLTWH(100, 50, 200, 200), Rect.fromLTWH(100, 270, 200, 200)];
-      final result = moving.shift(releaseBox(moving, others, rectangular: rectangular));
-      expect(result.left, greaterThanOrEqualTo(32));
-      expect(result.top, greaterThanOrEqualTo(32));
-      for (final other in others) {
-        expect(memoBoxRegionsOverlap(result, other, rectangular: rectangular), isFalse);
-      }
-    });
-  }
+  test('release moves only the dragged box toward the nearest free side', () {
+    const fixed = Rect.fromLTWH(300, 300, 200, 200);
+    const moving = Rect.fromLTWH(470, 300, 200, 200);
+    final shift = releaseBox(moving, [fixed]);
+    expect(shift.dx, closeTo(54, .1));
+    expect(shift.dy.abs(), lessThan(.1));
+    expect(memoBoxRegionsOverlap(moving.shift(shift), fixed), isFalse);
+  });
+  test('release clears several obstacles and stays within canvas', () {
+    const moving = Rect.fromLTWH(50, 50, 200, 200);
+    const others = [Rect.fromLTWH(100, 50, 200, 200), Rect.fromLTWH(100, 270, 200, 200)];
+    final result = moving.shift(releaseBox(moving, others));
+    expect(result.left, greaterThanOrEqualTo(32));
+    expect(result.top, greaterThanOrEqualTo(32));
+    for (final other in others) {
+      expect(memoBoxRegionsOverlap(result, other), isFalse);
+    }
+  });
   test('near a stacked offset snaps without attracting distant cards', () {
     const target = Rect.fromLTWH(400, 400, 170, 96);
     expect(snapThought(const Rect.fromLTWH(404, 430, 170, 96), [target]), const Offset(-4, 2));

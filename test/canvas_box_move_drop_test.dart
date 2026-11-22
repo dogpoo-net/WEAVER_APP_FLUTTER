@@ -6,6 +6,68 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/thought_interaction.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 void main(){
+ testWidgets('ordinary pointer drops nest boxes and move thoughts into boxes', (tester) async {
+  tester.view.physicalSize = const Size(1400, 1000);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  elements.clear();
+  memoBoxes.clear();
+  memoBoxFolders.clear();
+  memoBoxFolderParents.clear();
+  pageGraphLayout = GraphLayout();
+  final parent = MemoBox('상위 상자');
+  final child = MemoBox('하위 상자');
+  final memo = elements.add('드래그할 생각');
+  memoBoxes.addAll([parent, child]);
+  final layout = pageGraphLayout.blockLayout;
+  layout.containerBounds.addAll({
+    'box:상위 상자': const Rect.fromLTWH(400, 300, 400, 350),
+    'box:하위 상자': const Rect.fromLTWH(900, 300, 180, 180),
+  });
+  layout.positions[memo.id] = const Offset(900, 630);
+  layout.viewport = Matrix4.identity().storage.toList();
+  await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
+  await tester.pumpAndSettle();
+
+  final childHeader = find.byKey(const ValueKey('box-drag-header-하위 상자'));
+  final parentHeader = find.byKey(const ValueKey('box-drag-header-상위 상자'));
+  final insideParent = tester.getCenter(parentHeader) + const Offset(0, 110);
+  final childDrag = tester.widget<GestureDetector>(childHeader);
+  childDrag.onPanUpdate!(DragUpdateDetails(
+    globalPosition: insideParent, delta: insideParent - tester.getCenter(childHeader),
+  ));
+  childDrag.onPanEnd!(DragEndDetails(globalPosition: insideParent));
+  await tester.pumpAndSettle();
+  expect(parentMemoBox(child), parent);
+
+  final insideChild = tester.getCenter(childHeader) + const Offset(0, 65);
+  final finder = find.byKey(ValueKey('canvas-thought-${memo.id}'));
+  final node = tester.widget<ThoughtInteraction>(finder);
+  node.onActiveChanged!(true);
+  node.onMove(insideChild - tester.getCenter(finder));
+  node.onDrop(insideChild);
+  node.onActiveChanged!(false);
+  node.onEnd();
+  await tester.pumpAndSettle();
+  expect(child.elementIds, contains(memo.id));
+
+  final outside = const Offset(1200, 700);
+  final restored = tester.widget<ThoughtInteraction>(finder);
+  restored.onActiveChanged!(true);
+  restored.onMove(outside - tester.getCenter(finder));
+  await tester.pump();
+  final childBounds = tester.getRect(find.byKey(const ValueKey('box-region-하위 상자')));
+  final parentBounds = tester.getRect(find.byKey(const ValueKey('box-region-상위 상자')));
+  expect(childBounds.contains(tester.getCenter(finder)), isTrue);
+  expect(parentBounds.contains(tester.getCenter(finder)), isTrue);
+  restored.onDrop(outside);
+  restored.onActiveChanged!(false);
+  restored.onEnd();
+  await tester.pumpAndSettle();
+  expect(child.elementIds, contains(memo.id));
+  await tester.pumpWidget(const SizedBox());
+ });
  for(final scenario in [(false,250.0),(true,250.0),(true,40.0)]){
  final (lifted,distance)=scenario;
  final rejected=lifted&&distance==250;
@@ -18,7 +80,7 @@ void main(){
   final layout=pageGraphLayout.blockLayout;
   layout.positions.addAll({a.id:const Offset(500,500),b.id:const Offset(500,1000)});
   layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
-  await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));await tester.pumpAndSettle();
+  await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));await tester.pumpAndSettle();
   final finder=find.byKey(ValueKey('canvas-thought-${a.id}'));
   final node=tester.widget<ThoughtInteraction>(finder);
   final start=layout.positions[a.id]!;

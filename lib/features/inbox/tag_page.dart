@@ -1,10 +1,142 @@
+import 'overview_collections.dart';
 import 'workspace_routes.dart';
 import 'desktop_menu_frame.dart';
+
 import 'package:flutter/material.dart';
 
 import 'element_store.dart';
 import 'workspace_storage.dart';
 import 'word_badge.dart';
+
+class TagListPage extends StatefulWidget {
+  const TagListPage({
+    super.key,
+    required this.tags,
+    required this.notes,
+    required this.onOpen,
+  });
+
+  final List<String> Function() tags;
+  final List<Note> notes;
+  final Future<void> Function(Note) onOpen;
+
+  @override
+  State<TagListPage> createState() => _TagListPageState();
+}
+
+class _TagListPageState extends State<TagListPage> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) => DesktopMenuFrame(
+    child: Scaffold(
+      appBar: AppBar(
+        title: const WorkspaceTitle('해시태그'),
+        actions: const [DesktopMenuAction()],
+      ),
+      body: DesktopMenuBody(
+        child: ListenableBuilder(
+          listenable: elements,
+          builder: (context, _) {
+            final names = widget
+                .tags()
+                .where((tag) => tag.toLowerCase().contains(_query))
+                .toList();
+            final counts = <String, int>{};
+            for (final thought in elements.records.values) {
+              for (final tag in thought.tags) {
+                counts.update(tag, (count) => count + 1, ifAbsent: () => 1);
+              }
+            }
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                  child: TextField(
+                    style: TextStyle(
+                      fontSize: MediaQuery.sizeOf(context).width < 1000
+                          ? 13
+                          : 14,
+                    ),
+                    decoration: const InputDecoration(
+                      hintText: '해시태그 찾기',
+                      prefixIcon: Icon(Icons.search, size: 18),
+                      prefixIconConstraints: BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      isDense: true,
+                    ),
+                    onChanged: (value) => setState(
+                      () => _query = value
+                          .trim()
+                          .replaceFirst(RegExp(r'^#+'), '')
+                          .trim()
+                          .toLowerCase(),
+                    ),
+                  ),
+                ),
+                OverviewItemCount('해시태그 ${names.length}개'),
+                Expanded(
+                  child: names.isEmpty
+                      ? Center(
+                          child: Text(
+                            _query.isEmpty ? '해시태그가 없습니다.' : '일치하는 해시태그가 없습니다.',
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: names.length,
+                          itemBuilder: (context, index) {
+                            final name = names[index];
+                            return ListTile(
+                              title: Row(
+                                crossAxisAlignment: CrossAxisAlignment.baseline,
+                                textBaseline: TextBaseline.alphabetic,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      '#$name',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '${counts[name] ?? 0}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                              onTap: () => Navigator.push<void>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => TagPage(
+                                    tag: name,
+                                    notes: widget.notes,
+                                    onOpen: widget.onOpen,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    ),
+  );
+}
 
 class TagPage extends StatefulWidget {
   const TagPage({

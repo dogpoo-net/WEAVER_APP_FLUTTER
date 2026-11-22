@@ -1,19 +1,7 @@
-import 'menu_display_preferences.dart';
-import 'element_store.dart' as store;
-import 'label_links.dart';
+import 'tag_colors.dart';
 import 'memo_boxes.dart';
 import 'memo_box_actions.dart';
-import 'dart:async';
-import 'tag_colors.dart';
 import 'package:flutter/material.dart';
-
-enum _Kind { project, paragraph, element, box, tag }
-class _MenuDrag implements InlineLinkDragSource {
-  const _MenuDrag(this.kind, this.index, this.linkKey);
-  @override final String? linkKey;
-  final _Kind kind;
-  final int index;
-}
 
 class WorkspaceMenuViewState {
   final expandedFolders = <String>{};
@@ -28,7 +16,7 @@ class WorkspaceMenu extends StatefulWidget {
     this.projectFolderNames = const [], this.tagFolders = const [], this.tagFolderNames = const {},
     this.paragraphFolders = const [], this.elementFolders = const [],
     this.paragraphFolderNames = const [], this.elementFolderNames = const [],
-    this.onRenameDocument, this.onRename, this.onBoxChanged, this.onDeleteFolder, this.onDeleteDocument, this.onDeleteBox, this.onDeleteBoxFolder, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
+    this.onRenameDocument, this.onRename, this.onBoxChanged, this.canMoveBoxes = false, this.onDeleteFolder, this.onDeleteDocument, this.onDeleteBox, this.onDeleteBoxFolder, this.onTagColorChanged, this.onProjectMoved, this.onTagMoved, this.onParagraphMoved, this.onElementMoved});
   final WorkspaceMenuViewState? viewState;
   final List<String> projectIds;
   final Future<void> Function(String id, String name)? onRenameDocument;
@@ -38,14 +26,17 @@ class WorkspaceMenu extends StatefulWidget {
   final Future<void> Function(String id)? onDeleteDocument;
   final Future<void> Function(String name, ContainerDeletion choice)? onDeleteBox;
   final Future<void> Function(String name, ContainerDeletion choice)? onDeleteBoxFolder;
-  final bool embedded;
+  final bool embedded, canMoveBoxes;
   final VoidCallback? onBoxChanged;
   static const createBox = -1000007, createBoxFolder = -1000008;
   final VoidCallback? onTagColorChanged;
   final ValueChanged<int>? onSelected;
   final VoidCallback? onHide, onPin, onFloat;
   static const allThoughts = -1000006, createParagraph = -2;
-  static const home = -1000010;
+  static const home = -1000010, search = -1000012;
+  static const documents = -1000013, thoughts = -1000014;
+  static const hashtags = -1000015;
+  static int boxChoice(int index) => -1100000 - index;
   static const settings = -1000009;
   static const createProject = -1000002, trash = -1000003;
   static const createFolder = -1000000, createTagFolder = -1000001;
@@ -62,397 +53,136 @@ class WorkspaceMenu extends StatefulWidget {
 }
 
 class _WorkspaceMenuState extends State<WorkspaceMenu> {
-  late final ScrollController _scroll;
-  late final WorkspaceMenuViewState _viewState;
-  void _expanded(String id, bool value) {
-    if (value) { _viewState.expandedFolders.add(id); }
-    else { _viewState.expandedFolders.remove(id); }
-  }
-  final _viewport = GlobalKey();
-  late Map<_Kind, List<String?>> _placements;
-  Timer? _autoScroll;
-  Offset? _pointer;
-  List<String> _items(_Kind kind) => switch (kind) {
-    _Kind.project => widget.projects, _Kind.paragraph => widget.paragraphs,
-    _Kind.box => memoBoxes.map((box) => box.name).toList(), _Kind.element => widget.elements, _Kind.tag => widget.tags,
-  };
-  List<String> _folders(_Kind kind) => switch (kind) {
-    _Kind.project => widget.folders, _Kind.paragraph => widget.paragraphFolders,
-    _Kind.box => memoBoxFolders, _Kind.element => widget.elementFolders, _Kind.tag => widget.tagFolders,
-  };
-  String _label(_Kind kind) => switch (kind) {
-    _Kind.project => '문서', _Kind.paragraph => '문단', _Kind.box => '메모상자', _Kind.element => '생각', _Kind.tag => '해시태그',
-  };
-  void _sync() {
-    normalizeMemoFolders();
-    _placements = {};
-    for (final kind in _Kind.values) {
-      final items = _items(kind);
-      final names = switch (kind) {
-        _Kind.project => widget.projectFolderNames, _Kind.paragraph => widget.paragraphFolderNames,
-        _Kind.box => memoBoxes.map((box) => box.folder).toList(), _Kind.element => widget.elementFolderNames, _Kind.tag => <String?>[],
-      };
-      _placements[kind] = List.generate(items.length, (i) => kind == _Kind.tag
-        ? widget.tagFolderNames[items[i]] : (i < names.length ? names[i] : null));
-    }
-  }
+  late final _expanded = widget.viewState?.expandedFolders ?? <String>{};
 
-  @override
-  void initState() { super.initState();
-    _viewState = widget.viewState ?? WorkspaceMenuViewState();
-    _scroll = ScrollController(initialScrollOffset: _viewState.scrollOffset, keepScrollOffset: false);
-    _scroll.addListener(() => _viewState.scrollOffset = _scroll.offset);
-    _sync();
-  }
-  @override
-  void didUpdateWidget(WorkspaceMenu oldWidget) { super.didUpdateWidget(oldWidget); _sync(); }
-  @override
-  void dispose() { _autoScroll?.cancel(); _scroll.dispose(); super.dispose(); }
-  void _select(int choice) {
-    if (widget.onSelected != null) { widget.onSelected!(choice); }
-    else { Navigator.pop(context, choice); }
-  }
-  void _startDrag() {
-    _autoScroll?.cancel();
-    _autoScroll = Timer.periodic(const Duration(milliseconds: 50), (_) {
-      final box = _viewport.currentContext?.findRenderObject();
-      if (box is! RenderBox || _pointer == null || !_scroll.hasClients) return;
-      final y = box.globalToLocal(_pointer!).dy;
-      final delta = y < 40 ? -12.0 : y > box.size.height - 40 ? 12.0 : 0.0;
-      if (delta != 0) _scroll.jumpTo((_scroll.offset + delta).clamp(0.0, _scroll.position.maxScrollExtent));
-    });
-  }
-  final _tagCounts = <String, int>{};
-  final _activeThoughtIds = <String>{};
-  Widget _countedTitle(String label, int count, String key, {TextStyle? style}) => ValueListenableBuilder<bool>(valueListenable: hideMenuCounts, builder: (context, hidden, _) => Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-    Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: style)),
-    if (!hidden) ...[const SizedBox(width: 6),
-    Text('$count', key: ValueKey(key), style: TextStyle(fontSize: 13,
-      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .55)))],
-  ]));
-  bool _deletingItem = false;
+  void _toggle(String key) => setState(() {
+    if (!_expanded.add(key)) _expanded.remove(key);
+  });
 
-  Future<void> _renameItem(String name, Future<void> Function(String) rename) async {
-    var draft = name;
-    final next = await showDialog<String>(context: context, builder: (context) {
-      void submit() {
-        if (draft.trim().isNotEmpty) Navigator.pop(context, draft.trim());
-      }
-      return AlertDialog(
-        title: const Text('이름 변경'),
-        content: TextFormField(
-          initialValue: name,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: '이름'),
-          onChanged: (value) => draft = value,
-          onFieldSubmitted: (_) => submit(),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-          TextButton(onPressed: submit, child: const Text('변경')),
-        ],
+  Iterable<Widget> _boxTree(MemoBox? parent, int depth) sync* {
+    for (final box in childMemoBoxes(parent)) {
+      final key = 'memo-box:${box.name}';
+      final hasChildren = childMemoBoxes(box).isNotEmpty;
+      final expanded = hasChildren && _expanded.contains(key);
+      final tile = ListTile(
+        dense: true,
+        minTileHeight: 34,
+        contentPadding: EdgeInsetsDirectional.only(start: 24 + depth * 16, end: 8),
+        leading: Icon(hasChildren ? (expanded ? Icons.expand_less : Icons.chevron_right) : Icons.inventory_2_outlined, size: 17),
+        title: Text(box.name, overflow: TextOverflow.ellipsis),
+        onTap: () {
+          if (hasChildren) _toggle(key);
+          else _select(WorkspaceMenu.boxChoice(memoBoxes.indexOf(box)));
+        },
+        trailing: widget.canMoveBoxes || widget.onRename != null || widget.onDeleteBox != null
+            ? _boxActions(box)
+            : hasChildren ? Icon(expanded ? Icons.expand_less : Icons.expand_more, size: 18) : null,
       );
-    });
-    if (!mounted || next == null || next == name) return;
-    await rename(next);
-    if (!mounted) return;
-    setState(_sync);
-    if (!widget.embedded && ModalRoute.of(context)?.isCurrent == true) {
-      Navigator.pop(context, WorkspaceMenu.refresh);
-    }
-  }
-
-  Widget _itemActions(String name, String label, Future<void> Function()? delete,
-      {MemoBox? box, Future<void> Function(String)? rename}) =>
-      PopupMenuButton<String>(
-        tooltip: '$name 관리',
-        style: IconButton.styleFrom(
-          minimumSize: const Size.square(32),
-          fixedSize: const Size.square(32),
-          padding: EdgeInsets.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        icon: const Icon(Icons.more_vert, size: 18),
-        onSelected: (action) async {
-          if (_deletingItem) return;
-          if (action == 'color' && box != null) {
-            final color = await pickHashtagColor(context, box.name, Color(box.color), prefix: '');
-            if (!mounted || color == null || !memoBoxes.contains(box)) return;
-            setState(() => box.color = color.toARGB32());
+      if (widget.canMoveBoxes) {
+        yield DragTarget<MemoBox>(
+          onWillAcceptWithDetails: (details) =>
+              memoBoxes.contains(details.data) && canMoveMemoBox(details.data, box),
+          onAcceptWithDetails: (details) {
+            setState(() {
+              details.data.folder = box.name;
+              _expanded.add(key);
+            });
             widget.onBoxChanged?.call();
-            return;
-          }
-          _deletingItem = true;
-          try {
-            if (action == 'rename' && rename != null) {
-              await _renameItem(name, rename);
-            } else if (action == 'delete') {
-              await delete?.call();
-            }
-          } catch (error) {
-            if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(action == 'rename'
-                ? '이름을 변경하지 못했습니다. $error'
-                : '삭제를 완료하지 못했습니다. $error')),
+          },
+          builder: (context, candidates, _) {
+            final child = ColoredBox(
+              color: candidates.isEmpty ? Colors.transparent
+                  : Theme.of(context).colorScheme.secondaryContainer,
+              child: tile,
             );
-          } finally {
-            _deletingItem = false;
-          }
-        },
-        itemBuilder: (_) => [
-          if (box != null) PopupMenuItem(value: 'color', child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.circle, size: 16, color: Color(box.color)),
-            const SizedBox(width: 8),
-            const Text('색상'),
-          ])),
-          if (rename != null) const PopupMenuItem(value: 'rename', child: Text('이름 변경')),
-          if (delete != null) PopupMenuItem(value: 'delete', child: Text(label)),
-        ],
-      );
-
-  Future<void> _deleteDocument(String id, String title) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('문서를 삭제하시겠어요?'),
-        content: Text(title),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('삭제')),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    await widget.onDeleteDocument?.call(id);
-    // Floating menus receive a snapshot of the documents when opened.
-    if (mounted && !widget.embedded && ModalRoute.of(context)?.isCurrent == true) {
-      Navigator.pop(context);
-    }
-  }
-
-  Future<void> _deleteBox(String name) async {
-    final choice = await confirmContainerDeletion(context, name);
-    if (choice == null || !mounted) return;
-    await widget.onDeleteBox?.call(name, choice);
-    if (mounted) setState(_sync);
-  }
-
-  Widget _item(_Kind kind, int index, {bool nested = false}) {
-    final name = _items(kind)[index];
-    final label = kind == _Kind.tag ? '#$name' : name.replaceAll(RegExp(r'[\r\n]+'), ' ');
-    final projectId = kind == _Kind.project && index < widget.projectIds.length
-        ? widget.projectIds[index] : null;
-    final canDeleteBox = kind == _Kind.box && !memoBoxes[index].isUnclassified &&
-        widget.onDeleteBox != null;
-    final tile = ListTile(key: ValueKey('menu-${kind.name}-$index'),
-      dense: true,
-      minVerticalPadding: 2,
-      minTileHeight: 40,
-      visualDensity: const VisualDensity(vertical: -3),
-      title: kind == _Kind.tag ? _countedTitle(label, _tagCounts[name] ?? 0, 'tag-count-$name', style: const TextStyle(fontSize: 13)) : kind == _Kind.box ? _countedTitle(label, memoBoxes[index].elementIds.where(_activeThoughtIds.contains).length, 'box-count-$index', style: const TextStyle(fontSize: 13)) : Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
-        style: nested || kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.box ? const TextStyle(fontSize: 13) : null),
-      trailing: kind == _Kind.tag ? IconButton(
-        tooltip: '#$name 색상 변경',
-        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-        padding: const EdgeInsets.all(9),
-        onPressed: () async {
-          final current = hashtagColors[name];
-          final color = await pickHashtagColor(context, name, current == null ? null : Color(current));
-          if (!mounted || color == null) return;
-          setState(() => hashtagColors[name] = color.toARGB32());
-          widget.onTagColorChanged?.call();
-        },
-        icon: Container(width: 16, height: 16, decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: hashtagColors.containsKey(name) ? Color(hashtagColors[name]!) : Theme.of(context).colorScheme.outlineVariant,
-          border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: .4)))),
-      ) : kind == _Kind.box
-        ? _itemActions(name, '상자 삭제', canDeleteBox ? () => _deleteBox(name) : null,
-          box: memoBoxes[index], rename: canDeleteBox && widget.onRename != null
-              ? (next) => widget.onRename!('box', name, next) : null)
-        : projectId != null && widget.onDeleteDocument != null
-        ? _itemActions(name, '문서 삭제', () => _deleteDocument(projectId, name),
-          rename: widget.onRenameDocument == null ? null : (next) => widget.onRenameDocument!(projectId, next))
-        : null,
-      leading: Icon(switch (kind) { _Kind.box => Icons.inventory_2_outlined, _Kind.tag => Icons.tag, _Kind.element => Icons.circle_outlined,
-        _Kind.paragraph => Icons.subject, _Kind.project => Icons.article_outlined }, size: 20),
-      onTap: () => _select(switch (kind) { _Kind.box => -1100000 - index, _Kind.project => index, _Kind.tag => -3 - index,
-        _Kind.paragraph => WorkspaceMenu.paragraphChoice(index), _Kind.element => WorkspaceMenu.elementChoice(index) }));
-    final draggable = switch (kind) {
-      _Kind.project => widget.onProjectMoved != null, _Kind.paragraph => widget.onParagraphMoved != null,
-      _Kind.box => !memoBoxes[index].isUnclassified, _Kind.element => widget.onElementMoved != null, _Kind.tag => widget.onTagMoved != null,
-    };
-    if (!draggable) {
-      return kind == _Kind.box ? MemoBoxTarget(box: memoBoxes[index],
-        onChanged: () { setState(() {}); widget.onBoxChanged?.call(); }, child: tile) : tile;
-    }
-    final child = kind == _Kind.box ? MemoBoxTarget(box: memoBoxes[index],
-      onChanged: () { setState(() {}); widget.onBoxChanged?.call(); }, child: tile) : tile;
-    final projects = kind == _Kind.project ? indexedProjects.where((project) => project.title == name).toList() : const [];
-    final data = _MenuDrag(kind, index, kind == _Kind.element ? name : kind == _Kind.project && index < widget.projectIds.length ? 'project:${widget.projectIds[index]}' : projects.length == 1 ? 'project:${projects.single.id}' : null);
-    final feedback = Material(elevation: 6, borderRadius: BorderRadius.circular(16),
-      child: Padding(padding: const EdgeInsets.all(12), child: Text(label)));
-    void update(DragUpdateDetails d) { _pointer = d.globalPosition; }
-    void end(DraggableDetails _) { _autoScroll?.cancel(); _pointer = null; }
-    final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
-    if (desktop) { return Draggable<_MenuDrag>(data: data, feedback: feedback, maxSimultaneousDrags: 1,
-      childWhenDragging: Opacity(opacity: .35, child: tile), onDragStarted: _startDrag,
-      onDragUpdate: update, onDragEnd: end, child: child); }
-    return LongPressDraggable<_MenuDrag>(data: data, feedback: feedback, maxSimultaneousDrags: 1,
-      childWhenDragging: Opacity(opacity: .35, child: tile), onDragStarted: _startDrag,
-      onDragUpdate: update, onDragEnd: end, child: child);
-  }
-  Widget _target(_Kind kind, String? folder, Widget child, {String? targetId}) => DragTarget<_MenuDrag>(
-    key: ValueKey(targetId ?? 'drop-${kind.name}-${folder ?? 'unfiled'}'),
-    onWillAcceptWithDetails: (d) => d.data.kind == kind,
-    onAcceptWithDetails: (d) {
-      final index = d.data.index;
-      setState(() => _placements[kind]![index] = folder);
-      switch (kind) {
-        case _Kind.box: memoBoxes[index].folder = folder; widget.onBoxChanged?.call();
-        case _Kind.project: widget.onProjectMoved?.call(index, folder);
-        case _Kind.paragraph: widget.onParagraphMoved?.call(index, folder);
-        case _Kind.element: widget.onElementMoved?.call(index, folder);
-        case _Kind.tag: widget.onTagMoved?.call(widget.tags[index], folder);
+            final feedback = Material(
+              elevation: 4,
+              child: Padding(padding: const EdgeInsets.all(10), child: Text(box.name)),
+            );
+            return MediaQuery.sizeOf(context).width < 760
+                ? LongPressDraggable<MemoBox>(data: box, feedback: feedback, child: child)
+                : Draggable<MemoBox>(data: box, feedback: feedback, child: child);
+          },
+        );
+      } else {
+        yield tile;
       }
-    },
-    builder: (context, candidates, rejected) => Material(
-      color: candidates.isEmpty ? Colors.transparent : Theme.of(context).colorScheme.secondaryContainer,
-      borderRadius: BorderRadius.circular(12), child: child),
-  );
-  Widget _folderDrop(String? folder, Widget child) => DragTarget<MemoFolderDrag>(
-    key: ValueKey('drop-folder-${folder ?? "outside"}'),
-    onWillAcceptWithDetails: (d) => canMoveMemoFolder(d.data.name, folder),
-    onAcceptWithDetails: (d) { setState(() => moveMemoFolder(d.data.name, folder)); widget.onBoxChanged?.call(); },
-    builder: (context, candidates, rejected) => ColoredBox(color: candidates.isEmpty ? Colors.transparent : Theme.of(context).colorScheme.secondaryContainer, child: child));
-  Widget? _folderActions(_Kind kind, String folder) {
-    final renameFolder = widget.onRename;
-    final rename = kind == _Kind.tag || renameFolder == null
-        ? null
-        : (String next) async {
-            await renameFolder('${kind.name}Folder', folder, next);
-            if (_viewState.expandedFolders.remove('${kind.name}-$folder')) {
-              _viewState.expandedFolders.add('${kind.name}-$next');
-            }
-          };
-    if (kind == _Kind.box) {
-      final remove = widget.onDeleteBoxFolder;
-      if (remove == null) return null;
-      return _itemActions(folder, '폴더 삭제', () async {
-        final choice = await confirmContainerDeletion(context, folder, isFolder: true);
-        if (!mounted || choice == null) return;
-        await remove(folder, choice);
-        if (mounted) setState(_sync);
-      }, rename: rename);
+      if (expanded) yield* _boxTree(box, depth + 1);
     }
-    final remove = widget.onDeleteFolder;
-    if (remove == null) return null;
-    return _itemActions(folder, '폴더 삭제', () async {
-      final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
-        title: const Text('폴더를 삭제할까요?'),
-        content: const Text('폴더와 하위 폴더를 삭제하고 안의 자료는 미분류로 이동합니다. 자료는 삭제하지 않습니다.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('삭제')),
-        ],
-      ));
-      if (confirmed != true || !mounted) return;
-      await remove(kind.name, folder);
-      if (mounted) setState(_sync);
-    }, rename: rename);
   }
-  Widget _boxFolder(String folder) {
-    final thoughtIds = <String>{
-      for (final box in memoBoxes)
-        if (!box.isUnclassified && box.folder != null &&
-            memoFolderContains(folder, box.folder!))
-          ...box.elementIds.where(_activeThoughtIds.contains),
-    };
-    final label = Row(children: [
-      const Icon(Icons.folder_outlined, size: 20),
-      const SizedBox(width: 8),
-      Expanded(child: _countedTitle(folder, thoughtIds.length, 'box-folder-count-$folder')),
-    ]);
-    final feedback = Material(child: Padding(padding: const EdgeInsets.all(12), child: Text(folder)));
-    final desktop = {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(Theme.of(context).platform);
-    final title = desktop
-      ? Draggable<MemoFolderDrag>(key: ValueKey('folder-drag-$folder'), data: MemoFolderDrag(folder), feedback: feedback,
-          onDragStarted: _startDrag, onDragUpdate: (d) => _pointer = d.globalPosition,
-          onDragEnd: (_) { _autoScroll?.cancel(); _pointer = null; }, child: label)
-      : LongPressDraggable<MemoFolderDrag>(key: ValueKey('folder-drag-$folder'), data: MemoFolderDrag(folder), feedback: feedback,
-          onDragStarted: _startDrag, onDragUpdate: (d) => _pointer = d.globalPosition,
-          onDragEnd: (_) { _autoScroll?.cancel(); _pointer = null; }, child: label);
-    return _folderDrop(folder, _target(_Kind.box, folder, ExpansionTile(
-      key: ValueKey('box-$folder-${_viewState.collapseRevision}'),
-      initiallyExpanded: _viewState.expandedFolders.contains('box-$folder'),
-      onExpansionChanged: (value) => _expanded('box-$folder', value), title: title, trailing: _folderActions(_Kind.box, folder),
-      minTileHeight: 38,
-      childrenPadding: const EdgeInsetsDirectional.only(start: 16),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-      collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-      expansionAnimationStyle: const AnimationStyle(duration: Duration(milliseconds: 200), curve: Curves.easeInOutCubic),
-      children: [for (final child in memoBoxFolders.where((f) => memoFolderParent(f) == folder)) _boxFolder(child),
-        for (var i = 0; i < memoBoxes.length; i++) if (!memoBoxes[i].isUnclassified && memoBoxes[i].folder == folder) _item(_Kind.box, i, nested: true)],
-    )));
+
+  Widget _boxActions(MemoBox box) => PopupMenuButton<String>(
+    tooltip: '${box.name} 관리',
+    icon: const Icon(Icons.more_vert, size: 18),
+    onSelected: (action) => _manageBox(box, action),
+    itemBuilder: (_) => [
+      if (widget.canMoveBoxes)
+        const PopupMenuItem(value: 'color', child: Text('색상')),
+      if (widget.onRename != null)
+        const PopupMenuItem(value: 'rename', child: Text('이름 변경')),
+      if (widget.onDeleteBox != null)
+        const PopupMenuItem(value: 'delete', child: Text('상자 삭제')),
+    ],
+  );
+
+  Future<void> _manageBox(MemoBox box, String action) async {
+    final name = box.name;
+    try {
+      switch (action) {
+        case 'color':
+          final color = await pickHashtagColor(context, name, Color(box.color), prefix: '');
+          if (!mounted || color == null || !memoBoxes.contains(box)) return;
+          box.color = color.toARGB32();
+          widget.onBoxChanged?.call();
+        case 'rename':
+          var draft = name;
+          final next = await showDialog<String>(context: context, builder: (context) {
+            void submit() {
+              if (draft.trim().isNotEmpty) Navigator.pop(context, draft.trim());
+            }
+            return AlertDialog(
+              title: const Text('이름 변경'),
+              content: TextFormField(
+                initialValue: name, autofocus: true,
+                decoration: const InputDecoration(labelText: '이름'),
+                onChanged: (value) => draft = value,
+                onFieldSubmitted: (_) => submit(),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+                TextButton(onPressed: submit, child: const Text('변경')),
+              ],
+            );
+          });
+          if (!mounted || next == null || next == name || !memoBoxes.contains(box)) return;
+          await widget.onRename?.call('box', name, next);
+          if (_expanded.remove('memo-box:$name')) _expanded.add('memo-box:$next');
+        case 'delete':
+          final choice = await confirmContainerDeletion(context, name);
+          if (!mounted || choice == null || !memoBoxes.contains(box)) return;
+          await widget.onDeleteBox?.call(name, choice);
+          _expanded.remove('memo-box:$name');
+      }
+      if (mounted) setState(() {});
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('상자 변경을 완료하지 못했습니다. $error')),
+        );
+      }
+    }
   }
-  Widget _heading(_Kind kind) => Padding(padding: const EdgeInsetsDirectional.fromSTEB(20, 2, 12, 2),
-    child: IconButtonTheme(
-      data: IconButtonThemeData(style: IconButton.styleFrom(
-        minimumSize: const Size.square(32),
-        fixedSize: const Size.square(32),
-        padding: EdgeInsets.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.standard,
-      )),
-      child: Row(children: [
-      Expanded(child: Text(_label(kind), style: Theme.of(context).textTheme.labelMedium)),
-      if (kind == _Kind.box) IconButton(tooltip: '메모상자 만들기', iconSize: 18, icon: const Icon(Icons.add), onPressed: () => _select(WorkspaceMenu.createBox)),
-      if (kind == _Kind.project || kind == _Kind.paragraph) IconButton(tooltip: kind == _Kind.project ? '문서 생성' : '문단 추가', visualDensity: VisualDensity.compact,
-        iconSize: 18, onPressed: () => _select(kind == _Kind.project ? WorkspaceMenu.createProject : WorkspaceMenu.createParagraph), icon: const Icon(Icons.add)),
-      IconButton(tooltip: kind == _Kind.project ? '폴더 만들기' : '${_label(kind)} 폴더 만들기',
-        iconSize: 18,
-        onPressed: () => _select(switch (kind) {
-          _Kind.box => WorkspaceMenu.createBoxFolder, _Kind.project => WorkspaceMenu.createFolder, _Kind.tag => WorkspaceMenu.createTagFolder,
-          _Kind.paragraph => WorkspaceMenu.createParagraphFolder, _Kind.element => WorkspaceMenu.createElementFolder,
-        }), icon: const Icon(Icons.create_new_folder_outlined)),
-    ])));
-  List<Widget> _section(_Kind kind) {
-    final folders = _folders(kind), items = _items(kind);
-    final placements = _placements[kind]!;
-    return [
-      if (kind == _Kind.box) ...[for (final folder in folders.where((f) => memoFolderParent(f) == null)) _boxFolder(folder)],
-      if (kind != _Kind.box) for (final folder in folders) _target(kind, folder, ExpansionTile(
-        key: ValueKey('${kind.name}-$folder-${_viewState.collapseRevision}'),
-        initiallyExpanded: _viewState.expandedFolders.contains('${kind.name}-$folder'),
-        onExpansionChanged: (value) => _expanded('${kind.name}-$folder', value), leading: const Icon(Icons.folder_outlined), title: kind == _Kind.tag ? _countedTitle(folder, placements.where((p) => p == folder).length, 'tag-folder-count-$folder') : Text(folder), trailing: _folderActions(kind, folder),
-        minTileHeight: 38,
-        childrenPadding: const EdgeInsetsDirectional.only(start: 16),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-        collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-        expansionAnimationStyle: const AnimationStyle(duration: Duration(milliseconds: 200),
-          reverseDuration: Duration(milliseconds: 200), curve: Curves.easeInOutCubic, reverseCurve: Curves.easeInOutCubic),
-        children: [for (var i = 0; i < items.length; i++) if (placements[i] == folder) _item(kind, i, nested: true)],
-      )),
-      if (folders.isNotEmpty && kind == _Kind.element) _target(kind, null, const ListTile(dense: true,
-        leading: Icon(Icons.folder_open_outlined, size: 18), title: Text('미분류'))),
-      for (var i = 0; i < items.length; i++)
-        if ((kind != _Kind.box || !memoBoxes[i].isUnclassified) && (placements[i] == null || !folders.contains(placements[i]))) _item(kind, i),
-      if (kind == _Kind.box) for (var i = 0; i < memoBoxes.length; i++)
-        if (memoBoxes[i].isUnclassified) _item(kind, i),
-      if (items.isEmpty) Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), child: Text('아직 ${_label(kind)}${kind == _Kind.paragraph ? '이' : '가'} 없어요')),
-      if (kind == _Kind.box) _folderDrop(null, _target(kind, null, const SizedBox(height: 8, width: double.infinity), targetId: 'drop-box-outside')),
-      if (kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.tag)
-        _target(kind, null, const SizedBox(height: 8, width: double.infinity),
-          targetId: kind == _Kind.tag ? 'drop-tag-unfiled' : 'drop-${kind.name}-outside'),
-    ];
+
+  void _select(int choice) {
+    if (widget.onSelected case final callback?) {
+      callback(choice);
+    } else {
+      Navigator.pop(context, choice);
+    }
   }
+
   @override
   Widget build(BuildContext context) {
-    _activeThoughtIds..clear()..addAll(store.elements.records.values.map((record) => record.id));
-    _tagCounts.clear();
-    for (final record in store.elements.records.values) {
-      for (final tag in record.tags) { _tagCounts.update(tag, (count) => count + 1, ifAbsent: () => 1); }
-    }
     final narrowMenu = MediaQuery.sizeOf(context).width < 760;
     final showPin = widget.embedded ? widget.onFloat != null : widget.onPin != null;
     final navigationStyle = TextButton.styleFrom(
@@ -489,33 +219,35 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
               IconButton(tooltip: widget.embedded ? '메뉴 고정 해제' : '메뉴 고정하기',
                 onPressed: widget.embedded ? widget.onFloat : widget.onPin,
                 icon: Icon(widget.embedded ? Icons.push_pin : Icons.push_pin_outlined)),
-            IconButton(tooltip: '모두 접기', icon: const Icon(Icons.unfold_less),
-              onPressed: () => setState(() {
-                _viewState.expandedFolders.clear(); _viewState.collapseRevision++;
-              })),
             IconButton(tooltip: '메뉴 닫기', icon: const Icon(Icons.close),
               onPressed: widget.embedded ? widget.onHide : () => Navigator.pop(context)),
           ])),
         )),
       ]),
-      navigationButton('전체 보기', Icons.bubble_chart_outlined, WorkspaceMenu.allThoughts),
-      const Divider(indent: 16, endIndent: 16),
-      Expanded(child: SizedBox(key: _viewport, child: Scrollbar(controller: _scroll,
-        child: CustomScrollView(controller: _scroll, key: const ValueKey('menu-projects'), slivers: [
-          for (final kind in _Kind.values.where((kind) => kind != _Kind.element && kind != _Kind.paragraph)) SliverMainAxisGroup(slivers: [
-            if (kind != _Kind.project) SliverToBoxAdapter(child: Divider(
-              key: ValueKey('section-divider-${kind.name}'), height: 7, thickness: 1, indent: 20, endIndent: 20,
-              color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .45))),
-            SliverPersistentHeader(pinned: true, delegate: _SectionHeading(kind: kind.name,
-              backgroundColor: widget.embedded ? Theme.of(context).colorScheme.surface
-                  : (DialogTheme.of(context).backgroundColor ?? Theme.of(context).colorScheme.surfaceContainerHigh),
-              child: (kind == _Kind.project || kind == _Kind.paragraph || kind == _Kind.box)
-              ? _target(kind, null, _heading(kind)) : _heading(kind))),
-            SliverList(delegate: SliverChildListDelegate(_section(kind))),
-          ]),
-          const SliverPadding(padding: EdgeInsets.only(bottom: 12)),
-        ]),
-      ))),
+      navigationButton('검색', Icons.search, WorkspaceMenu.search),
+      navigationButton('문서', Icons.description_outlined, WorkspaceMenu.documents),
+      navigationButton('생각', Icons.bubble_chart_outlined, WorkspaceMenu.thoughts),
+      navigationButton('해시태그', Icons.tag, WorkspaceMenu.hashtags),
+      Expanded(child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          const Divider(indent: 16, endIndent: 16),
+          ListTile(
+            dense: true,
+            minTileHeight: 34,
+            leading: const Icon(Icons.inventory_2_outlined, size: 20),
+            title: const Text('메모상자'),
+            trailing: Icon(
+              _expanded.contains('memo-box-tree') ? Icons.expand_less : Icons.expand_more,
+              semanticLabel: _expanded.contains('memo-box-tree')
+                  ? '메모상자 목록 접기' : '메모상자 목록 펼치기',
+              size: 19,
+            ),
+            onTap: () => _toggle('memo-box-tree'),
+          ),
+          if (_expanded.contains('memo-box-tree')) ..._boxTree(null, 0),
+        ],
+      )),
       const Divider(indent: 16, endIndent: 16),
       ListTile(dense: true, minTileHeight:36,minVerticalPadding:0,visualDensity:const VisualDensity(vertical:-2), leading: const Icon(Icons.delete_outline, size: 18), title: const Text('휴지통'),
         onTap: () => _select(WorkspaceMenu.trash)),
@@ -538,21 +270,4 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       ),
     );
   }
-}
-
-class _SectionHeading extends SliverPersistentHeaderDelegate {
-  const _SectionHeading({required this.kind, required this.child, required this.backgroundColor});
-  final String kind;
-  final Color backgroundColor;
-  final Widget child;
-  @override
-  double get minExtent => 36;
-  @override
-  double get maxExtent => minExtent;
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => SizedBox(
-    height: maxExtent, child: Material(key: ValueKey('menu-${kind}s-heading'),
-      color: backgroundColor, child: child));
-  @override
-  bool shouldRebuild(_SectionHeading oldDelegate) => oldDelegate.child != child || oldDelegate.backgroundColor != backgroundColor;
 }

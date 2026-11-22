@@ -2,7 +2,6 @@ import 'dart:async';
 import 'overview_tab_activity.dart';
 import 'workspace_search.dart';
 import 'overview_tab_settings.dart';
-import 'hashtags.dart';
 import 'grid_columns_preference.dart';
 import 'memo_comments.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -234,8 +233,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware, Retai
   }
 }
 
-enum ThoughtView { search, documents, boxes, diagram, page, photos, audio, geolog }
-// Keep the legacy diagram identifier for compatibility, but never mount it.
+enum ThoughtView { search, documents, boxes, page, photos, audio, geolog }
 const activeThoughtViews = [ThoughtView.search, ThoughtView.documents, ThoughtView.boxes, ThoughtView.page, ThoughtView.photos, ThoughtView.audio, ThoughtView.geolog];
 
 class AllThoughtsPage extends StatefulWidget {
@@ -272,6 +270,13 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     _tabReload = Timer(const Duration(milliseconds: 220), () {
       if (mounted) _reload();
     });
+  }
+  void _searchTag(String tag) {
+    _searchController.text = '#$tag';
+    if (_hiddenTabs.contains(ThoughtView.search)) {
+      setState(() => _hiddenTabs.remove(ThoughtView.search));
+    }
+    _selectTab(ThoughtView.search);
   }
   Future<void> _reload() async {
     if (_loading || widget.onRefresh == null) return;
@@ -351,7 +356,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
       if(widget.initialBox!=null)_filters.boxes.add(widget.initialBox!);
     }
   }
-  late ThoughtView _view = widget.initialView == ThoughtView.diagram ? ThoughtView.page : (widget.initialView ?? ThoughtView.boxes);
+  late ThoughtView _view = widget.initialView ?? ThoughtView.boxes;
   @override
   Widget build(BuildContext context) {
     if (!_tabsReady) return const DesktopMenuFrame(child:Scaffold(appBar:null,body:DesktopMenuBody(child:SizedBox.shrink())));
@@ -388,7 +393,14 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
     ]);
   }
   Widget _buildTab(ThoughtView view, Widget selector, MemoBox? activeBox) {
-    if(view==ThoughtView.search)return DesktopMenuFrame(child:WorkspaceSearch(notes:widget.notes,selector:selector,controller:_searchController,onDocument:widget.onDocument));
+    if(view==ThoughtView.search)return DesktopMenuFrame(child:WorkspaceSearch(notes:widget.notes,selector:selector,controller:_searchController,onDocument:widget.onDocument,
+      onBox: (box) {
+        _filters.openBox(box);
+        if (_hiddenTabs.contains(ThoughtView.page)) {
+          setState(() => _hiddenTabs.remove(ThoughtView.page));
+        }
+        _selectTab(ThoughtView.page);
+      }));
     if(view==ThoughtView.documents)return DesktopMenuFrame(child:DocumentCollection(notes:widget.notes,selector:selector,storage:widget.storage,onOpen:widget.onDocument,onCreate:widget.onCreateDocument));
     if(view==ThoughtView.photos || view==ThoughtView.audio)return DesktopMenuFrame(child:AttachmentCollection(key:ValueKey(view),audio:view==ThoughtView.audio,selector:selector,filters:_filters,storage:widget.storage,onChanged:widget.onChanged));
     if (view == ThoughtView.geolog) { return DeferredScreen(
@@ -411,16 +423,16 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
       builder: (_) => DesktopMenuFrame(child: canvas.ThoughtPage(
         filters: _filters,
         key: ValueKey(view),
-        blocks: true,
         onChanged: () => widget.onChanged?.call(),
         onLayoutChanged: widget.onLayoutChanged,
         onSave: widget.onSave,
         storage: widget.storage,
         viewSelector: selector,
         onDeleteBoxes: widget.onDeleteBoxes,
+        onSearchTag: _searchTag,
       )),
     );
   }
 }
 
-String thoughtViewLabel(String name) => switch (ThoughtView.values.byName(name)) { ThoughtView.search=>'검색', ThoughtView.documents=>'문서', ThoughtView.boxes=>'생각', ThoughtView.diagram=>'다이어그램', ThoughtView.page=>'메모상자', ThoughtView.photos=>'사진', ThoughtView.audio=>'음성', ThoughtView.geolog=>'지오로그' };
+String thoughtViewLabel(String name) => switch (ThoughtView.values.byName(name)) { ThoughtView.search=>'검색', ThoughtView.documents=>'문서', ThoughtView.boxes=>'생각', ThoughtView.page=>'메모상자', ThoughtView.photos=>'사진', ThoughtView.audio=>'음성', ThoughtView.geolog=>'지오로그' };

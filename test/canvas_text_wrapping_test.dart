@@ -9,7 +9,7 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 
 void main() {
- for(final blocks in [false,true]) {
+ for(final blocks in [true]) {
  testWidgets('covered cards align at top and foreground cards stay centered ($blocks)',(tester)async{
   elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();
   final back=elements.add('뒤쪽'),front=elements.add('앞쪽');
@@ -18,7 +18,7 @@ void main() {
   layout.sizes.addAll({back.id:const Offset(230,160),front.id:const Offset(230,160)});
   layout.layers.addAll([back.id,front.id]);
   Future<void> show()async{
-   await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,onChanged:(){})));await tester.pumpAndSettle();
+   await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));await tester.pumpAndSettle();
   }
   await show();
   double inset(String id,String text)=>tester.getTopLeft(find.text(text)).dy-tester.getTopLeft(find.byKey(ValueKey('canvas-thought-$id'))).dy;
@@ -36,7 +36,7 @@ void main() {
   record.location=ThoughtLocation(37,127,0,DateTime.utc(2026));record.photos.add(const PhotoAttachment('p','p.png'));record.recordings.add(const VoiceAttachment('a',1000));
   memoCommentCounts.value={record.id:2};final layout=blocks?pageGraphLayout.blockLayout:pageGraphLayout;
   layout.positions[record.id]=const Offset(500,500);layout.sizes[record.id]=const Offset(170,76);
-  await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,onChanged:(){})));await tester.pumpAndSettle();
+  await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));await tester.pumpAndSettle();
   final count=tester.getRect(find.byKey(ValueKey('comment-icon-${record.id}')));
   final location=tester.getRect(find.byIcon(Icons.location_on_outlined));final audio=tester.getRect(find.byIcon(Icons.mic_none));final photo=tester.getRect(find.byIcon(Icons.image_outlined));
   expect(count.bottom,lessThanOrEqualTo(location.top+.1));expect(location.bottom,lessThanOrEqualTo(audio.top+.1));expect(audio.bottom,lessThanOrEqualTo(photo.top+.1));
@@ -51,7 +51,7 @@ void main() {
   final layout=blocks?pageGraphLayout.blockLayout:pageGraphLayout;
   layout.positions[record.id]=const Offset(500,500);
   if(!blocks)layout.sizes[record.id]=const Offset(230,160);
-  await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,onChanged:(){})));
+  await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));
   await tester.pumpAndSettle();
   final rich=find.descendant(of:find.text(text),matching:find.byType(RichText));
   final paragraph=tester.renderObject<RenderParagraph>(rich);

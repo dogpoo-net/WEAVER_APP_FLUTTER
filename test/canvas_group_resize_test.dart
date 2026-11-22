@@ -10,6 +10,48 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 
 void main(){
+ testWidgets('resizing inside a nested box preserves anchors and space cleanup preserves cards', (tester) async {
+   tester.view.physicalSize = const Size(1400, 1000);
+   tester.view.devicePixelRatio = 1;
+   addTearDown(tester.view.resetPhysicalSize);
+   addTearDown(tester.view.resetDevicePixelRatio);
+   elements.clear();
+   memoBoxes.clear();
+   memoBoxFolders.clear();
+   pageGraphLayout = GraphLayout();
+   final card = elements.add('안쪽 생각');
+   memoBoxes.addAll([
+     MemoBox('부모'),
+     MemoBox('자식', folder: '부모', ids: [card.id]),
+   ]);
+   final layout = pageGraphLayout.blockLayout;
+   const position = Offset(500, 500);
+   layout.positions[card.id] = position;
+   layout.viewport = Matrix4.identity().storage.toList();
+   layout.containerBounds['box:부모'] = const Rect.fromLTWH(300, 300, 700, 650);
+   layout.containerBounds['box:자식'] = const Rect.fromLTWH(400, 400, 450, 440);
+   await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
+   await tester.pumpAndSettle();
+
+   final cardFinder = find.byKey(ValueKey('canvas-thought-${card.id}'));
+   final widget = tester.widget<ThoughtInteraction>(cardFinder);
+   widget.onResizeStart!();
+   widget.onResize(const Size(230, 175), Offset.zero);
+   widget.onEnd();
+   await tester.pumpAndSettle();
+   expect(layout.positions[card.id], position);
+   expect(layout.sizes[card.id]?.dy, 175);
+   expect(layout.containerBounds['box:부모']?.topLeft, const Offset(300, 300));
+
+   await tester.tap(find.byTooltip('정리하기'));
+   await tester.pumpAndSettle();
+   await tester.tap(find.text('공간정리'));
+   await tester.pumpAndSettle();
+   expect(layout.positions[card.id], position);
+   expect(layout.sizes[card.id]?.dy, 175);
+   expect(layout.containerBounds, isEmpty);
+   await tester.pumpWidget(const SizedBox());
+ });
  testWidgets('stack survives top resize and reload before width snapping',(tester)async{
  tester.view.physicalSize=const Size(1400,1000);tester.view.devicePixelRatio=1;
  addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
@@ -19,7 +61,7 @@ void main(){
  layout.positions.addAll({upper.id:const Offset(500,500),driver.id:const Offset(500,532),side.id:const Offset(820,532)});
  layout.sizes[upper.id]=const Offset(300,120);
  layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
- await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));await tester.pumpAndSettle();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));await tester.pumpAndSettle();
  var interaction=tester.widget<ThoughtInteraction>(find.byKey(ValueKey('canvas-thought-${driver.id}')));
  interaction.onResizeStart!();interaction.onResize(const Size(400,100),const Offset(0,20));interaction.onEnd();await tester.pumpAndSettle();
  expect(layout.stackGroups[driver.id],layout.stackGroups[upper.id]);
@@ -27,7 +69,7 @@ void main(){
  final snapshot=pageGraphLayout.toJson();
  await tester.pumpWidget(const SizedBox());
  pageGraphLayout=GraphLayout.fromJson(snapshot);layout=pageGraphLayout.blockLayout;
- await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));await tester.pumpAndSettle();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));await tester.pumpAndSettle();
  interaction=tester.widget<ThoughtInteraction>(find.byKey(ValueKey('canvas-thought-${driver.id}')));
  interaction.onResizeStart!();interaction.onResize(const Size(294,100),Offset.zero);interaction.onEnd();await tester.pumpAndSettle();
  expect(layout.sizes[driver.id]!.dx,300);
@@ -46,7 +88,7 @@ void main(){
  layout.sizes[upper.id]=const Offset(300,120);
  layout.sizes[distant.id]=const Offset(270,120);
  layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
- await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));await tester.pumpAndSettle();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));await tester.pumpAndSettle();
  await tester.tap(find.byType(Checkbox));await tester.pump();
  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
  if(selectedUpper){
@@ -78,7 +120,7 @@ void main(){
  layout.positions.addAll({a.id:const Offset(500,500),b.id:const Offset(850,500),c.id:const Offset(1200,500)});
  layout.sizes[b.id]=const Offset(270,160);
  layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
- await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));await tester.pumpAndSettle();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));await tester.pumpAndSettle();
  await tester.tap(find.byType(Checkbox));await tester.pump();
  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
  await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-${a.id}'))));await tester.pump();
@@ -106,7 +148,7 @@ void main(){
  final layout=pageGraphLayout.blockLayout;
  layout.positions.addAll({a.id:const Offset(500,500),b.id:const Offset(850,500)});
  layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
- await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,storage:storage,onChanged:(){})));await tester.pumpAndSettle();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(storage:storage,onChanged:(){})));await tester.pumpAndSettle();
  final before=GraphLayout.fromJson(layout.toJson());
  final card=find.byKey(ValueKey('canvas-thought-${a.id}'));
  final target=resize?find.descendant(of:card,matching:find.byKey(const ValueKey('resize-right'))):card;
@@ -116,9 +158,14 @@ void main(){
  await gesture.moveBy(const Offset(140,0));await tester.pump(const Duration(milliseconds:400));
  layout.copyFrom(before);storage.liveChanges.value++;
  await gesture.up();await tester.pumpAndSettle();
- if(resize){expect(layout.sizes[a.id]!.dx,greaterThan(300));}
- else{expect(layout.positions[a.id]!.dx,greaterThan(before.positions[a.id]!.dx+80));}
- expect(layout.positions[b.id],isNot(before.positions[b.id]));
+ if (resize) {
+   expect(layout.sizes[a.id]!.dx, greaterThan(300));
+   expect(layout.positions[b.id], isNot(before.positions[b.id]));
+ } else {
+   expect(layout.positions[a.id]!.dx, greaterThan(before.positions[a.id]!.dx + 80));
+   expect(memoBoxes.last.elementIds, contains(a.id));
+   expect(layout.positions[b.id], before.positions[b.id]);
+ }
  await tester.pumpWidget(const SizedBox());
  });}
 }

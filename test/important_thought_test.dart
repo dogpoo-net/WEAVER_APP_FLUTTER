@@ -35,19 +35,17 @@ void main(){
   ]))))));
   final packed=tester.renderObject<RenderPackedBadges>(find.byType(PackedBadges));expect(packed.visible.length,3);expect(packed.size.height,66);
  });
- testWidgets('quick memo priority is saved, resets, and detail toggle waits for save',(tester)async{
+ testWidgets('importance controls are hidden and detail editing preserves saved priority',(tester)async{
   await tester.pumpWidget(const MyApp(requireLogin:false));await tester.pumpAndSettle();
-  await tester.enterText(find.byKey(const ValueKey('quick-memo')),'중요한 새 생각');
-  await tester.tap(find.byKey(const ValueKey('quick-important')));await tester.pump();
-  await tester.tap(find.widgetWithText(FilledButton,'저장').last);await tester.pumpAndSettle();
-  expect(elements.records['중요한 새 생각']!.important,isTrue);
-  expect(tester.widget<IconButton>(find.byKey(const ValueKey('quick-important'))).isSelected,isFalse);
+  expect(find.byKey(const ValueKey('quick-important')), findsNothing);
+  elements.add('중요한 새 생각').important = true;
+  await tester.pumpAndSettle();
   final context=tester.element(find.byKey(const ValueKey('quick-memo')));
   showElementMetadata(context,'중요한 새 생각');await tester.pumpAndSettle();
-  await tester.tap(find.byKey(const ValueKey('detail-important')));await tester.pump();
+  expect(find.byKey(const ValueKey('detail-important')), findsNothing);
   expect(elements.records['중요한 새 생각']!.important,isTrue);
   await tester.tap(find.widgetWithText(FilledButton,'저장').last);await tester.pumpAndSettle();
-  expect(elements.records['중요한 새 생각']!.important,isFalse);
+  expect(elements.records['중요한 새 생각']!.important,isTrue);
   expect(tester.takeException(),isNull);await tester.pumpWidget(const SizedBox());
  });
 }

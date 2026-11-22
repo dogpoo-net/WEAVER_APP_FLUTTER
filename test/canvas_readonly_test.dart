@@ -9,7 +9,7 @@ import 'package:weaver/features/inbox/thought_page.dart';
 import 'package:weaver/features/inbox/workspace_storage.dart';
 
 void main() {
-  for (final blocks in [false, true]) {
+  for (final blocks in [true]) {
     testWidgets('read-only canvas pans and zooms without editing ($blocks)', (tester) async {
       tester.view.physicalSize = const Size(1200,900); tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
@@ -20,7 +20,7 @@ void main() {
       storage.canvasWritable=false;
       storage.documentLease=(id,token,release) async => release?{'released':true}:{'acquired':false,'holder':'다른 사용자'};
       var changed=0;
-      await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,storage:storage,onChanged:()=>changed++)));
+      await tester.pumpWidget(MaterialApp(home:ThoughtPage(storage:storage,onChanged:()=>changed++)));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('canvas-readonly-notice')),findsOneWidget);
       expect(find.text('읽기 전용 워크스페이스입니다.'),findsOneWidget);

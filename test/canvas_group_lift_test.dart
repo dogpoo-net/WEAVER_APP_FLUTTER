@@ -5,7 +5,7 @@ import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/graph_layout.dart';
 import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
-void main(){for(final blocks in [false,true]){for(final intoBox in [false,true]){
+void main(){for(final blocks in [true]){for(final intoBox in [false,true]){
  testWidgets('selected group long press transfers together blocks=$blocks box=$intoBox',(tester)async{
  tester.view.physicalSize=const Size(1400,1000);tester.view.devicePixelRatio=1;addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
  elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();
@@ -14,7 +14,7 @@ void main(){for(final blocks in [false,true]){for(final intoBox in [false,true])
  final layout=blocks?pageGraphLayout.blockLayout:pageGraphLayout;
  layout.positions.addAll({a.id:const Offset(500,500),b.id:const Offset(800,500),c.id:const Offset(500,800),d.id:const Offset(1800,1200)});
  layout.viewport=(Matrix4.identity()..scaleByDouble(.5,.5,.5,1)).storage.toList();
- await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:blocks,onChanged:(){})));await tester.pumpAndSettle();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));await tester.pumpAndSettle();
  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);await tester.pump();
  for(final id in [a.id,b.id]){await tester.tapAt(tester.getCenter(find.byKey(ValueKey('canvas-thought-$id'))));await tester.pump();}
  await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);await tester.pump();

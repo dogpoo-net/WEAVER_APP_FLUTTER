@@ -18,7 +18,7 @@ void main(){
   if(kind!='thought'&&kind!='pointer')memoBoxes.add(MemoBox('상자',ids:[record.id],folder:(kind=='folder'||kind=='pointerFolder')?'폴더':null));
   if(kind=='folder'||kind=='pointerFolder')memoBoxFolders.add('폴더');
   final layout=pageGraphLayout.blockLayout;layout.positions[record.id]=const Offset(600,500);
-  await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,storage:storage,onChanged:(){})));await tester.pumpAndSettle();
+  await tester.pumpWidget(MaterialApp(home:ThoughtPage(storage:storage,onChanged:(){})));await tester.pumpAndSettle();
   final before=layout.positions[record.id]!;
   if(kind=='pointer'){await tester.drag(find.byKey(ValueKey('canvas-thought-${record.id}')),const Offset(130,70));}
   if(kind=='pointerBox'){await tester.drag(find.byKey(const ValueKey('box-drag-header-상자')),const Offset(130,70));}

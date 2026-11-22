@@ -13,7 +13,7 @@ void main(){
  final a=elements.add('뒤쪽 본문'),b=elements.add('앞쪽 본문');final layout=pageGraphLayout.blockLayout;
  layout.positions.addAll({a.id:const Offset(500,500),b.id:const Offset(500,532)});
  layout.layers.addAll([a.id,b.id]);layout.viewport=(Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
- await tester.pumpWidget(MaterialApp(home:ThoughtPage(blocks:true,onChanged:(){})));await tester.pumpAndSettle();
+ await tester.pumpWidget(MaterialApp(home:ThoughtPage(onChanged:(){})));await tester.pumpAndSettle();
  final view=tester.widget<InteractiveViewer>(find.byType(InteractiveViewer)).transformationController!;
  final beforeView=List<double>.of(view.value.storage);
  final rear=find.byKey(ValueKey('canvas-thought-${a.id}'));

@@ -34,6 +34,34 @@ class Server extends EmailAuthApi {
 Map<String,dynamic> sample()=>{'version':1,'colors':{},'elements':[{'id':'t','text':'first','createdAt':'2026-01-01T00:00:00.000','tags':[]}],'trash':[],'notes':[{'id':'n','content':'saved','createdAt':'2026-01-01T00:00:00.000','tags':[],'bindings':[],'project':{'id':'p','name':'doc','document':'saved','paragraphs':[],'words':[],'tags':[]}}],'graphLayout':{'positions':{'t':[10,20]},'blocks':{'positions':{'t':[30,40]}}}};
 void main(){
   setUp(()=>SharedPreferences.setMockInitialValues({}));
+  test('refresh preserves an unsent box parent and its moved canvas position', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final server = Server();
+    final storage = WorkspaceStorage(prefs, owner: 'owner');
+    final sync = WorkspaceSync(storage, server, isCurrent: () => true);
+    addTearDown(server.dispose);
+    addTearDown(sync.dispose);
+    await sync.initialize();
+    final data = sample();
+    final child = <String, dynamic>{'name': 'child', 'color': 0xFF90A4AE, 'folder': null, 'ids': ['t']};
+    data['memoBoxes'] = [
+      {'name': 'parent', 'color': 0xFF90A4AE, 'folder': null, 'ids': []},
+      child,
+    ];
+    await storage.write(jsonEncode(data));
+    await sync.flush();
+    child['folder'] = 'parent';
+    data['graphLayout']['blocks']['positions']['t'] = [600, 700];
+    await storage.write(jsonEncode(data));
+
+    await sync.refreshFromServer();
+    final stored = jsonDecode(storage.read()!);
+    expect(stored['memoBoxes'].singleWhere((box) => box['name'] == 'child')['folder'], 'parent');
+    expect(stored['graphLayout']['blocks']['positions']['t'], [600, 700]);
+    await sync.flush();
+    final saved = jsonDecode(server.items[itemKey('list:memoBoxes', 'child')]!['payload']);
+    expect(saved['folder'], 'parent');
+  });
   test('two devices receive create update delete deltas; status never sends full data',()async{
     final prefs=await SharedPreferences.getInstance(),server=Server();
     final a=WorkspaceSync(WorkspaceStorage(prefs,owner:'a'),server,isCurrent:()=>true),b=WorkspaceSync(WorkspaceStorage(prefs,owner:'b'),server,isCurrent:()=>true);
@@ -49,13 +77,13 @@ void main(){
     final prefs=await SharedPreferences.getInstance(),server=Server();final a=WorkspaceSync(WorkspaceStorage(prefs,owner:'a'),server,isCurrent:()=>true),b=WorkspaceSync(WorkspaceStorage(prefs,owner:'b'),server,isCurrent:()=>true);
     await a.initialize();await a.storage.write(jsonEncode(sample()));await a.flush();await b.initialize();
     final tokenA='a'*64,tokenB='b'*64;
-    await a.documentLease('canvas:diagram',tokenA,false);expect((await b.documentLease('canvas:diagram',tokenB,false))['acquired'],false);
-    final edit=sample();edit['graphLayout']['positions']['t']=[100,200];await a.storage.write(jsonEncode(edit));await a.storage.syncResource!('canvas:diagram');
-    final own=sample();own['graphLayout']['positions']['t']=[70,80];own['notes'][0]['project']['document']='private draft';await b.storage.write(jsonEncode(own));
-    await b.takeLease('canvas:diagram',tokenB);expect(b.storage.read(),contains('private draft'));expect(jsonDecode(b.storage.read()!)['graphLayout']['positions']['t'],[70,80]);
-    await a.checkRemote();expect(a.documentLeases.containsKey('canvas:diagram'),true);expect((await a.documentLease('canvas:diagram',tokenA,false))['acquired'],true);
-    await b.storage.syncResource!('canvas:diagram');expect(jsonDecode(server.items[itemKey('layout','["page","positions","t"]')]!['payload']),[70,80]);
-    own['graphLayout']['positions']['t']=[8,9];await b.storage.write(jsonEncode(own));await b.reloadResource('canvas:diagram');expect(jsonDecode(b.storage.read()!)['graphLayout']['positions']['t'],[70,80]);expect(b.storage.read(),contains('private draft'));
+    await a.documentLease('canvas:boxes',tokenA,false);expect((await b.documentLease('canvas:boxes',tokenB,false))['acquired'],false);
+    final edit=sample();edit['graphLayout']['blocks']['positions']['t']=[100,200];await a.storage.write(jsonEncode(edit));await a.storage.syncResource!('canvas:boxes');
+    final own=sample();own['graphLayout']['blocks']['positions']['t']=[70,80];own['notes'][0]['project']['document']='private draft';await b.storage.write(jsonEncode(own));
+    await b.takeLease('canvas:boxes',tokenB);expect(b.storage.read(),contains('private draft'));expect(jsonDecode(b.storage.read()!)['graphLayout']['blocks']['positions']['t'],[70,80]);
+    await a.checkRemote();expect(a.documentLeases.containsKey('canvas:boxes'),true);expect((await a.documentLease('canvas:boxes',tokenA,false))['acquired'],true);
+    await b.storage.syncResource!('canvas:boxes');expect(jsonDecode(server.items[itemKey('layout','["page","blocks","positions","t"]')]!['payload']),[70,80]);
+    own['graphLayout']['blocks']['positions']['t']=[8,9];await b.storage.write(jsonEncode(own));await b.reloadResource('canvas:boxes');expect(jsonDecode(b.storage.read()!)['graphLayout']['blocks']['positions']['t'],[70,80]);expect(b.storage.read(),contains('private draft'));
     a.dispose();b.dispose();server.dispose();
   });
   test('JSON key order and numeric representation do not create false conflicts',(){
@@ -72,7 +100,7 @@ void main(){
   test('Canvas save leaves unchanged remote positions intact',()async{
     final prefs=await SharedPreferences.getInstance(),server=Server();final a=WorkspaceSync(WorkspaceStorage(prefs,owner:'a'),server,isCurrent:()=>true);
     await a.initialize();await a.storage.write(jsonEncode(sample()));await a.flush();
-    final key=itemKey('layout','["page","positions","t"]');server.revision++;server.items[key]={...server.items[key]!,'payload':'[90,90]','revision':server.revision};
-    await a.storage.syncResource!('canvas:diagram');expect(server.items[key]!['payload'],'[90,90]');a.dispose();server.dispose();
+    final key=itemKey('layout','["page","blocks","positions","t"]');server.revision++;server.items[key]={...server.items[key]!,'payload':'[90,90]','revision':server.revision};
+    await a.storage.syncResource!('canvas:boxes');expect(server.items[key]!['payload'],'[90,90]');a.dispose();server.dispose();
   });
 }

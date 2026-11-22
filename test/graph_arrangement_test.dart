@@ -1,35 +1,33 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/graph_arrangement.dart';
 
 void main() {
-  test('default layout puts all tags above non-overlapping thoughts', () {
-    final thoughts = List.generate(40, (i) => 'thought-$i');
-    final tags = List.generate(14, (i) => 'tag-$i');
-    final positions = <String, Offset>{}, tagPositions = <String, Offset>{};
-    arrangeGraph(thoughts: thoughts, tags: tags, positions: positions, tagPositions: tagPositions);
-    final boxes = [...positions.values.map(thoughtBounds), ...tagPositions.values.map(tagBounds)];
-    for (var i = 0; i < boxes.length; i++) {
-      for (var j = i + 1; j < boxes.length; j++) {
-        expect(boxes[i].overlaps(boxes[j]), isFalse);
+  test('new tags avoid cards and preserve existing tag positions', () {
+    final tags = ['one', 'two', 'three'];
+    final card = const Rect.fromLTWH(640, 160, 230, 120);
+    final positions = <String, Offset>{'tag:one': const Offset(100, 1200)};
+    arrangeCanvasTags(tags: tags, cardBounds: [card], tagPositions: positions);
+    expect(positions['tag:one'], const Offset(100, 1200));
+    final bounds = positions.values.map(tagBounds).toList();
+    for (var i = 0; i < bounds.length; i++) {
+      expect(bounds[i].overlaps(card), isFalse);
+      for (var j = i + 1; j < bounds.length; j++) {
+        expect(bounds[i].overlaps(bounds[j]), isFalse);
       }
     }
-    for (final tag in tagPositions.values) {
-      for (final thought in positions.values) { expect(tagBounds(tag).bottom, lessThan(thought.dy)); }
-    }
-    final saved = Map.of(positions);
-    positions[thoughts.first] = const Offset(100, 1200);
-    arrangeGraph(thoughts: [...thoughts, 'new'], tags: [...tags, 'new-tag'], positions: positions, tagPositions: tagPositions);
-    expect(positions[thoughts.first], const Offset(100, 1200));
-    expect(positions[thoughts.last], saved[thoughts.last]);
-    for (final id in thoughts) { expect(thoughtBounds(positions['new']!).overlaps(thoughtBounds(positions[id]!)), isFalse); }
   });
 
   test('routed tag and thought edges avoid every node in the default layout', () {
     final thoughts = List.generate(18, (i) => 'thought-$i');
     final tags = List.generate(8, (i) => 'tag-$i');
-    final positions = <String, Offset>{}, tagPositions = <String, Offset>{};
-    arrangeGraph(thoughts: thoughts, tags: tags, positions: positions, tagPositions: tagPositions);
-    final bounds = {for (final e in positions.entries) e.key: thoughtBounds(e.value),
+    final positions = <String, Offset>{};
+    final tagPositions = <String, Offset>{};
+    for (var i = 0; i < thoughts.length; i++) {
+      positions[thoughts[i]] = Offset(640 + (i % 6) * 250, 500 + (i ~/ 6) * 160);
+    }
+    arrangeCanvasTags(tags: tags, cardBounds: positions.values.map((point) => point & const Size(170, 96)), tagPositions: tagPositions);
+    final bounds = {for (final e in positions.entries) e.key: e.value & const Size(170, 96),
       for (final e in tagPositions.entries) e.key: tagBounds(e.value)};
     final router = GraphEdgeRouter(bounds);
     final interiors = {for (final e in bounds.entries) e.key: e.value.deflate(.5)};
