@@ -121,7 +121,7 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
     });
     final path = chronological.map(_point).toList();
     final drawPath = _showTimeline && path.length > 1;
-    final lineColor = Theme.of(context).colorScheme.primary.withValues(alpha: .65);
+    const lineColor = Color(0xFFDC143C);
     final groups = <String, List<ElementRecord>>{};
     for (final record in records) {
       final location = record.location!;

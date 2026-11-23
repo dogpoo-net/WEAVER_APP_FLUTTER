@@ -52,7 +52,7 @@ class WorkspaceSyncReviewPage extends StatefulWidget {
   @override State<WorkspaceSyncReviewPage> createState()=>_WorkspaceSyncReviewPageState();
 }
 class _WorkspaceSyncReviewPageState extends State<WorkspaceSyncReviewPage>{
-  bool busy=true,loaded=false;String? error;int revision=0;
+  bool busy=true,loaded=false,applying=false;String? error;int revision=0;
   Map<String,Map<String,dynamic>> local={},remote={};
   List<Map<String,dynamic>> automatic=[];
   List<SyncDifference> differences=[];final choices=<String,bool>{};
@@ -61,8 +61,11 @@ class _WorkspaceSyncReviewPageState extends State<WorkspaceSyncReviewPage>{
     setState((){busy=true;error=null;});
     try{
       await widget.source.flush();
+      if (!mounted) return;
       if(!widget.startupRecovery)await OfflineWorkspace.preserveRecovery(widget.source,widget.engine.storage);
+      if (!mounted) return;
       final result=await widget.engine.request('read',{'since':0});
+      if (!mounted) return;
       final next=<String,Map<String,dynamic>>{};
       for(final raw in result['changes'] as List){final item=Map<String,dynamic>.from(raw);item['value']=item['payload']==null?null:jsonDecode(item['payload']);next[itemKey(item['kind'],item['id'])]=item;}
       if(!mounted)return;
@@ -115,7 +118,7 @@ class _WorkspaceSyncReviewPageState extends State<WorkspaceSyncReviewPage>{
     final changes=[...automatic,...reviewChanges(differences,choices,local,remote)];
     final yes=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('선택한 내용으로 동기화할까요?'),content:const Text('로컬을 선택한 항목은 서버 내용을 덮어쓰며 다른 참여자에게도 반영됩니다. 로컬에 없는 항목은 서버에서도 삭제됩니다. 서버를 선택한 항목의 로컬 변경은 버립니다.'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('취소')),TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('적용'))]));
     if(yes!=true||!mounted)return;
-    setState((){busy=true;error=null;});
+    setState((){busy=true;applying=true;error=null;});
     try{
       final check=await widget.engine.request('read',{'since':0});
       if(check['revision']!=revision)throw StateError('비교 후 서버 자료가 바뀌었습니다. 다시 비교한 뒤 선택해주세요. 아직 반영하지 않았습니다.');
@@ -135,22 +138,29 @@ class _WorkspaceSyncReviewPageState extends State<WorkspaceSyncReviewPage>{
         await widget.source.preferences.setString(OfflineWorkspace.baseline(widget.source),raw);
       }
       if(mounted)Navigator.pop(context,true);
-    }catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState(()=>busy=false);}
+    }catch(e){if(mounted)setState(()=>error=e.toString());}finally{if(mounted)setState((){busy=false;applying=false;});}
   }
-  @override Widget build(BuildContext context)=>PopScope(canPop:!busy,child:Scaffold(
+  @override Widget build(BuildContext context)=>PopScope(canPop:!applying,child:Scaffold(
     appBar:AppBar(title:const Text('동기화'),actions:[IconButton(tooltip:'다시 비교',onPressed:busy?null:load,icon:const Icon(Icons.refresh))]),
-    body:ListView(padding:const EdgeInsets.all(16),children:[
+    body:CustomScrollView(slivers:[SliverPadding(padding:const EdgeInsets.all(16),sliver:SliverMainAxisGroup(slivers:[
+      SliverList.list(children:[
       const Text('항목마다 남길 내용을 선택하세요. 선택 전에는 자료를 변경하지 않습니다.'),
       if(widget.source.owner!=widget.engine.storage.owner)const Text('보관된 오프라인 자료와 현재 서버 자료를 비교합니다.'),
       if(busy)const LinearProgressIndicator(),if(error!=null)Text(error!,style:TextStyle(color:Theme.of(context).colorScheme.error)),
       if(loaded&&differences.isEmpty)const Padding(padding:EdgeInsets.all(16),child:Text('서로 다른 자료가 없습니다.')),
-      for(final d in differences)Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      ]),
+      SliverList.builder(itemCount:differences.length,itemBuilder:(context,index){
+        final d=differences[index];
+        return Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
         Text(d.title,maxLines:2,overflow:TextOverflow.ellipsis,style:Theme.of(context).textTheme.titleSmall),
         const SizedBox(height:8),const Text('로컬'),ConstrainedBox(constraints:const BoxConstraints(maxHeight:180),child:SingleChildScrollView(child:SelectableText(preview(d,local)))),
         const Divider(),const Text('서버'),ConstrainedBox(constraints:const BoxConstraints(maxHeight:180),child:SingleChildScrollView(child:SelectableText(preview(d,remote)))),
         Wrap(spacing:8,children:[ChoiceChip(label:const Text('로컬로 서버 덮어쓰기'),selected:choices[d.id]==true,onSelected:busy?null:(_)=>setState(()=>choices[d.id]=true)),ChoiceChip(label:const Text('로컬 변경 버리고 서버 사용'),selected:choices[d.id]==false,onSelected:busy?null:(_)=>setState(()=>choices[d.id]=false))]),
-      ]))),
+      ])));
+      }),
+      SliverList.list(children:[
       if(differences.isNotEmpty || automatic.isNotEmpty)FilledButton(onPressed:busy||choices.length!=differences.length?null:apply,child:const Text('선택한 내용 적용')),
-    ]),
+      ]),
+    ]))]),
   ));
 }

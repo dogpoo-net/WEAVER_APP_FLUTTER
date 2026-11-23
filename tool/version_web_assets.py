@@ -36,8 +36,9 @@ def version_assets(root: Path) -> None:
     index = root / 'index.html'
     html = index.read_text()
     font = 'assets/assets/fonts/PretendardVariable.ttf'
-    if html.count(f'href="{font}"') != 1 or not (root / font).is_file():
-        raise ValueError('Unexpected startup font preload')
+    preload_marker = '<!-- WEAVER_DART_PRELOAD -->'
+    if html.count(preload_marker) != 1 or not (root / font).is_file():
+        raise ValueError('Missing Dart preload marker or bundled Pretendard font')
 
     # main.dart explicitly registers this font on web for Korean text input.
     # Leaving it in the engine manifest would load and register it a second time.
@@ -62,7 +63,8 @@ def version_assets(root: Path) -> None:
     bootstrap.write_text(source.replace('canvasKitBaseUrl: "canvaskit/"',
                                         f'canvasKitBaseUrl: "{canvas_url}/",\n'
                                         f'    assetBase: "{assets_url}/"'))
-    index.write_text(html.replace(f'href="{font}"', f'href="{assets_url}/{font}"'))
+    index.write_text(html.replace(
+        preload_marker, f'<link rel="preload" href="{dart_url}/{main.name}" as="script">'))
 
 
 if __name__ == '__main__':

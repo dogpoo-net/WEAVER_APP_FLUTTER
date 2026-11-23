@@ -36,11 +36,14 @@ Future<void> main() async {
       'Pretendard',
     ], await rootBundle.loadString('assets/fonts/OFL.txt'));
   });
-  // A web font failure can use the theme's fallback font.
-  final font = prepareFont().catchError((Object _) {});
   final preferences = await openStartupPreferences();
-  await font;
   runApp(MyApp(storage: WorkspaceStorage(preferences)));
+  if (kIsWeb) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Paint with the theme fallback while the full font loads.
+      await prepareFont().catchError((Object _) {});
+    });
+  }
 }
 
 class MyApp extends StatefulWidget {

@@ -258,6 +258,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     onWillAcceptWithDetails: (_) => widget.onProjectMoved != null && widget.canMoveBoxes,
     onAcceptWithDetails: (details) {
       widget.onProjectMoved!(details.data.index, folder);
+      if (folder == null) _expanded.add('document-tree');
       _refreshDocuments();
     },
     builder: (context, candidates, _) => ColoredBox(color: candidates.isEmpty
@@ -287,17 +288,22 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     onPressed: () => _toggle(key),
   );
 
+  Widget _createRow(String label, int action) => ListTile(
+    dense: true,
+    minTileHeight: 34,
+    contentPadding: _treePadding(1),
+    leading: const Icon(Icons.add, size: 17),
+    title: Text(label),
+    onTap: () => _select(action),
+  );
+
   Iterable<Widget> _documents() sync* {
     yield _documentTarget(null, ListTile(contentPadding: _treePadding(0), dense: true, minTileHeight: 34,
-      leading: const Icon(Icons.description_outlined, size: 20), title: const Text('문서'),
+      leading: const Icon(Icons.description_outlined, size: 22), title: const Text('문서'),
       onTap: () => _select(WorkspaceMenu.documents),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (widget.canMoveBoxes) ...[
-        IconButton(style: _boxButtonStyle, tooltip: '문서 생성', icon: const Icon(Icons.add, size: 17),
-          onPressed: () => _select(WorkspaceMenu.createProject)),
-        IconButton(style: _boxButtonStyle, tooltip: '폴더 만들기', icon: const Icon(Icons.create_new_folder_outlined, size: 17),
+        if (widget.canMoveBoxes) IconButton(style: _boxButtonStyle, tooltip: '폴더 만들기', icon: const Icon(Icons.create_new_folder_outlined, size: 17),
           onPressed: () => _select(WorkspaceMenu.createFolder)),
-        ],
         _treeToggle('document-tree', '문서'),
       ])));
     if (!_expanded.contains('document-tree')) return;
@@ -310,13 +316,28 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         initiallyExpanded: _expanded.contains('project-$folder'),
         onExpansionChanged: (open) { if (open) { _expanded.add('project-$folder'); } else { _expanded.remove('project-$folder'); } },
         leading: const Icon(Icons.folder_outlined, size: 17), title: Text(folder),
-        trailing: _documentActions(folder, folder: true),
+        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+          Builder(builder: (context) {
+            final controller = ExpansibleController.of(context);
+            return ListenableBuilder(
+              listenable: controller,
+              builder: (context, _) => IconButton(
+                style: _boxButtonStyle,
+                tooltip: '$folder 목록 ${controller.isExpanded ? '접기' : '펼치기'}',
+                icon: Icon(controller.isExpanded ? Icons.expand_less : Icons.expand_more, size: 16),
+                onPressed: controller.toggle,
+              ),
+            );
+          }),
+          if (_documentActions(folder, folder: true) case final actions?) actions,
+        ]),
         childrenPadding: const EdgeInsetsDirectional.only(start: 16),
         children: [for (var i = 0; i < widget.projects.length; i++) if (folderAt(i) == folder) _document(i)]));
     }
     for (var i = 0; i < widget.projects.length; i++) {
       if (!widget.folders.contains(folderAt(i))) yield _document(i);
     }
+    if (widget.canMoveBoxes) yield _createRow('문서 생성', WorkspaceMenu.createProject);
   }
 
   void _select(int choice) {
@@ -375,24 +396,39 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       navigationButton('생각', Icons.bubble_chart_outlined, WorkspaceMenu.thoughts),
       navigationButton('지오로그', Icons.location_on_outlined, WorkspaceMenu.geolog),
       navigationButton('해시태그', Icons.tag, WorkspaceMenu.hashtags),
+      const Divider(indent: 16, endIndent: 16),
       Expanded(child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          const Divider(indent: 16, endIndent: 16),
-          ListTile(
+          DragTarget<MemoBox>(
+            onWillAcceptWithDetails: (details) => widget.canMoveBoxes &&
+                memoBoxes.contains(details.data) && details.data.folder != null &&
+                canMoveMemoBox(details.data, null),
+            onAcceptWithDetails: (details) {
+              setState(() {
+                details.data.folder = null;
+                _expanded.add('memo-box-tree');
+              });
+              widget.onBoxChanged?.call();
+            },
+            builder: (context, candidates, _) => ColoredBox(
+              color: candidates.isEmpty ? Colors.transparent
+                  : Theme.of(context).colorScheme.secondaryContainer,
+              child: ListTile(
             dense: true,
             minTileHeight: 34,
             contentPadding: _treePadding(0),
             leading: const Icon(Icons.inventory_2_outlined, size: 20),
             title: const Text('메모상자'),
             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              if (widget.canMoveBoxes) IconButton(style: _boxButtonStyle, tooltip: '메모상자 만들기',
-                icon: const Icon(Icons.add, size: 17), onPressed: () => _select(WorkspaceMenu.createBox)),
               _treeToggle('memo-box-tree', '메모상자'),
             ]),
             onTap: () => _select(WorkspaceMenu.memoBoxTab),
-          ),
-          if (_expanded.contains('memo-box-tree')) ..._boxTree(null, 0),
+          ))),
+          if (_expanded.contains('memo-box-tree')) ...[
+            ..._boxTree(null, 0),
+            if (widget.canMoveBoxes) _createRow('메모상자 만들기', WorkspaceMenu.createBox),
+          ],
           ..._documents(),
         ],
       )),

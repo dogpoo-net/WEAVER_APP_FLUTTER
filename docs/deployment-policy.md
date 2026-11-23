@@ -22,6 +22,6 @@ Keep previous immutable files available for tabs still running an older build.
 Do not overwrite an existing content-addressed file during deployment. Copying
 identical bytes again changes the file timestamp and nginx's validation headers.
 The immutable location also enables gzip for the generated scripts, WASM and fonts.
-The startup font preload and Flutter's asset loader point at the same versioned
-asset directory. Asset changes can give that whole directory a new URL.
+The index preloads the versioned Dart entry point. Flutter loads Pretendard
+after the first frame from the versioned asset directory.
 Merge these directives into an existing immutable location if it is already configured.
