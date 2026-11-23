@@ -71,7 +71,7 @@ class _EmailLoginPageState extends State<EmailLoginPage> {
               const SizedBox(height: 16),
               TextFormField(controller: _password, enabled: !_busy, obscureText: true, autocorrect: false, enableSuggestions: false,
                 autofillHints: [_signup ? AutofillHints.newPassword : AutofillHints.password],
-                decoration: const InputDecoration(labelText: '비밀번호', helperText: '10자 이상 · 최대 72바이트'),
+                decoration: InputDecoration(labelText: '비밀번호', helperText: _signup ? '10자 이상' : null),
                 validator: (v) => v == null || v.length < 10 || utf8.encode(v).length > 72 ? '비밀번호 길이를 확인해주세요.' : null,
                 onFieldSubmitted: (_) { if (!_signup) _submit(); }),
               if (_signup) ...[

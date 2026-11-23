@@ -27,12 +27,14 @@ class GoogleThoughtMap extends StatefulWidget {
     super.key,
     required this.initialCameraPosition,
     required this.pins,
+    this.polylines = const {},
     this.onMapCreated,
     this.onTap,
   });
 
   final google.CameraPosition initialCameraPosition;
   final List<GoogleThoughtPin> pins;
+  final Set<google.Polyline> polylines;
   final google.MapCreatedCallback? onMapCreated;
   final ValueChanged<google.LatLng>? onTap;
 
@@ -69,6 +71,7 @@ class _GoogleThoughtMapState extends State<GoogleThoughtMap> {
         initialCameraPosition: widget.initialCameraPosition,
         onMapCreated: widget.onMapCreated,
         onTap: widget.onTap,
+        polylines: widget.polylines,
         markers: {
           for (final pin in widget.pins)
             if (snapshot.data?[_appearance(pin)] case final icon?)

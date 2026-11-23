@@ -217,7 +217,7 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware, Retai
         style: IconButton.styleFrom(backgroundColor: _audioOnly ? Theme.of(context).colorScheme.primaryContainer : null),
         icon: const Icon(Icons.volume_up_outlined), onPressed: () => setState(() => _audioOnly = !_audioOnly)),
       if(widget.storage?.canvasWritable??true)MemoBoxActions(onCreateThought:_createThought, onCreatePhoto: () => createWorkspacePhoto(context, widget.storage, box: _filterBox, onChanged: _changed), onCreate: () async { final box = await createMemoBox(context); if (mounted && box != null) _changed(); }),
-      IconButton(tooltip: _square ? '바둑판식 보기 · 행으로 전환' : '행으로 보기 · 바둑판으로 전환', icon: Icon(_square ? Icons.grid_view : Icons.view_stream), onPressed:_toggleViewMode),
+      IconButton(tooltip: _square ? '바둑판식 보기' : '행으로 보기', icon: Icon(_square ? Icons.grid_view : Icons.view_stream), onPressed:_toggleViewMode),
       IconButton(tooltip: '사용 안내', icon: const Icon(Icons.info_outline), onPressed: () => showDialog<void>(
         context: context, builder: (context) => AlertDialog(title: const Text('생각 보기 안내'),
           content: const Text('생각이나 해시태그로 검색하고, 아래의 메모상자·태그를 눌러 분류별로 볼 수 있습니다.\n\n사진·음성 버튼을 켜면 해당 첨부가 있는 생각을 보여줍니다. 둘 다 켜면 사진 또는 음성이 있는 생각을 보여줍니다.\n\n생각을 메모상자로 드래그해 정리하세요. 모바일에서는 길게 눌러 드래그할 수 있습니다. 해시태그는 생각 본문에 #태그를 입력해 추가합니다.'),

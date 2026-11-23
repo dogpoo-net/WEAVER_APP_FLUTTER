@@ -35,6 +35,7 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
   google.GoogleMapController? _googleMap;
   bool _osmReady = false;
   String _query = '';
+  bool _showTimeline = true;
   late final _filters = widget.filters ?? ThoughtFilterSelection(initialBox: widget.box);
   bool _tileError = false;
   int _mapRevision = 0;
@@ -114,6 +115,13 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
   @override
   Widget build(BuildContext context) {
     final records = _records;
+    final chronological = [...records]..sort((a, b) {
+      final time = a.location!.recordedAt.compareTo(b.location!.recordedAt);
+      return time == 0 ? a.id.compareTo(b.id) : time;
+    });
+    final path = chronological.map(_point).toList();
+    final drawPath = _showTimeline && path.length > 1;
+    final lineColor = Theme.of(context).colorScheme.primary.withValues(alpha: .65);
     final groups = <String, List<ElementRecord>>{};
     for (final record in records) {
       final location = record.location!;
@@ -122,6 +130,9 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
     return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filters.singleBox?.name ?? '전체 보기'), actions: [
       const DesktopMenuAction(),
       IconButton(tooltip:'위치에 생각 추가',onPressed:memoCommentRequest!=null&&!memoCommentsWritable?null:_create,icon:const Icon(Icons.add)),
+      IconButton(tooltip: _showTimeline ? '타임라인 숨기기' : '타임라인 보이기',
+        isSelected: _showTimeline, icon: const Icon(Icons.timeline),
+        onPressed: () => setState(() => _showTimeline = !_showTimeline)),
       IconButton(tooltip: '위치 전체 보기', onPressed: records.isEmpty ? null : () => _fit(records), icon: const Icon(Icons.center_focus_strong)),
     ]), body: DesktopMenuBody(child: Column(children: [
       if (widget.viewSelector != null) widget.viewSelector!,
@@ -149,6 +160,9 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
               _googleMap = controller;
               if (_records.length > 1) _fit(_records);
             },
+            polylines: {if (drawPath) google.Polyline(
+              polylineId: const google.PolylineId('timeline'), width: 2, color: lineColor,
+              points: path.map(googlePoint).toList())},
             pins: [
               for (final entry in groups.entries)
                 GoogleThoughtPin(
@@ -170,6 +184,9 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
             initialCameraFit: records.length > 1 ? CameraFit.bounds(bounds: LatLngBounds.fromPoints(records.map(_point).toList()), padding: const EdgeInsets.all(48), maxZoom: 16) : null),
           children: [
             RegionalTileLayer(onError: _tileFailed),
+            if (drawPath) PolylineLayer(polylines: [
+              Polyline(points: path, strokeWidth: 2, color: lineColor),
+            ]),
             MarkerLayer(markers: [for (final group in groups.values) Marker(point: _point(group.first), width: 132, height: 84, alignment: Alignment.topCenter, rotate: true,
               child: Semantics(button: true, label: group.first.text, child: InkWell(onTap: () => _open(group), child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
                 Material(elevation: 2, surfaceTintColor: Colors.transparent, borderRadius: BorderRadius.circular(8),

@@ -11,6 +11,8 @@ void main() {
       embedded: true, projects: const ['초안'], folders: const ['작업'],
       projectFolderNames: const ['작업'], onSelected: selected.add,
     ))));
+    await tester.tap(find.byTooltip('문서 목록 펼치기'));
+    await tester.pumpAndSettle();
     expect(tester.getTopLeft(find.text('작업')).dy, greaterThan(tester.getTopLeft(find.text('메모상자')).dy));
     await tester.tap(find.text('작업'));
     await tester.pumpAndSettle();
@@ -56,6 +58,8 @@ void main() {
       expect(find.text('프로젝트'), findsNothing);
 
       await tester.tap(find.text('메모상자'));
+      expect(selections.removeLast(), WorkspaceMenu.memoBoxTab);
+      await tester.tap(find.byTooltip('메모상자 목록 펼치기'));
       await tester.pumpAndSettle();
       expect(find.text('프로젝트'), findsOneWidget);
       expect(selections, [WorkspaceMenu.documents, WorkspaceMenu.thoughts]);

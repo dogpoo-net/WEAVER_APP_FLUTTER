@@ -1,3 +1,4 @@
+import 'package:weaver/features/capture/capture_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -9,6 +10,22 @@ import 'package:weaver/features/capture/geolog_page.dart';
 import 'package:weaver/features/inbox/workspace_routes.dart';
 
 void main(){
+ testWidgets('timeline connects visible locations in recorded order and toggles', (tester) async {
+   elements.clear();
+   addTearDown(elements.clear);
+   for (final day in [3, 1, 2]) {
+     elements.add('여행 $day').location = ThoughtLocation(35, 125.0 + day, 1, DateTime.utc(2026, 1, day));
+   }
+   await tester.pumpWidget(MaterialApp(home: GeologPage(onChanged: () {})));
+   final line = find.byType(PolylineLayer);
+   expect(tester.widget<PolylineLayer>(line).polylines.single.points.map((p) => p.longitude), [126, 127, 128]);
+   await tester.tap(find.byTooltip('타임라인 숨기기'));
+   await tester.pump();
+   expect(line, findsNothing);
+   await tester.tap(find.byTooltip('타임라인 보이기'));
+   await tester.pump();
+   expect(line, findsOneWidget);
+ });
  testWidgets('desktop map confirmation selects location toggle and Enter saves it',(tester)async{
   await tester.pumpWidget(const MyApp(requireLogin:false));await tester.pumpAndSettle();
   final toggle=find.byKey(const ValueKey('quick-location'));

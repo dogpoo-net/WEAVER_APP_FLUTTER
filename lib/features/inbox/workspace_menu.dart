@@ -43,6 +43,7 @@ class WorkspaceMenu extends StatefulWidget {
   static const home = -1000010, search = -1000012;
   static const documents = -1000013, thoughts = -1000014;
   static const hashtags = -1000015;
+  static const memoBoxTab = -1000017;
   static const geolog = -1000016;
   static int boxChoice(int index) => -1100000 - index;
   static const settings = -1000009;
@@ -264,7 +265,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     final name = widget.projects[index];
     final id = index < widget.projectIds.length ? widget.projectIds[index] : null;
     final tile = ListTile(key: ValueKey('menu-project-$index'), dense: true,
-      minTileHeight: 34, leading: const Icon(Icons.article_outlined, size: 17),
+      minTileHeight: 34, leading: const Icon(Icons.description_outlined, size: 17),
       title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: _documentActions(name, id: id), onTap: () => _select(index));
     final data = _DocumentDrag(index, id == null ? null : 'project:$id');
@@ -275,18 +276,30 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     return Draggable<_DocumentDrag>(data: data, feedback: feedback, child: tile);
   }
 
+  Widget _treeToggle(String key, String label) => IconButton(
+    style: _boxButtonStyle,
+    tooltip: '$label 목록 ${_expanded.contains(key) ? '접기' : '펼치기'}',
+    icon: Icon(_expanded.contains(key) ? Icons.expand_less : Icons.expand_more, size: 18),
+    onPressed: () => _toggle(key),
+  );
+
   Iterable<Widget> _documents() sync* {
     yield _documentTarget(null, ListTile(dense: true, minTileHeight: 34,
-      leading: const Icon(Icons.folder_copy_outlined, size: 20), title: const Text('문서'),
-      trailing: widget.canMoveBoxes ? Row(mainAxisSize: MainAxisSize.min, children: [
+      leading: const Icon(Icons.description_outlined, size: 20), title: const Text('문서'),
+      onTap: () => _select(WorkspaceMenu.documents),
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (widget.canMoveBoxes) ...[
         IconButton(style: _boxButtonStyle, tooltip: '문서 생성', icon: const Icon(Icons.add, size: 17),
           onPressed: () => _select(WorkspaceMenu.createProject)),
         IconButton(style: _boxButtonStyle, tooltip: '폴더 만들기', icon: const Icon(Icons.create_new_folder_outlined, size: 17),
           onPressed: () => _select(WorkspaceMenu.createFolder)),
-      ]) : null));
+        ],
+        _treeToggle('document-tree', '문서'),
+      ])));
+    if (!_expanded.contains('document-tree')) return;
     String? folderAt(int i) => i < widget.projectFolderNames.length ? widget.projectFolderNames[i] : null;
     for (final folder in widget.folders) {
-      yield _documentTarget(folder, ExpansionTile(key: ValueKey('project-$folder'), minTileHeight: 36,
+      yield _documentTarget(folder, ExpansionTile(key: ValueKey('project-$folder'), minTileHeight: 34, dense: true,
         initiallyExpanded: _expanded.contains('project-$folder'),
         onExpansionChanged: (open) { if (open) { _expanded.add('project-$folder'); } else { _expanded.remove('project-$folder'); } },
         leading: const Icon(Icons.folder_outlined, size: 17), title: Text(folder),
@@ -364,13 +377,12 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
             minTileHeight: 34,
             leading: const Icon(Icons.inventory_2_outlined, size: 20),
             title: const Text('메모상자'),
-            trailing: Icon(
-              _expanded.contains('memo-box-tree') ? Icons.expand_less : Icons.expand_more,
-              semanticLabel: _expanded.contains('memo-box-tree')
-                  ? '메모상자 목록 접기' : '메모상자 목록 펼치기',
-              size: 19,
-            ),
-            onTap: () => _toggle('memo-box-tree'),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (widget.canMoveBoxes) IconButton(style: _boxButtonStyle, tooltip: '메모상자 만들기',
+                icon: const Icon(Icons.add, size: 17), onPressed: () => _select(WorkspaceMenu.createBox)),
+              _treeToggle('memo-box-tree', '메모상자'),
+            ]),
+            onTap: () => _select(WorkspaceMenu.memoBoxTab),
           ),
           if (_expanded.contains('memo-box-tree')) ..._boxTree(null, 0),
           ..._documents(),

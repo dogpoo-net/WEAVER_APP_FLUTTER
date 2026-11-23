@@ -1031,6 +1031,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     final destination = switch (choice) {
       WorkspaceMenu.documents => ThoughtView.documents,
       WorkspaceMenu.thoughts => ThoughtView.boxes,
+      WorkspaceMenu.memoBoxTab => ThoughtView.page,
       WorkspaceMenu.geolog => ThoughtView.geolog,
       _ => null,
     };
