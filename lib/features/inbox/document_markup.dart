@@ -285,10 +285,16 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
         if (headingPrefix.isNotEmpty) TextSpan(text: headingPrefix, style: style),
         ..._inline(text.isEmpty ? ' ' : text, start, style),
       ]), textAlign: align)));
+      if (headingKey != null && headingPrefix.isNotEmpty) lines.add(const Divider(height: 8, thickness: 1));
+      if (headingKey != null && headingPrefix.isEmpty) lines.add(const SizedBox(height: 16));
       offset += line.length + 1;
     }
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       if (headings.isNotEmpty) ...[
+        Align(alignment: AlignmentDirectional.topStart, child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
           padding: const EdgeInsetsDirectional.only(start: 8, bottom: 2),
           child: Semantics(
@@ -310,7 +316,8 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
             onPressed: () => _jump(heading.key),
             child: Text(heading.title),
           ),
-        const Divider(height: 12, thickness: 1),
+        ]))),
+        const SizedBox(height: 16),
       ],
       ...lines,
       if (_numbers.isNotEmpty) ...[

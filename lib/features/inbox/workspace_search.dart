@@ -322,7 +322,7 @@ class _WorkspaceSearchState extends State<WorkspaceSearch> with RetainedOverview
     final total = _totalCount ??= _countSearchableItems();
     return Scaffold(endDrawer: _filters(), appBar:AppBar(centerTitle:false,titleSpacing:0,leadingWidth:44,title:const WorkspaceTitle('전체 보기'),actions:const[DesktopMenuAction()]),
       body:DesktopMenuBody(child:Column(children:[widget.selector,
-        Padding(padding:const EdgeInsets.fromLTRB(12,4,8,0),child:Row(children:[Expanded(child:TextField(key:const ValueKey('workspace-search'),controller:widget.controller,
+        Padding(padding:const EdgeInsets.fromLTRB(12,2,8,0),child:Row(children:[Expanded(child:TextField(key:const ValueKey('workspace-search'),controller:widget.controller,
           style:TextStyle(fontSize:MediaQuery.sizeOf(context).width<1000?13:14),
           decoration:const InputDecoration(hintText:'자료 검색',prefixIcon:Icon(Icons.search,size:18),prefixIconConstraints:BoxConstraints(minWidth:36,minHeight:36),contentPadding:EdgeInsets.symmetric(horizontal:12,vertical:8),isDense:true),
           )), Builder(builder: (context) => IconButton(

@@ -288,14 +288,21 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     onPressed: () => _toggle(key),
   );
 
-  Widget _createRow(String label, int action) => ListTile(
-    dense: true,
-    minTileHeight: 34,
-    contentPadding: _treePadding(1),
-    leading: const Icon(Icons.add, size: 17),
-    title: Text(label),
-    onTap: () => _select(action),
-  );
+  Widget _createRow(String label, int action) {
+    final color = Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF9DBDF0)
+        : const Color(0xFF416A9C);
+    return ListTile(
+      textColor: color,
+      iconColor: color,
+      dense: true,
+      minTileHeight: 34,
+      contentPadding: _treePadding(1),
+      leading: const Icon(Icons.add, size: 17),
+      title: Text(label),
+      onTap: () => _select(action),
+    );
+  }
 
   Iterable<Widget> _documents() sync* {
     yield _documentTarget(null, ListTile(contentPadding: _treePadding(0), dense: true, minTileHeight: 34,

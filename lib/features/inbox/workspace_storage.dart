@@ -413,6 +413,7 @@ class WorkspaceStorage {
   Future<void> Function()? openWorkspaces;
   String? workspaceName;
   Map<String,dynamic>? Function(String,String)? itemMetadata;
+  Future<Map<String,dynamic>?> Function(String)? latestDocumentRevision;
   Future<void> Function(String)? openHistory;
   bool Function()? hasUnsavedInput;
   bool suspended = false;

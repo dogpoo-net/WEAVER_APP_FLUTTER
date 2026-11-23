@@ -304,6 +304,11 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
             }).catchError((Object error) {
               if(valid())setState(()=>notice='초대 목록을 새로고침하지 못했습니다.');
             });
+        target.latestDocumentRevision = (id) async {
+          final history = await engine.request('history', {'documentId': id});
+          final versions = history['versions'] as List;
+          return versions.isEmpty ? null : Map<String,dynamic>.from(versions.first);
+        };
         target.openHistory = (id) => Navigator.of(context).push<void>(
           MaterialPageRoute(
             builder: (_) => DocumentHistoryPage(sync: engine, documentId: id),

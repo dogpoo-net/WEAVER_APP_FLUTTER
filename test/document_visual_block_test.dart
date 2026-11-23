@@ -56,7 +56,7 @@ void main() {
     expect(source, contains('| ----- |'));
     await tester.tap(find.byTooltip('구분선 너비 늘리기'));
     await tester.pump();
-    expect(source, contains('| ----- {width=70%} |'));
+    expect(source, contains('| -----70----- |'));
     await mouse.removePointer();
     await tester.pump();
     expect(center, findsNothing);

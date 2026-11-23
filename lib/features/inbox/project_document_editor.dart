@@ -181,6 +181,27 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   final _tags = <String>{};
   final _filters = ThoughtFilterSelection();
   bool _confirmingExit = false;
+  bool _previousThoughtPanel = true, _previousBoxPanel = false;
+  String _previewRevision = '';
+  void _togglePreview() {
+    setState(() {
+      _preview = !_preview;
+      if (_preview) {
+        _previousThoughtPanel = _thoughtPanelOpen;
+        _previousBoxPanel = _boxPanelOpen;
+        _thoughtPanelOpen = _boxPanelOpen = false;
+      } else {
+        _thoughtPanelOpen = _previousThoughtPanel;
+        _boxPanelOpen = _previousBoxPanel;
+      }
+    });
+    final project = widget.project;
+    if (_preview && project != null) {
+      documentRevisionLabel(widget.storage, project.id).then((label) {
+        if (mounted && _preview) setState(() => _previewRevision = label);
+      });
+    }
+  }
   bool _dirty = false, _boxPanelOpen = false, _thoughtPanelOpen = true, _keyboardVisible = false;
   final _thoughtScroll = ScrollController(), _documentScroll = ScrollController();
   bool get _wide => MediaQuery.sizeOf(context).width >= 800;
@@ -698,8 +719,8 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   }
   Widget _build(BuildContext context) => PopScope(canPop: false, onPopInvokedWithResult: (didPop, result) {
     if (!didPop) unawaited(_confirmExit());
-  }, child: Scaffold(appBar: AppBar(centerTitle: false, toolbarHeight: _wide ? null : 52, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () { _highlightReference(null); _syntaxTooltip.hide(); setState(() => _preview = !_preview); }), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _canEdit && !_saving ? _save : null),
-    if (widget.storage?.documentAiRequest != null && _canEdit)
+  }, child: Scaffold(appBar: AppBar(centerTitle: false, toolbarHeight: _wide ? null : 52, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () { _highlightReference(null); _syntaxTooltip.hide(); _togglePreview(); }), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _canEdit && !_saving ? _save : null),
+    if (!_preview && widget.storage?.documentAiRequest != null && _canEdit)
       IconButton(tooltip: 'AI 문장 생성', icon: const Icon(Icons.auto_awesome_outlined), onPressed: _saving ? null : _openAi),
     IconButton(tooltip: '작성 문법 안내', icon: const Icon(Icons.info_outline), onPressed: _showHelp),
    ]))]), bottomNavigationBar: _canEdit?null:SafeArea(child:Padding(padding:const EdgeInsets.all(12),child:Text('읽기 전용 워크스페이스입니다.'))), body: DesktopMenuBody(child: SafeArea(top: false, child: LayoutBuilder(builder: (context, constraints) {
@@ -713,10 +734,11 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         icon: Icon(_rich ? Icons.code : Icons.format_paint_outlined, size: 18),
         label: Text(_rich ? '원문 편집' : '서식 편집'),
       );
-      final documentBody = !_canEdit
+      final documentBody = _preview
+        ? documentReadingView(context, DocumentSegment(_body.text, _body.bindings), _previewRevision, _dirty)
+        : !_canEdit
         ? SingleChildScrollView(child:SelectableText(_body.text))
-        : _preview
-        ? SingleChildScrollView(child: DocumentMarkup(text: _body.text, links: _body.bindings))
+
         : _rich
         ? DocumentRichEditor(key: ValueKey(_richInsertionRevision), readOnly: _saving, onInsertFootnote: _saving ? null : _insertFootnote, onInsertTable: _saving ? null : (offset) => _insertTable(richOffset: offset), onInsertPhoto: _saving ? null : _insertPhoto, onInsertDivider: _saving ? null : (offset) => _insertVisualBlock(offset, documentDivider), onEditLines: _editLines, sourceSelection: _richLineSelection, onCaretChanged: (offset) => _richAiCaret = offset, source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty, diagnostics: _body.syntaxDiagnostics, onSyntaxDiagnostic: _showSyntaxDiagnostic)
         : DocumentLineNumbers(controller: _body, scroll: _documentScroll, child: CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true, documentSyntax: !_saving,
@@ -778,7 +800,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       '제목 안의 공백은 그대로 표시됩니다. 가장 먼저 나오는 제목을 문서 이름으로 사용합니다.\n\n'
       '굵게: **텍스트**\n기울임: //텍스트//\n밑줄: __텍스트__\n취소선: --텍스트--\n\n'
       '주석: <!-- 한 줄 또는 여러 줄 주석 -->\n\n'
-      '구분선: 한 줄에 ----- 입력\n\n'
+      '구분선: ----- (기본 60%), -----10----- (너비 10%)\n\n'
       '왼쪽 정렬: |텍스트 |\n오른쪽 정렬: | 텍스트|\n가운데 정렬: | 텍스트 |\n\n'
       '링크: [[표시명|라벨 또는 문서 제목]]\n웹 링크: [[표시명|https://example.com]]\n'
       '[[표시명|까지 입력하면 어시스트가 열립니다. Ctrl + Space로 선택할 수 있습니다. 문서는 문서: 접두어와 굵은 제목으로 표시됩니다.\n\n'

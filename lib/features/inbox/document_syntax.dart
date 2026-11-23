@@ -77,7 +77,8 @@ final documentPhoto = RegExp(
   r'^<photo id="([a-zA-Z0-9_-]+)"(?: width="(\d{1,3})%")?>$',
 );
 const documentDivider = '-----';
-final _sizedDivider = RegExp(r'^----- \{width=(\d{1,3})%\}$');
+final _sizedDivider = RegExp(r'^-----(\d{1,3})-----$');
+final _legacySizedDivider = RegExp(r'^----- \{width[=:](\d{1,3})%\}$');
 
 enum DocumentBlockAlignment { left, center, right }
 
@@ -93,7 +94,7 @@ DocumentVisualBlock? parseDocumentVisualBlock(String line) {
   final inner = wrapped ? line.substring(1, line.length - 1) : line;
   final markup = inner.trim();
   final photo = documentPhoto.firstMatch(markup);
-  final sizedDivider = _sizedDivider.firstMatch(markup);
+  final sizedDivider = _sizedDivider.firstMatch(markup) ?? _legacySizedDivider.firstMatch(markup);
   if (photo == null && markup != documentDivider && sizedDivider == null)
     return null;
   final defaultWidth = photo == null ? 60 : 100;
@@ -105,7 +106,7 @@ DocumentVisualBlock? parseDocumentVisualBlock(String line) {
       ? DocumentBlockAlignment.center
       : DocumentBlockAlignment.right;
   return (
-    markup: markup,
+    markup: sizedDivider == null ? markup : '$documentDivider${width!.clamp(10, 100)}$documentDivider',
     photoId: photo?.group(1),
     widthPercent: (width ?? defaultWidth).clamp(10, 100),
     alignment: alignment,
@@ -125,7 +126,7 @@ String resizeDocumentVisualBlock(DocumentVisualBlock block, int width) {
   final id = block.photoId;
   final percent = width.clamp(10, 100);
   final markup = id == null
-      ? (percent == 60 ? documentDivider : '$documentDivider {width=$percent%}')
+      ? '$documentDivider$percent$documentDivider'
       : (percent == 100
             ? '<photo id="$id">'
             : '<photo id="$id" width="$percent%">');
