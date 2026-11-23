@@ -75,6 +75,9 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     if (!_expanded.add(key)) _expanded.remove(key);
   });
 
+  static EdgeInsetsDirectional _treePadding(int depth) =>
+      EdgeInsetsDirectional.only(start: 16.0 + 16 * depth, end: 4);
+
   Iterable<Widget> _boxTree(MemoBox? parent, int depth) sync* {
     for (final box in childMemoBoxes(parent)) {
       final key = 'memo-box:${box.name}';
@@ -84,7 +87,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       final tile = ListTile(
         dense: true,
         minTileHeight: 34,
-        contentPadding: EdgeInsetsDirectional.only(start: 24 + depth * 16, end: 8),
+        contentPadding: _treePadding(depth + 1),
         leading: const Icon(Icons.inventory_2_outlined, size: 17),
         title: Text(box.name, overflow: TextOverflow.ellipsis),
         onTap: () => _select(WorkspaceMenu.boxChoice(memoBoxes.indexOf(box))),
@@ -265,6 +268,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     final name = widget.projects[index];
     final id = index < widget.projectIds.length ? widget.projectIds[index] : null;
     final tile = ListTile(key: ValueKey('menu-project-$index'), dense: true,
+      contentPadding: _treePadding(1),
       minTileHeight: 34, leading: const Icon(Icons.description_outlined, size: 17),
       title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: _documentActions(name, id: id), onTap: () => _select(index));
@@ -284,7 +288,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   );
 
   Iterable<Widget> _documents() sync* {
-    yield _documentTarget(null, ListTile(dense: true, minTileHeight: 34,
+    yield _documentTarget(null, ListTile(contentPadding: _treePadding(0), dense: true, minTileHeight: 34,
       leading: const Icon(Icons.description_outlined, size: 20), title: const Text('문서'),
       onTap: () => _select(WorkspaceMenu.documents),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -300,6 +304,9 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     String? folderAt(int i) => i < widget.projectFolderNames.length ? widget.projectFolderNames[i] : null;
     for (final folder in widget.folders) {
       yield _documentTarget(folder, ExpansionTile(key: ValueKey('project-$folder'), minTileHeight: 34, dense: true,
+        tilePadding: _treePadding(1),
+        shape: const Border(),
+        collapsedShape: const Border(),
         initiallyExpanded: _expanded.contains('project-$folder'),
         onExpansionChanged: (open) { if (open) { _expanded.add('project-$folder'); } else { _expanded.remove('project-$folder'); } },
         leading: const Icon(Icons.folder_outlined, size: 17), title: Text(folder),
@@ -375,6 +382,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           ListTile(
             dense: true,
             minTileHeight: 34,
+            contentPadding: _treePadding(0),
             leading: const Icon(Icons.inventory_2_outlined, size: 20),
             title: const Text('메모상자'),
             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
