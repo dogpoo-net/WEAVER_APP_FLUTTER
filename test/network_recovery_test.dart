@@ -19,7 +19,7 @@ class NetworkApi extends DeltaApi {
 String snapshot(List<String> folders)=>jsonEncode({'version':1,'elements':[],'notes':[],'trash':[],'colors':{},'folders':folders});
 void main(){
  test('three-way merge preserves server-only items and finds edit/delete collisions',(){
-  Map<String,dynamic> item(String value)=>{'kind':'list:folders','id':'a','value':value};
+  Map<String,dynamic> item(String value)=>{'kind':'list:elements','id':'a','value':value};
   final before={'a':item('old')},local={'a':item('local')},remote={'a':item('server'),'b':item('new')};
   final plan=NetworkRecoveryPlan(before,local,remote);expect(plan.conflicts,{'a'});expect(plan.merged['b'],remote['b']);
   expect(NetworkRecoveryPlan(before,{},remote).conflicts,{'a'});
@@ -42,14 +42,14 @@ void main(){
   await sync.recoverNetwork();expect(sync.networkPending,true);expect(jsonDecode(storage.read()!)['folders'],contains('later'));
   await sync.recoverNetwork();expect(sync.networkPending,false);expect(jsonDecode(storage.read()!)['folders'],containsAll(['first','later']));
  });
- test('conflicts survive restart and wait without sending a save',()async{
+ test('conflicts survive restart while new offline content uploads',()async{
   SharedPreferences.setMockInitialValues({});final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'paid');final api=NetworkApi();
   final key=itemKey('list:elements','a');
   Map<String,dynamic> row(String text)=>{'kind':'list:elements','id':'a','value':{'id':'a','text':text,'createdAt':'2026-01-01T00:00:00.000Z','tags':[]},'revision':1};
-  final sync=WorkspaceSync(storage,api,isCurrent:()=>true);sync.base={key:row('base')};await sync.saveBase();await storage.replaceFromBackup(joinWorkspace({key:row('local')}));await sync.enterNetworkOffline();sync.dispose();
+  final sync=WorkspaceSync(storage,api,isCurrent:()=>true);sync.base={key:row('base')};await sync.saveBase();await storage.replaceFromBackup(joinWorkspace({key:row('local'), 'new':{'kind':'list:memoBoxes','id':'new','value':{'name':'new','ids':[],'color':0}}}));await sync.enterNetworkOffline();sync.dispose();
   api.items[key]={'kind':'list:elements','id':'a','payload':jsonEncode(row('remote')['value']),'revision':2,'deleted':false};api.rev=2;
   final restored=WorkspaceSync(storage,api,isCurrent:()=>true);addTearDown(restored.dispose);await restored.initialize();await restored.recoverNetwork();
-  expect(restored.needsRecoveryReview,true);expect(api.requests,isEmpty);expect(splitWorkspace(storage.read())[key]!['value']['text'],'local');
+  expect(restored.needsRecoveryReview,true);expect(api.items[itemKey('list:memoBoxes','new')]?['deleted'],false);expect(jsonDecode(api.items[key]!['payload'])['text'],'remote');expect(splitWorkspace(storage.read())[key]!['value']['text'],'local');
  });
  for(final status in [401,403,500]){test('HTTP $status is not mistaken for network loss',()async{
   SharedPreferences.setMockInitialValues({});final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'x');final api=NetworkApi()..rejected=status;final sync=WorkspaceSync(storage,api,isCurrent:()=>true);addTearDown(sync.dispose);

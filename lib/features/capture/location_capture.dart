@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'capture_models.dart';
+
+ValueListenable<bool>? locationOfflineStatus;
+bool get locationOffline => locationOfflineStatus?.value ?? false;
 
 Future<ThoughtLocation> captureLocation() async {
   if (!await Geolocator.isLocationServiceEnabled()) {

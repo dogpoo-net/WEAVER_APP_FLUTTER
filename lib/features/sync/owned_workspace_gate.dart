@@ -208,8 +208,10 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         }
         if(engine.ready&&returningOffline)await offline.preferences.setBool(OfflineWorkspace.activeKey(offline),false);
         if(engine.ready&&role=='owner'&&!quotaReadOnly&&OfflineWorkspace.hasChanges(offline)&&mounted){
-          final publish=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('오프라인 작업을 서버에 반영할까요?'),content:const Text('이 기기에서 변경한 항목을 서버에 반영합니다. 서버와 같은 항목이 변경되었다면 덮어쓰지 않고 오프라인 자료를 보관합니다. 나중에를 선택하면 오프라인 자료는 별도로 보관됩니다.'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('나중에')),TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('비교하기'))]));
-          if(publish==true){try{await reviewSync(target,engine,source:offline);}catch(e){notice='오프라인 자료를 반영하지 못했습니다. 이 기기에 보관했습니다. $e';}}
+          try {
+            final complete = await OfflineWorkspace.publish(offline,engine);
+            if (!complete && valid() && mounted) await reviewSync(target,engine,source:offline);
+          } catch(e) { notice='오프라인 자료를 반영하지 못했습니다. 이 기기에 보관했습니다. $e'; }
         }
         if (engine.ready && workspaceId == primaryWorkspace && role=='owner' && !quotaReadOnly) {
           var claim = await owned.pendingClaim();

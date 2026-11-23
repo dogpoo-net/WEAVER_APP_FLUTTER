@@ -1,7 +1,14 @@
+import 'label_links.dart';
 import 'tag_colors.dart';
 import 'memo_boxes.dart';
 import 'memo_box_actions.dart';
 import 'package:flutter/material.dart';
+
+class _DocumentDrag implements InlineLinkDragSource {
+  const _DocumentDrag(this.index, this.linkKey);
+  final int index;
+  @override final String? linkKey;
+}
 
 class WorkspaceMenuViewState {
   final expandedFolders = <String>{};
@@ -36,6 +43,7 @@ class WorkspaceMenu extends StatefulWidget {
   static const home = -1000010, search = -1000012;
   static const documents = -1000013, thoughts = -1000014;
   static const hashtags = -1000015;
+  static const geolog = -1000016;
   static int boxChoice(int index) => -1100000 - index;
   static const settings = -1000009;
   static const createProject = -1000002, trash = -1000003;
@@ -189,6 +197,108 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     }
   }
 
+  void _refreshDocuments() {
+    if (!mounted) return;
+    if (widget.embedded) { setState(() {}); }
+    else { Navigator.pop(context, WorkspaceMenu.refresh); }
+  }
+
+  Widget? _documentActions(String name, {String? id, bool folder = false}) {
+    final rename = folder ? widget.onRename != null : id != null && widget.onRenameDocument != null;
+    final delete = folder ? widget.onDeleteFolder != null : id != null && widget.onDeleteDocument != null;
+    if (!rename && !delete) return null;
+    return PopupMenuButton<String>(
+      tooltip: '$name 관리', style: _boxButtonStyle,
+      icon: const Icon(Icons.more_vert, size: 16),
+      itemBuilder: (_) => [
+        if (rename) const PopupMenuItem(value: 'rename', child: Text('이름 변경')),
+        if (delete) PopupMenuItem(value: 'delete', child: Text(folder ? '폴더 삭제' : '문서 삭제')),
+      ],
+      onSelected: (action) async {
+        try {
+          if (action == 'rename') {
+            var draft = name;
+            final next = await showDialog<String>(context: context, builder: (context) {
+              void submit() { if (draft.trim().isNotEmpty) Navigator.pop(context, draft.trim()); }
+              return AlertDialog(title: const Text('이름 변경'),
+                content: TextFormField(initialValue: name, autofocus: true,
+                  onChanged: (value) => draft = value, onFieldSubmitted: (_) => submit()),
+                actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+                  TextButton(onPressed: submit, child: const Text('변경'))]);
+            });
+            if (!mounted || next == null || next == name) return;
+            if (folder) {
+              await widget.onRename!('projectFolder',name,next);
+              if (_expanded.remove('project-$name')) _expanded.add('project-$next');
+            } else { await widget.onRenameDocument!(id!,next); }
+          } else {
+            final yes = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+              title: Text(folder ? '폴더를 삭제할까요?' : '문서를 삭제하시겠어요?'),
+              content: Text(folder ? '$name 폴더의 문서는 미분류로 이동합니다.' : name),
+              actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+                TextButton(onPressed: () => Navigator.pop(context,true), child: const Text('삭제'))]));
+            if (!mounted || yes != true) return;
+            if (folder) { await widget.onDeleteFolder!('project',name); _expanded.remove('project-$name'); }
+            else { await widget.onDeleteDocument!(id!); }
+          }
+          _refreshDocuments();
+        } catch (error) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('변경을 저장하지 못했습니다. $error')));
+        }
+      },
+    );
+  }
+
+  Widget _documentTarget(String? folder, Widget child) => DragTarget<_DocumentDrag>(
+    key: ValueKey('drop-project-${folder ?? 'outside'}'),
+    onWillAcceptWithDetails: (_) => widget.onProjectMoved != null && widget.canMoveBoxes,
+    onAcceptWithDetails: (details) {
+      widget.onProjectMoved!(details.data.index, folder);
+      _refreshDocuments();
+    },
+    builder: (context, candidates, _) => ColoredBox(color: candidates.isEmpty
+        ? Colors.transparent : Theme.of(context).colorScheme.secondaryContainer, child: child),
+  );
+
+  Widget _document(int index) {
+    final name = widget.projects[index];
+    final id = index < widget.projectIds.length ? widget.projectIds[index] : null;
+    final tile = ListTile(key: ValueKey('menu-project-$index'), dense: true,
+      minTileHeight: 34, leading: const Icon(Icons.article_outlined, size: 17),
+      title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      trailing: _documentActions(name, id: id), onTap: () => _select(index));
+    final data = _DocumentDrag(index, id == null ? null : 'project:$id');
+    final feedback = Material(elevation: 4, child: Padding(padding: const EdgeInsets.all(8), child: Text(name)));
+    if (MediaQuery.sizeOf(context).width < 760) {
+      return LongPressDraggable<_DocumentDrag>(data: data, feedback: feedback, child: tile);
+    }
+    return Draggable<_DocumentDrag>(data: data, feedback: feedback, child: tile);
+  }
+
+  Iterable<Widget> _documents() sync* {
+    yield _documentTarget(null, ListTile(dense: true, minTileHeight: 34,
+      leading: const Icon(Icons.folder_copy_outlined, size: 20), title: const Text('문서'),
+      trailing: widget.canMoveBoxes ? Row(mainAxisSize: MainAxisSize.min, children: [
+        IconButton(style: _boxButtonStyle, tooltip: '문서 생성', icon: const Icon(Icons.add, size: 17),
+          onPressed: () => _select(WorkspaceMenu.createProject)),
+        IconButton(style: _boxButtonStyle, tooltip: '폴더 만들기', icon: const Icon(Icons.create_new_folder_outlined, size: 17),
+          onPressed: () => _select(WorkspaceMenu.createFolder)),
+      ]) : null));
+    String? folderAt(int i) => i < widget.projectFolderNames.length ? widget.projectFolderNames[i] : null;
+    for (final folder in widget.folders) {
+      yield _documentTarget(folder, ExpansionTile(key: ValueKey('project-$folder'), minTileHeight: 36,
+        initiallyExpanded: _expanded.contains('project-$folder'),
+        onExpansionChanged: (open) { if (open) { _expanded.add('project-$folder'); } else { _expanded.remove('project-$folder'); } },
+        leading: const Icon(Icons.folder_outlined, size: 17), title: Text(folder),
+        trailing: _documentActions(folder, folder: true),
+        childrenPadding: const EdgeInsetsDirectional.only(start: 16),
+        children: [for (var i = 0; i < widget.projects.length; i++) if (folderAt(i) == folder) _document(i)]));
+    }
+    for (var i = 0; i < widget.projects.length; i++) {
+      if (!widget.folders.contains(folderAt(i))) yield _document(i);
+    }
+  }
+
   void _select(int choice) {
     if (widget.onSelected case final callback?) {
       callback(choice);
@@ -243,6 +353,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       navigationButton('검색', Icons.search, WorkspaceMenu.search),
       navigationButton('문서', Icons.description_outlined, WorkspaceMenu.documents),
       navigationButton('생각', Icons.bubble_chart_outlined, WorkspaceMenu.thoughts),
+      navigationButton('지오로그', Icons.location_on_outlined, WorkspaceMenu.geolog),
       navigationButton('해시태그', Icons.tag, WorkspaceMenu.hashtags),
       Expanded(child: ListView(
         padding: EdgeInsets.zero,
@@ -262,6 +373,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
             onTap: () => _toggle('memo-box-tree'),
           ),
           if (_expanded.contains('memo-box-tree')) ..._boxTree(null, 0),
+          ..._documents(),
         ],
       )),
       const Divider(indent: 16, endIndent: 16),

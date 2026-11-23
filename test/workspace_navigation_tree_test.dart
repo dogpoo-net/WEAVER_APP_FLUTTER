@@ -5,6 +5,18 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/workspace_menu.dart';
 
 void main() {
+  testWidgets('document folder below boxes opens its document', (tester) async {
+    final selected = <int>[];
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: WorkspaceMenu(
+      embedded: true, projects: const ['초안'], folders: const ['작업'],
+      projectFolderNames: const ['작업'], onSelected: selected.add,
+    ))));
+    expect(tester.getTopLeft(find.text('작업')).dy, greaterThan(tester.getTopLeft(find.text('메모상자')).dy));
+    await tester.tap(find.text('작업'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('초안'));
+    expect(selected, [0]);
+  });
   testWidgets(
     'menu opens document and thought tabs and expands boxes by level',
     (tester) async {
@@ -38,7 +50,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('문서'));
+      await tester.tap(find.widgetWithText(TextButton, '문서'));
       await tester.tap(find.text('생각'));
       expect(selections, [WorkspaceMenu.documents, WorkspaceMenu.thoughts]);
       expect(find.text('프로젝트'), findsNothing);
@@ -76,6 +88,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('인터뷰 자료'), findsOneWidget);
       expect(find.text('#여행'), findsNothing);
+      await tester.tap(find.text('지오로그'));
+      expect(selections.last, WorkspaceMenu.geolog);
       await tester.tap(find.text('해시태그'));
       expect(selections.last, WorkspaceMenu.hashtags);
     },

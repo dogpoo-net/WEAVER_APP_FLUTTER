@@ -172,6 +172,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     workspaceMemoAuthor=(id)=>overviewAuthor(widget.storage,'list:elements',id);
     if(widget.storage?.comments==null)memoCommentCounts.value={};
     voiceAudioRequest=widget.storage?.audioRequest;
+    locationOfflineStatus = widget.storage?.offlineStatus;
     workspaceMapRequest=widget.storage?.audioRequest;
     memoCommentRequest=widget.storage?.comments;memoCommentsWritable=widget.storage?.commentsWritable??false;
     widget.storage?.applyServerSnapshot=_applyRemoteSnapshot;
@@ -517,7 +518,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     WidgetsBinding.instance.removeObserver(this);
     if(openWorkspaceDocument == _openDocumentById)openWorkspaceDocument=null;
     if(refreshWorkspaceForRead == _refreshForBrowse)refreshWorkspaceForRead=null;
-    if(saveWorkspaceContent == _saveAndSync){saveWorkspaceContent=null;workspaceMemoAuthor=null;voiceAudioRequest=null;workspaceMapRequest=null;memoCommentRequest=null;memoCommentsWritable=false;}
+    if(saveWorkspaceContent == _saveAndSync){locationOfflineStatus=null;saveWorkspaceContent=null;workspaceMemoAuthor=null;voiceAudioRequest=null;workspaceMapRequest=null;memoCommentRequest=null;memoCommentsWritable=false;}
     WidgetsBinding.instance.addPostFrameCallback((_) => desktopMenu.detach(this));
     elements.removeListener(_elementDeleted);
     elements.onRenamed = null;
@@ -887,7 +888,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     if(note!=null && mounted)await _showProject(note);
   }
 
-  Future<void> _showProject(Note note) async {
+  Future<void> _showProject(Note note, {bool openEditor = false}) async {
     if (!mounted) return;
     final current = _notes.where((n) => n.id == note.id).firstOrNull;
     if (current == null) { _captureError('다른 기기에서 삭제된 문서입니다.'); return; }
@@ -896,7 +897,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
       context,
       MaterialPageRoute(
         builder: (_) =>
-            ProjectPage(project: note.project!, onOpenRefresh: _refreshForBrowse, projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: ()async{if(note.content!=note.project!.content)note.updatedAt=DateTime.now();note.content=note.project!.content;await _persist();}, onSave: () => _saveAndSync(resource:note.project!.id), onHistory:widget.storage?.openHistory, onLease:widget.storage?.documentLease, storage:widget.storage, onReload:()=>_reloadResource(note.project!.id)),
+            ProjectPage(project: note.project!, openEditor: openEditor, onOpenRefresh: _refreshForBrowse, projects: _notes.map((n) => n.project).whereType<WritingProject>().toList(), onChanged: ()async{if(note.content!=note.project!.content)note.updatedAt=DateTime.now();note.content=note.project!.content;await _persist();}, onSave: () => _saveAndSync(resource:note.project!.id), onHistory:widget.storage?.openHistory, onLease:widget.storage?.documentLease, storage:widget.storage, onReload:()=>_reloadResource(note.project!.id)),
       ),
     );
     if (!mounted) return;
@@ -1004,6 +1005,8 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     List<Note> projects,
   ) async {
     if (!mounted || choice == null || choice == -1) return;
+    if (choice != WorkspaceMenu.refresh && !(await leaveDocumentEditor?.call() ?? true)) return;
+    if (!mounted) return;
     if (choice == WorkspaceMenu.home) { await navigateHome(context); if (mounted && !Navigator.of(context).canPop()) { try { await _refreshForBrowse(); } catch (e) { if (mounted) _captureError('서버 변경을 확인하지 못했습니다. $e'); } } return; }
     if (choice == WorkspaceMenu.settings) { await showThoughtSettings(context, widget.storage?.preferences, onSyncReview: widget.storage?.openSyncReview, onUpload: _uploadBackup, onDownload: _downloadBackup, onReset: _reset, offline:widget.storage?.offlineMode??false,onExportFile:widget.storage?.exportFile,onImportFile:widget.storage?.importFile,onAdmin:widget.storage?.openAdmin, onPlan:widget.storage?.openPlan, onWorkspaces:widget.storage?.openWorkspaces, workspaceName:widget.storage?.workspaceName, onSignIn: () async {
       if (_draft.text.trim().isNotEmpty || _hasCapture) throw const BackupFailure('작성 중인 메모를 저장한 뒤 로그인해주세요.');
@@ -1028,6 +1031,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     final destination = switch (choice) {
       WorkspaceMenu.documents => ThoughtView.documents,
       WorkspaceMenu.thoughts => ThoughtView.boxes,
+      WorkspaceMenu.geolog => ThoughtView.geolog,
       _ => null,
     };
     if (destination != null) { await _allThoughts(null, destination); return; }
@@ -1067,6 +1071,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
       await Navigator.push<void>(
         context,
         MaterialPageRoute(builder: (_) => TagListPage(
+          onColorChanged: (widget.storage?.canvasWritable ?? true) ? _persist : null,
           tags: () => _allTags,
           notes: _notes,
           onOpen: _open,
@@ -1365,7 +1370,25 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     return MediaQuery(data: media, child: DesktopMenuFrame(child: Scaffold(
       appBar: MainAppBar(
         auth:GoogleAuthScope.maybeOf(context),
-        onNotification:widget.storage?.openNotification,
+        draftChanges: widget.storage?.documentDraftChanges,
+        drafts: () => {
+          for (final note in _notes)
+            if (note.project != null && widget.storage?.documentDraft(note.project!.id) != null)
+              note.project!.id: note.title,
+          if (widget.storage?.documentDraft('new-document') != null) 'new-document': '새 문서',
+        },
+        onNotification: (item) async {
+          if (item['kind'] == 'document-draft') {
+            final id = item['targetId'];
+            if (id == 'new-document') { await _createProject(); }
+            else {
+              final note = _notes.where((n) => n.project?.id == id).firstOrNull;
+              if (note != null) await _showProject(note, openEditor: true);
+            }
+            return;
+          }
+          await widget.storage?.openNotification?.call(item);
+        },
         startupSyncPending: widget.storage?.openSyncReview != null &&
             startupRecoveryItems(widget.storage!).isNotEmpty,
         onTitle:MediaQuery.sizeOf(context).width >= 1000 ? () => navigateHome(context) : null,

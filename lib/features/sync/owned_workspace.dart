@@ -247,7 +247,7 @@ class WorkspaceSync extends ChangeNotifier {
   }
   Future<void> recoverNetwork()async{
     if(_disposed||!isCurrent()||!networkPending||_recovering||manualReview||storage.canvasInteracting||storage.hasUnsavedInput?.call()==true)return;
-    if(needsRecoveryReview){changed();return;}
+
     _recovering=true;
     try{
       await settle();await storage.flush();
@@ -257,14 +257,15 @@ class WorkspaceSync extends ChangeNotifier {
       final remote=<String,Map<String,dynamic>>{};
       for(final raw in result['changes'] as List){final item=Map<String,dynamic>.from(raw);item['value']=item['payload']==null?null:jsonDecode(item.remove('payload'));remote[itemKey(item['kind'],item['id'])]=item;}
       final plan=NetworkRecoveryPlan(recoveryBase,local,remote);
-      if(plan.conflicts.isNotEmpty){needsRecoveryReview=true;storage.canvasSaveState.value='동기화 확인 필요';changed();return;}
+      final automatic = plan.automatic;
       var latest=result;
-      if(plan.changes.isNotEmpty&&!readOnly){
-        await uploadMedia(joinWorkspace({for(final c in plan.changes)if(c['deleted']!=true)itemKey(c['kind'],c['id']):c}));
+      if(automatic.isNotEmpty&&!readOnly){
+        await uploadMedia(joinWorkspace({for(final c in automatic)if(c['deleted']!=true)itemKey(c['kind'],c['id']):c}));
         if(storage.read()!=snapshot)return;
-        latest=await request('save',{'since':result['revision'],'offlineReconcile':true,'changes':plan.changes});
+        latest=await request('save',{'since':result['revision'],'offlineReconcile':true,'changes':automatic});
         for(final raw in latest['changes'] as List){final item=Map<String,dynamic>.from(raw);item['value']=item['payload']==null?null:jsonDecode(item.remove('payload'));remote[itemKey(item['kind'],item['id'])]=item;}
       }
+      if(plan.conflicts.isNotEmpty){needsRecoveryReview=true;storage.canvasSaveState.value='동기화 확인 필요';changed();return;}
       // Edits made while the acknowledgement was in flight stay local for the next pass.
       await storage.flush();final current=splitWorkspace(storage.read());
       final displayed=NetworkRecoveryPlan(local,current,remote).merged;
@@ -283,7 +284,7 @@ class WorkspaceSync extends ChangeNotifier {
       }
       await completeNetworkRecovery();
     }catch(e){
-      if(e is EmailAuthFailure&&e.status==409){needsRecoveryReview=true;storage.canvasSaveState.value='동기화 확인 필요';}
+      if(e is EmailAuthFailure&&e.status==409){storage.canvasSaveState.value='동기화 재시도 중';}
       else if(e is! EmailAuthFailure||!e.networkUnavailable){error=e.toString();}
       changed();
     }finally{_recovering=false;}

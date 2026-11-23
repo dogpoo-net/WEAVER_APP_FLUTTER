@@ -4,8 +4,9 @@ import '../inbox/memo_comments.dart' show commentAge;
 
 typedef NotificationRequest = Future<Map<String,dynamic>> Function(String,Map<String,Object?>);
 class NotificationBell extends StatefulWidget {
-  const NotificationBell({super.key,required this.request,this.onOpen,this.startupSyncPending=false});
-  final NotificationRequest request;
+  const NotificationBell({super.key,required this.request,this.onOpen,this.drafts=const {},this.startupSyncPending=false});
+  final Map<String,String> drafts;
+  final NotificationRequest? request;
   final bool startupSyncPending;
   final Future<void> Function(Map<String,dynamic>)? onOpen;
   @override State<NotificationBell> createState()=>_NotificationBellState();
@@ -18,23 +19,24 @@ class _NotificationBellState extends State<NotificationBell> with WidgetsBinding
   @override void dispose(){timer?.cancel();WidgetsBinding.instance.removeObserver(this);super.dispose();}
   @override void didChangeAppLifecycleState(AppLifecycleState state){active=state==AppLifecycleState.resumed;if(active)refresh();}
   Future<void> refresh()async{
-    if(loading||!active)return;loading=true;
-    try{final data=await widget.request('notifications',{'countOnly':true});if(mounted)setState(()=>unread=(data['unread'] as num?)?.toInt()??0);}catch(_){/* Retry when active; the modal offers a visible error and retry. */}finally{loading=false;}
+    if(loading||!active||widget.request==null)return;loading=true;
+    try{final data=await widget.request!('notifications',{'countOnly':true});if(mounted)setState(()=>unread=(data['unread'] as num?)?.toInt()??0);}catch(_){/* Retry when active; the modal offers a visible error and retry. */}finally{loading=false;}
   }
   Future<void> open()async{
-    final item=await showDialog<Map<String,dynamic>>(context:context,builder:(_)=>NotificationInbox(request:widget.request,startupSyncPending:widget.startupSyncPending,onUnread:(count){if(mounted)setState(()=>unread=count);}));
+    final item=await showDialog<Map<String,dynamic>>(context:context,builder:(_)=>NotificationInbox(request:widget.request,drafts:widget.drafts,startupSyncPending:widget.startupSyncPending,onUnread:(count){if(mounted)setState(()=>unread=count);}));
     if(item!=null&&mounted){try{await widget.onOpen?.call(item);}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('알림을 열지 못했습니다. $e')));}}
     if(mounted)await refresh();
   }
   @override Widget build(BuildContext context) {
-    final count=unread+(widget.startupSyncPending?1:0);
+    final count=unread+widget.drafts.length+(widget.startupSyncPending?1:0);
     return IconButton(tooltip:count>0?'알림 · 읽지 않음 $count개':'알림',onPressed:open,
       icon:Badge(key:const ValueKey('notification-badge'),isLabelVisible:count>0,label:Text(count>99?'99+':'$count'),child:const Icon(Icons.notifications_none)));
   }
 }
 class NotificationInbox extends StatefulWidget {
-  const NotificationInbox({super.key,required this.request,required this.onUnread,this.startupSyncPending=false});
-  final NotificationRequest request;
+  const NotificationInbox({super.key,required this.request,required this.onUnread,this.drafts=const {},this.startupSyncPending=false});
+  final Map<String,String> drafts;
+  final NotificationRequest? request;
   final ValueChanged<int> onUnread;
   final bool startupSyncPending;
   @override State<NotificationInbox> createState()=>_NotificationInboxState();
@@ -45,9 +47,9 @@ class _NotificationInboxState extends State<NotificationInbox>{
   String? error;
   @override void initState(){super.initState();load();}
   Future<void> load({bool older=false})async{
-    if(loading)return;setState((){loading=true;error=null;});
+    if(loading||widget.request==null)return;setState((){loading=true;error=null;});
     try{
-      final result=await widget.request('notifications',{if(older&&items.isNotEmpty)'before':items.last['id']});
+      final result=await widget.request!('notifications',{if(older&&items.isNotEmpty)'before':items.last['id']});
       if(!mounted)return;
       final rows=(result['items'] as List).map((r)=>Map<String,dynamic>.from(r as Map)).toList();
       setState((){if(!older)items.clear();items.addAll(rows);more=rows.length==50;});widget.onUnread((result['unread'] as num).toInt());
@@ -55,7 +57,7 @@ class _NotificationInboxState extends State<NotificationInbox>{
   }
   Future<void> readAll()async{
     if(loading||items.isEmpty)return;setState(()=>loading=true);
-    try{await widget.request('notifications/read',{'id':items.first['id'],'all':true});if(mounted){setState(()=>loading=false);await load();}}
+    try{await widget.request!('notifications/read',{'id':items.first['id'],'all':true});if(mounted){setState(()=>loading=false);await load();}}
     catch(e){if(mounted)setState((){loading=false;error='읽음 처리하지 못했습니다. $e';});}
   }
   Future<void> open(Map<String,dynamic> item)async{
@@ -66,8 +68,8 @@ class _NotificationInboxState extends State<NotificationInbox>{
     }
     setState(()=>loading=true);
     try{
-      await widget.request('notifications/read',{'id':item['id']});
-      if(item['kind']=='invite')await widget.request('accept',{'inviteId':item['targetId']});
+      await widget.request!('notifications/read',{'id':item['id']});
+      if(item['kind']=='invite')await widget.request!('accept',{'inviteId':item['targetId']});
       if(mounted)Navigator.pop(context,item);
     }catch(e){if(mounted)setState((){loading=false;error='알림을 열지 못했습니다. $e';});}
   }
@@ -83,8 +85,14 @@ class _NotificationInboxState extends State<NotificationInbox>{
         subtitle:const Text('서버 자료와 비교하고 남길 항목을 선택하세요.'),
         onTap:()=>Navigator.pop(context,<String,dynamic>{'kind':'startup-sync'}),
       ),
-      Expanded(child:items.isEmpty?Center(child:Text(loading?'알림을 불러오는 중입니다.':'새 알림이 없습니다.')):
-        ListView.separated(itemCount:items.length+(more?1:0),separatorBuilder:(_,i)=>const Divider(height:1),itemBuilder:(context,i){
+      Expanded(child:items.isEmpty && widget.drafts.isEmpty ? Center(child:Text(loading?'알림을 불러오는 중입니다.':'새 알림이 없습니다.')):
+        ListView.separated(itemCount:widget.drafts.length+items.length+(items.isNotEmpty&&more?1:0),separatorBuilder:(_,i)=>const Divider(height:1),itemBuilder:(context,index){
+          if (index < widget.drafts.length) {
+            final draft = widget.drafts.entries.elementAt(index);
+            return ListTile(leading: const Icon(Icons.edit_note), title: const Text('작성 중인 문서가 있습니다.'),
+              subtitle: Text(draft.value), onTap: () => Navigator.pop(context, <String,dynamic>{'kind':'document-draft','targetId':draft.key}));
+          }
+          final i = index - widget.drafts.length;
           if(i==items.length)return TextButton(onPressed:loading?null:()=>load(older:true),child:const Text('이전 알림 더보기'));
           final row=items[i],read=isRead(row),date=DateTime.tryParse(row['createdAt'] as String? ?? '');
           return ListTile(key:ValueKey('notification-${row['id']}'),contentPadding:const EdgeInsets.symmetric(horizontal:4,vertical:4),

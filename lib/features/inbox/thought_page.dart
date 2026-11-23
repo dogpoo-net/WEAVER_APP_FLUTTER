@@ -1062,19 +1062,30 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       if (ids.isEmpty) _emptyBoxBounds[box] = const Rect.fromLTWH(640, 400, 260, 260);
     }
     arrangeMembers(loose);
-    Rect pack(String? folder) {
+    Rect pack(String? folder, {MemoBox? parent}) {
       final units = <({Rect bounds, List<String> ids, List<MemoBox> boxes, List<String> folders})>[];
-      for (final box in boxes.where((box) => box.folder == folder || (folder == null && !memoBoxFolders.contains(box.folder)))) {
-        units.add((bounds: _boxBounds(box)!, ids: box.elementIds.where(_positions.containsKey).toList(), boxes: [box], folders: []));
+      final children = childMemoBoxes(parent).where((box) => parent != null ||
+          (memoBoxFolders.contains(box.folder) ? box.folder : null) == folder);
+      for (final box in children) {
+        if (childMemoBoxes(box).isNotEmpty) pack(null, parent: box);
+        final subtree = boxes.where((member) => memoBoxContains(box, member)).toList();
+        units.add((bounds: _boxBounds(box)!,
+          ids: subtree.expand((member) => member.elementIds).where(_positions.containsKey).toList(),
+          boxes: subtree, folders: []));
       }
-      for (final child in memoBoxFolders.where((name) => memoFolderParent(name) == folder)) {
-        final bounds = pack(child);
-        final childBoxes = boxes.where((box) => box.folder != null && memoFolderContains(child, box.folder!)).toList();
-        units.add((bounds: bounds, ids: childBoxes.expand((box) => box.elementIds).where(_positions.containsKey).toList(),
-          boxes: childBoxes, folders: memoBoxFolders.where((name) => memoFolderContains(child, name)).toList()));
+      if (parent == null) {
+        for (final child in memoBoxFolders.where((name) => memoFolderParent(name) == folder)) {
+          final bounds = pack(child);
+          final roots = boxes.where((box) => box.folder != null && memoFolderContains(child, box.folder!));
+          final childBoxes = boxes.where((box) => roots.any((root) => memoBoxContains(root, box))).toList();
+          units.add((bounds: bounds, ids: childBoxes.expand((box) => box.elementIds).where(_positions.containsKey).toList(),
+            boxes: childBoxes, folders: memoBoxFolders.where((name) => memoFolderContains(child, name)).toList()));
+        }
       }
-      if (folder == null && loose.isNotEmpty) {
-        units.add((bounds: loose.map(_bounds).reduce((a, b) => a.expandToInclude(b)), ids: loose, boxes: [], folders: []));
+      final directIds = parent != null ? parent.elementIds.where(_positions.containsKey).toList()
+          : folder == null ? loose : <String>[];
+      if (directIds.isNotEmpty) {
+        units.add((bounds: directIds.map(_bounds).reduce((a, b) => a.expandToInclude(b)), ids: directIds, boxes: [], folders: []));
       }
       if (units.isEmpty) {
         if (folder != null) _layout.folderPositions[folder] = const Offset(640, 400);
@@ -1098,6 +1109,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       return folder == null ? bounds : Rect.fromLTRB(bounds.left - 28, bounds.top - 44, bounds.right + 28, bounds.bottom + 28);
     }
     pack(null);
+    for (final box in boxes) {
+      if (childMemoBoxes(box).isEmpty && !box.elementIds.any(_positions.containsKey)) {
+        _layout.containerBounds['box:${box.name}'] = _emptyBoxBounds[box]!;
+      }
+    }
     {
       final occupied = <Rect>[for (final box in boxes) _boxBounds(box)!, ...loose.map(_bounds)];
       for (final tag in _tagPositions.keys.toList()) {

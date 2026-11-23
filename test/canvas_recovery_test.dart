@@ -1,3 +1,4 @@
+import 'package:weaver/features/inbox/memo_box_region.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/element_store.dart';
@@ -48,6 +49,36 @@ void main() {
       expect(elements.records.length, 2);
       expect(memoBoxes.single.elementIds, contains(a.id));
       expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+  for (final mode in ['펼쳐보기', '겹쳐보기']) {
+    testWidgets('$mode packs complete nested boxes without sibling overlap', (tester) async {
+      final direct = elements.add('부모 생각');
+      final nested = elements.add('안쪽 생각');
+      memoBoxes.addAll([MemoBox('부모', ids: [direct.id]), MemoBox('자식', folder: '부모'),
+        MemoBox('손자', folder: '자식', ids: [nested.id]), MemoBox('빈 자식', folder: '부모'),
+        MemoBox('다른 상자')]);
+      Future<void> open() async {
+        await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
+        await tester.pumpAndSettle();
+      }
+      void check() {
+        Rect box(String name) => tester.widget<MemoBoxRegion>(find.byKey(ValueKey('box-region-$name'))).bounds;
+        expect(box('부모').overlaps(box('다른 상자')), isFalse);
+        expect(box('자식').overlaps(box('빈 자식')), isFalse);
+        expect(box('부모').intersect(box('자식')), box('자식'));
+        expect(box('자식').intersect(box('손자')), box('손자'));
+        expect(box('자식').contains(pageGraphLayout.blockLayout.positions[direct.id]!), isFalse);
+      }
+      await open();
+      await tester.tap(find.byTooltip('정리하기')); await tester.pumpAndSettle();
+      await tester.tap(find.text(mode)); await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, '초기화')); await tester.pumpAndSettle();
+      check();
+      await tester.pumpWidget(const SizedBox());
+      await open();
+      check();
       await tester.pumpWidget(const SizedBox());
     });
   }

@@ -1,3 +1,4 @@
+import 'package:weaver/features/capture/location_capture.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'dart:async';
 import 'dart:typed_data';
@@ -10,6 +11,25 @@ import 'package:weaver/features/capture/capture_models.dart';
 import 'package:weaver/features/capture/audio_format.dart';
 
 void main(){
+ testWidgets('offline geolog saves GPS coordinates without creating a map', (tester) async {
+   locationOfflineStatus = ValueNotifier(true);
+   addTearDown(() => locationOfflineStatus = null);
+   LocationEntry? result;
+   final gps = ThoughtLocation(37, 127, 5, DateTime.now(), isCurrentLocation: true);
+   await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
+     body: TextButton(onPressed: () async {
+       result = await showLocationEditor(context, compose: true, locate: () async => gps);
+     }, child: const Text('열기')),
+   ))));
+   await tester.tap(find.text('열기'));
+   await tester.pumpAndSettle();
+   expect(find.byType(FlutterMap), findsNothing);
+   await tester.enterText(find.byKey(const ValueKey('geolog-memo-input')), '산책');
+   await tester.pump();
+   await tester.tap(find.text('저장'));
+   await tester.pumpAndSettle();
+   expect(result?.location, gps);
+ });
  testWidgets('manual map selection survives late GPS and saves typed memo',(tester)async{
   final gps=Completer<ThoughtLocation>();LocationEntry? result;
   await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()async{result=await showLocationEditor(context,compose:true,locate:()=>gps.future);},child:const Text('열기'))))));

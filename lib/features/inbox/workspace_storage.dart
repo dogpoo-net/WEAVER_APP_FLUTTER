@@ -401,7 +401,9 @@ class WorkspaceStorage {
   Future<void> Function()? openSharing;
   AudioRequest? audioRequest;
   Future<Map<String, dynamic>> Function(Map<String, Object?>)? documentAiRequest;
-  bool offlineMode=false;
+  final offlineStatus = ValueNotifier(false);
+  bool get offlineMode => offlineStatus.value;
+  set offlineMode(bool value) => offlineStatus.value = value;
   Future<void> Function()? exportFile;
   Future<void> Function()? importFile;
   Future<void> Function()? openAdmin;

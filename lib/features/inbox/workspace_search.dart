@@ -113,12 +113,11 @@ Widget _highlightedSearchText(BuildContext context, String text, RegExp? pattern
 }
 
 class WorkspaceSearch extends StatefulWidget {
-  const WorkspaceSearch({super.key, required this.notes, required this.selector, required this.controller, this.onDocument, this.onThought, this.onBox});
+  const WorkspaceSearch({super.key, required this.notes, required this.selector, required this.controller, this.onDocument, this.onBox});
   final List<Note> notes;
   final Widget selector;
   final TextEditingController controller;
   final Future<void> Function(Note)? onDocument;
-  final ValueChanged<ElementRecord>? onThought;
   final ValueChanged<MemoBox>? onBox;
   @override State<WorkspaceSearch> createState()=>_WorkspaceSearchState();
 }
@@ -166,8 +165,7 @@ class _WorkspaceSearchState extends State<WorkspaceSearch> with RetainedOverview
     return results.where((item) {
       final record = item.record;
       final tags = record?.tags ?? item.note?.project?.tags ?? <String>{};
-      return (widget.onThought == null || item.kind == '생각') &&
-          _selectedTypes.contains(item.kind) &&
+      return _selectedTypes.contains(item.kind) &&
           (ids == null || ids.contains(record?.id) ||
             (item.box != null && (_descendants ? memoBoxContains(_box!, item.box!) : item.box == _box))) &&
           (_tag == null || tags.contains(_tag)) &&
@@ -232,8 +230,7 @@ class _WorkspaceSearchState extends State<WorkspaceSearch> with RetainedOverview
               IconButton(tooltip: '필터 닫기', onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.close)),
             ]),
-            if (widget.onThought == null) ...[
-              const ListTile(dense: true, title: Text('유형')),
+            const ListTile(dense: true, title: Text('유형')),
               for (final type in _types)
                 CheckboxListTile(
                   dense: true, title: Text(type), value: _selectedTypes.contains(type),
@@ -242,8 +239,7 @@ class _WorkspaceSearchState extends State<WorkspaceSearch> with RetainedOverview
                     else _selectedTypes.remove(type);
                   }),
                 ),
-              const Divider(),
-            ],
+            const Divider(),
             Wrap(spacing: 6, children: [
               _filterMenu('범위', _box, memoBoxes, memoBoxPath,
                 (value) { _box = value; updateDrawer(() {}); }),
@@ -314,9 +310,9 @@ class _WorkspaceSearchState extends State<WorkspaceSearch> with RetainedOverview
   }
   @override void dispose(){_debounce?.cancel();elements.removeListener(_refresh);widget.controller.removeListener(_queryChanged);_scroll.dispose();super.dispose();}
   int _countSearchableItems() => searchWorkspace(widget.notes, elements.records.values,
-      '', includeExtra: widget.onThought == null).length;
+      '', includeExtra: true).length;
   @override Widget build(BuildContext context){
-    final results = _results ??= _filterResults(searchWorkspace(widget.notes,elements.records.values,_query, includeExtra: widget.onThought == null));
+    final results = _results ??= _filterResults(searchWorkspace(widget.notes,elements.records.values,_query, includeExtra: true));
     final terms = _searchTerms(_query).toSet().toList()
       ..sort((a, b) => b.length.compareTo(a.length));
     final hasQuery = terms.isNotEmpty;
@@ -359,7 +355,7 @@ class _WorkspaceSearchState extends State<WorkspaceSearch> with RetainedOverview
               }),
               title: _highlightedSearchText(context, item.title, pattern, 1, prefix: '${item.kind}: '),
               subtitle: _highlightedSearchText(context, preview, pattern, 3),
-              onTap:()async{if(item.box case final box?){widget.onBox?.call(box);}else if(item.note!=null){if(widget.onDocument!=null){await widget.onDocument!(item.note!);}else{await Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>ProjectPage(project:item.note!.project!)));}}else if(widget.onThought case final choose?){choose(item.record!);}else{await showElementMetadata(context,item.record!.text);} _refresh();});
+              onTap:()async{if(item.box case final box?){widget.onBox?.call(box);}else if(item.note!=null){if(widget.onDocument!=null){await widget.onDocument!(item.note!);}else{await Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>ProjectPage(project:item.note!.project!)));}}else{await showElementMetadata(context,item.record!.text);} _refresh();});
           }))),
       ])));
   }

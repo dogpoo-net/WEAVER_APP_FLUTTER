@@ -17,11 +17,11 @@ class MemoryMedia implements BackupMedia{
 String snapshot(String name)=>jsonEncode({'version':1,'elements':[],'trash':[],'notes':[],'colors':{},'folders':[name]});
 void main(){
  setUp(()=>SharedPreferences.setMockInitialValues({}));
- test('offline publish rejects conflicting geometry and keeps baseline and local copy',()async{
+ test('offline publish ignores conflicting geometry and keeps baseline and local copy',()async{
   final prefs=await SharedPreferences.getInstance(),local=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'offline');
   String layout(int x)=>jsonEncode({'version':1,'elements':[],'trash':[],'notes':[],'colors':{},'memoBoxes':[{'name':'box','color':0,'ids':[],'layout':{'positions':{'memo':[x,20]}}}]});
   await local.write(layout(2));await prefs.setString(OfflineWorkspace.baseline(local),layout(1));
-  expect(()=>OfflineWorkspace.delta(local,splitWorkspace(layout(3))),throwsA(isA<Exception>()));
+  expect(OfflineWorkspace.delta(local,splitWorkspace(layout(3))),isEmpty);
   expect(local.read(),layout(2));expect(prefs.getString(OfflineWorkspace.baseline(local)),layout(1));
   expect(OfflineWorkspace.delta(local,splitWorkspace(layout(2))),isEmpty);
  });

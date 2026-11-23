@@ -15,7 +15,7 @@ List<SyncDifference> syncDifferences(Map<String,Map<String,dynamic>> local,Map<S
   final groups=<String,SyncDifference>{};
   for(final key in {...local.keys,...remote.keys}){
     final item=local[key]??remote[key]!;
-    if(localCanvasView(item)||sameItem(local[key],remote[key]))continue;
+    if(item['kind']=='layout'||item['kind']=='list:memoBoxes'||sameItem(local[key],remote[key]))continue;
     final kind=item['kind'] as String,id=item['id'] as String;
     String group=key,title;
     if(kind=='layout'){
@@ -54,6 +54,7 @@ class WorkspaceSyncReviewPage extends StatefulWidget {
 class _WorkspaceSyncReviewPageState extends State<WorkspaceSyncReviewPage>{
   bool busy=true,loaded=false;String? error;int revision=0;
   Map<String,Map<String,dynamic>> local={},remote={};
+  List<Map<String,dynamic>> automatic=[];
   List<SyncDifference> differences=[];final choices=<String,bool>{};
   @override void initState(){super.initState();load();}
   Future<void> load()async{
@@ -66,7 +67,7 @@ class _WorkspaceSyncReviewPageState extends State<WorkspaceSyncReviewPage>{
       for(final raw in result['changes'] as List){final item=Map<String,dynamic>.from(raw);item['value']=item['payload']==null?null:jsonDecode(item['payload']);next[itemKey(item['kind'],item['id'])]=item;}
       if(!mounted)return;
       local=splitWorkspace(widget.source.read());remote=next;revision=result['revision'] as int;
-      choices.clear();
+      choices.clear(); automatic=[];
       if(widget.startupRecovery){
         final pending=startupRecoveryItems(widget.source);
         local=Map.of(remote);
@@ -74,10 +75,14 @@ class _WorkspaceSyncReviewPageState extends State<WorkspaceSyncReviewPage>{
         differences=syncDifferences(local,remote);
         final pruned={for(final item in pending.entries)if(!sameItem(item.value,remote[item.key]))item.key:item.value};
         if(!await widget.source.preferences.setString(startupRecoveryKey(widget.source),jsonEncode(pruned)))throw StateError('복구 목록을 저장하지 못했습니다.');
-      }else if(widget.engine.networkPending){
-        final plan=NetworkRecoveryPlan(widget.engine.recoveryBase,local,remote);
-        local=plan.merged;differences=syncDifferences(local,remote);
-        for(final d in differences){if(!d.keys.any(plan.conflicts.contains))choices[d.id]=true;}
+      }else if(widget.engine.networkPending || widget.source.owner != widget.engine.storage.owner){
+        final baseline = widget.source.owner == widget.engine.storage.owner
+            ? widget.engine.recoveryBase
+            : splitWorkspace(widget.source.preferences.getString(OfflineWorkspace.baseline(widget.source)) ??
+                (throw StateError('오프라인 비교 기준이 없습니다.')));
+        final plan=NetworkRecoveryPlan(baseline,local,remote);
+        local=plan.merged;automatic=plan.automatic;
+        differences=syncDifferences(local,remote).where((d)=>d.keys.any(plan.conflicts.contains)).toList();
       }else{differences=syncDifferences(local,remote);}
       loaded=true;
     }catch(e){if(mounted)error=e.toString();}finally{if(mounted)setState(()=>busy=false);}
@@ -107,7 +112,7 @@ class _WorkspaceSyncReviewPageState extends State<WorkspaceSyncReviewPage>{
     return lines.join('\n');
   }
   Future<void> apply()async{
-    final changes=reviewChanges(differences,choices,local,remote);
+    final changes=[...automatic,...reviewChanges(differences,choices,local,remote)];
     final yes=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(title:const Text('선택한 내용으로 동기화할까요?'),content:const Text('로컬을 선택한 항목은 서버 내용을 덮어쓰며 다른 참여자에게도 반영됩니다. 로컬에 없는 항목은 서버에서도 삭제됩니다. 서버를 선택한 항목의 로컬 변경은 버립니다.'),actions:[TextButton(onPressed:()=>Navigator.pop(context,false),child:const Text('취소')),TextButton(onPressed:()=>Navigator.pop(context,true),child:const Text('적용'))]));
     if(yes!=true||!mounted)return;
     setState((){busy=true;error=null;});
@@ -145,7 +150,7 @@ class _WorkspaceSyncReviewPageState extends State<WorkspaceSyncReviewPage>{
         const Divider(),const Text('서버'),ConstrainedBox(constraints:const BoxConstraints(maxHeight:180),child:SingleChildScrollView(child:SelectableText(preview(d,remote)))),
         Wrap(spacing:8,children:[ChoiceChip(label:const Text('로컬로 서버 덮어쓰기'),selected:choices[d.id]==true,onSelected:busy?null:(_)=>setState(()=>choices[d.id]=true)),ChoiceChip(label:const Text('로컬 변경 버리고 서버 사용'),selected:choices[d.id]==false,onSelected:busy?null:(_)=>setState(()=>choices[d.id]=false))]),
       ]))),
-      if(differences.isNotEmpty)FilledButton(onPressed:busy||choices.length!=differences.length?null:apply,child:const Text('선택한 내용 적용')),
+      if(differences.isNotEmpty || automatic.isNotEmpty)FilledButton(onPressed:busy||choices.length!=differences.length?null:apply,child:const Text('선택한 내용 적용')),
     ]),
   ));
 }

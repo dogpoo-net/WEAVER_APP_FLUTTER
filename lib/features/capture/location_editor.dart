@@ -139,7 +139,7 @@ class _LocationEditorState extends State<LocationEditor> {
 
   Future<void> save() async {
     final point = selected;
-    if (point == null || saving || attaching) return;
+    if (point == null || saving || attaching || (locationOffline && (widget.initial != null || !point.isCurrentLocation))) return;
     final problem = widget.validate?.call(text.text.trim());
     if (problem != null) {
       setState(() => error = problem);
@@ -224,6 +224,11 @@ class _LocationEditorState extends State<LocationEditor> {
     }
   }
 
+  final _offlineStatus = locationOfflineStatus;
+  void _connectionChanged() { if (mounted) setState(() {}); }
+  String get _locationFailure => locationOffline
+      ? '현재 위치를 찾지 못했습니다. 위치 권한을 확인하고 다시 시도해주세요.'
+      : '현재 위치를 찾지 못했습니다. 지도에서 원하는 위치를 선택해주세요.';
   ThoughtLocation? selected;
   bool busy = false;
   int generation = 0;
@@ -231,6 +236,7 @@ class _LocationEditorState extends State<LocationEditor> {
   @override
   void initState() {
     super.initState();
+    _offlineStatus?.addListener(_connectionChanged);
     selected = widget.initial;
     markerColor = selected?.markerColor;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -250,7 +256,7 @@ class _LocationEditorState extends State<LocationEditor> {
         setState(() {
           generation++;
           busy = false;
-          error = '현재 위치를 찾지 못했습니다. 지도에서 원하는 위치를 선택해주세요.';
+          error = _locationFailure;
         });
       }
     });
@@ -270,7 +276,7 @@ class _LocationEditorState extends State<LocationEditor> {
       }
     } catch (_) {
       if (mounted && request == generation) {
-        setState(() => error = '현재 위치를 찾지 못했습니다. 지도에서 원하는 위치를 선택해주세요.');
+        setState(() => error = _locationFailure);
       }
     } finally {
       if (mounted && request == generation) {
@@ -301,6 +307,7 @@ class _LocationEditorState extends State<LocationEditor> {
   void dispose() {
     generation++;
     locateTimer?.cancel();
+    _offlineStatus?.removeListener(_connectionChanged);
     map.dispose();
     text.dispose();
     super.dispose();
@@ -364,14 +371,17 @@ class _LocationEditorState extends State<LocationEditor> {
                     action(
                       '현재 위치',
                       Icons.my_location,
-                      busy || saving ? null : locate,
+                      busy || saving || (locationOffline && widget.initial != null) ? null : locate,
                     ),
                   ],
                 ),
                 if (busy) const LinearProgressIndicator(),
                 if (error != null)
                   Text(error!, style: Theme.of(context).textTheme.bodySmall),
-                Expanded(
+                if (locationOffline)
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('오프라인에서는 현재 위치를 기록할 수 있어요. 지도에서 위치 수정은 온라인에서 가능해요.'))
+                else Expanded(
                   child: ClipRect(
                     child: WorkspaceMapSurface(
                       googleMap: (_) => GoogleThoughtMap(
@@ -555,6 +565,7 @@ class _LocationEditorState extends State<LocationEditor> {
                           saving ||
                               attaching ||
                               point == null ||
+                              (locationOffline && (widget.initial != null || !point.isCurrentLocation)) ||
                               widget.compose && text.text.trim().isEmpty
                           ? null
                           : save,

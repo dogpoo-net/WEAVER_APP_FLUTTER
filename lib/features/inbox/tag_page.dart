@@ -1,3 +1,4 @@
+import 'tag_colors.dart';
 import 'overview_collections.dart';
 import 'workspace_routes.dart';
 import 'desktop_menu_frame.dart';
@@ -12,10 +13,12 @@ class TagListPage extends StatefulWidget {
   const TagListPage({
     super.key,
     required this.tags,
+    this.onColorChanged,
     required this.notes,
     required this.onOpen,
   });
 
+  final VoidCallback? onColorChanged;
   final List<String> Function() tags;
   final List<Note> notes;
   final Future<void> Function(Note) onOpen;
@@ -89,10 +92,24 @@ class _TagListPageState extends State<TagListPage> {
                           ),
                         )
                       : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
                           itemCount: names.length,
                           itemBuilder: (context, index) {
                             final name = names[index];
+                            final color = Color(hashtagColors[name] ?? 0xFF90A4AE);
                             return ListTile(
+                              trailing: IconButton(
+                                tooltip: '#$name 색상 변경',
+                                icon: Icon(Icons.circle, color: color, size: 18),
+                                onPressed: widget.onColorChanged == null ? null : () async {
+                                  final next = await pickHashtagColor(context, name, color);
+                                  if (!mounted || next == null || !widget.tags().contains(name)) return;
+                                  hashtagColors[name] = next.toARGB32();
+                                  elements.refreshVisibility();
+                                  widget.onColorChanged?.call();
+                                },
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                               title: Row(
                                 crossAxisAlignment: CrossAxisAlignment.baseline,
                                 textBaseline: TextBaseline.alphabetic,

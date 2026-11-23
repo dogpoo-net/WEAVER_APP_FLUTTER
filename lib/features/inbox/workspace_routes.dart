@@ -69,3 +69,5 @@ Future<void> Function()? refreshWorkspaceForRead;
 Future<void> Function()? saveWorkspaceContent;
 
 String Function(String memoId)? workspaceMemoAuthor;
+
+Future<bool> Function()? leaveDocumentEditor;

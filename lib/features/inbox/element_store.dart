@@ -1,3 +1,4 @@
+import '../capture/location_capture.dart';
 import '../capture/voice_transcription.dart';
 import 'dart:collection';
 import 'thought_colors.dart';
@@ -326,6 +327,12 @@ class _ElementMetadataState extends State<_ElementMetadata> {
         final draft=await showVoiceRecorder(context);
         if(mounted&&draft!=null)setState(()=>_audioUploads[record.id]=[draft]);
       }else{
+        if (locationOffline) {
+          if (_locationFor(record) != null) return;
+          final point = await captureLocation();
+          if (mounted) setState(() => _locationEdits[record.id] = point);
+          return;
+        }
         if (!await loadScreen(context, location_editor.loadLibrary) || !mounted) return;
         if (ModalRoute.of(context)?.isCurrent == false) return;
         final draft=await location_editor.showLocationEditor(context,initial:_locationFor(record));
@@ -334,9 +341,12 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     }catch(e){if(mounted)setState(()=>_error='$e');}
     finally{if(mounted)setState((){_attachmentBusy=false;_captureModalOpen=false;});}
   }
+  final _offlineStatus = locationOfflineStatus;
+  void _connectionChanged() { if (mounted) setState(() {}); }
   @override
   void initState() {
     super.initState();
+    _offlineStatus?.addListener(_connectionChanged);
     _mediaOwner=MediaStorage.activeOwner;
     _word = widget.word;
     final record = elements.records[_word]!;
@@ -365,6 +375,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
 
   @override
   void dispose() {
+    _offlineStatus?.removeListener(_connectionChanged);
     _editorFocus.dispose();
     _editor.dispose();
     _labelEditor.dispose();
@@ -493,7 +504,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               )),
               const Divider(key:ValueKey('element-attachments-divider'),height:9,thickness:1),
               Row(children:[
-                IconButton(tooltip:'위치 기록',style:captureStyle,onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'location'),icon:const Icon(Icons.location_on_outlined,size:20)),
+                IconButton(tooltip:locationOffline && _locationFor(element)!=null ? '위치 수정은 온라인에서 가능해요' : '위치 기록',style:captureStyle,onPressed:_attachmentBusy||!_canAttach||(locationOffline && _locationFor(element)!=null)?null:()=>_attach(element,'location'),icon:const Icon(Icons.location_on_outlined,size:20)),
                 IconButton(tooltip:'음성 녹음',style:captureStyle,onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const Icon(Icons.mic_none,size:20)),
                 IconButton(tooltip:'사진 업로드',style:captureStyle,onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'photo'),icon:const Icon(Icons.add_photo_alternate_outlined,size:20)),
                 const Spacer(),
@@ -506,14 +517,14 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               if(_attachmentBusy&&!_captureModalOpen)const LinearProgressIndicator(),
               if (_locationFor(element) case final location?) Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(children:[Expanded(child:Align(alignment:Alignment.centerLeft,child:TextButton.icon(onPressed: () async {
+                child: Row(children:[Expanded(child:Align(alignment:Alignment.centerLeft,child:TextButton.icon(onPressed: locationOffline ? null : () async {
                   if (!await loadScreen(context, location_preview.loadLibrary) || !mounted) return;
                   if (ModalRoute.of(context)?.isCurrent == false) return;
                   await location_preview.showLocationPreview(context, location, onChanged: _canAttach ? (updated) {
                     if (mounted) setState(() => _locationEdits[element.id] = updated);
                   } : null);
                 },
-                  icon: const Icon(Icons.location_on_outlined, size: 18), label: const Text('지도 보기')))),
+                  icon: const Icon(Icons.location_on_outlined, size: 18), label: Text(locationOffline ? '${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)}' : '지도 보기')))),
                   IconButton(style:attachmentActionStyle,tooltip:'위치 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_locationEdits[element.id]=null),icon:const Icon(Icons.delete_outline)),
                 ])),
               for(final audio in _audioUploads[element.id]??<VoiceDraft>[])VoicePlayer(key:ObjectKey(audio),load:()async=>audio.bytes,durationMs:audio.durationMs,transcript:audio.transcript,transcription:audio.transcription,textStyle:Theme.of(context).textTheme.labelLarge,actionStyle:attachmentActionStyle,

@@ -1,3 +1,4 @@
+import 'network_recovery.dart';
 import 'dart:convert';
 import '../auth/email_auth.dart';
 import '../inbox/workspace_storage.dart';
@@ -11,7 +12,7 @@ class OfflineWorkspace {
   static bool hasChanges(WorkspaceStorage local){
     if(local.read()==null)return false;
     final before=splitWorkspace(local.preferences.getString(baseline(local))),after=splitWorkspace(local.read());
-    return {...before.keys,...after.keys}.any((key)=>!localCanvasView(after[key]??before[key])&&!sameItem(before[key],after[key]));
+    return NetworkRecoveryPlan(before, after, before).changes.isNotEmpty;
   }
   static Future<void> preserveRecovery(WorkspaceStorage local,WorkspaceStorage online)async{
     final key=local.scoped('offline-recovery');
@@ -46,28 +47,28 @@ class OfflineWorkspace {
     final baselineRaw=local.preferences.getString(baseline(local));
     if(baselineRaw==null)throw const EmailAuthFailure('오프라인 작업 전 자료가 없어 안전하게 비교할 수 없습니다. 서버와 로컬 자료를 그대로 보관했습니다.');
     final before=splitWorkspace(baselineRaw),after=splitWorkspace(local.read());
-    final changes=<Map<String,dynamic>>[];
-    for(final key in {...before.keys,...after.keys}){
-      if(localCanvasView(after[key]??before[key]) || sameItem(before[key],after[key]) || sameItem(after[key],remote[key]))continue;
-      if(!sameItem(before[key],remote[key]))throw const EmailAuthFailure('서버와 오프라인에서 같은 자료가 변경되었습니다. 덮어쓰지 않았으며 오프라인 자료는 이 기기에 보관했습니다.');
-      changes.add({...(after[key]??before[key]!),
-        'deleted':!after.containsKey(key),'baseRevision':remote[key]?['revision']??0,
-        if((after[key]??before[key])?['kind']=='list:memoBoxes')'previousValue':before[key]?['value'],
-      });
-    }
-    return changes;
+    return NetworkRecoveryPlan(before,after,remote).automatic;
   }
 
-  static Future<void> publish(WorkspaceStorage local,WorkspaceSync engine)async{
+  static Future<bool> publish(WorkspaceStorage local,WorkspaceSync engine)async{
     await local.flush();
     await preserveRecovery(local,engine.storage);
     final result=await engine.request('read',{'since':0});
     final remote=<String,Map<String,dynamic>>{};
     for(final row in result['changes'] as List){final item=Map<String,dynamic>.from(row);item['value']=item['payload']==null?null:jsonDecode(item['payload']);remote[itemKey(item['kind'],item['id'])]=item;}
-    final changes=delta(local,remote),raw=local.read()!;
-    await engine.uploadMedia(raw,sourceOwner:local.owner);
-    if(changes.isNotEmpty)await engine.request('save',{'since':result['revision'],'changes':changes,'offlineReconcile':true});
+    final baselineRaw = local.preferences.getString(baseline(local));
+    if (baselineRaw == null) throw StateError('오프라인 비교 기준이 없습니다.');
+    final raw = local.read()!;
+    final plan = NetworkRecoveryPlan(splitWorkspace(baselineRaw), splitWorkspace(raw), remote);
+    final changes = plan.automatic;
+    if (changes.isNotEmpty) {
+      await engine.uploadMedia(joinWorkspace({for (final c in changes)
+        if (c['deleted'] != true) itemKey(c['kind'],c['id']): c}), sourceOwner: local.owner);
+      await engine.request('save',{'since':result['revision'],'changes':changes,'offlineReconcile':true});
+    }
     await engine.discardLocalAndPull();
+    if (plan.conflicts.isNotEmpty) return false;
     await local.preferences.setString(baseline(local),raw);
+    return true;
   }
 }

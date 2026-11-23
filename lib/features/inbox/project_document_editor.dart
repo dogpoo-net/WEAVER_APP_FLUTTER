@@ -1,4 +1,3 @@
-import 'workspace_search.dart';
 import 'package:flutter/gestures.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -181,12 +180,14 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   final _bodyFocus = FocusNode();
   final _tags = <String>{};
   final _filters = ThoughtFilterSelection();
+  bool _confirmingExit = false;
   bool _dirty = false, _boxPanelOpen = false, _thoughtPanelOpen = true, _keyboardVisible = false;
   final _thoughtScroll = ScrollController(), _documentScroll = ScrollController();
   bool get _wide => MediaQuery.sizeOf(context).width >= 800;
   @override
   void initState() {
     super.initState();
+    leaveDocumentEditor = _confirmExit;
     widget.storage?.editorResources.add(widget.project?.id??'new-document');
     _body = LabelTextController( widget.project?.document ?? widget.project?.paragraphs.map((p) =>
       p.role == ParagraphRole.title ? '======${p.text}======' : p.role == ParagraphRole.subtitle ? '=====${p.text}=====' : p.text).join('\n\n') ?? '', widget.project?.documentLinks ?? const []);
@@ -237,7 +238,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   }
   void _refresh() { if (mounted) setState(() {}); }
   @override
-  void dispose() { widget.storage?.editorResources.remove(widget.project?.id??'new-document');elements.removeListener(_refresh); _body.dispose(); _syntaxTooltip.hide(); _hoveredReference.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
+  void dispose() { if (leaveDocumentEditor == _confirmExit) leaveDocumentEditor = null; widget.storage?.editorResources.remove(widget.project?.id??'new-document');elements.removeListener(_refresh); _body.dispose(); _syntaxTooltip.hide(); _hoveredReference.dispose(); _bodyFocus.dispose(); _search.dispose(); _thoughtScroll.dispose(); _filters.dispose(); _documentScroll.dispose(); super.dispose(); }
   Future<void> _insertLabel(String word) async {
     if (_rich) _setRich(false);
     await insertAssistedLink(context, _body, word);
@@ -470,23 +471,6 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         onInsert: _insertAiResult,
       );
 
-  Future<void> _insertThoughtFromSearch() async {
-    final query = TextEditingController();
-    final caret = _rich ? _richAiCaret : _body.selection.extentOffset;
-    final route = MaterialPageRoute<ElementRecord>(builder: (context) => WorkspaceSearch(
-      notes: const [],
-      selector: const SizedBox.shrink(),
-      controller: query,
-      onThought: (record) => Navigator.pop(context, record),
-    ));
-    final thought = await Navigator.of(context).push(route);
-    unawaited(route.completed.whenComplete(query.dispose));
-    if (!mounted || !_canEdit || _saving || thought == null) return;
-    final offset = (caret == null || caret < 0 ? _body.text.length : caret)
-        .clamp(0, _body.text.length);
-    _insertVisualBlock(offset, thought.text);
-  }
-
   void _openAi() {
     final request = widget.storage?.documentAiRequest;
     if (request == null || !_canEdit || _saving) return;
@@ -684,17 +668,37 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   }
   @override
   Widget build(BuildContext context) => SaveShortcuts(onSave:_save,child:_build(context));
-  Widget _build(BuildContext context) => PopScope(canPop: !_saving && !_dirty, onPopInvokedWithResult: (didPop, result) async {
-    if(didPop || _saving)return;
-    try{await _storeDraft();if(mounted){setState(()=>_dirty=false);WidgetsBinding.instance.addPostFrameCallback((_){if(context.mounted)Navigator.pop(context);});}}
-    catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('초안을 보관하지 못했습니다. $e')));}
+  Future<bool> _confirmExit() async {
+    if (ModalRoute.of(context)?.isCurrent != true) return true;
+    if (_saving || _confirmingExit) return false;
+    _confirmingExit = true;
+    try {
+      final leave = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          content: Text(_dirty ? '저장하지 않은 자료가 있습니다. 정말 나갈까요?' : '문서 작성을 마치고 나갈까요?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('취소')),
+            TextButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('나가기')),
+          ],
+        ),
+      );
+      if (leave != true || !mounted) return false;
+      await widget.storage?.writeDocumentDraft(_draftId, null);
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return false;
+      _dirty = false;
+      Navigator.pop(context);
+      return true;
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('초안을 삭제하지 못했습니다. $e')));
+      return false;
+    } finally {
+      _confirmingExit = false;
+    }
+  }
+  Widget _build(BuildContext context) => PopScope(canPop: false, onPopInvokedWithResult: (didPop, result) {
+    if (!didPop) unawaited(_confirmExit());
   }, child: Scaffold(appBar: AppBar(centerTitle: false, toolbarHeight: _wide ? null : 52, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () { _highlightReference(null); _syntaxTooltip.hide(); setState(() => _preview = !_preview); }), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _canEdit && !_saving ? _save : null),
-    if (_canEdit && !_preview)
-      IconButton(
-        tooltip: '생각 찾아 삽입',
-        icon: const Icon(Icons.post_add_outlined),
-        onPressed: _saving ? null : _insertThoughtFromSearch,
-      ),
     if (widget.storage?.documentAiRequest != null && _canEdit)
       IconButton(tooltip: 'AI 문장 생성', icon: const Icon(Icons.auto_awesome_outlined), onPressed: _saving ? null : _openAi),
     IconButton(tooltip: '작성 문법 안내', icon: const Icon(Icons.info_outline), onPressed: _showHelp),

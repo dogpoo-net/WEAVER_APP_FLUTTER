@@ -115,7 +115,7 @@ class LoginPage extends StatelessWidget {
                       onPressed: auth.signingInWithBrowser
                           ? null
                           : auth.useGuest,
-                      child: const Text('이용하기'),
+                      child: const Text('비회원으로 이용하기'),
                     ),
                     if (auth.signingInWithBrowser)
                       TextButton(

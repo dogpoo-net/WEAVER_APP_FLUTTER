@@ -30,7 +30,8 @@ class WritingProject {
 }
 
 class ProjectPage extends StatefulWidget {
-  const ProjectPage({super.key, required this.project, this.onChanged, this.onSave, this.onHistory, this.onLease, this.storage, this.onReload, this.onOpenRefresh, this.projects = const []});
+  const ProjectPage({super.key, required this.project, this.onChanged, this.onSave, this.onHistory, this.onLease, this.storage, this.onReload, this.onOpenRefresh, this.openEditor = false, this.projects = const []});
+  final bool openEditor;
   final Future<Map<String,dynamic>> Function(String,String,bool)? onLease;
   final WorkspaceStorage? storage;
   final Future<void> Function()? onReload, onOpenRefresh;
@@ -81,6 +82,10 @@ class _ProjectPageState extends State<ProjectPage>{
  void initState() {
    super.initState();
    widget.storage?.documentDraftChanges.addListener(_changed);
+   if (widget.openEditor) {
+     afterWorkspaceRouteEntrance(context, _editDocument);
+     return;
+   }
    final refresh = widget.onOpenRefresh;
    if (refresh != null) {
      afterWorkspaceRouteEntrance(context, () async {

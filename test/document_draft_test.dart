@@ -1,3 +1,4 @@
+import 'package:weaver/features/inbox/element_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,6 +25,30 @@ void main(){
   await tester.tap(find.byTooltip('문서 수정'));await tester.pumpAndSettle();expect(tester.widget<TextField>(find.byKey(const ValueKey('project-document'))).controller!.text,'local draft');
   await tester.tap(find.byTooltip('저장'));await tester.pumpAndSettle();expect(storage.documentDraft('p'),isNull);expect(find.text('아직 저장되지 않았습니다.'),findsNothing);
   await tester.pumpWidget(const SizedBox());
+ });
+ testWidgets('back asks before leaving unsaved work and discards the draft', (tester) async {
+   final storage = WorkspaceStorage(await SharedPreferences.getInstance(), owner: 'owner');
+   final project = WritingProject([], [], name: 'doc', id: 'p')..document = 'saved';
+   addTearDown(() => elements.sources.remove(project));
+   await tester.pumpWidget(MaterialApp(home: ProjectPage(project: project, storage: storage)));
+   await tester.tap(find.byTooltip('문서 수정'));
+   await tester.pumpAndSettle();
+   await tester.enterText(find.byKey(const ValueKey('project-document')), 'draft');
+   await tester.pumpAndSettle();
+   await tester.pageBack();
+   await tester.pumpAndSettle();
+   expect(tester.widget<AlertDialog>(find.byType(AlertDialog)).title, isNull);
+   expect(find.text('저장하지 않은 자료가 있습니다. 정말 나갈까요?'), findsOneWidget);
+   await tester.tap(find.text('취소'));
+   await tester.pumpAndSettle();
+   expect(find.byType(ProjectDocumentEditor), findsOneWidget);
+   await tester.pageBack();
+   await tester.pumpAndSettle();
+   await tester.tap(find.text('나가기'));
+   await tester.pumpAndSettle();
+   expect(find.byType(ProjectDocumentEditor), findsNothing);
+   expect(project.document, 'saved');
+   expect(storage.documentDraft('p'), isNull);
  });
  testWidgets('failed server save retains unsaved flag',(tester)async{
   final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'owner');final project=WritingProject([],[],name:'doc',id:'p')..document='saved';
