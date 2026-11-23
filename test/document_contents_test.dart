@@ -22,12 +22,12 @@ void main() {
       ),
     );
     expect(find.text('목차'), findsOneWidget);
-    final tocEntry = find.widgetWithText(TextButton, '2 마지막');
+    final tocEntry = find.widgetWithText(TextButton, '2. 마지막');
     expect(tocEntry.hitTestable(), findsOneWidget);
     await tester.tap(tocEntry);
     await tester.pumpAndSettle();
     expect(scroll.offset, greaterThan(500));
-    final heading = find.text('2 마지막', findRichText: true).last;
+    final heading = find.text('2. 마지막', findRichText: true).last;
     expect(tester.getTopLeft(heading).dy, closeTo(0, 1));
   });
 }

@@ -1186,6 +1186,14 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       _composer(maxHeight),
+      Align(
+        alignment: Alignment.centerRight,
+        child: TextButton.icon(
+          onPressed: () => _allThoughts(ensureUnclassifiedBox(), ThoughtView.page),
+          icon: const Icon(Icons.inventory_2_outlined, size: 18),
+          label: const Text('미분류 정리하기'),
+        ),
+      ),
       if (!mobile) const SizedBox(height: 4),
       _noticeBoard(mobile: mobile),
     ],
@@ -1417,29 +1425,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Wrap(
-                          spacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.end,
-                          children: [
-                            Text(
-                              '기록함',
-                              style: Theme.of(context).textTheme.headlineSmall,
-                            ),
-                            TextButton.icon(
-                              style: TextButton.styleFrom(
-                                minimumSize: Size.zero,
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              onPressed: () => _allThoughts(ensureUnclassifiedBox(), ThoughtView.page),
-                              icon: const Icon(
-                                Icons.inventory_2_outlined,
-                                size: 18,
-                              ),
-                              label: const Text('미분류 정리하기'),
-                            ),
-                          ],
-                        ),
+                        Text('기록함', style: Theme.of(context).textTheme.headlineSmall),
                         const SizedBox(height: 4),
                         Wrap(
                           spacing: 8,

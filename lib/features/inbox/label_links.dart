@@ -190,6 +190,15 @@ class LabelTextController extends BoundTextController {
   }
   @override
   set value(TextEditingValue next) {
+    final range = next.composing;
+    // Korean IMEs can report the active syllable as selected or put the
+    // caret at its leading edge while continuing to compose it.
+    if (editingDocument && next.isComposingRangeValid && !range.isCollapsed &&
+        next.selection.start == range.start &&
+        (next.selection.isCollapsed || next.selection.end == range.end) &&
+        RegExp(r'^[ㄱ-ㅎㅏ-ㅣ가-힣ᄀ-ᇿ]+$').hasMatch(range.textInside(next.text))) {
+      next = next.copyWith(selection: TextSelection.collapsed(offset: range.end));
+    }
     super.value = next;
     if (!_parsing && (!value.composing.isValid || value.composing.isCollapsed)) completeLinks();
   }
@@ -298,7 +307,12 @@ class LabelTextController extends BoundTextController {
       if (withComposing && composing.isValid && composing.start >= start &&
           composing.end <= end && !composing.isCollapsed) {
         append(start, composing.start);
-        append(composing.start, composing.end, textStyle: const TextStyle(decoration: TextDecoration.underline));
+        final active = composing.textInside(text);
+        for (final run in RegExp(r'\s+|\S+').allMatches(active)) {
+          final underline = !editingDocument || run.group(0)!.trim().isNotEmpty;
+          append(composing.start + run.start, composing.start + run.end,
+            textStyle: underline ? const TextStyle(decoration: TextDecoration.underline) : null);
+        }
         append(composing.end, end);
       } else {
         append(start, end);

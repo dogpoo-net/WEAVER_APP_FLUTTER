@@ -51,7 +51,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
   late final userId = account.startsWith('email:')
       ? account.substring(6)
       : account;
-  String? selected, primaryWorkspace;
+  String? selected, primaryWorkspace, defaultWorkspace;
   String role = 'owner';
   List<dynamic> catalog = [];
   int invitations = 0;
@@ -139,7 +139,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
         if (usePickerCatalog) {
           list = {
             'workspaces': catalog,
-            'defaultWorkspaceId': primaryWorkspace,
+            'defaultWorkspaceId': defaultWorkspace, 'primaryWorkspaceId': primaryWorkspace,
             'isAdmin': isAdmin,
             'invitations': pendingInvites,
           };
@@ -157,7 +157,8 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
 
         if (!valid()) return;
         catalog = list['workspaces'] as List;
-        primaryWorkspace = list['defaultWorkspaceId'] as String?;
+        defaultWorkspace = list['defaultWorkspaceId'] as String?;
+        primaryWorkspace = list['primaryWorkspaceId'] as String? ?? defaultWorkspace;
         isAdmin=list['isAdmin']==true;pendingInvites=list['invitations'] as List;
         if(!catalog.any((row)=>row['sharingSuspended']!=true)){
           sync?.removeListener(refresh);sync?.dispose();sync=null;storage?.suspended=true;MediaStorage.activeOwner=null;
@@ -479,7 +480,8 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
   Future<void> chooseWorkspace()async{
     try{final result=await widget.auth.emailApi.workspace('catalog',{});if(!current)return;
       catalog=result['workspaces'] as List;
-      primaryWorkspace=result['defaultWorkspaceId'] as String?;
+      defaultWorkspace=result['defaultWorkspaceId'] as String?;
+      primaryWorkspace=result['primaryWorkspaceId'] as String? ?? defaultWorkspace;
       isAdmin=result['isAdmin']==true;
       pendingInvites=result['invitations'] as List;
       invitations=pendingInvites.length;
@@ -487,7 +489,7 @@ class _OwnedWorkspaceGateState extends State<OwnedWorkspaceGate> {
     }catch(_){if(!mounted)return;ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('워크스페이스 목록을 불러오지 못했습니다.')));return;}
     if(!mounted)return;
     final id=await showDialog<String>(context:context,builder:(context)=>WorkspacePicker(
-      workspaces:catalog,selected:selected,
+      workspaces:catalog,selected:selected,defaultWorkspaceId:defaultWorkspace,
       onManageMembers:(row)async{
         if(!current)return;
         final workspaceId=row['workspaceId'] as String;

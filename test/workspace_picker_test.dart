@@ -9,7 +9,7 @@ void main(){
  expect(find.text('소유한 워크스페이스'),findsOneWidget);expect(find.text('참여 중인 워크스페이스'),findsOneWidget);
  expect(find.byType(Divider),findsOneWidget);
  await tester.tap(find.byTooltip('워크스페이스 관리').first);await tester.pumpAndSettle();
- expect(find.text('이름변경'),findsOneWidget);expect(find.text('삭제'),findsOneWidget);expect(find.text('나가기'),findsNothing);
+ expect(find.text('이름변경'),findsOneWidget);expect(find.text('기본 워크스페이스로 설정'),findsOneWidget);expect(find.text('삭제'),findsNothing);expect(find.text('나가기'),findsNothing);
  await tester.tapAt(const Offset(5,5));await tester.pumpAndSettle();
  await tester.tap(find.byTooltip('워크스페이스 관리').last);await tester.pumpAndSettle();
  expect(find.text('나가기'),findsOneWidget);expect(find.text('삭제'),findsNothing);

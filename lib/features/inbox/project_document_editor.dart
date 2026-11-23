@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'dart:async';
+import 'dart:ui' show FontFeature;
 import 'dart:convert';
 import '../sync/document_merge.dart';
 import 'document_merge_dialog.dart';
@@ -370,8 +371,10 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   }
 
   bool _saving=false;
+  bool get _canSave => _canEdit && _dirty && !_saving;
+
   Future<void> _save() async {
-    if(_saving)return;
+    if (!_canSave) return;
     final issue = _body.syntaxDiagnostics.firstOrNull;
     if (issue != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(issue.message)));
@@ -688,16 +691,23 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
       ]))));
   }
   @override
-  Widget build(BuildContext context) => SaveShortcuts(onSave:_save,child:_build(context));
+  Widget build(BuildContext context) => SaveShortcuts(onSave: _canSave ? _save : null,child:_build(context));
   Future<bool> _confirmExit() async {
     if (ModalRoute.of(context)?.isCurrent != true) return true;
     if (_saving || _confirmingExit) return false;
+    if (!_dirty) {
+      Navigator.pop(context);
+      return true;
+    }
     _confirmingExit = true;
     try {
       final leave = await showDialog<bool>(
         context: context,
         builder: (dialog) => AlertDialog(
-          content: Text(_dirty ? '저장하지 않은 자료가 있습니다. 정말 나갈까요?' : '문서 작성을 마치고 나갈까요?'),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          content: const Text('저장하지 않은 자료가 있습니다. 정말 나갈까요?',
+            textAlign: TextAlign.center, style: TextStyle(fontSize: 18)),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('취소')),
             TextButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('나가기')),
@@ -719,7 +729,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   }
   Widget _build(BuildContext context) => PopScope(canPop: false, onPopInvokedWithResult: (didPop, result) {
     if (!didPop) unawaited(_confirmExit());
-  }, child: Scaffold(appBar: AppBar(centerTitle: false, toolbarHeight: _wide ? null : 52, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () { _highlightReference(null); _syntaxTooltip.hide(); _togglePreview(); }), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _canEdit && !_saving ? _save : null),
+  }, child: Scaffold(appBar: AppBar(centerTitle: false, toolbarHeight: _wide ? null : 52, titleSpacing: 0, leadingWidth: 44, title: const WorkspaceTitle('문서 작성'), actions: [IconButtonTheme(data: IconButtonThemeData(style: IconButton.styleFrom(minimumSize: const Size(36, 40), maximumSize: const Size(36, 40), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap)), child: Row(mainAxisSize: MainAxisSize.min, children: [const KeyboardDismissAction(), const DesktopMenuAction(), if(widget.onReload!=null)IconButton(tooltip:'서버 자료 갱신',onPressed:_reload,icon:const Icon(Icons.refresh)), IconButton(tooltip: _preview ? '편집' : '미리보기', icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined), onPressed: () { _highlightReference(null); _syntaxTooltip.hide(); _togglePreview(); }), IconButton(tooltip: '저장', icon: const Icon(Icons.save_outlined), onPressed: _canSave ? _save : null),
     if (!_preview && widget.storage?.documentAiRequest != null && _canEdit)
       IconButton(tooltip: 'AI 문장 생성', icon: const Icon(Icons.auto_awesome_outlined), onPressed: _saving ? null : _openAi),
     IconButton(tooltip: '작성 문법 안내', icon: const Icon(Icons.info_outline), onPressed: _showHelp),
@@ -744,7 +754,7 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         : DocumentLineNumbers(controller: _body, scroll: _documentScroll, child: CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true, documentSyntax: !_saving,
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
-          showWhenEmpty: false, enterSelectsVisible: true, showShortcutHint: true,
+          showWhenEmpty: false, explicitSelectionOnly: true, showShortcutHint: true,
           child: Stack(fit:StackFit.expand,children:[Listener(
           onPointerDown: (event) {
             _syntaxTouch = event.kind == PointerDeviceKind.touch ? event.position : null;
@@ -752,6 +762,13 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
           },
           child: CallbackShortcuts(bindings: {for (final entry in documentLineShortcuts.entries) entry.key: () => _editLines(entry.value, _body.selection)}, child: TextField(key: const ValueKey('project-document'), readOnly: _saving, controller: _body, focusNode: _bodyFocus, scrollController: _documentScroll, expands: true, minLines: null, maxLines: null,
           onTapOutside: _wide ? null : (_) {},
+          smartDashesType: SmartDashesType.disabled,
+          autocorrect: false,
+          enableSuggestions: false,
+          style: const TextStyle(fontFeatures: [
+            FontFeature.disable('liga'),
+            FontFeature.disable('calt'),
+          ]),
           inputFormatters: const [DocumentListInput()],
           onTap: _tapSource, textAlignVertical: TextAlignVertical.top, keyboardType: TextInputType.multiline,
           decoration: InputDecoration(contentPadding:EdgeInsets.fromLTRB(12,16,12,_dirty?36:16),fillColor: Theme.of(context).colorScheme.surfaceContainerHighest, hoverColor: Colors.transparent, focusColor: Colors.transparent, hintText: '본문을 작성하세요. 라벨 링크: [[표시명|라벨]]', border: const OutlineInputBorder())))),

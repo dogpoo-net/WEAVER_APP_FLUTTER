@@ -1,5 +1,6 @@
 import 'package:weaver/features/inbox/project_document_editor.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/element_store.dart';
 import 'package:weaver/features/inbox/project_page.dart';
@@ -14,12 +15,40 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: ProjectDocumentEditor(project: source, projects: [source, target])));
     await tester.pumpAndSettle();
     final field = find.byKey(const ValueKey('project-document'));
+    await tester.tap(field);
+    for (final selection in [
+      const TextSelection.collapsed(offset: 0),
+      const TextSelection(baseOffset: 0, extentOffset: 1),
+    ]) {
+      tester.testTextInput.updateEditingValue(TextEditingValue(
+        text: '참', selection: selection, composing: const TextRange(start: 0, end: 1),
+      ));
+      await tester.pumpAndSettle();
+      final value = tester.widget<TextField>(field).controller!.value;
+      expect(value.selection, const TextSelection.collapsed(offset: 1));
+      expect(value.composing, const TextRange(start: 0, end: 1));
+      expect(find.byKey(ValueKey('suggestion-project:${target.id}')), findsOneWidget);
+    }
+    for (final key in [LogicalKeyboardKey.enter, LogicalKeyboardKey.space]) {
+      await tester.enterText(field, '참고 문서');
+      await tester.pumpAndSettle();
+      final candidate = find.byKey(ValueKey('suggestion-project:${target.id}'));
+      expect(tester.widget<WordBadge>(candidate).selected, isFalse);
+      await tester.sendKeyEvent(key);
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect((tester.widget<TextField>(field).controller! as LabelTextController).bindings, isEmpty);
+    }
     await tester.enterText(field, '==');
     await tester.pumpAndSettle();
     final heading = find.byWidgetPredicate(
       (widget) => widget is WordBadge && widget.displayText == '제목 3: ====%%====',
     );
     expect(heading, findsOneWidget);
+    expect(tester.widget<WordBadge>(heading).selected, isFalse);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).controller!.text.trimRight(), '==');
     await tester.enterText(field, '본문 -');
     await tester.pumpAndSettle();
     await tester.tap(find.byWidgetPredicate(

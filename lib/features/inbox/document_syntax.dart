@@ -65,7 +65,7 @@ class DocumentHeadingNumbers {
     for (var i = depth + 1; i < _counters.length; i++) {
       _counters[i] = 0;
     }
-    return '${_counters.take(depth + 1).join('.')} ';
+    return '${_counters.take(depth + 1).join('.')}. ';
   }
 }
 

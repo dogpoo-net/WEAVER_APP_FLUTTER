@@ -3,10 +3,10 @@ import 'workspace_deletion_dialog.dart';
 import 'sharing_pages.dart' show roleLabel;
 
 class WorkspacePicker extends StatefulWidget {
-  const WorkspacePicker({super.key,required this.workspaces,required this.selected,required this.request,required this.onCatalog,this.onManageMembers});
+  const WorkspacePicker({super.key,required this.workspaces,required this.selected,required this.request,required this.onCatalog,this.onManageMembers,this.defaultWorkspaceId});
   final Future<void> Function(Map)? onManageMembers;
   final List<dynamic> workspaces;
-  final String? selected;
+  final String? selected, defaultWorkspaceId;
   final Future<Map<String,dynamic>> Function(String,Map<String,Object?>) request;
   final void Function(List<dynamic>) onCatalog;
   @override
@@ -14,6 +14,7 @@ class WorkspacePicker extends StatefulWidget {
 }
 class _WorkspacePickerState extends State<WorkspacePicker>{
   late List<dynamic> rows=List.of(widget.workspaces);
+  late String? defaultId=widget.defaultWorkspaceId;
   bool busy=false;
   String? error;
   Future<String?> nameDialog({String? initial})async{
@@ -38,7 +39,7 @@ class _WorkspacePickerState extends State<WorkspacePicker>{
     }else if(action=='create-workspace'||action=='rename-workspace'){
       name=await nameDialog(initial:row==null?null:(row['name']??'내 워크스페이스'));
       if(name==null||!mounted)return;
-    }else{
+    }else if(action=='leave-workspace'){
       final deleting=action=='delete-workspace';
       final yes=await showDialog<bool>(context:context,builder:(context)=>AlertDialog(
         title:Text(deleting?'워크스페이스를 삭제할까요?':'워크스페이스에서 나갈까요?'),
@@ -53,7 +54,7 @@ class _WorkspacePickerState extends State<WorkspacePicker>{
       final result=action=='delete-workspace'?<String,dynamic>{}:await widget.request(action,{if(row!=null)'workspaceId':row['workspaceId'],'name':?name});
       final catalog=await widget.request('catalog',{});
       if(!mounted)return;
-      setState(()=>rows=catalog['workspaces'] as List);
+      setState((){rows=catalog['workspaces'] as List;defaultId=catalog['defaultWorkspaceId'] as String?;});
       widget.onCatalog(rows);
       if(action=='create-workspace'){
         Navigator.pop(context,result['workspaceId']);
@@ -74,12 +75,12 @@ class _WorkspacePickerState extends State<WorkspacePicker>{
         TextSpan(text:'  ${row['ownerName']}',style:Theme.of(context).textTheme.bodySmall?.copyWith(
           color:Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha:.8))),
     ])),subtitle:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
-      Text(roleLabel(row['role'])),
+      Text(row['role']=='owner' && row['workspaceId']==defaultId ? '소유자 · 기본 워크스페이스' : roleLabel(row['role'])),
       if(row['sharingSuspended']==true)Text(switch(row['subscriptionEndReason']){'cancelled'=>'구독 취소','expired'=>'구독 기한 만료',_=>'소유자 무료 플랜'},style:TextStyle(color:Theme.of(context).colorScheme.error)),
     ]),
     leading:row['workspaceId']==widget.selected?const Icon(Icons.check, size:18):const SizedBox(width:18),
     onTap:busy||row['sharingSuspended']==true?null:()=>Navigator.pop(context,row['workspaceId']),
-    trailing:row['role']=='owner' && row['plan']=='free'?null:PopupMenuButton<String>(tooltip:'워크스페이스 관리',enabled:!busy,
+    trailing:row['role']=='owner' && row['plan']=='free' && row['workspaceId']==defaultId?null:PopupMenuButton<String>(tooltip:'워크스페이스 관리',enabled:!busy,
       icon: const Icon(Icons.more_vert, size: 20),
       padding: EdgeInsets.zero,
       style: IconButton.styleFrom(
@@ -92,8 +93,9 @@ class _WorkspacePickerState extends State<WorkspacePicker>{
       },itemBuilder:(_)=>[
         if(widget.onManageMembers!=null && !(row['role']=='owner' && (row['plan']=='free' || row['offline']==true)))const PopupMenuItem(value:'members',child:Text('멤버 관리')),
         if(row['role']=='owner')...[
-        PopupMenuItem(value:'rename-workspace',child:Text('이름변경')),
-        if(rows.where((r)=>r['role']=='owner').length>=2) const PopupMenuItem(value:'delete-workspace',child:Text('삭제')),
+        if(row['workspaceId']!=defaultId) const PopupMenuItem(value:'set-default-workspace',child:Text('기본 워크스페이스로 설정')),
+        if(row['plan']!='free') PopupMenuItem(value:'rename-workspace',child:Text('이름변경')),
+        if(row['plan']!='free' && rows.where((r)=>r['role']=='owner').length>=2) const PopupMenuItem(value:'delete-workspace',child:Text('삭제')),
       ]else const PopupMenuItem(value:'leave-workspace',child:Text('나가기')),
       ]),
   );
@@ -115,7 +117,7 @@ class _WorkspacePickerState extends State<WorkspacePicker>{
       actions:[TextButton(onPressed:busy?null:()=>showDialog<void>(context:context,builder:(_)=>DeletedWorkspacesDialog(
         request:widget.request,onRestored:()async{
           final catalog=await widget.request('catalog',{});if(!mounted)return;
-          setState(()=>rows=catalog['workspaces'] as List);widget.onCatalog(rows);
+          setState((){rows=catalog['workspaces'] as List;defaultId=catalog['defaultWorkspaceId'] as String?;});widget.onCatalog(rows);
         })),child:const Text('삭제된 워크스페이스')),
         TextButton(onPressed:busy?null:()=>Navigator.pop(context),child:const Text('닫기'))],
     ));
