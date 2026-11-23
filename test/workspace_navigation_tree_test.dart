@@ -50,10 +50,18 @@ void main() {
       expect(find.text('인터뷰'), findsNothing);
 
       await tester.tap(find.text('프로젝트'));
+      expect(selections.last, WorkspaceMenu.boxChoice(0));
+      expect(find.text('인터뷰'), findsNothing);
+      await tester.tap(find.byTooltip('프로젝트 하위 상자 펼치기'));
       await tester.pumpAndSettle();
       expect(find.text('인터뷰'), findsOneWidget);
       expect(find.text('후속 인터뷰'), findsNothing);
-      await tester.tap(find.text('인터뷰'));
+      await tester.tap(find.byTooltip('프로젝트 하위 상자 접기'));
+      await tester.pumpAndSettle();
+      expect(find.text('인터뷰'), findsNothing);
+      await tester.tap(find.byTooltip('프로젝트 하위 상자 펼치기'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('인터뷰 하위 상자 펼치기'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('후속 인터뷰'));
       expect(selections.last, WorkspaceMenu.boxChoice(2));

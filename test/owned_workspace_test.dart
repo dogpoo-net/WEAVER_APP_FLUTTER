@@ -41,6 +41,37 @@ void main(){
   memoCommentCounts.removeListener(changed);sync.dispose();api.dispose();
  });
 
+ test('browse refresh preserves pending gallery deletions and remote additions', () async {
+   final storage = WorkspaceStorage(await SharedPreferences.getInstance(), owner: 'gallery');
+   final api = DeltaApi();
+   final sync = WorkspaceSync(storage, api, isCurrent: () => true);
+   addTearDown(() { sync.dispose(); api.dispose(); });
+   const photo = {'id': 'removed', 'name': 'photo'};
+   const other = {'id': 'remote', 'name': 'other'};
+   final thought = {'id': 'thought', 'text': 'memo', 'createdAt': '2026-01-01', 'photos': [photo]};
+   final standalone = {...photo, 'aspectRatio': 1, 'createdAt': '2026-01-01'};
+   await api.workspace('save', {'changes': [
+     {'kind': 'list:elements', 'id': 'thought', 'value': thought, 'deleted': false},
+     {'kind': 'list:workspacePhotos', 'id': 'removed', 'value': standalone, 'deleted': false},
+   ]});
+   await sync.initialize();
+   final local = jsonDecode(storage.read()!) as Map;
+   local['workspacePhotos'] = [];
+   local['elements'].single['photos'] = [];
+   await storage.write(jsonEncode(local));
+   await api.workspace('save', {'changes': [
+     {'kind': 'list:elements', 'id': 'thought', 'deleted': false,
+      'value': {...thought, 'photos': [photo, other]}},
+   ]});
+   await sync.refreshFromServer();
+   final refreshed = jsonDecode(storage.read()!);
+   expect(refreshed['workspacePhotos'] ?? [], isEmpty);
+   expect(refreshed['elements'].single['photos'], [other]);
+   await storage.preferences.setBool(storage.scoped('media-sent.remote'), true);
+   await storage.syncContent!();
+   expect(api.items[itemKey('list:workspacePhotos', 'removed')]!['deleted'], true);
+   expect(jsonDecode(api.items[itemKey('list:elements', 'thought')]!['payload'])['photos'], [other]);
+ });
  test('thought close save survives an older in-flight server read',()async{
   SharedPreferences.setMockInitialValues({});
   final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'account-a');

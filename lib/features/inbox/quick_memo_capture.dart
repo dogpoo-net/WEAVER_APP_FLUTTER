@@ -803,7 +803,7 @@ mixin _QuickMemoCapture<T extends StatefulWidget> on State<T> {
                   showWhenEmpty: false,
                   mobileViewportKey: _captureViewport,
                   tags: {..._captureTags, ..._draftTags}.toList()..sort(),
-                  enterSelectsVisible: true,
+                  explicitSelectionOnly: true,
                   onTag: (tag) =>
                       _acceptQuickAssist(() => _insertQuickTag(tag)),
                   onWord: (word) =>

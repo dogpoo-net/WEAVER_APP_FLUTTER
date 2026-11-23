@@ -1,3 +1,4 @@
+import 'dart:ui' show Size;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/canvas_geometry.dart';
 
@@ -18,6 +19,19 @@ void main() {
     stepCanvasLayers(layers, positions, {'photo'}, up: false, groups: {});
     expect(layers, ['a', 'photo', 'b', 'c']);
     expect(positions, before);
+  });
+
+  test('photo crosses a visible overlap in one step without moving either card', () {
+    final positions = {'photo': const Offset(100, 100), 'far': const Offset(700, 100),
+      'card': const Offset(100, 132)};
+    final original = Map.of(positions);
+    final layers = ['photo', 'far', 'card'];
+    final bounds = {for (final e in positions.entries) e.key: e.value & const Size(100, 100)};
+    for (final up in [true, false]) {
+      stepCanvasLayers(layers, positions, {'photo'}, up: up, groups: {}, bounds: bounds, photos: {'photo'});
+      expect(layers.indexOf('photo') > layers.indexOf('card'), up);
+      expect(positions, original);
+    }
   });
 
   test('stack slots only change when the two stack members swap layers', () {

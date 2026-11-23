@@ -53,6 +53,13 @@ class WorkspaceMenu extends StatefulWidget {
 }
 
 class _WorkspaceMenuState extends State<WorkspaceMenu> {
+  static final _boxButtonStyle = IconButton.styleFrom(
+    fixedSize: const Size(32, 34),
+    minimumSize: Size.zero,
+    padding: EdgeInsets.zero,
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  );
+
   late final _expanded = widget.viewState?.expandedFolders ?? <String>{};
 
   void _toggle(String key) => setState(() {
@@ -64,19 +71,26 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       final key = 'memo-box:${box.name}';
       final hasChildren = childMemoBoxes(box).isNotEmpty;
       final expanded = hasChildren && _expanded.contains(key);
+      final hasActions = widget.canMoveBoxes || widget.onRename != null || widget.onDeleteBox != null;
       final tile = ListTile(
         dense: true,
         minTileHeight: 34,
         contentPadding: EdgeInsetsDirectional.only(start: 24 + depth * 16, end: 8),
-        leading: Icon(hasChildren ? (expanded ? Icons.expand_less : Icons.chevron_right) : Icons.inventory_2_outlined, size: 17),
+        leading: const Icon(Icons.inventory_2_outlined, size: 17),
         title: Text(box.name, overflow: TextOverflow.ellipsis),
-        onTap: () {
-          if (hasChildren) _toggle(key);
-          else _select(WorkspaceMenu.boxChoice(memoBoxes.indexOf(box)));
-        },
-        trailing: widget.canMoveBoxes || widget.onRename != null || widget.onDeleteBox != null
-            ? _boxActions(box)
-            : hasChildren ? Icon(expanded ? Icons.expand_less : Icons.expand_more, size: 18) : null,
+        onTap: () => _select(WorkspaceMenu.boxChoice(memoBoxes.indexOf(box))),
+        trailing: hasChildren || hasActions
+            ? Row(mainAxisSize: MainAxisSize.min, children: [
+                if (hasChildren)
+                  IconButton(
+                    style: _boxButtonStyle,
+                    tooltip: '${box.name} 하위 상자 ${expanded ? '접기' : '펼치기'}',
+                    icon: Icon(expanded ? Icons.expand_less : Icons.expand_more, size: 16),
+                    onPressed: () => _toggle(key),
+                  ),
+                if (hasActions) _boxActions(box),
+              ])
+            : null,
       );
       if (widget.canMoveBoxes) {
         yield DragTarget<MemoBox>(
@@ -112,8 +126,10 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
   }
 
   Widget _boxActions(MemoBox box) => PopupMenuButton<String>(
+    style: _boxButtonStyle,
+    padding: EdgeInsets.zero,
     tooltip: '${box.name} 관리',
-    icon: const Icon(Icons.more_vert, size: 18),
+    icon: const Icon(Icons.more_vert, size: 16),
     onSelected: (action) => _manageBox(box, action),
     itemBuilder: (_) => [
       if (widget.canMoveBoxes)

@@ -13,6 +13,13 @@ Future<void> confirmLinkTitle(WidgetTester tester, {String title = '독서'}) as
   await tester.enterText(input, title);
   await tester.tap(find.text('확인')); await tester.pumpAndSettle();
 }
+Future<void> focusAssist(WidgetTester tester) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+  await tester.sendKeyEvent(LogicalKeyboardKey.space);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('modal Enter confirms title and next desktop Enter saves the memo', (tester) async {
     elements.clear(); elements.add('원본 메모');
@@ -21,6 +28,7 @@ void main() {
     await tester.pumpWidget(MyApp(requireLogin:false,storage:storage));
     final field=find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field,'원본');await tester.pumpAndSettle();
+    await focusAssist(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);await tester.pumpAndSettle();
     final title=find.byKey(const ValueKey('link-title-input'));expect(title,findsOneWidget);
     await tester.enterText(title,'내 링크');
@@ -108,6 +116,7 @@ void main() {
     await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
     final field = find.byKey(const ValueKey('quick-memo'));
     await tester.enterText(field, '독'); await tester.pumpAndSettle();
+    await focusAssist(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter); await tester.pumpAndSettle();
       await confirmLinkTitle(tester);
     expect(tester.widget<TextField>(field).controller!.text, '독서');
@@ -115,18 +124,25 @@ void main() {
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
   }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
-  testWidgets('native submit without a hardware key still accepts visible assist first', (tester) async {
-    elements.clear(); (elements.add('독서')..indexLabel = '독서');
-    SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
-    final storage = WorkspaceStorage(await SharedPreferences.getInstance());
-    await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
-    final field = find.byKey(const ValueKey('quick-memo'));
-    await tester.enterText(field, '독'); await tester.pumpAndSettle();
-    await tester.testTextInput.receiveAction(TextInputAction.done); await tester.pumpAndSettle();
-      await confirmLinkTitle(tester);
-    expect(tester.widget<TextField>(field).controller!.text, '독서');
-    expect(WorkspaceSnapshot.decode(storage.read()!).notes, isEmpty);
-  }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
+  for (final native in [false, true]) {
+    testWidgets('exact quick memo match saves once without linking (native=$native)', (tester) async {
+      elements.clear();
+      elements.add('독서')..indexLabel = '독서';
+      SharedPreferences.setMockInitialValues({WorkspaceStorage.key: WorkspaceSnapshot.encode([])});
+      final storage = WorkspaceStorage(await SharedPreferences.getInstance());
+      await tester.pumpWidget(MyApp(requireLogin: false, storage: storage));
+      final field = find.byKey(const ValueKey('quick-memo'));
+      await tester.enterText(field, '독서');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('assist-popup')), findsOneWidget);
+      if (!native) await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('link-title-input')), findsNothing);
+      expect(WorkspaceSnapshot.decode(storage.read()!).notes.single.content, '독서');
+      expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+    }, variant: TargetPlatformVariant({TargetPlatform.linux, TargetPlatform.windows, TargetPlatform.macOS}));
+  }
   testWidgets('mobile quick memo displays element and tag assist above the keyboard', (tester) async {
     tester.view.physicalSize = const Size(390, 844); tester.view.devicePixelRatio = 1;
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);

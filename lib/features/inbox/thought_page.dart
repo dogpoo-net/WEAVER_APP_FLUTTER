@@ -921,10 +921,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     return manual?.expandToInclude(natural) ?? natural;
   }
   bool _inside(Rect bounds, Offset point) => bounds.contains(point);
-  Iterable<MemoBox> get _regionBoxes => (_filterBox != null ?
-      [_filterBox!, ...childMemoBoxes(_filterBox)] : memoBoxes).where((box) =>
-        !box.isUnclassified && (_filters.isEmpty || _filters.boxes.contains(box) ||
-        parentMemoBox(box) == _filterBox || _records.any((r) => box.elementIds.contains(r.id))));
+  Iterable<MemoBox> get _regionBoxes => memoBoxes.where((box) =>
+      !box.isUnclassified && (_filters.isEmpty || _filters.includesBox(box) ||
+      (_filters.tags.isNotEmpty && _records.any((r) => box.elementIds.contains(r.id)))));
   Iterable<MemoBox> get _allRegionBoxes => memoBoxes.where((box) => !box.isUnclassified);
   Rect? _frozenBoxBounds(MemoBox box, {required bool hitTest}) =>
       hitTest || _liftedThought != null || _selectionLifted || _liftedBox != null
@@ -1149,10 +1148,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     try {
       await widget.storage?.writable();
       if (!mounted || !_canEdit) return;
-      final boxes = memoBoxes.where((box) => !box.isUnclassified && names.contains(box.name)).toList();
+      final boxes = choice == ContainerDeletion.withThoughts
+          ? memoBoxSubtrees(names)
+          : memoBoxes.where((box) => !box.isUnclassified && names.contains(box.name));
       final ids = boxes.expand((box) => box.elementIds).toSet();
       _removeBoxes(boxes.map((box) => box.name).toSet());
-      if (choice == ContainerDeletion.withThoughts) _trashThoughts(ids);
+      if (choice == ContainerDeletion.withThoughts) {
+        workspacePhotos.removeWhere((id, _) => ids.contains(id));
+        _trashThoughts(ids);
+      }
       await _persistContainerDelete();
     } finally {
       _deletingContainer = false;
@@ -1683,6 +1687,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final thoughtBounds = [
       for (final record in records) visiblePositions[record.id]! & _size(record.id),
     ];
+    void stepLayers(bool up) => _editCanvasLayout(() {
+      _frontThought = null;
+      stepCanvasLayers(_layout.layers, _positions, _selected, up: up,
+          groups: _layout.stackGroups, photos: workspacePhotos.keys.toSet(),
+          bounds: {for (var i = 0; i < records.length; i++) records[i].id: thoughtBounds[i]});
+    });
     final coveredThoughts = {
       for (final i in coveredCanvasItems(thoughtBounds)) records[i].id,
     };
@@ -1713,7 +1723,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     sceneHeight = regions.map((r) => r.bounds.bottom + 100).fold(sceneHeight, math.max);
     final folders = memoFolderRegions({for (final r in regions) r.box: r.bounds}, _layout.folderPositions, manualBounds: _layout.containerBounds);
     folders.addAll(_frozenFolders);
-    if (_filterBox != null) {
+    if (!_filters.isEmpty) {
       folders.removeWhere((name, _) => !regions.any((r) => r.box.folder != null && memoFolderContains(name, r.box.folder!)));
     }
     sceneWidth = folders.values.map((r) => r.right + 100).fold(sceneWidth, math.max);
@@ -1821,7 +1831,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
             nodeRects,
             {for (final r in records) r.id: {if (!_hideTags) ...r.tags.map((tag) => 'tag:$tag')}}, color.outlineVariant, {for (final tag in tags) 'tag:$tag': Color(hashtagColors[tag] ?? 0xFF90A4AE)})))),
-          if (records.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
+          if (records.isEmpty && regions.isEmpty && folders.isEmpty) Positioned(left: 1400, top: 1000, child: TextButton.icon(onPressed: _create,
             icon: const Icon(Icons.add), label: Text(_query.isNotEmpty ? '일치하는 생각 없음 · 새 생각 만들기' : '첫 생각 만들기'))),
           for (final record in records) Positioned(key: ValueKey('canvas-card-slot-${record.id}'), left: visiblePositions[record.id]!.dx - ThoughtInteraction.hitPadding, top: visiblePositions[record.id]!.dy - ThoughtInteraction.hitPadding,
             child: ThoughtInteraction(key: ValueKey('canvas-thought-${record.id}'), size: _size(record.id), aspectRatio: workspacePhotos[record.id]?.aspectRatio, desktop: MediaQuery.sizeOf(context).width >= 760,
@@ -2172,10 +2182,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           child: IntrinsicWidth(child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(mainAxisSize: MainAxisSize.min, children: [
               IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '레이어 위로', icon: const Icon(Icons.arrow_upward, size: 18), onPressed: () {
-                _editCanvasLayout(() { stepCanvasLayers(_layout.layers, _positions, _selected, up: true, groups: _layout.stackGroups); });
+                stepLayers(true);
               }),
               IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '레이어 아래로', icon: const Icon(Icons.arrow_downward, size: 18), onPressed: () {
-                _editCanvasLayout(() { stepCanvasLayers(_layout.layers, _positions, _selected, up: false, groups: _layout.stackGroups); });
+                stepLayers(false);
               }),
             ]),
             if (_selected.length > 1) TextButton.icon(

@@ -105,7 +105,7 @@ class _AttachmentCollectionState extends State<AttachmentCollection> with Retain
  }
  if (!widget.audio) {
    for (final photo in workspacePhotos.values) {
-     if (!widget.filters.isEmpty && !widget.filters.boxes.any((box) => box.elementIds.contains(photo.id))) continue;
+     if (!widget.filters.isEmpty && !widget.filters.includesId(photo.id)) continue;
      entries.add((record:null,id:photo.id,photo:photo.attachment,voice:null,created:photo.createdAt));
    }
  }
@@ -171,7 +171,7 @@ class _AttachmentCollectionState extends State<AttachmentCollection> with Retain
  return Scaffold(appBar:AppBar(centerTitle:false,titleSpacing:0,leadingWidth:44,title:const WorkspaceTitle('전체 보기'),actions:[
  if (!widget.audio && (widget.storage?.canvasWritable ?? true))
    IconButton(tooltip: '만들기', icon: const Icon(Icons.add), onPressed: () => createWorkspacePhoto(
-     context, widget.storage, box: widget.filters.singleBox, onChanged: () { widget.onChanged?.call(); refresh(); })),
+     context, widget.storage, uploadOnly: true, box: widget.filters.singleBox, onChanged: () { widget.onChanged?.call(); refresh(); })),
  PopupMenuButton<bool>(tooltip:'정렬',icon:const Icon(Icons.sort),onSelected:(value)=>setState(()=>details=value),itemBuilder:(_)=>[CheckedPopupMenuItem(value:false,checked:!details,child:const Text('격자보기')),CheckedPopupMenuItem(value:true,checked:details,child:const Text('자세히'))]),const DesktopMenuAction()]),body:DesktopMenuBody(child:Column(children:[widget.selector,Padding(padding:const EdgeInsets.symmetric(horizontal:12),child:IconButtonTheme(data:IconButtonThemeData(style:IconButton.styleFrom(minimumSize:const Size(36,36),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap)),child:Row(children:[Expanded(child:Text('${widget.audio?'음성':'사진'} ${entries.length}개',style:Theme.of(context).textTheme.bodyMedium)),if(!details)...[IconButton(tooltip:'확대',onPressed:shownColumns>1?()=>_setColumns(shownColumns-1):null,icon:const Icon(Icons.zoom_in)),Text('$shownColumns열'),IconButton(tooltip:'축소',onPressed:shownColumns<maxColumns?()=>_setColumns(shownColumns+1):null,icon:const Icon(Icons.zoom_out))]]))),Expanded(child:entries.isEmpty?Center(child:Text(widget.audio?'추가한 음성이 없습니다.':'추가한 사진이 없습니다.')):details?ListView.builder(padding:const EdgeInsets.fromLTRB(12,8,12,12),itemCount:entries.length,itemBuilder:(_,i)=>tile(i)):GridView.builder(padding:const EdgeInsets.fromLTRB(12,8,12,12),gridDelegate:SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:shownColumns,mainAxisSpacing:8,crossAxisSpacing:8),itemCount:entries.length,itemBuilder:(_,i)=>tile(i))),
  ThoughtFilters(tags:elements.records.values.where(canBrowseThought).expand((r)=>r.tags).toSet().toList()..sort(),selection:widget.filters,onFilter:widget.filters.toggle,onChanged:(){widget.onChanged?.call();refresh();}),
  ])));

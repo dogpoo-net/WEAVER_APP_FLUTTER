@@ -448,6 +448,30 @@ class WorkspaceSync extends ChangeNotifier {
       // A box move has two parts. Canvas leaves are queued separately from
       // the parent change, so a refresh must preserve the unsent parent too.
       if (!readOnly && !serverCanvas) {
+        // A browse refresh can start after local deletion but before its save.
+        // Keep the removal while accepting unrelated edits from other devices.
+        for (final entry in previousBase.entries) {
+          final prior = entry.value;
+          if (prior['deleted'] == true) continue;
+          if (prior['kind'] == 'list:workspacePhotos' && !local.containsKey(entry.key)) {
+            displayed.remove(entry.key);
+          }
+          if (prior['kind'] != 'list:elements') continue;
+          final before = prior['value']?['photos'] as List?;
+          final current = local[entry.key]?['value'];
+          final remote = displayed[entry.key];
+          if (before == null || current is! Map || remote?['value'] is! Map) continue;
+          final remaining = {for (final photo in current['photos'] as List? ?? []) photo['id']};
+          final removed = {for (final photo in before) if (!remaining.contains(photo['id'])) photo['id']};
+          final value = remote!['value'] as Map;
+          if (removed.isEmpty || value['photos'] is! List) continue;
+          displayed[entry.key] = {
+            ...remote,
+            'value': {...value, 'photos': [
+              for (final photo in value['photos']) if (!removed.contains(photo['id'])) photo,
+            ]},
+          };
+        }
         for (final entry in local.entries) {
           final item = entry.value;
           final prior = previousBase[entry.key]?['value'];

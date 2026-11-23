@@ -750,15 +750,19 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     if (!mounted) return;
     final box = memoBoxes.where((box) => !box.isUnclassified && box.name == name).firstOrNull;
     if (box == null) return;
-    final ids = box.elementIds.toSet();
+    final boxes = choice == ContainerDeletion.withThoughts ? memoBoxSubtrees({name}) : {box};
+    final ids = boxes.expand((box) => box.elementIds).toSet();
     setState(() {
-      removeMemoBoxesKeepingThoughts({name});
-      pageGraphLayout.blockLayout.containerBounds.remove('box:$name');
+      removeMemoBoxesKeepingThoughts(boxes.map((box) => box.name).toSet());
+      for (final removed in boxes) {
+        pageGraphLayout.blockLayout.containerBounds.remove('box:${removed.name}');
+      }
       if (choice == ContainerDeletion.withThoughts) {
+        workspacePhotos.removeWhere((id, _) => ids.contains(id));
         elements.removeAll(ids.map((id) => elements.byId(id)?.text).nonNulls.toList());
       }
     });
-    await _persist();
+    await _saveAndSync();
     if (_storageError != null) throw StateError(_storageError!);
     await storage?.syncFolders?.call();
   }
@@ -797,7 +801,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
   }
 
   Future<void> _deleteBoxes(Set<String> names) async {
-    final boxes = memoBoxes.where((b) => !b.isUnclassified && names.contains(b.name)).toList();
+    final boxes = memoBoxSubtrees(names);
     final ids = boxes.expand((b) => b.elementIds).toSet();
     final records = [...elements.records.values, ...elements.trash.values].where((r) => ids.contains(r.id)).toList();
     final texts = records.map((r) => r.text).toSet();
@@ -813,6 +817,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
       for (final text in texts) { if (![...elements.records.values, ...elements.trash.values].any((r) => r.text == text)) forgetWordColor(text); }
       _notes.removeWhere((n) => n.project == null && texts.contains(n.content));
       for (final n in _notes) { n.project?.words.removeWhere(texts.contains); }
+      workspacePhotos.removeWhere((id, _) => ids.contains(id));
       memoBoxes.removeWhere((b) => boxes.contains(b));
       for (final b in memoBoxes) { if (!b.isUnclassified) b.elementIds.removeAll(ids); }
       await _persist(); if (_storageError != null) throw StateError(_storageError!);

@@ -120,12 +120,14 @@ Future<void> createWorkspacePhoto(
   BuildContext context,
   WorkspaceStorage? storage, {
   MemoBox? box,
+  bool uploadOnly = false,
   required VoidCallback onChanged,
 }) async {
   final photo = await chooseWorkspacePhoto(
     context,
     storage,
     copyExisting: true,
+    uploadOnly: uploadOnly,
   );
   if (photo == null || !context.mounted) return;
   try {
@@ -141,8 +143,9 @@ Future<PhotoAttachment?> chooseWorkspacePhoto(
   BuildContext context,
   WorkspaceStorage? storage, {
   bool copyExisting = false,
+  bool uploadOnly = false,
 }) async {
-  final source = await showDialog<_PhotoSource>(
+  final source = uploadOnly ? _PhotoSource.upload : await showDialog<_PhotoSource>(
     context: context,
     builder: (context) => SimpleDialog(
       title: const Text('사진'),
@@ -296,10 +299,43 @@ Future<void> deleteWorkspacePhoto(
   String? thoughtId,
   required VoidCallback onChanged,
 }) async {
+  final usedIn = [
+    for (final entries in elements.sources.values)
+      for (final entry in entries)
+        if (entry.isProject && DocumentComments(entry.text).visibleText
+            .split('\n').any((line) => parseDocumentVisualBlock(line)?.photoId == id))
+          entry.label,
+  ];
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('삭제하시겠어요?'),
+      title: const Text('사진 삭제'),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              usedIn.isEmpty
+                  ? '이 사진을 삭제하시겠어요?'
+                  : '다음 항목에서 사용 중인 사진입니다. 정말 삭제하시겠어요?',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            if (usedIn.isNotEmpty) ...[
+              const Divider(),
+              Flexible(child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 240),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: usedIn.length,
+                  itemBuilder: (_, index) => ListTile(dense: true, title: Text(usedIn[index])),
+                ),
+              )),
+            ],
+          ],
+        ),
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
@@ -313,21 +349,6 @@ Future<void> deleteWorkspacePhoto(
     ),
   );
   if (confirmed != true || !context.mounted) return;
-  if (thoughtId == null &&
-      elements.sources.values
-          .expand((entries) => entries)
-          .any(
-            (entry) =>
-                entry.isProject &&
-                DocumentComments(entry.text).visibleText
-                    .split('\n')
-                    .any(
-                      (line) => parseDocumentVisualBlock(line)?.photoId == id,
-                    ),
-          )) {
-    _photoMessage(context, '문서에서 사용 중인 사진이에요. 문서에서 먼저 제거해주세요.');
-    return;
-  }
   try {
     await storage?.writable();
     if (!context.mounted) return;

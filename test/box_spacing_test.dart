@@ -9,6 +9,18 @@ import 'package:weaver/features/inbox/thought_page.dart';
 
 void main() {
   setUp(() { elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); memoBoxFolderParents.clear(); pageGraphLayout = GraphLayout(); });
+  testWidgets('first thought action is hidden when the canvas has an empty box', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
+    await tester.pumpAndSettle();
+    expect(find.text('첫 생각 만들기'), findsOneWidget);
+
+    memoBoxes.add(MemoBox('빈 상자'));
+    elements.refreshVisibility();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('box-region-빈 상자')), findsOneWidget);
+    expect(find.text('첫 생각 만들기'), findsNothing);
+  });
+
   for (final blocks in [true]) {
     testWidgets('growing upper box escapes upward without jumping past lower box ($blocks)', (tester) async {
       final a = elements.add('커지는 위 생각'), b = elements.add('아래 생각');

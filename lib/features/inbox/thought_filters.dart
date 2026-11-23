@@ -9,7 +9,9 @@ class ThoughtFilterSelection extends ChangeNotifier {
   final tags = <String>{};
   bool get isEmpty => boxes.isEmpty && tags.isEmpty;
   MemoBox? get singleBox => boxes.length == 1 && tags.isEmpty ? boxes.single : null;
-  bool matches(ElementRecord record) => isEmpty || boxes.any((box) => box.elementIds.contains(record.id)) || record.tags.any(tags.contains);
+  bool includesBox(MemoBox box) => boxes.any((root) => memoBoxContains(root, box));
+  bool includesId(String id) => memoBoxes.any((box) => box.elementIds.contains(id) && includesBox(box));
+  bool matches(ElementRecord record) => isEmpty || includesId(record.id) || record.tags.any(tags.contains);
   void openBox(MemoBox? box) {
     boxes.clear();
     tags.clear();

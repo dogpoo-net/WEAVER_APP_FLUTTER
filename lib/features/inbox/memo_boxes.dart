@@ -44,25 +44,39 @@ class MemoDrag {
 
 Future<MemoBox?> createMemoBox(BuildContext context, {String? folder}) async {
   var draft = '';
-  final name = await showDialog<String>(context: context, builder: (context) => AlertDialog(
-    title: const Text('메모상자 만들기'),
-    content: TextField(autofocus: true, maxLength: 60, onChanged: (value) => draft = value,
-      decoration: const InputDecoration(labelText: '상자 이름'),
-      onSubmitted: (value) { if (value.trim().isNotEmpty) Navigator.pop(context, value.trim()); }),
-    actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-      TextButton(onPressed: () { if (draft.trim().isNotEmpty) Navigator.pop(context, draft.trim()); }, child: const Text('만들기'))],
-  ));
-  if (name == null) return null;
-  if (name == '미분류') return ensureUnclassifiedBox();
-  final existing = memoBoxes.where((box) => box.name == name);
-  if (existing.isNotEmpty) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('이미 사용 중인 상자 이름입니다.')),
+  String? error;
+  final name = await showDialog<String>(
+    context: context,
+    builder: (context) => StatefulBuilder(builder: (context, update) {
+      void submit() {
+        final name = draft.trim();
+        if (name.isEmpty) return;
+        if (name == '미분류' || memoBoxes.any((box) => box.name == name)) {
+          update(() => error = '이미 사용 중인 상자 이름입니다.');
+          return;
+        }
+        Navigator.pop(context, name);
+      }
+
+      return AlertDialog(
+        title: const Text('메모상자 만들기'),
+        content: TextField(
+          autofocus: true, maxLength: 60,
+          decoration: InputDecoration(labelText: '상자 이름', errorText: error),
+          onChanged: (value) {
+            draft = value;
+            if (error != null) update(() => error = null);
+          },
+          onSubmitted: (_) => submit(),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(onPressed: submit, child: const Text('만들기')),
+        ],
       );
-    }
-    return null;
-  }
+    }),
+  );
+  if (name == null) return null;
   final box = MemoBox(name, folder: memoBoxes.any((box) => !box.isUnclassified && box.name == folder) || memoBoxFolders.contains(folder) ? folder : null);
   memoBoxes.add(box);
   return box;
@@ -83,6 +97,11 @@ bool memoBoxContains(MemoBox ancestor, MemoBox box) {
     if (current == ancestor) return true;
   }
   return false;
+}
+
+Set<MemoBox> memoBoxSubtrees(Set<String> names) {
+  final roots = memoBoxes.where((box) => !box.isUnclassified && names.contains(box.name)).toList();
+  return {for (final box in memoBoxes) if (roots.any((root) => memoBoxContains(root, box))) box};
 }
 
 bool canMoveMemoBox(MemoBox box, MemoBox? parent) {

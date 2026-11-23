@@ -84,20 +84,48 @@ void moveThoughtLayers(List<String> order, Set<String> selected, {required bool 
   }
 }
 
-/// Move selected cards one paint slot and update any stack whose order changed.
+/// Cross the nearest visible overlapping card, or the next visible layer
+/// when there is no overlap in the requested direction.
 void stepCanvasLayers(
   List<String> layers,
   Map<String, Offset> positions,
   Set<String> selected, {
   required bool up,
   required Map<String, String> groups,
+  Map<String, Rect>? bounds,
+  Set<String> photos = const {},
 }) {
   final before = List<String>.of(layers);
-  moveThoughtLayers(layers, selected, up: up);
+  final visible = layers.where((id) => bounds == null || bounds.containsKey(id)).toList();
+  final order = up ? visible : visible.reversed.toList();
+  for (final id in order.where(selected.contains).toList().reversed) {
+    final start = order.indexOf(id);
+    var target = start;
+    for (var i = start + 1; i < order.length; i++) {
+      final other = order[i];
+      if (selected.contains(other)) break;
+      if (target == start) target = i;
+      if (bounds == null || bounds[id]!.overlaps(bounds[other]!)) {
+        target = i;
+        break;
+      }
+    }
+    order.removeAt(start);
+    order.insert(target, id);
+  }
+  final moved = (up ? order : order.reversed).iterator;
+  for (var i = 0; i < layers.length; i++) {
+    if (bounds == null || bounds.containsKey(layers[i])) {
+      moved.moveNext();
+      layers[i] = moved.current;
+    }
+  }
+  final stackPositions = Map<String, Offset>.of(positions)
+    ..removeWhere((id, _) => photos.contains(id));
   final visited = <String>{};
   for (final id in selected) {
-    if (!positions.containsKey(id) || visited.contains(id)) continue;
-    final stack = alignedStackMembers(id, positions, groups: groups);
+    if (!stackPositions.containsKey(id) || visited.contains(id)) continue;
+    final stack = alignedStackMembers(id, stackPositions, groups: groups);
     visited.addAll(stack);
     if (stack.length < 2) continue;
     final previous = before.where(stack.contains).toList();
