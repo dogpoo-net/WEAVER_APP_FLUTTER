@@ -351,7 +351,7 @@ class _WorkspaceSearchState extends State<WorkspaceSearch> with RetainedOverview
                 '문서' => Icons.description_outlined,
                 '메모상자' => Icons.inventory_2_outlined,
                 '음성텍스트' => Icons.transcribe_outlined,
-                _ => Icons.sticky_note_2_outlined,
+                _ => Icons.chat_bubble_outline,
               }),
               title: _highlightedSearchText(context, item.title, pattern, 1, prefix: '${item.kind}: '),
               subtitle: _highlightedSearchText(context, preview, pattern, 3),
