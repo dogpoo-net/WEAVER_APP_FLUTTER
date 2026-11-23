@@ -14,6 +14,21 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: ProjectDocumentEditor(project: source, projects: [source, target])));
     await tester.pumpAndSettle();
     final field = find.byKey(const ValueKey('project-document'));
+    await tester.enterText(field, '==');
+    await tester.pumpAndSettle();
+    final heading = find.byWidgetPredicate(
+      (widget) => widget is WordBadge && widget.displayText == '제목 3: ====%%====',
+    );
+    expect(heading, findsOneWidget);
+    await tester.enterText(field, '본문 -');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byWidgetPredicate(
+      (widget) => widget is WordBadge && widget.displayText == '취소선: --%%--',
+    ));
+    await tester.pumpAndSettle();
+    final edited = tester.widget<TextField>(field).controller!.value;
+    expect(edited.text, '본문 ----');
+    expect(edited.selection.extentOffset, 5);
     await tester.enterText(field, '[[별칭|참고'); await tester.pumpAndSettle();
     final suggestion = find.byKey(ValueKey('suggestion-project:${target.id}'));
     expect(tester.widget<WordBadge>(suggestion).project, isTrue);

@@ -8,6 +8,35 @@ import 'label_links.dart';
 import 'document_syntax.dart';
 import 'mobile_element_assist.dart';
 
+const _syntaxTemplates = <String, String>{
+  '제목 1': '======%%======',
+  '제목 2': '=====%%=====',
+  '제목 3': '====%%====',
+  '제목 4': '===%%===',
+  '제목 5': '==%%==',
+  '취소선': '--%%--',
+  '구분선': '-----',
+  '굵게': '**%%**',
+  '기울임': '//%%//',
+  '밑줄': '__%%__',
+  '주석': '<!-- %% -->',
+  '코드': '<code>%%</code>',
+  '링크': '[[%%|]]',
+  '왼쪽 정렬': '|%% |',
+  '오른쪽 정렬': '| %%|',
+  '가운데 정렬': '| %% |',
+  '번호 목록': '1. %%',
+  '글머리표': '- %%',
+};
+
+String _syntaxPrefix(TextEditingValue value) {
+  if (!value.selection.isValid || !value.selection.isCollapsed ||
+      !value.composing.isCollapsed) return '';
+  final before = value.text.substring(0, value.selection.start);
+  return RegExp(r'(?:=+|-+|\*+|/+|_+|<[^<>\s]*|\[+|\||(?:^|(?<=\n))1\.?)$')
+      .firstMatch(before)?.group(0) ?? '';
+}
+
 /// Three badge rows (30 each), two row gaps (6 each), and panel padding (8 each).
 double mobileAssistHeight(MediaQueryData media) {
   final rowHeight = 30.0 * media.textScaler.scale(12) / 12;
@@ -37,8 +66,9 @@ class CaretAssist extends StatefulWidget {
     this.showShortcutHint = false,
     this.useThoughtLabels = false,
     this.selectionAssist = false,
+    this.documentSyntax = false,
   });
-  final bool useThoughtLabels, selectionAssist;
+  final bool useThoughtLabels, selectionAssist, documentSyntax;
   final TextEditingController controller;
   final FocusNode focus;
   final List<String> words;
@@ -90,7 +120,8 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   bool get _desktop => widget.anchorBelowField || (
       MediaQuery.sizeOf(context).width >= 760 &&
       MediaQuery.viewInsetsOf(context).bottom == 0);
-  String _title(String word) => widget.useThoughtLabels ? assistTargetTitle(word) : word;
+  final _syntaxMatches = <String, String>{};
+  String _title(String word) => _syntaxMatches[word] ?? ( widget.useThoughtLabels ? assistTargetTitle(word) : word);
   void _choose(String word) async {
     _controlling = false;
     _manualSelection = null; _manualValue = null;
@@ -98,6 +129,24 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     if (selected != null) {
       if (selected.text != widget.controller.text) { _hide(); return; }
       widget.controller.selection = selected.selection;
+    }
+    if (_syntaxMatches.containsKey(word)) {
+      final value = widget.controller.value;
+      final prefix = _syntaxPrefix(value);
+      final template = _syntaxTemplates[word.substring(1)]!;
+      if (prefix.isEmpty || !template.startsWith(prefix)) return;
+      final start = value.selection.start - prefix.length;
+      final marker = template.indexOf('%%');
+      widget.controller.value = value.replaced(
+        TextRange(start: start, end: value.selection.start),
+        template.replaceFirst('%%', ''),
+      ).copyWith(selection: TextSelection.collapsed(
+        offset: start + (marker < 0 ? template.length : marker),
+      ));
+      _dismissed = widget.controller.text;
+      _hide();
+      widget.focus.requestFocus();
+      return;
     }
     final FutureOr<void> result;
     if (_tagMode) { widget.onTag?.call(word.substring(1)); result = null; } else { result = widget.onWord(word); }
@@ -374,6 +423,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   }
 
   void _refreshMatches(TextEditingValue value, {bool autoSelect = true}) {
+    _syntaxMatches.clear();
     if (widget.selectionAssist && value.selection.isValid && !value.selection.isCollapsed &&
         (!value.composing.isValid || value.composing.isCollapsed) &&
         !caretInsideCode(value.text, value.selection.start)) {
@@ -429,6 +479,17 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     if (_query != query || _tagMode != tagMode) _selected = 0;
     _tagMode = tagMode; _query = query;
     _matches = widget.externalSuggestions ? List.of(widget.words) : tagMode ? wordSuggestions(widget.tags, query).map((tag) => '#$tag').toList() : (widget.useThoughtLabels ? widget.words.where((word) => assistTargetMatches(word, query)).toList() : wordSuggestions(widget.words, query));
+    if (widget.documentSyntax && pending == null && !tagMode) {
+      final prefix = _syntaxPrefix(value);
+      if (prefix.isNotEmpty) {
+        for (final entry in _syntaxTemplates.entries) {
+          if (entry.value.split('%%').first.startsWith(prefix)) {
+            _syntaxMatches['\u0000${entry.key}'] = '${entry.key}: ${entry.value}';
+          }
+        }
+        _matches = [..._syntaxMatches.keys, ..._matches];
+      }
+    }
     if (_selected >= _matches.length) _selected = 0;
     final manual = _manualSelection;
     if (manual != null) {
@@ -452,6 +513,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
 
   void _update({bool refreshMatches = true}) {
     final selection = widget.controller.selection;
+    _syntaxMatches.clear();
     if (widget.selectionAssist && selection.isValid && !selection.isCollapsed && selection != _selectionValue?.selection) _dismissed = null;
     if (_dismissed != null && _dismissed != widget.controller.text) _dismissed = null;
     if (_explicitOpenText != widget.controller.text) _explicitOpenText = null;
@@ -485,7 +547,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       }
       final value = widget.controller.value;
       if (refreshMatches) _refreshMatches(value);
-      if (!_selectionMode && (_matches.isEmpty || (!widget.showWhenEmpty && !_tagMode && _query.isEmpty && pendingLabelLink(widget.controller.value) == null && _explicitOpenText == null))) {
+      if (!_selectionMode && (_matches.isEmpty || (!widget.showWhenEmpty && !_tagMode && _query.isEmpty && _syntaxMatches.isEmpty && pendingLabelLink(widget.controller.value) == null && _explicitOpenText == null))) {
         _controlling = false;
         _controlValue = null;
         _hide();
@@ -627,7 +689,7 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
                               word: word,
                               displayText: _tagMode ? word : _title(word),
                               tag: _tagMode,
-                              memo: !_tagMode && widget.useThoughtLabels && projectTarget(word) == null && !isLabelAssistTarget(word),
+                              memo: !_syntaxMatches.containsKey(word) && !_tagMode && widget.useThoughtLabels && projectTarget(word) == null && !isLabelAssistTarget(word),
                               labelTarget: !_tagMode && widget.useThoughtLabels && isLabelAssistTarget(word),
                               project: !_tagMode && widget.useThoughtLabels && projectTarget(word) != null,
                               query: _query,
