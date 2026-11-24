@@ -53,6 +53,17 @@ void main(){
   node.onEnd();
   await tester.pumpAndSettle();
   expect(child.elementIds, contains(memo.id));
+  final lifted = tester.widget<ThoughtInteraction>(finder);
+  lifted.onLift!();
+  lifted.onActiveChanged!(true);
+  lifted.onMove(const Offset(2, 1));
+  lifted.onDrop(insideChild + const Offset(2, 1));
+  lifted.onActiveChanged!(false);
+  lifted.onEnd();
+  await tester.pumpAndSettle();
+  expect(child.elementIds, contains(memo.id));
+  expect(parent.elementIds, isNot(contains(memo.id)));
+
 
   final outside = const Offset(1200, 700);
   final restored = tester.widget<ThoughtInteraction>(finder);

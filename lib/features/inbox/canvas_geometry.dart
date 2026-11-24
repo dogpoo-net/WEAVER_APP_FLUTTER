@@ -2,6 +2,39 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show listEquals;
 
+/// Lay out selected bounds from their upper-left corner in reading order.
+Map<String, Offset> arrangeCanvasSelection(Map<String, Rect> bounds, {required bool stack}) {
+  if (bounds.isEmpty) return {};
+  final ids = bounds.keys.toList()..sort((a, b) {
+    final vertical = bounds[a]!.top.compareTo(bounds[b]!.top);
+    return vertical != 0 ? vertical : a.compareTo(b);
+  });
+  final ordered = <String>[];
+  for (var start = 0; start < ids.length;) {
+    var end = start + 1;
+    // Slightly staggered cards still read as one row. Stack slots are 32 apart.
+    while (end < ids.length && bounds[ids[end]]!.top - bounds[ids[start]]!.top <= 16) {
+      end++;
+    }
+    final row = ids.sublist(start, end)..sort((a, b) {
+      final horizontal = bounds[a]!.left.compareTo(bounds[b]!.left);
+      return horizontal != 0 ? horizontal : a.compareTo(b);
+    });
+    ordered.addAll(row);
+    start = end;
+  }
+  final origin = Offset(bounds.values.map((r) => r.left).reduce(math.min),
+      bounds[ids.first]!.top);
+  final columns = math.sqrt(ids.length).round();
+  final strideX = bounds.values.map((r) => r.width).reduce(math.max) + 16;
+  final strideY = bounds.values.map((r) => r.height).reduce(math.max) + 16;
+  return {
+    for (var i = 0; i < ordered.length; i++)
+      ordered[i]: origin + (stack ? Offset(0, i * 32.0)
+          : Offset((i % columns) * strideX, (i ~/ columns) * strideY)),
+  };
+}
+
 /// Find the shortest free translation along sampled directions, keeping the
 /// stationary boxes fixed. Collision intervals are merged along each ray.
 Offset releaseBox(Rect moving, List<Rect> obstacles, {double gap = 24}) {
@@ -95,10 +128,31 @@ void stepCanvasLayers(
   Map<String, Rect>? bounds,
   Set<String> photos = const {},
 }) {
-  final before = List<String>.of(layers);
   final visible = layers.where((id) => bounds == null || bounds.containsKey(id)).toList();
+  final stackPositions = Map<String, Offset>.of(positions)
+    ..removeWhere((id, _) => photos.contains(id));
+  final loose = Set<String>.of(selected);
+  for (final id in selected) {
+    if (!loose.contains(id) || !stackPositions.containsKey(id)) continue;
+    final stack = alignedStackMembers(id, stackPositions, groups: groups);
+    if (stack.length < 2) continue;
+    loose.removeAll(stack);
+    final slots = visible.where(stack.contains).toList()
+      ..sort((a, b) => positions[a]!.dy.compareTo(positions[b]!.dy));
+    final reordered = List<String>.of(slots);
+    moveThoughtLayers(reordered, selected, up: !up);
+    if (listEquals(reordered, slots)) continue;
+    final points = slots.map((member) => positions[member]!).toList();
+    var index = 0;
+    for (var i = 0; i < visible.length; i++) {
+      if (!stack.contains(visible[i])) continue;
+      visible[i] = reordered[index];
+      positions[reordered[index]] = points[index];
+      index++;
+    }
+  }
   final order = up ? visible : visible.reversed.toList();
-  for (final id in order.where(selected.contains).toList().reversed) {
+  for (final id in order.where(loose.contains).toList().reversed) {
     final start = order.indexOf(id);
     var target = start;
     for (var i = start + 1; i < order.length; i++) {
@@ -120,23 +174,7 @@ void stepCanvasLayers(
       layers[i] = moved.current;
     }
   }
-  final stackPositions = Map<String, Offset>.of(positions)
-    ..removeWhere((id, _) => photos.contains(id));
-  final visited = <String>{};
-  for (final id in selected) {
-    if (!stackPositions.containsKey(id) || visited.contains(id)) continue;
-    final stack = alignedStackMembers(id, stackPositions, groups: groups);
-    visited.addAll(stack);
-    if (stack.length < 2) continue;
-    final previous = before.where(stack.contains).toList();
-    final next = layers.where(stack.contains).toList();
-    if (listEquals(previous, next)) continue;
-    final slots = previous.map((id) => positions[id]!).toList()
-      ..sort((a, b) => a.dy.compareTo(b.dy));
-    for (var index = 0; index < next.length; index++) {
-      positions[next[index]] = slots[index];
-    }
-  }
+
 }
 
 void reverseThoughtLayers(List<String> order, Set<String> selected) {

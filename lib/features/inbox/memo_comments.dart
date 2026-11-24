@@ -22,6 +22,10 @@ Future<void> showMemoComments(BuildContext context,String memoId,{bool write=fal
   if(request==null){await showDialog<void>(context:context,builder:(context)=>AlertDialog(content:const Text('댓글은 로그인 후 서버에 저장된 메모에서 사용할 수 있습니다.'),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('닫기'))]));return;}
   await showDialog<void>(context:context,builder:(_)=>_Comments(memoId:memoId,request:request,write:write,canWrite:memoCommentsWritable));
 }
+Future<void> viewMemoComments(BuildContext context, String memoId, CommentRequest request) =>
+    showDialog<void>(context: context, builder: (_) =>
+        _Comments(memoId: memoId, request: request, write: false, canWrite: false));
+
 class _Comments extends StatefulWidget {
  const _Comments({required this.memoId,required this.request,required this.write,required this.canWrite});
  final String memoId;final CommentRequest request;final bool write,canWrite;

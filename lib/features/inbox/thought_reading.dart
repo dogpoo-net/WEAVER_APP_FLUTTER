@@ -101,10 +101,6 @@ class _ThoughtReadingState extends State<_ThoughtReading> {
       padding: const EdgeInsets.all(6),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
-    final attachmentButtonStyle = buttonStyle.copyWith(
-      alignment: Alignment.centerLeft,
-      padding: const WidgetStatePropertyAll(EdgeInsets.only(right: 8)),
-    );
     final paper = wordBackgroundColor(context, r.text);
     return Dialog(
       key: const ValueKey('생각읽기'),
@@ -127,7 +123,7 @@ class _ThoughtReadingState extends State<_ThoughtReading> {
                     color: paper,
                     borderRadius: BorderRadius.circular(8),
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 4, 12),
+                      padding: const EdgeInsets.fromLTRB(8, 4, 4, 12),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -140,7 +136,7 @@ class _ThoughtReadingState extends State<_ThoughtReading> {
                                 const Icon(Icons.image_outlined, size: 14),
                               if (r.recordings.isNotEmpty)
                                 IconButton(
-                                  style: attachmentButtonStyle,
+                                  style: buttonStyle,
                                   tooltip: '음성 재생',
                                   icon: const Icon(Icons.mic_none),
                                   onPressed: () => showDialog<void>(
@@ -194,8 +190,7 @@ class _ThoughtReadingState extends State<_ThoughtReading> {
                                                   child: VoicePlayer(
                                                     key: ValueKey(clip.id),
                                                     dialogLayout: true,
-                                                    actionStyle:
-                                                        attachmentButtonStyle,
+                                                    actionStyle: buttonStyle,
                                                     load: () =>
                                                         MediaStorage.read(
                                                           clip.id,
@@ -213,7 +208,7 @@ class _ThoughtReadingState extends State<_ThoughtReading> {
                                 ),
                               if (r.location case final location?)
                                 IconButton(
-                                  style: attachmentButtonStyle,
+                                  style: buttonStyle,
                                   tooltip: '지도 보기',
                                   icon: const Icon(Icons.location_on_outlined),
                                   onPressed: () async {
@@ -236,7 +231,7 @@ class _ThoughtReadingState extends State<_ThoughtReading> {
                                     (counts[r.id] ?? 0) == 0
                                     ? const SizedBox.shrink()
                                     : IconButton(
-                                        style: attachmentButtonStyle,
+                                        style: buttonStyle,
                                         tooltip: '댓글 보기',
                                         icon: const Icon(
                                           Icons.chat_bubble_outline,
@@ -256,42 +251,46 @@ class _ThoughtReadingState extends State<_ThoughtReading> {
                             ],
                           ),
                           Flexible(
-                            child: IndexedStack(
-                              index: index,
-                              alignment: Alignment.topLeft,
-                              children: [
-                                for (var i = 0; i < pages.length; i++)
-                                  NotificationListener<
-                                    ScrollMetricsNotification
-                                  >(
-                                    onNotification: (n) {
-                                      _updateOverflow(i, n.metrics);
-                                      return false;
-                                    },
-                                    child:
-                                        NotificationListener<
-                                          ScrollNotification
-                                        >(
-                                          onNotification: (n) {
-                                            _updateOverflow(i, n.metrics);
-                                            return false;
-                                          },
-                                          child: SingleChildScrollView(
-                                            primary: false,
-                                            child: DocumentMarkup(
-                                              text: pages[i].page.text,
-                                              links: pages[i].page.links,
-                                              formatting: false,
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: IndexedStack(
+                                index: index,
+                                alignment: Alignment.topLeft,
+                                children: [
+                                  for (var i = 0; i < pages.length; i++)
+                                    NotificationListener<
+                                      ScrollMetricsNotification
+                                    >(
+                                      onNotification: (n) {
+                                        _updateOverflow(i, n.metrics);
+                                        return false;
+                                      },
+                                      child:
+                                          NotificationListener<
+                                            ScrollNotification
+                                          >(
+                                            onNotification: (n) {
+                                              _updateOverflow(i, n.metrics);
+                                              return false;
+                                            },
+                                            child: SelectionArea(
+                                              child: SingleChildScrollView(
+                                                primary: false,
+                                                child: DocumentMarkup(
+                                                  text: pages[i].page.text,
+                                                  links: pages[i].page.links,
+                                                  formatting: false,
+                                                ),
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                  ),
-                              ],
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                           Row(
                             children: [
-                              Text('${index + 1} / ${pages.length}'),
                               Expanded(
                                 child: Center(
                                   child: _moreBelow[index] == true
@@ -303,6 +302,7 @@ class _ThoughtReadingState extends State<_ThoughtReading> {
                                       : null,
                                 ),
                               ),
+                              Text('${index + 1} / ${pages.length}'),
                               IconButton(
                                 style: buttonStyle,
                                 tooltip: '수정',
@@ -336,8 +336,8 @@ class _ThoughtReadingState extends State<_ThoughtReading> {
                 ),
                 if (page.label.isNotEmpty)
                   Positioned(
-                    top: mobile ? -12 : 16,
-                    left: mobile ? 0 : -80,
+                    top: mobile ? -16 : 16,
+                    left: mobile ? 0 : -84,
                     right: mobile ? 0 : null,
                     child: Center(
                       child: Container(

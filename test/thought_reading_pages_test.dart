@@ -9,8 +9,8 @@ void main() {
     final thought = elements.add('짧은 생각');
     final long = elements.add(List.filled(60, '긴 생각').join('\n'));
     final layout = (pageGraphLayout = GraphLayout()).blockLayout;
-    layout.positions.addAll({long.id: Offset.zero, thought.id: const Offset(0,32)});
-    layout.layers.addAll([long.id, thought.id]);
+    layout.positions.addAll({thought.id: Offset.zero, long.id: const Offset(0,32)});
+    layout.layers.addAll([thought.id, long.id]);
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (context) =>
       TextButton(onPressed: () => showElementMetadata(context, thought.text), child: const Text('열기'))))));
     await tester.tap(find.text('열기'));
@@ -37,7 +37,7 @@ void main() {
     elements.records[thought.text] = thought;
     final front = elements.add('맨 위');
     final layout = (pageGraphLayout = GraphLayout()).blockLayout;
-    final cards = [elements.add('뒤'), elements.add('중간'), thought, front];
+    final cards = [front, thought, elements.add('중간'), elements.add('뒤')];
     thought.extraPages.addAll(List.generate(6, (i) => ThoughtPageData('이전 페이지 $i')));
     for (var i = 0; i < cards.length; i++) {
       layout.positions[cards[i].id] = Offset(0, i * 32.0);

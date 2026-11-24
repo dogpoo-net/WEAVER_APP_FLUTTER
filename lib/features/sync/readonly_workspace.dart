@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
 import '../capture/media_storage.dart';
+import '../capture/geolog_page.dart' deferred as geolog;
+import '../inbox/element_store.dart' show ElementRecord;
 import '../capture/voice_player.dart';
 
 import 'dart:math' as math;
@@ -10,6 +12,7 @@ import 'package:flutter/material.dart';
 import '../inbox/workspace_storage.dart';
 import '../inbox/thought_settings.dart';
 import '../inbox/graph_layout.dart';
+import '../inbox/memo_comments.dart';
 
 class ReadonlyWorkspace extends StatelessWidget {
   const ReadonlyWorkspace({
@@ -24,17 +27,34 @@ class ReadonlyWorkspace extends StatelessWidget {
     final snapshot = WorkspaceSnapshot.decode(storage.read()!);
     final documents = snapshot.notes.where((n) => n.project != null).toList();
     return DefaultTabController(
-      length: 3,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('읽기 전용 워크스페이스'),
-        actions:[IconButton(tooltip:'설정',icon:const Icon(Icons.settings_outlined),onPressed:()=>showThoughtSettings(context,storage.preferences,onWorkspaces:storage.openWorkspaces,workspaceName:storage.workspaceName,offline:storage.offlineMode,onAdmin:storage.openAdmin,onPlan:storage.openPlan))],
+          actions: [
+            IconButton(
+              tooltip: '설정',
+              icon: const Icon(Icons.settings_outlined),
+              onPressed: () => showThoughtSettings(
+                context,
+                storage.preferences,
+                onWorkspaces: storage.openWorkspaces,
+                workspaceName: storage.workspaceName,
+                offline: storage.offlineMode,
+                onAdmin: storage.openAdmin,
+                onPlan: storage.openPlan,
+              ),
+            ),
+          ],
           bottom: const TabBar(
             isScrollable: true,
             tabs: [
               Tab(text: '문서'),
               Tab(text: '생각'),
               Tab(text: '메모상자'),
+              Tab(text: '사진'),
+              Tab(text: '음성'),
+              Tab(text: '지오로그'),
             ],
           ),
         ),
@@ -75,51 +95,109 @@ class ReadonlyWorkspace extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               children: [
                 for (final record in snapshot.records)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SelectableText(record.text),
-                          for (final photo in record.photos)
-                            FutureBuilder<Uint8List?>(
-                              future: MediaStorage.read(
-                                photo.id,
-                                owner: storage.owner,
-                              ),
-                              builder: (context, snapshot) =>
-                                  snapshot.data == null
-                                  ? const SizedBox.shrink()
-                                  : Image.memory(
-                                      snapshot.data!,
-                                      height: 200,
-                                      fit: BoxFit.contain,
-                                    ),
-                            ),
-                          for (final clip in record.recordings)
-                            VoicePlayer(
-                              load: () => MediaStorage.read(
-                                clip.id,
-                                owner: storage.owner,
-                              ),
-                              durationMs: clip.durationMs, transcript:clip.transcript,transcription:clip.transcription,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  _recordCard(context, record),
               ],
             ),
             _canvas(
               snapshot,
               (snapshot.graphLayout ?? GraphLayout()).blockLayout,
             ),
+            ListView(
+              children: [
+                for (final photo in snapshot.photos)
+                  ListTile(
+                    title: Text(photo.displayTitle),
+                    subtitle: _photo(photo.attachment.id),
+                  ),
+                for (final record in snapshot.records)
+                  for (final photo in record.photos)
+                    ListTile(
+                      title: Text(record.text),
+                      subtitle: _photo(photo.id),
+                    ),
+              ],
+            ),
+            ListView(
+              children: [
+                for (final record in snapshot.records)
+                  for (final clip in record.recordings)
+                    ListTile(
+                      title: Text(record.text),
+                      subtitle: VoicePlayer(
+                        load: () =>
+                            MediaStorage.read(clip.id, owner: storage.owner),
+                        durationMs: clip.durationMs,
+                        transcript: clip.transcript,
+                        transcription: clip.transcription,
+                      ),
+                    ),
+              ],
+            ),
+            FutureBuilder<void>(
+              future: geolog.loadLibrary(),
+              builder: (context, result) {
+                if (result.hasError)
+                  return const Center(child: Text('지도를 불러오지 못했습니다.'));
+                if (result.connectionState != ConnectionState.done)
+                  return const Center(child: CircularProgressIndicator());
+                return geolog.GeologPage.viewer(
+                  records: snapshot.records,
+                  open: (record) => showDialog<void>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      content: SingleChildScrollView(
+                        child: _recordCard(context, record),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('닫기'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
     );
   }
+
+  Widget _photo(String id) => FutureBuilder<Uint8List?>(
+    future: MediaStorage.read(id, owner: storage.owner),
+    builder: (context, snapshot) => snapshot.data == null
+        ? const SizedBox.shrink()
+        : Image.memory(snapshot.data!, height: 200, fit: BoxFit.contain),
+  );
+
+  Widget _recordCard(BuildContext context, ElementRecord record) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SelectableText(record.text),
+          if (record.tags.isNotEmpty)
+            Text(record.tags.map((tag) => '#$tag').join(' ')),
+          if (storage.comments case final request?)
+            TextButton(
+              onPressed: () => viewMemoComments(context, record.id, request),
+              child: const Text('댓글 보기'),
+            ),
+          for (final photo in record.photos) _photo(photo.id),
+          for (final clip in record.recordings)
+            VoicePlayer(
+              load: () => MediaStorage.read(clip.id, owner: storage.owner),
+              durationMs: clip.durationMs,
+              transcript: clip.transcript,
+              transcription: clip.transcription,
+            ),
+        ],
+      ),
+    ),
+  );
 
   Widget _canvas(WorkspaceSnapshot snapshot, GraphLayout layout) {
     final points = layout.positions;

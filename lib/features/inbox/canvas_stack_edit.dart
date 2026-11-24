@@ -1,6 +1,25 @@
 import 'dart:ui';
 import 'canvas_geometry.dart';
 
+bool canDockThought(Rect moving, Rect target) =>
+    moving.left < target.right && moving.right > target.left &&
+    moving.bottom >= target.top && moving.top < target.bottom;
+
+/// Collapse missing whole stack slots while retaining fractional resize offsets.
+void closeStackHoles(Map<String, Offset> positions, Iterable<String> members) {
+  final ordered = members.where(positions.containsKey).toList()
+    ..sort((a, b) => positions[a]!.dy.compareTo(positions[b]!.dy));
+  var shift = 0.0;
+  for (var i = 1; i < ordered.length; i++) {
+    final point = positions[ordered[i]]!;
+    final previous = positions[ordered[i - 1]]!;
+    final gap = point.dy - shift - previous.dy;
+    final slots = (gap / 32).round();
+    if (slots > 1 && (gap - slots * 32).abs() < .5) shift += (slots - 1) * 32;
+    positions[ordered[i]] = point.translate(0, -shift);
+  }
+}
+
 /// Close only slots vacated by an edit, never normalize unrelated arrangements.
 void closeVacatedStackSlots(Map<String, Offset> positions,
     Map<String, Offset> before, Set<String> removed, {Map<String,String> groups = const {}}) {
@@ -17,6 +36,7 @@ void closeVacatedStackSlots(Map<String, Offset> positions,
         positions[member] = before[group[group.indexOf(member)-gaps]]!;
       }
     }
+    closeStackHoles(positions, group.where((member) => !removed.contains(member)));
   }
 }
 

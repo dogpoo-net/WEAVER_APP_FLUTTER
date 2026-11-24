@@ -431,19 +431,24 @@ class WorkspaceSync extends ChangeNotifier {
     }
   }
 
-  Future<void> initialize({int ignoredPendingSaves=0,bool serverCanvas=false}) async {
+  Future<void> initialize({int ignoredPendingSaves=0,bool serverCanvas=false, int? browseGesture}) async {
     if(manualReview)return;
     loadBase();
     final beforeRead=splitWorkspace(storage.read());
     final initialBase=Map<String,Map<String,dynamic>>.from(base),wasPending=networkPending;
     try {
       if(networkPending){await enterNetworkOffline();throw const EmailAuthFailure('오프라인 변경을 보관 중입니다.');}
+      if (browseGesture != null && storage.canvasInteracting) return;
+      var fullRead = false;
       Map<String,dynamic> result;
       try{result=await request('read',{'since':cursor});}
-      on EmailAuthFailure catch(e){if(e.status!=409)rethrow;result=await request('read',{'since':0});base.clear();}
+      on EmailAuthFailure catch(e){if(e.status!=409)rethrow;result=await request('read',{'since':0});fullRead=true;}
       await storage.flush();
       final local=splitWorkspace(storage.read());
+      if (browseGesture != null && (storage.canvasInteracting ||
+          storage.canvasGestureRevision != browseGesture)) return;
       final previousBase=Map<String,Map<String,dynamic>>.from(base);
+      if (fullRead) base.clear();
       accept(result);
       final displayed=Map<String,Map<String,dynamic>>.from(base);
       displayed.removeWhere((_,item)=>storage.editorResources.contains(editResource(item)));
@@ -526,7 +531,7 @@ class WorkspaceSync extends ChangeNotifier {
     while (_running != null) { await _running; }
     final previous = Map<String,Map<String,dynamic>>.from(base), oldCursor = cursor;
     final oldSnapshot = _lastSynced;
-    await (_running = initialize().whenComplete(() => _running = null));
+    await (_running = initialize(browseGesture: storage.canvasGestureRevision).whenComplete(() => _running = null));
     if (error != null) { base = previous; cursor = oldCursor; _lastSynced = oldSnapshot; throw EmailAuthFailure(error!); }
   }
   final _unacknowledgedDocuments = <String, Map<String, dynamic>>{};

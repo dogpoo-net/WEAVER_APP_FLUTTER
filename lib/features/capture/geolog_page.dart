@@ -22,11 +22,15 @@ import '../inbox/thought_filters.dart';
 import '../inbox/workspace_routes.dart';
 
 class GeologPage extends StatefulWidget {
-  const GeologPage({super.key, this.box, this.filters, this.viewSelector, required this.onChanged});
+  const GeologPage({super.key, this.box, this.filters, this.viewSelector, required this.onChanged}) : viewerRecords = null, onView = null;
+  const GeologPage.viewer({super.key, required List<ElementRecord> records, required ValueChanged<ElementRecord> open})
+      : viewerRecords = records, onView = open, box = null, filters = null, viewSelector = null, onChanged = null;
+  final List<ElementRecord>? viewerRecords;
+  final ValueChanged<ElementRecord>? onView;
   final MemoBox? box;
   final ThoughtFilterSelection? filters;
   final Widget? viewSelector;
-  final VoidCallback onChanged;
+  final VoidCallback? onChanged;
   @override
   State<GeologPage> createState() => _GeologPageState();
 }
@@ -42,9 +46,9 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
   @override
   void initState() { super.initState(); _filters.addListener(_changed); elements.addListener(_changed); }
   void _changed() { if (mounted && tabActive) setState(() {}); }
-  List<ElementRecord> get _scope => elements.records.values.toList();
-  List<ElementRecord> get _records => _scope.where((r) => canBrowseThought(r) && r.location != null &&
-    _filters.matches(r) &&
+  List<ElementRecord> get _scope => widget.viewerRecords ?? elements.records.values.toList();
+  List<ElementRecord> get _records => _scope.where((r) => (widget.viewerRecords != null || canBrowseThought(r)) && r.location != null &&
+    (widget.viewerRecords != null || _filters.matches(r)) &&
     (r.text.toLowerCase().contains(_query) || r.tags.any((tag) => tag.contains(_query.replaceFirst('#', ''))))).toList();
   LatLng _point(ElementRecord record) => LatLng(record.location!.latitude, record.location!.longitude);
   void _fit(List<ElementRecord> records) {
@@ -73,10 +77,12 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
           subtitle: Text(record.tags.map((tag) => '#$tag').join(' ')), onTap: () => Navigator.pop(context, record)),
       ])));
     if (choice == null || !mounted) return;
+    if (widget.onView case final open?) { open(choice); return; }
     await showElementMetadata(context, choice.text);
-    if (mounted) { widget.onChanged(); setState(() {}); }
+    if (mounted) { widget.onChanged?.call(); setState(() {}); }
   }
   Future<void> _create() async {
+    if (widget.viewerRecords != null) return;
     final owner=MediaStorage.activeOwner;
     final draft=await showLocationEditor(context,compose:true,validate:(text){
       final content=parseTaggedInput(text).text;
@@ -100,7 +106,7 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
     record.photos.addAll(draft.photos);record.recordings.addAll(draft.recordings);
     final box=_filters.singleBox;
     if(box!=null&&!box.isUnclassified)moveThoughtToBox(record.id,box);
-    widget.onChanged();elements.refreshVisibility();
+    widget.onChanged?.call();elements.refreshVisibility();
     if(_records.any((r)=>r.id==record.id)){WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)_fit([record]);});}
     else {ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('생각을 저장했습니다. 현재 필터에서는 숨겨져 있습니다.')));}
     try{await saveWorkspaceContent?.call();}
@@ -128,13 +134,14 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
       groups.putIfAbsent('${location.latitude.toStringAsFixed(5)},${location.longitude.toStringAsFixed(5)}', () => []).add(record);
     }
     return Scaffold(appBar: AppBar(centerTitle: false, titleSpacing: 0, leadingWidth: 44, title: WorkspaceTitle(_filters.singleBox?.name ?? '전체 보기'), actions: [
-      const DesktopMenuAction(),
-      IconButton(tooltip:'위치에 생각 추가',onPressed:memoCommentRequest!=null&&!memoCommentsWritable?null:_create,icon:const Icon(Icons.add)),
+      if (widget.viewerRecords == null) const DesktopMenuAction(),
+      if (widget.viewerRecords == null) IconButton(tooltip:'위치에 생각 추가',onPressed:memoCommentRequest!=null&&!memoCommentsWritable?null:_create,icon:const Icon(Icons.add)),
       IconButton(tooltip: _showTimeline ? '타임라인 숨기기' : '타임라인 보이기',
         isSelected: _showTimeline, icon: const Icon(Icons.timeline),
         onPressed: () => setState(() => _showTimeline = !_showTimeline)),
       IconButton(tooltip: '위치 전체 보기', onPressed: records.isEmpty ? null : () => _fit(records), icon: const Icon(Icons.center_focus_strong)),
-    ]), body: DesktopMenuBody(child: Column(children: [
+    ]), body: Builder(builder: (_) {
+      final content = Column(children: [
       if (widget.viewSelector != null) widget.viewSelector!,
       Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 0), child: TextField(
         key: const ValueKey('geolog-search'),
@@ -210,10 +217,12 @@ class _GeologPageState extends State<GeologPage> with RetainedOverviewTab<Geolog
           ])))))),
         if (records.isEmpty) Positioned(top: 16, left: 16, right: 16,
           child: Card(child: Padding(padding: const EdgeInsets.all(16),
-            child: Text('위치가 기록된 생각이 없습니다.\n우측 상단 +로 생각을 남기거나 빠른 메모에서 현재 위치를 기록해주세요.', textAlign: TextAlign.center)))),
+            child: Text(widget.viewerRecords != null ? '위치가 기록된 생각이 없습니다.' : '위치가 기록된 생각이 없습니다.\n우측 상단 +로 생각을 남기거나 빠른 메모에서 현재 위치를 기록해주세요.', textAlign: TextAlign.center)))),
       ])),
-      ThoughtFilters(tags: _scope.expand((r) => r.tags).toSet().toList()..sort(), selection: _filters,
-        onChanged: () { widget.onChanged(); setState(() {}); }, onFilter: _filters.toggle),
-    ])));
+      if (widget.viewerRecords == null) ThoughtFilters(tags: _scope.expand((r) => r.tags).toSet().toList()..sort(), selection: _filters,
+        onChanged: () { widget.onChanged?.call(); setState(() {}); }, onFilter: _filters.toggle),
+    ]);
+      return widget.viewerRecords == null ? DesktopMenuBody(child: content) : content;
+    }));
   }
 }

@@ -284,9 +284,10 @@ Future<void> showElementMetadata(BuildContext context, String word, {VoidCallbac
     final ids = alignedStackMembers(selected.id, layout.positions, groups: layout.stackGroups);
     final ordered = ids.map(elements.byId).nonNulls.toList();
     if (ordered.length < 2) continue;
-    ordered.sort((a,b) {
-      final layer = layout.layers.indexOf(b.id).compareTo(layout.layers.indexOf(a.id));
-      return layer != 0 ? layer : layout.positions[b.id]!.dy.compareTo(layout.positions[a.id]!.dy);
+    ordered.sort((a, b) {
+      final vertical = layout.positions[a.id]!.dy.compareTo(layout.positions[b.id]!.dy);
+      if (vertical != 0) return vertical;
+      return layout.layers.indexOf(b.id).compareTo(layout.layers.indexOf(a.id));
     });
     members = ordered;
     break;

@@ -10,8 +10,13 @@ import 'owned_workspace_test.dart' show DeltaApi;
 
 String snapshot(Map<String,dynamic> positions)=>jsonEncode({'version':1,'elements':[],'notes':[],'trash':[],'colors':{},'graphLayout':{'positions':positions}});
 class ReceiptApi extends DeltaApi {
+ Completer<void>? readEntered, readRelease;
  final receipts=<String>{}; bool loseResponse=false;Completer<void>? entered,release;
  @override Future<Map<String,dynamic>> workspace(String action,Map<String,Object?> body)async{
+  if(action=='read' && readEntered!=null){
+   final result=await super.workspace(action,body);
+   readEntered!.complete();await readRelease!.future;return result;
+  }
   if(action=='save'&&body['canvasOperationId']!=null){
    final id=body['canvasOperationId'] as String;
    if(receipts.contains(id))return {'revision':rev,'changes':items.values.toList()};
@@ -63,6 +68,28 @@ void main(){
   await storage.write(snapshot({'a':[30,40]}));api.release!.complete();await saving;
   expect(jsonDecode(storage.read()!)['graphLayout']['positions']['a'],[30,40]);
   api.entered=null;api.release=null;await sync.flushCanvas();expect(jsonDecode(api.items.values.first['payload']),[30,40]);
+  sync.dispose();api.dispose();
+ });
+ test('SSE refresh spanning a second drag retries without losing either edit',()async{
+  final api=ReceiptApi();
+  final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'a');
+  final sync=WorkspaceSync(storage,api,isCurrent:()=>true);
+  await sync.initialize();
+  await storage.write(snapshot({'a':[10,20],'b':[1,1]}));await sync.flushCanvas();
+  final b=itemKey('layout','["page","positions","b"]');
+  api.items[b]!['payload']='[7,8]';api.items[b]!['revision']=++api.rev;
+  api.readEntered=Completer();api.readRelease=Completer();
+  final refresh=sync.refreshFromServer();await api.readEntered!.future;
+  storage.canvasInteracting=true;
+  await storage.write(snapshot({'a':[30,40],'b':[1,1]}));
+  storage.canvasInteracting=false;
+  api.readRelease!.complete();await refresh;
+  dynamic points()=>jsonDecode(storage.read()!)['graphLayout']['positions'];
+  expect(points(),{'a':[30,40],'b':[1,1]});
+  api.readEntered=null;await sync.refreshFromServer();
+  expect(points(),{'a':[30,40],'b':[7,8]});
+  await sync.flushCanvas();
+  expect(jsonDecode(api.items[itemKey('layout','["page","positions","a"]')]!['payload']),[30,40]);
   sync.dispose();api.dispose();
  });
  test('acknowledging our own canvas move does not rebuild or replace the workspace',()async{

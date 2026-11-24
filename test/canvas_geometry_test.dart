@@ -5,6 +5,22 @@ import 'package:weaver/features/inbox/canvas_geometry.dart';
 import 'package:weaver/features/inbox/memo_box_region.dart';
 
 void main() {
+  test('stack and grid keep horizontal reading order for partial rows', () {
+    for (final count in [11, 14]) {
+      final columns = count == 11 ? 3 : 4;
+      final cards = {for (var i = count - 1; i >= 0; i--)
+        'card$i': Rect.fromLTWH((i % columns) * 150.0, (i ~/ columns) * 100.0,
+            120, 70)};
+      final stack = arrangeCanvasSelection(cards, stack: true);
+      final grid = arrangeCanvasSelection({
+        for (final entry in stack.entries) entry.key: entry.value & cards[entry.key]!.size,
+      }, stack: false);
+      for (var i = 0; i < count; i++) {
+        expect(stack['card$i'], Offset(0, i * 32.0));
+        expect(grid['card$i'], Offset((i % columns) * 136.0, (i ~/ columns) * 86.0));
+      }
+    }
+  });
   test('nearby clear route is preferred over crossing another box', () {
     const moving = Rect.fromLTWH(200, 200, 100, 100);
     const obstacles = [Rect.fromLTWH(200, 290, 100, 100), Rect.fromLTWH(200, 140, 100, 20)];

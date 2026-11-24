@@ -3,6 +3,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:weaver/features/inbox/canvas_stack_edit.dart';
 
 void main() {
+  test('a card approaching from above docks only at contact or overlap', () {
+    const target = Rect.fromLTWH(100, 200, 200, 100);
+    expect(canDockThought(const Rect.fromLTWH(110, 99.99, 200, 100), target), isFalse);
+    expect(canDockThought(const Rect.fromLTWH(110, 100, 200, 100), target), isTrue);
+    expect(canDockThought(const Rect.fromLTWH(110, 101, 200, 100), target), isTrue);
+    expect(canDockThought(const Rect.fromLTWH(310, 100, 200, 100), target), isFalse);
+  });
+  test('old missing slots close across successive gaps', () {
+    final points = {'a': Offset.zero, 'b': const Offset(0,64), 'c': const Offset(0,160)};
+    closeStackHoles(points, points.keys);
+    expect(points.values, [Offset.zero, const Offset(0,32), const Offset(0,64)]);
+  });
   final before = {'a': const Offset(100,100), 'b': const Offset(100,132),
     'c': const Offset(100,164), 'd': const Offset(100,196), 'other': const Offset(500,500)};
   test('removing middle slot shifts all lower cards, preserving unrelated cards', () {

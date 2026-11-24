@@ -34,21 +34,18 @@ void main() {
     }
   });
 
-  test('stack slots only change when the two stack members swap layers', () {
-    final positions = {
-      'a': const Offset(100, 100),
-      'b': const Offset(100, 132),
-      'x': const Offset(800, 100),
-    };
-    final layers = ['a', 'x', 'b'];
-
-    stepCanvasLayers(layers, positions, {'a'}, up: true, groups: {});
-    expect(layers, ['x', 'a', 'b']);
-    expect(positions['a'], const Offset(100, 100));
-
-    stepCanvasLayers(layers, positions, {'a'}, up: true, groups: {});
-    expect(layers, ['x', 'b', 'a']);
-    expect(positions['a'], const Offset(100, 132));
-    expect(positions['b'], const Offset(100, 100));
+  test('up moves selected stack members earlier while loose cards move forward', () {
+    final positions = {for (var i = 0; i < 3; i++) 's$i': Offset(100, 100 + 32.0*i),
+      'x': const Offset(800,100), 'y': const Offset(900,100)};
+    final original = Map.of(positions);
+    final layers = ['s0','x','y','s1','s2'];
+    final selected = {'s1','s2','x'};
+    stepCanvasLayers(layers, positions, selected, up: true, groups: {});
+    expect(layers, ['s1','y','x','s2','s0']);
+    expect(positions['s1'], original['s0']);
+    expect(positions['s2'], original['s1']);
+    stepCanvasLayers(layers, positions, selected, up: false, groups: {});
+    expect(layers, ['s0','x','y','s1','s2']);
+    expect(positions, original);
   });
 }

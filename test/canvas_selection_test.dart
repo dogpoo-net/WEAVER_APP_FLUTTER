@@ -27,7 +27,7 @@ void main() {
       await gesture.moveTo(overlay.localToGlobal(const Offset(1060, 650))); await tester.pump();
       await gesture.up(); await tester.pumpAndSettle();
       expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data, '2');
-      final layerButtonX = tester.getCenter(find.byTooltip('레이어 위로')).dx;
+      final layerButtonX = tester.getCenter(find.byTooltip('순서 위로')).dx;
       expect(tester.getRect(find.byKey(const ValueKey('canvas-layer-panel'))).right, 1200 - 12);
       final move = await tester.startGesture(overlay.localToGlobal(const Offset(550, 540)));
       await move.moveBy(const Offset(30, 20)); await tester.pump();
@@ -44,7 +44,7 @@ void main() {
       await single.moveBy(const Offset(40, 20)); await tester.pump();
       await single.up(); await tester.pumpAndSettle(); await tester.pump(const Duration(milliseconds: 300));
       expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data, '1');
-      expect(tester.getCenter(find.byTooltip('레이어 위로')).dx, greaterThanOrEqualTo(layerButtonX));
+      expect(tester.getCenter(find.byTooltip('순서 위로')).dx, greaterThanOrEqualTo(layerButtonX));
       expect(tester.getCenter(find.text('선택')).dx, lessThan(layerButtonX));
       expect(layout.positions[b.id], otherBefore);
       await tester.pumpWidget(const SizedBox());

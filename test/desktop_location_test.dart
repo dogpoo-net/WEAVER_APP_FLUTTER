@@ -10,6 +10,19 @@ import 'package:weaver/features/capture/geolog_page.dart';
 import 'package:weaver/features/inbox/workspace_routes.dart';
 
 void main(){
+ testWidgets('viewer map opens workspace spots without authoring controls', (tester) async {
+   final spot = ElementRecord('공유 스팟')
+     ..location = ThoughtLocation(35, 127, 1, DateTime.utc(2026));
+   ElementRecord? opened;
+   await tester.pumpWidget(MaterialApp(home: GeologPage.viewer(
+     records: [spot], open: (record) => opened = record)));
+   expect(find.byTooltip('위치에 생각 추가'), findsNothing);
+   final marker = tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers.single;
+   expect(marker.point, const LatLng(35, 127));
+   await tester.tap(find.text('공유 스팟'));
+   await tester.pump();
+   expect(opened, same(spot));
+ });
  testWidgets('timeline connects visible locations in recorded order and toggles', (tester) async {
    elements.clear();
    addTearDown(elements.clear);

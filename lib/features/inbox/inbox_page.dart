@@ -140,11 +140,11 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     _checkingRemote=true;
     try {
       // Keep the invalidation pending without querying while an editor/modal is open.
-      if(storage!.editorResources.isNotEmpty || workspaceRouteObserver.current is PopupRoute)return;
+      if(storage!.canvasInteracting || storage.editorResources.isNotEmpty || workspaceRouteObserver.current is PopupRoute)return;
       _remotePending=false;
       final changed=await storage.checkRemote!();
       _pollFailures=0;_retryAfter=null;
-      if(changed && _contentTimer?.isActive!=true && _contentSync==null && storage.editorResources.isEmpty && mounted && workspaceRouteObserver.current is! PopupRoute){await _refreshForBrowse();}
+      if(changed && !storage.canvasInteracting && _contentTimer?.isActive!=true && _contentSync==null && storage.editorResources.isEmpty && mounted && workspaceRouteObserver.current is! PopupRoute){await _refreshForBrowse();}
       else if(changed){_remotePending=true;}
     } catch(e) { _remotePending=true;_pollFailures=(_pollFailures+1).clamp(1,4);_retryAfter=DateTime.now().add(Duration(seconds:(2<<_pollFailures).clamp(4,30)));if(mounted && _storageError==null)setState(()=>_storageError='서버 동기화를 확인하지 못했습니다. $e'); }
     finally{_checkingRemote=false;}
@@ -589,8 +589,15 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     _contentTimer?.cancel();
     if (_storageError != null) throw StateError(_storageError!);
     if(pending)await _syncContentNow();
-    await storage!.refreshNow!();
-    if(mounted)_applyRemoteSnapshot();
+    final gesture = storage!.canvasGestureRevision;
+    if (storage.canvasInteracting) { _remoteChanged(); return; }
+    await storage.refreshNow!();
+    if (!mounted) return;
+    if (storage.canvasInteracting || storage.canvasGestureRevision != gesture) {
+      _remoteChanged();
+      return;
+    }
+    _applyRemoteSnapshot();
   }
   void _applyRemoteSnapshot({String? replaceResource}){
     final snapshot=WorkspaceSnapshot.decode(widget.storage!.read()!);

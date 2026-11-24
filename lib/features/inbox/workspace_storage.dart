@@ -382,7 +382,14 @@ class WorkspaceStorage {
     _pending=task;return task;
   }
   bool canvasWritable=true;
-  bool canvasInteracting=false;
+  bool _canvasInteracting = false;
+  int _canvasGestureRevision = 0;
+  int get canvasGestureRevision => _canvasGestureRevision;
+  bool get canvasInteracting => _canvasInteracting;
+  set canvasInteracting(bool value) {
+    if (value && !_canvasInteracting) _canvasGestureRevision++;
+    _canvasInteracting = value;
+  }
   final canvasSaveState=ValueNotifier<String>('저장됨');
   Future<void> Function()? syncCanvas;
   final editorResources=<String>[];

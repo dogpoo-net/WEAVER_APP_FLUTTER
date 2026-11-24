@@ -40,6 +40,70 @@ void main(){for(final blocks in [true]){testWidgets('Ctrl drag checks selection 
  expect(find.byKey(const ValueKey('canvas-selection')),findsNothing);
  await tester.pumpWidget(const SizedBox());
 });
+for (final multiple in [false, true]) {
+  testWidgets('selected stack drag survives preview and consecutive drops ($multiple)', (tester) async {
+    tester.view.physicalSize = const Size(1200,900); tester.view.devicePixelRatio=1; addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
+    elements.clear(); memoBoxes.clear(); pageGraphLayout = GraphLayout();
+    final ids = [for (var i = 0; i < 4; i++) elements.add('card $i').id];
+    final layout = pageGraphLayout.blockLayout;
+    for (var i = 0; i < ids.length; i++) {
+      layout.positions[ids[i]] = Offset(500, 500 + i * 32);
+    }
+    final distant = elements.add('distant').id;
+    layout.positions[distant] = const Offset(800, 500);
+    final last = elements.add('last').id;
+    layout.positions[last] = const Offset(1050, 500);
+    for (final id in [...ids, distant]) { layout.stackGroups[id] = 'old-stack'; }
+    layout.layers.addAll(ids);
+    layout.viewport = (Matrix4.identity()..setTranslationRaw(-400,-400,0)).storage.toList();
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Checkbox));
+    await tester.pump();
+    final overlay = tester.renderObject<RenderBox>(find.byKey(const ValueKey('canvas-selection')));
+    Offset slot(int i) => overlay.localToGlobal(Offset(525, 518 + i * 32));
+    await tester.tapAt(slot(1));
+    if (multiple) await tester.tapAt(slot(2));
+    await tester.pump();
+    expect(tester.widget<Text>(find.byKey(const ValueKey("selection-count"))).data, multiple ? "2" : "1");
+    Future<void> move(int from, int to) async {
+      final gesture = await tester.startGesture(slot(from));
+      await gesture.moveTo(slot(to));
+      await gesture.moveBy(const Offset(0, 0.5));
+      await tester.pump();
+      await tester.pump();
+      await gesture.moveBy(const Offset(0, 1));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+    }
+    await move(1, 0);
+    expect(layout.positions[ids[1]], const Offset(500,500));
+    if (multiple) expect(layout.positions[ids[2]], const Offset(500,532));
+    await move(0, 1);
+    for (var i = 0; i < ids.length; i++) {
+      expect(layout.positions[ids[i]], Offset(500, 500 + i * 32));
+    }
+    expect(layout.stackGroups[distant], isNot(layout.stackGroups[ids.first]));
+    if (!multiple) {
+      Future<void> transfer(Offset from, Offset to) async {
+        final drag = await tester.startGesture(overlay.localToGlobal(from));
+        await drag.moveTo(overlay.localToGlobal(to));
+        await tester.pump();
+        await drag.up();
+        await tester.pump();
+      }
+      await transfer(const Offset(525,550), const Offset(825,398));
+      expect(layout.positions[ids[1]], const Offset(800,532));
+      await transfer(const Offset(825,550), const Offset(1075,518));
+      expect(layout.positions[ids[1]], const Offset(1050,532));
+      expect(layout.stackGroups[ids[1]], layout.stackGroups[last]);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(layout.positions[ids[1]], const Offset(1050,532));
+    }
+    await tester.pumpWidget(const SizedBox());
+  });
+}
 testWidgets('Shift click selects spatial range ($blocks)',(tester)async{
  tester.view.physicalSize=const Size(1200,900);tester.view.devicePixelRatio=1;addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
  elements.clear();memoBoxes.clear();pageGraphLayout=GraphLayout();

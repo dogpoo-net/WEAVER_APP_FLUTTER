@@ -129,11 +129,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   late final TextEditingController _search;
   _StackInsertion? _stackPreview;
 
-  _StackInsertion? _findStackInsertion(String moving, List<ElementRecord> records) {
+  _StackInsertion? _findStackInsertion(String moving, List<ElementRecord> records, {Offset? selectionOrigin}) {
     if (workspacePhotos.containsKey(moving)) return null;
     final card = _bounds(moving);
     final positions = Map<String, Offset>.of(_positions);
-    final origin = _thoughtDragOrigins[moving];
+    final origin = selectionOrigin ?? _thoughtDragOrigins[moving];
     if (origin != null) {
       final before = {...positions, moving: origin};
       final original = alignedStackMembers(moving, before, groups: _layout.stackGroups).toList()
@@ -153,6 +153,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             left: slots[nearest].dx, top: slots[nearest].dy, width: _size(moving).width);
         }
       }
+      if (selectionOrigin != null) return null;
       closeVacatedStackSlots(positions, {...positions, moving: origin}, {moving},
         groups: _layout.stackGroups);
     }
@@ -162,11 +163,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     var bestDistance = double.infinity;
     for (final id in visible) {
       if (id == moving) continue;
-      final position = _positions[id];
+      final position = positions[id];
       if (position == null) continue;
       final bounds = position & _size(id);
-      if (card.left >= bounds.right || card.right <= bounds.left ||
-          card.top < bounds.top - 32 || card.top >= bounds.bottom) continue;
+      if (!canDockThought(card, bounds)) continue;
       final distance = (card.top - bounds.top).abs();
       if (distance < bestDistance || (distance == bestDistance && id.compareTo(target!) < 0)) {
         bestDistance = distance;
@@ -318,7 +318,41 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   String? _resizingThought;
   final _resizeNeighbors = <String>{};
   String? _upperResizeNeighbor;
+  double? _stackResizeTop;
   bool get _selectionHasPhoto => _selected.any(workspacePhotos.containsKey);
+
+  // Older interrupted drops could leave distant cards with the same group ID.
+  // Split disconnected components using the saved card bounds before dragging.
+  void _repairDetachedStackMembers() {
+    final groups = <String, Set<String>>{};
+    for (final entry in _layout.stackGroups.entries) {
+      if (_positions.containsKey(entry.key) && !workspacePhotos.containsKey(entry.key)) {
+        groups.putIfAbsent(entry.value, () => <String>{}).add(entry.key);
+      }
+    }
+    for (final entry in groups.entries.where((entry) => entry.value.length > 1)) {
+      final remaining = entry.value;
+      var first = true;
+      while (remaining.isNotEmpty) {
+        final seed = remaining.first;
+        remaining.remove(seed);
+        final component = [seed];
+        for (var i = 0; i < component.length; i++) {
+          final card = _bounds(component[i]).inflate(1);
+          final neighbors = remaining.where((id) => card.overlaps(_bounds(id)) ||
+              ((_positions[id]!.dx - _positions[component[i]]!.dx).abs() < 1 &&
+               (_positions[id]!.dy - _positions[component[i]]!.dy).abs() <= 32)).toList();
+          remaining.removeAll(neighbors);
+          component.addAll(neighbors);
+        }
+        closeStackHoles(_positions, component);
+        if (!first) {
+          for (final id in component) { _layout.stackGroups[id] = 'detached:${entry.key}:$seed'; }
+        }
+        first = false;
+      }
+    }
+  }
 
   void _rememberStacks() {
     // Isolate photos even in layouts saved when photos could belong to a stack.
@@ -361,6 +395,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final group=alignedStackMembers(id,_positions,groups:_layout.stackGroups).toList()
       ..sort((a,b)=>_positions[a]!.dy.compareTo(_positions[b]!.dy));
     final index=group.indexOf(id);
+    _stackResizeTop = group.length > 1 ? (index > 0 ? _positions[group[index-1]]!.dy + 32 : _positions[group[1]]!.dy - 32) : null;
     if(index>0){_upperResizeNeighbor=group[index-1];_resizeNeighbors.add(group[index-1]);}
     if(index+1<group.length)_resizeNeighbors.add(group[index+1]);
   }
@@ -379,6 +414,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       tolerance:tolerance);
 
     var dx=width-current.width,dy=size.height-current.height;
+    final slotTop = _stackResizeTop;
+    if (snap && shift.dy != 0 && slotTop != null &&
+        (_positions[id]!.dy - dy - slotTop).abs() <= tolerance) {
+      dy = _positions[id]!.dy - slotTop;
+    }
     var minX=double.negativeInfinity,maxX=double.infinity,minY=double.negativeInfinity,maxY=double.infinity;
     for(final member in group){
       final old=_size(member),point=_positions[member]!;
@@ -672,6 +712,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     WidgetsBinding.instance.addObserver(this);
     elements.addListener(_storeChanged);
     _sync();
+    _repairDetachedStackMembers();
     _rememberStacks();
   }
   _CanvasState _captureCanvas() {
@@ -1459,6 +1500,62 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _liftBoxes..clear()..addEntries(regions.where((r)=>r.box.elementIds.any(_selected.contains)).map((r)=>MapEntry(r.box,r.bounds)));
     });
   }
+  void _previewSelectionLayer(List<ElementRecord> records) {
+    _stackPreview = null;
+    final anchor = _selectionAnchor;
+    final origin = _selectionDragOrigins[anchor];
+    if (anchor == null || origin == null || !_positions.containsKey(anchor) ||
+        _selectionHasPhoto || (_positions[anchor]! - origin).distance < .5) return;
+    if (_selected.length == 1) {
+      _stackPreview = _findStackInsertion(anchor, records, selectionOrigin: origin);
+      return;
+    }
+    final before = {..._positions, ..._selectionDragOrigins};
+    final stack = alignedStackMembers(anchor, before, groups: _layout.stackGroups);
+    if (!stack.containsAll(_selected) || stack.length == _selected.length) return;
+    final members = stack.toList()..sort((a, b) => before[a]!.dy.compareTo(before[b]!.dy));
+    final slots = [for (final id in members) before[id]!];
+    final point = _positions[anchor]!;
+    if ((point.dx - origin.dx).abs() >= _size(anchor).width / 2 ||
+        point.dy < slots.first.dy - 32 || point.dy > slots.last.dy + 32) return;
+    final moving = members.where(_selected.contains).toList();
+    final nearest = slots.reduce((a, b) =>
+        (a.dy - point.dy).abs() <= (b.dy - point.dy).abs() ? a : b);
+    if (nearest == origin) {
+      _stackPreview = (moving: anchor, target: members.firstWhere((id) => !_selected.contains(id)),
+          members: members, positions: {for (final id in members) id: before[id]!},
+          left: origin.dx, top: origin.dy, width: _size(anchor).width);
+      return;
+    }
+    members.removeWhere(_selected.contains);
+    final target = members.first;
+    final index = (slots.indexOf(nearest) - moving.indexOf(anchor)).clamp(0, members.length);
+    members.insertAll(index, moving);
+    final positions = {for (var i = 0; i < members.length; i++) members[i]: slots[i]};
+    _stackPreview = (moving: anchor, target: target, members: members, positions: positions,
+        left: positions[anchor]!.dx, top: positions[anchor]!.dy, width: _size(anchor).width);
+  }
+
+  void _orderSelectionLayers(List<String> layers, List<String> ordered) {
+    var index = 0;
+    final members = ordered.toSet();
+    for (var i = 0; i < layers.length; i++) {
+      if (members.contains(layers[i])) layers[i] = ordered[index++];
+    }
+  }
+
+  bool _finishSelectionLayer() {
+    final insertion = _stackPreview;
+    if (insertion == null || !_movingSelection || !_selected.contains(insertion.moving)) return false;
+    for (final id in insertion.members) {
+      _positions[id] = insertion.positions[id]!;
+    }
+    _orderSelectionLayers(_layout.layers, insertion.members);
+    _selectionDragOrigins.clear();
+    _stackPreview = null;
+    return true;
+  }
+
   void _moveLiftedSelection(Offset global,List<ElementRecord> records){
     if(!_selectionLifted || _selectionGlobalDown==null || _selectionDragOrigins.isEmpty)return;
     _updateCanvas((){
@@ -1466,11 +1563,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final left=_selectionDragOrigins.values.map((p)=>p.dx).reduce(math.min),top=_selectionDragOrigins.values.map((p)=>p.dy).reduce(math.min);
       final shift=Offset(math.max(delta.dx,32-left),math.max(delta.dy,32-top));
       for(final entry in _selectionDragOrigins.entries){_setSelectionPoint(entry.key,entry.value+shift);}
-      final target=_selectionHasPhoto ? null : records.where((r)=>!workspacePhotos.containsKey(r.id)&&!_selected.contains(r.id)&&_bounds(r.id).overlaps(_selectionBounds(_selectionAnchor!))).lastOrNull;
+      _previewSelectionLayer(records);
+      final target=_selectionHasPhoto ? null : records.where((r)=>!workspacePhotos.containsKey(r.id)&&!_selected.contains(r.id)&&canDockThought(_selectionBounds(_selectionAnchor!), _bounds(r.id))).lastOrNull;
       _dropHighlights..clear()..addAll(target==null?<String>{}:alignedStackMembers(target.id,_positions,groups:_layout.stackGroups).difference(_selected));
     });
   }
   void _clearSelectionLift(){
+    _stackPreview = null;
     _selectionLifted=false;_liftBoxes.clear();_selectionAnchor=null;_dropHighlights.clear();
     _selectionStart=null;_selectionEnd=null;_movingSelection=false;_selectionDragOrigins.clear();
   }
@@ -1485,13 +1584,18 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final anchor=_selectionAnchor!;
       final origin=_selectionDragOrigins[anchor]!;
       if (!_positions.containsKey(anchor)) { _closeMovedSlots(_selectionDragOrigins); _clearSelectionLift(); return; }
-      if((_positions[anchor]!-origin).distance<.5){_clearSelectionLift();return;}
       final scene=_sceneKey.currentContext?.findRenderObject() as RenderBox?;
       final point=scene?.globalToLocal(global)??_bounds(anchor).center;
-      final target=_selectionHasPhoto ? null : records.where((r)=>!workspacePhotos.containsKey(r.id)&&!_selected.contains(r.id)&&_bounds(r.id).overlaps(_bounds(anchor))).lastOrNull;
-      if (_dropIntoBox(point, _selected)) {
-        // Membership was decided by the drop point.
-      } else if(target!=null){_snapSelection(records);}
+      final destination = _boxAt(point, where: (_) => true);
+      if ((_positions[anchor]! - origin).distance < .5) {
+        _dropIntoBox(point, _selected);
+        _clearSelectionLift();
+        return;
+      }
+      final target=_selectionHasPhoto ? null : records.where((r)=>!workspacePhotos.containsKey(r.id)&&!_selected.contains(r.id)&&canDockThought(_bounds(anchor), _bounds(r.id))).lastOrNull;
+      if (_dropIntoBox(point, _selected) || _finishSelectionLayer()) {
+        // The layer or box drop has already been applied.
+      } else if(target!=null){_snapSelection(records, destination: destination);}
       else if(folders.values.any((bounds)=>bounds.contains(point))&&!regions.any((r)=>_inside(r.bounds,point))){
         for(final e in _selectionDragOrigins.entries){_setSelectionPoint(e.key,e.value);}
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('생각은 메모상자 안에 담아주세요. 폴더에는 직접 넣을 수 없습니다.')));
@@ -1499,15 +1603,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         final shift=_selectionHasPhoto ? Offset.zero : snapThought(_bounds(anchor),records.where((r)=>!workspacePhotos.containsKey(r.id)&&!_selected.contains(r.id)).map((r)=>_bounds(r.id)),tolerance:(24/_view.value.storage[0].abs()).clamp(12,48));
         if(_selected.every((id)=>(_selectionPoint(id)+shift).dx>=32&&(_selectionPoint(id)+shift).dy>=32)){for(final id in _selected){_setSelectionPoint(id,_selectionPoint(id)+shift);}}
         _joinStack(_selected, null);
-        var changed=false;final detached=<MemoBox>{};
+        var changed=false;
         for(final entry in _liftBoxes.entries){
           if(!_inside(entry.value,point)){
             for(final id in _selected){changed=entry.key.elementIds.remove(id)||changed;}
-            _emptyBoxBounds[entry.key]=entry.value;detached.add(entry.key);
+            _emptyBoxBounds[entry.key]=entry.value;
           }
         }
-        final targets=regions.where((r)=>!detached.contains(r.box)&&_inside(r.bounds,point)).toList()..sort((a,b)=>(a.bounds.width*a.bounds.height).compareTo(b.bounds.width*b.bounds.height));
-        if(targets.isNotEmpty){for(final id in _selected){if (_positions.containsKey(id)) moveThoughtToBox(id,targets.first.box);}changed=true;}
         if(changed)_changed();
       }
       _closeMovedSlots(_selectionDragOrigins);
@@ -1516,13 +1618,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _saveLayout(flush:true);
   }
 
-  void _snapSelection(List<ElementRecord> records) {
+  void _snapSelection(List<ElementRecord> records, {MemoBox? destination}) {
     final anchor = _selectionAnchor;
     if (_selectionHasPhoto || !_movingSelection || _selectionStart == null || anchor == null || !_positions.containsKey(anchor)) return;
     final tolerance = (24 / _view.value.storage[0].abs()).clamp(12, 48).toDouble();
     _rememberStacks();
     final others = records.where((r) => !workspacePhotos.containsKey(r.id) && !_selected.contains(r.id)).toList();
-    final target = others.where((r) => _bounds(r.id).overlaps(_bounds(anchor))).lastOrNull;
+    final target = others.where((r) => canDockThought(_bounds(anchor), _bounds(r.id))).lastOrNull;
     if (target == null) {
       final shift = snapThought(_bounds(anchor), others.map((r) => _bounds(r.id)), tolerance: tolerance);
       if (_selected.any((id) => (_selectionPoint(id) + shift).dx < 32 || (_selectionPoint(id) + shift).dy < 32)) return;
@@ -1553,7 +1655,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     if (target != null) {
       final moved = _layout.layers.where(_selected.contains).toList();
       _layout.layers.removeWhere(_selected.contains); _layout.layers.addAll(moved);
-      final box = memoBoxes.where((box) => !box.isUnclassified && box.elementIds.contains(target.id)).firstOrNull;
+      final box = destination;
       for (final id in _selected) {
         if (box != null && _selectionLifted) { if (_positions.containsKey(id)) moveThoughtToBox(id, box); }
         else if (box == null && _selectionLifted) { for (final box in memoBoxes.where((box) => !box.isUnclassified)) { box.elementIds.remove(id); } }
@@ -1715,6 +1817,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   final _canvasMenuKey = GlobalKey();
   MemoBox? _canvasMenuBox;
   String? _canvasMenuFolder;
+  bool _canvasMenuOnThought = false;
   bool _canvasOwnsBrowserMenu = false;
   bool _canvasHovered = false;
 
@@ -1725,7 +1828,30 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         : BrowserContextMenu.enableContextMenu());
   }
 
-  List<Widget> _canvasMenuItems() {
+  void _arrangeSelection({required bool stack}) {
+    final bounds = {for (final id in _selected)
+      if (_positions.containsKey(id) || _tagPositions.containsKey(id)) id: _selectionBounds(id)};
+    if (!_canEdit || bounds.length < 2) return;
+    final targets = arrangeCanvasSelection(bounds, stack: stack);
+    _editCanvasLayout(() {
+      _rememberStacks();
+      final group = 'arrange:${DateTime.now().microsecondsSinceEpoch}:${targets.keys.first}';
+      for (final entry in targets.entries) {
+        final id = entry.key;
+        _setSelectionPoint(id, _selectionPoint(id) + (entry.value - bounds[id]!.topLeft));
+        if (_positions.containsKey(id) && !workspacePhotos.containsKey(id)) {
+          _layout.stackGroups[id] = stack ? group : '$group:$id';
+        }
+      }
+      if (stack) {
+        _frontThought = null;
+        _layout.layers.removeWhere(targets.containsKey);
+        _layout.layers.addAll(targets.keys.where(_positions.containsKey));
+      }
+    });
+  }
+
+  List<Widget> _canvasMenuItems(ValueChanged<bool> stepLayers) {
     final box = _canvasMenuBox;
     final folder = _canvasMenuFolder;
     const compact = ButtonStyle(
@@ -1734,6 +1860,29 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
     return [
+      if (_canvasMenuOnThought)
+        SubmenuButton(
+          style: compact,
+          menuChildren: [
+            for (final up in [true, false])
+              MenuItemButton(
+                style: compact,
+                onPressed: () => stepLayers(up),
+                leadingIcon: Icon(up ? Icons.arrow_upward : Icons.arrow_downward),
+                child: Text(up ? '위로' : '아래로'),
+              ),
+          ],
+          child: const Text('레이어'),
+        ),
+      if (_selected.length > 1)
+        SubmenuButton(
+          style: compact,
+          menuChildren: [
+            MenuItemButton(style: compact, onPressed: () => _arrangeSelection(stack: true), child: const Text('겹치기')),
+            MenuItemButton(style: compact, onPressed: () => _arrangeSelection(stack: false), child: const Text('펼치기')),
+          ],
+          child: const Text('배치'),
+        ),
       SubmenuButton(
         style: compact,
         menuChildren: [
@@ -1776,7 +1925,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   Widget _buildCanvas(BuildContext context, ColorScheme color) {
     final preview = _stackPreview;
     final layers = preview == null ? _layout.layers : List<String>.of(_layout.layers);
-    if (preview != null) _insertStackLayer(layers, preview);
+    if (preview != null) {
+      if (_movingSelection) {
+        _orderSelectionLayers(layers, preview.members);
+      } else {
+        _insertStackLayer(layers, preview);
+      }
+    }
     final ranks = {for (var i = 0; i < layers.length; i++) layers[i]: i};
     final records = _records..sort(
       (a, b) => (ranks[a.id] ?? 0).compareTo(ranks[b.id] ?? 0),
@@ -1790,8 +1945,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     }
     final visiblePositions = {
       for (final record in records)
-        record.id: (record.id == preview?.moving ? null : preview?.positions[record.id]) ?? _positions[record.id]!,
+        record.id: ((record.id == preview?.moving || (_movingSelection && _selected.contains(record.id))) ? null : preview?.positions[record.id]) ?? _positions[record.id]!,
     };
+    final externalStack = preview == null && _movingSelection
+        ? _dropHighlights.where((id) => !_selected.contains(id) && _positions.containsKey(id)).toList()
+        : <String>[];
+    externalStack.sort((a, b) => _positions[a]!.dy.compareTo(_positions[b]!.dy));
     final thoughtBounds = [
       for (final record in records) visiblePositions[record.id]! & _size(record.id),
     ];
@@ -1851,24 +2010,31 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               viewport.maxHeight / 2 - (top + bottom) / 2 * scale, 0);
           });
         }
-        void openCanvasMenu(Offset globalPosition) {
+        void openCanvasMenu(Offset globalPosition, {bool secondary = false}) {
           if (!_canEdit) return;
           final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
           final anchor = _canvasMenuKey.currentContext?.findRenderObject() as RenderBox?;
           if (scene == null || anchor == null) return;
           final point = scene.globalToLocal(globalPosition);
-          if (nodeRects.values.any((bounds) => bounds.contains(point))) return;
+          final hit = _hitSelection(point, records);
+          final onThought = secondary && hit != null && _positions.containsKey(hit);
+          final onSelection = onThought || (_selected.length > 1 && _selected.contains(hit));
+          if (!onSelection && nodeRects.values.any((bounds) => bounds.contains(point))) return;
           final box = regions.where((r) => r.bounds.contains(point)).lastOrNull;
           final folder = box == null
               ? folders.entries.where((f) => f.value.contains(point)).lastOrNull
               : null;
-          if (box != null && _boxHeaderBounds(box.bounds).contains(point)) return;
-          if (folder != null &&
+          if (!onSelection && box != null && _boxHeaderBounds(box.bounds).contains(point)) return;
+          if (!onSelection && folder != null &&
               point.dy < folder.value.top + MemoFolderRegion.headerHeight) return;
           final position = anchor.globalToLocal(globalPosition);
           _canvasMenu.close();
           _canvasTapDown = null;
           setState(() {
+            _canvasMenuOnThought = onThought;
+            if (onThought && !_selected.contains(hit)) {
+              _selected..clear()..add(hit);
+            }
             _canvasMenuBox = box?.box;
             _canvasMenuFolder = folder?.key;
           });
@@ -1887,7 +2053,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               _canvasMenu.close();
             }
             if (event.buttons == kSecondaryMouseButton) {
-              openCanvasMenu(event.position);
+              openCanvasMenu(event.position, secondary: true);
               return;
             }
             if (_canEdit && _activeCanvasPointers.isEmpty) {
@@ -2003,15 +2169,17 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   }
                 },
                 onDrop: (pointer) {
+                  final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
+                  final center = scene?.globalToLocal(pointer) ?? _bounds(record.id).center;
+                  final destination = _boxAt(center, where: (_) => true);
                   final origin = _thoughtDragOrigins[record.id];
                   if (origin != null && (_positions[record.id]! - origin).distance < .5) {
                     _positions[record.id] = origin;
+                    if (_liftedThought == record.id) _dropIntoBox(center, [record.id]);
                     _dropHighlights.clear(); _liftBoxes.clear();
                     _saveLayout(flush: true);
                     return;
                   }
-                  final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
-                  final center = scene?.globalToLocal(pointer) ?? _bounds(record.id).center;
                   if (_dropIntoBox(center, [record.id])) {
                     _saveLayout(flush: true);
                     return;
@@ -2038,7 +2206,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                       _layout.layers.remove(record.id);
                       _layout.layers.add(record.id);
                     }
-                    final box = memoBoxes.where((box) => !box.isUnclassified && box.elementIds.contains(targetId)).firstOrNull;
+                    final box = destination;
                     if (box != null && _liftedThought == record.id) { moveThoughtToBox(record.id, box); }
                     else if (box == null && _liftedThought == record.id) { for (final box in memoBoxes.where((box) => !box.isUnclassified)) { box.elementIds.remove(record.id); } }
                     _liftBoxes.clear(); _changed(); _saveLayout(flush: true);
@@ -2059,15 +2227,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                       entry.key.elementIds.remove(record.id); detached.add(entry.key);
                       _emptyBoxBounds[entry.key] = entry.value;
                     }
-                  }
-                  final targets = regions.where((r) => !detached.contains(r.box) && !r.box.elementIds.contains(record.id) &&
-                    _inside(r.bounds, center)).toList()
-                    ..sort((a, b) => a.bounds.width.compareTo(b.bounds.width));
-                  if (targets.isNotEmpty) {
-                    moveThoughtToBox(record.id, targets.first.box);
-                    _liftBoxes.clear();
-                    _changed();
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${targets.first.box.name}에 담았습니다.')));
                   }
                   if (detached.isNotEmpty) _changed();
                   _saveLayout(flush: true);
@@ -2142,15 +2301,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               onScaleEnd: (_) => _endPinch(),
               child: AnimatedScale(scale: _selectionLifted && _selected.contains('tag:$tag') ? 1.04 : 1, duration: const Duration(milliseconds: 100), child: Tooltip(message: '#$tag', child: Material(key:ValueKey('graph-tag-body-$tag'), shape: StadiumBorder(side: BorderSide(color: Color(hashtagColors[tag] ?? 0xFF90A4AE), width: 2.5)),
               color: Color.alphaBlend(Color(hashtagColors[tag] ?? 0xFF90A4AE).withValues(alpha: .3), color.surface),child:Padding(padding:const EdgeInsets.symmetric(horizontal:10,vertical:5),child:Center(child:Text('#$tag',style:Theme.of(context).textTheme.labelLarge,maxLines:1,overflow:TextOverflow.ellipsis)))))))),
-          if (preview != null)
+          if (preview != null || externalStack.isNotEmpty)
             Positioned(
-              left: preview.left,
-              top: preview.top - 2,
-              width: preview.width,
+              left: preview?.left ?? _positions[externalStack.last]!.dx,
+              top: (preview?.top ?? (_positions[externalStack.last]!.dy + 32)) - 2,
+              width: preview?.width ?? _size(externalStack.last).width,
               child: IgnorePointer(child: ColoredBox(color: color.primary,
                 child: const SizedBox(height: 3))),
             ),
-          if (_rangeSelection || _selected.isNotEmpty) Positioned.fill(child: Listener(
+          if (_rangeSelection || _selected.isNotEmpty) Positioned.fill(key: const ValueKey('selection-overlay'), child: Listener(
             onPointerDown: (event) {
               if (_selectionPointers.isEmpty) {
                 _selectionDown = event.localPosition; _selectionGlobalDown = event.position;
@@ -2163,7 +2322,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onPointerMove: (event) { _selectionPointers[event.pointer] = event.position; _updateSelectionZoom(); },
             onPointerUp: (event) => _removeSelectionPointer(event.pointer),
             onPointerCancel: (event) => _removeSelectionPointer(event.pointer),
-            child: GestureDetector(
+            child: MediaQuery(
+              data: MediaQuery.of(context).copyWith(gestureSettings: const DeviceGestureSettings(touchSlop: 6)),
+              child: GestureDetector(
             key: const ValueKey('canvas-selection'), behavior: HitTestBehavior.deferToChild, dragStartBehavior: DragStartBehavior.down,
             onLongPressStart:(d)=>_startSelectionLift(d.globalPosition,records,regions),
             onLongPressMoveUpdate:(d)=>_moveLiftedSelection(d.globalPosition,records),
@@ -2207,6 +2368,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             }),
             onScaleUpdate: (d) => _updateCanvas(() {
               if (d.pointerCount > 1) {
+                _stackPreview = null;
                 _selected..clear()..addAll(_selectionBeforeGesture);
                 _selectionStart = null; _selectionEnd = null; return;
               }
@@ -2214,14 +2376,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               if (_movingSelection) {
                 if (_selectionPointers.isEmpty || _selectionGlobalDown == null || _selectionDragOrigins.isEmpty) return;
                 _selectionEnd = d.localFocalPoint;
-                final delta = (_selectionPointers.values.first - _selectionGlobalDown!) / _view.value.storage[0].abs();
+                final delta = (d.focalPoint - _selectionGlobalDown!) / _view.value.storage[0].abs();
                 final left = _selectionDragOrigins.values.map((p) => p.dx).reduce(math.min);
                 final top = _selectionDragOrigins.values.map((p) => p.dy).reduce(math.min);
                 final shift = Offset(math.max(delta.dx, 32 - left), math.max(delta.dy, 32 - top));
                 final anchor = _selectionDragOrigins.entries.first;
                 final allowed = _limitThoughtDrag(_selected, anchor.value + shift - _selectionPoint(anchor.key));
                 for (final id in _selectionDragOrigins.keys) { _setSelectionPoint(id, _selectionPoint(id) + allowed); }
-                final target = _selectionHasPhoto ? null : records.where((r) => !workspacePhotos.containsKey(r.id) && !_selected.contains(r.id) && _selectionAnchor != null && _bounds(r.id).overlaps(_selectionBounds(_selectionAnchor!))).lastOrNull;
+                _previewSelectionLayer(records);
+                final target = _selectionHasPhoto ? null : records.where((r) => !workspacePhotos.containsKey(r.id) && !_selected.contains(r.id) && _selectionAnchor != null && canDockThought(_selectionBounds(_selectionAnchor!), _bounds(r.id))).lastOrNull;
                 _dropHighlights..clear()..addAll(target == null ? <String>{} : alignedStackMembers(target.id, _positions,groups:_layout.stackGroups).difference(_selected));
               } else {
                 _selectionEnd = d.localFocalPoint;
@@ -2236,10 +2399,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             }),
             onScaleEnd: (_) { setState(() {
               final drop = _selectionEnd;
-              if (!_movingSelection || drop == null || drop == _selectionStart || !_dropIntoBox(drop, _selected)) {
+              if (!_selectionPinched && !_finishSelectionLayer() &&
+                  (!_movingSelection || drop == null || drop == _selectionStart || !_dropIntoBox(drop, _selected))) {
                 _snapSelection(records);
               }
-              _closeMovedSlots(_selectionDragOrigins); _liftBoxes.clear(); _selectionAnchor = null; _dropHighlights.clear(); _selectionStart = null; _selectionEnd = null; _movingSelection = false; }); _endPinch(); },
+              _stackPreview = null; _closeMovedSlots(_selectionDragOrigins); _liftBoxes.clear(); _selectionAnchor = null; _dropHighlights.clear(); _selectionStart = null; _selectionEnd = null; _movingSelection = false; }); _endPinch(); },
             child: TweenAnimationBuilder<double>(
               tween: Tween<double>(begin: 1, end: _selectionLifted ? 1.04 : 1),
               duration: const Duration(milliseconds: 100),
@@ -2251,7 +2415,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 for (final bounds in folders.values)
                   Rect.fromLTWH(bounds.left, bounds.top, bounds.width, MemoFolderRegion.headerHeight),
               ], resizeRects: {for(final r in records)_bounds(r.id)}))),
-          ))),
+          )))),
           if (_canEdit && !_rangeSelection) ...[
             for (final folder in folders.entries)
               ..._containerResizeEdges('folder:${folder.key}', folder.value),
@@ -2273,7 +2437,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           child: MenuAnchor(
             controller: _canvasMenu,
             onClose: () => _setCanvasBrowserMenu(_canvasHovered),
-            menuChildren: _canvasMenuItems(),
+            menuChildren: _canvasMenuItems(stepLayers),
             child: SizedBox.expand(
               key: _canvasMenuKey,
               child: GestureDetector(
@@ -2309,10 +2473,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: IntrinsicWidth(child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '레이어 위로', icon: const Icon(Icons.arrow_upward, size: 18), onPressed: () {
+              IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '순서 위로', icon: const Icon(Icons.arrow_upward, size: 18), onPressed: () {
                 stepLayers(true);
               }),
-              IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '레이어 아래로', icon: const Icon(Icons.arrow_downward, size: 18), onPressed: () {
+              IconButton(style: IconButton.styleFrom(minimumSize: const Size(32, 28), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap), tooltip: '순서 아래로', icon: const Icon(Icons.arrow_downward, size: 18), onPressed: () {
                 stepLayers(false);
               }),
             ]),
