@@ -32,14 +32,15 @@ void main() {
     });
   }
   for (final blocks in [true]) {
-    testWidgets('single tap opens thought editor without selection actions ($blocks)', (tester) async {
-      elements.clear(); elements.add('바로 수정할 생각');
+    testWidgets('single tap opens woven thought for reading without selection actions ($blocks)', (tester) async {
+      elements.clear(); elements.add('바로 수정할 생각').extraPages.add(const ThoughtPageData('다음 장'));
       await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
       await tester.pumpAndSettle();
       expect(tester.widget<InteractiveViewer>(find.byType(InteractiveViewer)).maxScale, 12);
+      expect(find.text('2쪽'), findsNothing);
       await tester.tap(find.text('바로 수정할 생각'));
       await tester.pump();
-      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.byKey(const ValueKey('생각읽기')), findsOneWidget);
       expect(find.text('생각 수정'), findsNothing);
       expect(find.text('연결된 생각 만들기'), findsNothing);
       await tester.pumpAndSettle();

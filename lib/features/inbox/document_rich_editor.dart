@@ -368,6 +368,7 @@ class DocumentRichEditor extends StatefulWidget {
     required this.onInsertFootnote,
     required this.onInsertTable,
     this.onInsertPhoto,
+    this.onInsertVideo,
     this.onInsertDivider,
     this.onEditLines,
     this.sourceSelection,
@@ -386,6 +387,7 @@ class DocumentRichEditor extends StatefulWidget {
   final ValueChanged<int>? onInsertFootnote,
       onInsertTable,
       onInsertPhoto,
+      onInsertVideo,
       onInsertDivider;
   final void Function(DocumentLineAction, TextSelection)? onEditLines;
   final TextSelection? sourceSelection;
@@ -1080,36 +1082,6 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                     _toggle(dash ? _dashBullet : quill.Attribute.ul),
               ),
               const VerticalDivider(width: 12, indent: 8, endIndent: 8),
-              IconButton(
-                tooltip: '구분선 삽입',
-                icon: const Icon(Icons.horizontal_rule),
-                onPressed: widget.onInsertDivider == null
-                    ? null
-                    : () => widget.onInsertDivider!(_insertionOffset()),
-              ),
-              IconButton(
-                tooltip: '표 삽입',
-                icon: const Icon(Icons.table_chart_outlined),
-                onPressed: widget.onInsertTable == null
-                    ? null
-                    : () => widget.onInsertTable!(_insertionOffset()),
-              ),
-              IconButton(
-                tooltip: '사진 삽입',
-                icon: const Icon(Icons.add_photo_alternate_outlined),
-                onPressed: widget.onInsertPhoto == null
-                    ? null
-                    : () => widget.onInsertPhoto!(_insertionOffset()),
-              ),
-              IconButton(
-                tooltip: '각주',
-                icon: const Text('≡¹'),
-                onPressed: widget.onInsertFootnote == null
-                    ? null
-                    : () => widget.onInsertFootnote!(
-                        _insertionOffset(atCaret: true),
-                      ),
-              ),
               if (headings.isNotEmpty)
                 PopupMenuButton<int>(
                   tooltip: '목차',
@@ -1136,7 +1108,46 @@ class _DocumentRichEditorState extends State<DocumentRichEditor> {
                     entry.section.focus!.requestFocus();
                   },
                 ),
+              IconButton(
+                tooltip: '사진 삽입',
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                onPressed: widget.onInsertPhoto == null
+                    ? null
+                    : () => widget.onInsertPhoto!(_insertionOffset()),
+              ),
+              IconButton(
+                tooltip: '영상 삽입',
+                icon: const Icon(Icons.video_library_outlined),
+                onPressed: widget.onInsertVideo == null
+                    ? null
+                    : () => widget.onInsertVideo!(_insertionOffset()),
+              ),
+              const VerticalDivider(width: 12, indent: 8, endIndent: 8),
+              IconButton(
+                tooltip: '구분선 삽입',
+                icon: const Icon(Icons.horizontal_rule),
+                onPressed: widget.onInsertDivider == null
+                    ? null
+                    : () => widget.onInsertDivider!(_insertionOffset()),
+              ),
+              IconButton(
+                tooltip: '표 삽입',
+                icon: const Icon(Icons.table_chart_outlined),
+                onPressed: widget.onInsertTable == null
+                    ? null
+                    : () => widget.onInsertTable!(_insertionOffset()),
+              ),
               _formatButton('코드 블록', Icons.code, quill.Attribute.codeBlock),
+              const VerticalDivider(width: 12, indent: 8, endIndent: 8),
+              IconButton(
+                tooltip: '각주',
+                icon: const Text('≡¹'),
+                onPressed: widget.onInsertFootnote == null
+                    ? null
+                    : () => widget.onInsertFootnote!(
+                        _insertionOffset(atCaret: true),
+                      ),
+              ),
             ],
           ),
           Expanded(
@@ -1700,7 +1711,7 @@ class _EditableVisualBlockState extends State<_EditableVisualBlock> {
   Widget _toolbar(BuildContext context, OverlayChildLayoutInfo layout) {
     if (widget.readOnly || (!_hovered && !widget.selected))
       return const SizedBox.shrink();
-    final label = widget.block.photoId == null ? '구분선' : '사진';
+    final label = widget.block.video != null ? '영상' : widget.block.photoId == null ? '구분선' : '사진';
     final width = widget.block.widthPercent;
     const toolbarWidth = 128.0;
     const toolbarHeight = 64.0;

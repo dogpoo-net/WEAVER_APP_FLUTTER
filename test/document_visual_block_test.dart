@@ -10,6 +10,30 @@ import 'package:weaver/features/inbox/project_document_editor.dart';
 import 'package:weaver/features/inbox/project_page.dart';
 
 void main() {
+  testWidgets('video dialog inserts a validated Vimeo link into rich text', (tester) async {
+    final project = WritingProject([], [], name: '문서')..document = '본문';
+    await tester.pumpWidget(MaterialApp(home: ProjectDocumentEditor(project: project)));
+    await tester.tap(find.text('서식 편집'));
+    await tester.pumpAndSettle();
+    final button = find.byTooltip('영상 삽입');
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.text('YouTube'), findsOneWidget);
+    expect(find.text('파일 업로드'), findsOneWidget);
+    await tester.tap(find.text('Vimeo'));
+    await tester.pumpAndSettle();
+    final field = find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField));
+    await tester.enterText(field, 'https://example.com/123');
+    await tester.tap(find.text('삽입'));
+    await tester.pumpAndSettle();
+    expect(find.text('Vimeo 영상 링크를 확인해주세요.'), findsOneWidget);
+    await tester.enterText(field, 'https://vimeo.com/123');
+    await tester.tap(find.text('삽입'));
+    await tester.pumpAndSettle();
+    expect(find.text('Vimeo 영상 열기'), findsOneWidget);
+  });
+
   testWidgets('visual blocks can be aligned from hover or tap', (tester) async {
     var source = '본문\n-----\n<photo id="photo-1">\n끝';
     await tester.pumpWidget(

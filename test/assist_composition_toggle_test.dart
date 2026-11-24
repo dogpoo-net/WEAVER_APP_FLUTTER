@@ -5,6 +5,34 @@ import 'package:weaver/features/inbox/caret_assist.dart';
 import 'package:weaver/features/inbox/word_badge.dart';
 
 void main() {
+  testWidgets('mobile suggestions survive a selected composing range until explicit selection', (tester) async {
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = TextEditingController();
+    final focus = FocusNode();
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: CaretAssist(
+      controller: controller, focus: focus, words: const ['생각 정리'], onWord: (_) {},
+      showWhenEmpty: false, explicitSelectionOnly: true,
+      child: TextField(controller: controller, focusNode: focus)))));
+    await tester.tap(find.byType(TextField));
+    const composing = TextEditingValue(text: '생각', selection: TextSelection.collapsed(offset: 2),
+      composing: TextRange(start: 1, end: 2));
+    final selected = composing.copyWith(selection: const TextSelection(baseOffset: 2, extentOffset: 1));
+    for (final input in [composing, selected]) {
+      tester.testTextInput.updateEditingValue(input);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('suggestion-생각 정리')), findsOneWidget);
+    }
+    tester.testTextInput.updateEditingValue(selected.copyWith(composing: TextRange.empty));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('assist-popup')), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+    focus.dispose();
+  });
+
   testWidgets('first shortcut enters an automatically highlighted exact match and re-enters after edits', (tester) async {
     final c = TextEditingController(); final f = FocusNode();
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: CaretAssist(controller: c,

@@ -6,8 +6,9 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
 class VoicePlayer extends StatefulWidget {
-  const VoicePlayer({super.key, required this.load, required this.durationMs,this.textStyle,this.transcript='',this.onTranscribe,this.transcription,this.trailing,this.actionStyle});
+  const VoicePlayer({super.key, this.dialogLayout = false, required this.load, required this.durationMs,this.textStyle,this.transcript='',this.onTranscribe,this.transcription,this.trailing,this.actionStyle});
   final Future<Uint8List?> Function() load;
+  final bool dialogLayout;
   final int durationMs;
   final String transcript;
   final Widget? trailing;
@@ -108,12 +109,14 @@ class _VoicePlayerState extends State<VoicePlayer> {
           Text(_transcriptionError!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12)),
         if (transcript.isNotEmpty) ...[
           if (!inlineActions) TextButton.icon(
-            style: _compact,
+            style: widget.dialogLayout ? TextButton.styleFrom(padding: const EdgeInsets.only(right: 8), alignment: Alignment.centerLeft) : _compact,
             onPressed: () => setState(() => _showTranscript = !_showTranscript),
             icon: Icon(_showTranscript ? Icons.expand_less : Icons.expand_more, size: 16),
             label: const Text('변환된 텍스트'),
           ),
-          if (_showTranscript) SizedBox(width: double.infinity, child: Column(
+          if (_showTranscript && widget.dialogLayout) Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 4), child: SelectableText(transcript)),
+          if (_showTranscript && !widget.dialogLayout) SizedBox(width: double.infinity, child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Divider(height: 8, thickness: 1, color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .45)),

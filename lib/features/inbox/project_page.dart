@@ -137,11 +137,16 @@ Future<String> documentRevisionLabel(WorkspaceStorage? storage, String id) async
 
 Widget documentReadingView(BuildContext context, DocumentSegment document, String revisionLabel, bool dirty) =>
 SelectionArea(child:SingleChildScrollView(padding:const EdgeInsets.all(20),child:Align(alignment:Alignment.topCenter,child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:900),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[if(dirty)const Padding(padding:EdgeInsets.only(bottom:12),child:Text('아직 저장되지 않았습니다.',style:TextStyle(color:Colors.red))),DocumentMarkup(text: document.text, links: document.links,
-bodyBuilder: (body) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-if (revisionLabel.isNotEmpty) Padding(
-  padding: const EdgeInsets.only(bottom: 4),
-  child: Text(revisionLabel, textAlign: TextAlign.right,
-    style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant))),
+bodyBuilder: (title, contents, body) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+  if (title != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: title),
+  if (contents != null || revisionLabel.isNotEmpty)
+    Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+      if (contents != null) Flexible(child: contents),
+      if (revisionLabel.isNotEmpty) Expanded(child: Padding(
+        padding: EdgeInsetsDirectional.only(start: contents == null ? 0 : 8),
+        child: Text(revisionLabel, textAlign: TextAlign.end,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)))),
+    ]),
 Container(padding: const EdgeInsets.all(16),
   decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
     borderRadius: BorderRadius.circular(8)),

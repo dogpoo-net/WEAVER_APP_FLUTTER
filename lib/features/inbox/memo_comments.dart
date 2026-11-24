@@ -41,7 +41,7 @@ class _CommentsState extends State<_Comments> {
  }
  Future<void> send()async{
   final content=text.text.trim();if(sending||content.isEmpty)return;
-  if(content.runes.length>4000){setState(()=>error='댓글은 4000자 이하로 입력해주세요.');return;}
+  if(content.characters.length>500){setState(()=>error='댓글은 500자 이하로 입력해주세요.');return;}
   if(requestId==null||submittedText!=content){final r=Random.secure();final h=List.generate(32,(_)=>r.nextInt(16).toRadixString(16)).join();requestId='${h.substring(0,8)}-${h.substring(8,12)}-${h.substring(12,16)}-${h.substring(16,20)}-${h.substring(20)}';submittedText=content;}
   setState((){sending=true;error=null;});
   try{await saveWorkspaceContent?.call();final r=await widget.request('comments/write',{'memoId':widget.memoId,'content':content,'requestId':requestId});if(!mounted)return;
@@ -63,7 +63,7 @@ class _CommentsState extends State<_Comments> {
     ]));
    })),
    if(!widget.canWrite)const Text('읽기 전용 워크스페이스에서는 댓글을 작성할 수 없습니다.'),
-   if(widget.canWrite)TextField(key:const ValueKey('memo-comment-input'),controller:text,focusNode:focus,autofocus:widget.write,enabled:!sending,minLines:2,maxLines:4,maxLength:4000,decoration:const InputDecoration(hintText:'댓글을 입력하세요.')),
+   if(widget.canWrite)TextField(key:const ValueKey('memo-comment-input'),controller:text,focusNode:focus,autofocus:widget.write,enabled:!sending,minLines:2,maxLines:4,maxLength:500,decoration:const InputDecoration(counterText:'',hintText:'댓글을 입력하세요.')),
   ])),
   actions:[if(widget.canWrite)FilledButton(onPressed:sending?null:send,child:Text(sending?'등록 중…':'댓글 등록')),TextButton(onPressed:sending?null:()=>Navigator.pop(context),child:const Text('닫기'))]);
 }

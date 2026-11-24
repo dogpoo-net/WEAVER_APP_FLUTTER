@@ -1,4 +1,5 @@
 import 'workspace_photo.dart';
+import 'document_syntax.dart' show documentVideoIds;
 import '../storage/record_preferences.dart';
 import '../capture/voice_transcription.dart';
 import '../sync/workspace_events.dart';
@@ -58,9 +59,11 @@ class WorkspaceSnapshot {
   final List<WorkspacePhoto> photos;
   Map<String, String> get attachmentTypes => {
     for (final record in [...records, ...trashRecords]) ...{
+      for (final id in documentVideoIds(record.archivedDocument?['project']?['document'] as String?)) id: 'video',
       for (final photo in record.photos) photo.id: 'image',
       for (final clip in record.recordings) clip.id: 'audio',
     },
+    for (final note in notes) for (final id in documentVideoIds(note.project?.document)) id: 'video',
     for (final photo in photos) photo.id: 'image',
   };
   final GraphLayout? graphLayout;
@@ -84,6 +87,7 @@ class WorkspaceSnapshot {
   static Map<String, dynamic> recordJson(ElementRecord r) => {
             'id': r.id,
             'text': r.text,
+            if (r.archivedDocument != null) 'archivedDocument': r.archivedDocument,
             'createdAt': r.createdAt.toIso8601String(),
             'tags': r.tags.toList(),
             'inlineLinks': r.inlineLinks.map((link) => link.toJson()).toList(),
@@ -118,11 +122,12 @@ class WorkspaceSnapshot {
     'trash': elements.trash.values.map(recordJson).toList(),
     'workspacePhotos': workspacePhotos.values.map((photo) => photo.toJson()).toList(),
     'colors': exportWordColors(),
-    'notes': notes
-        .map(
-          (n) => {
+    'notes': notes.map(noteJson).toList(),
+  };
+  static Map<String, dynamic> noteJson(Note n) => {
             'id': n.id,
             'content': n.content,
+            if (documentVideoIds(n.project?.document).isNotEmpty) 'videoIds': documentVideoIds(n.project?.document).toSet().toList(),
             'bindings': n.bindings.map((link) => link.toJson()).toList(),
             'folder': n.folder,
             'tags': n.tags.toList(),
@@ -141,10 +146,7 @@ class WorkspaceSnapshot {
                     'tags': n.project!.tags.toList(),
                     'paragraphs': n.project!.paragraphs.map(paragraph).toList(),
                   },
-          },
-        )
-        .toList(),
-  };
+          };
   static WorkspaceSnapshot decode(String json) {
     if (json.length > 10000000) throw const FormatException('Backup too large');
     final data = jsonDecode(json) as Map<String, dynamic>;
@@ -184,6 +186,7 @@ class WorkspaceSnapshot {
         DateTime.parse(r['createdAt'] as String),
         tags: ((r['tags'] ?? []) as List).cast<String>(),
       )..inlineLinks = bindings({'text': text, 'bindings': r['inlineLinks']})
+       ..archivedDocument = r['archivedDocument'] as Map<String, dynamic>?
        ..folder = r['folder'] as String?
        ..hiddenFromSearch = (r['hiddenFromSearch'] as bool?) ?? false
        ..important = r['important'] == true

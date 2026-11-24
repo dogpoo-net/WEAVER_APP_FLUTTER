@@ -16,7 +16,7 @@ class DocumentMarkup extends StatefulWidget {
   final List<ElementBinding> links;
   final TextStyle? style;
   final bool formatting;
-  final Widget Function(Widget body)? bodyBuilder;
+  final Widget Function(Widget? title, Widget? contents, Widget body)? bodyBuilder;
   @override
   State<DocumentMarkup> createState() => _DocumentMarkupState();
 }
@@ -166,6 +166,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
     final keys = {for (final link in links) '${link.start}:${link.id}'};
     for (final key in _recognizers.keys.where((key) => !keys.contains(key)).toList()) { _recognizers.remove(key)!.dispose(); }
     final baseStyle = widget.style ?? Theme.of(context).textTheme.bodyLarge!;
+    Widget? title;
     final lines = <Widget>[];
     var offset = 0;
     final sourceLines = source.split('\n');
@@ -282,10 +283,16 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
         offset += line.length + 1;
         continue;
       }
-      lines.add(SizedBox(key: headingKey, width: double.infinity, child: Text.rich(TextSpan(children: [
+      final renderedLine = SizedBox(key: headingKey, width: double.infinity, child: Text.rich(TextSpan(children: [
         if (headingPrefix.isNotEmpty) TextSpan(text: headingPrefix, style: style),
         ..._inline(text.isEmpty ? ' ' : text, start, style),
-      ]), textAlign: align)));
+      ]), textAlign: align));
+      if (widget.bodyBuilder != null && title == null && headingKey != null && headingPrefix.isEmpty) {
+        title = renderedLine;
+        offset += line.length + 1;
+        continue;
+      }
+      lines.add(renderedLine);
       if (headingKey != null && headingPrefix.isNotEmpty) lines.add(const Divider(height: 8, thickness: 1));
       if (headingKey != null && headingPrefix.isEmpty) lines.add(const SizedBox(height: 16));
       offset += line.length + 1;
@@ -302,9 +309,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
           ),
       ],
     ]);
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-      if (headings.isNotEmpty) ...[
-        Align(alignment: AlignmentDirectional.topStart, child: Container(
+    final contents = headings.isEmpty ? null : Align(alignment: AlignmentDirectional.topStart, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -329,10 +334,11 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
             onPressed: () => _jump(heading.key),
             child: Text(heading.title),
           ),
-        ]))),
-        const SizedBox(height: 16),
-      ],
-      widget.bodyBuilder?.call(body) ?? body,
+        ])));
+    if (widget.bodyBuilder case final builder?) return builder(title, contents, body);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      if (contents != null) ...[contents, const SizedBox(height: 16)],
+      body,
     ]);
   }
 }

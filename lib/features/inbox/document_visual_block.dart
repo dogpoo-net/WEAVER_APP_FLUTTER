@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'document_photo.dart';
+import 'document_video.dart';
 import 'element_store.dart';
 import 'workspace_photo.dart';
 import 'document_syntax.dart';
@@ -21,7 +22,7 @@ class DocumentVisualBlockView extends StatelessWidget {
     return FractionallySizedBox(
       widthFactor: block.widthPercent / 100,
       alignment: alignment,
-      child: id == null ? const Divider() : ListenableBuilder(
+      child: block.video != null ? DocumentVideo(block.video!) : id == null ? const Divider() : ListenableBuilder(
         listenable: elements,
         builder: (context, _) {
           if (workspacePhotos.containsKey(id)) return DocumentPhoto(id);

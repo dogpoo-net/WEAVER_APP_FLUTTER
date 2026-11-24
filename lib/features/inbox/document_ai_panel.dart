@@ -489,6 +489,8 @@ class _DocumentAiPanelState extends State<DocumentAiPanel> {
       children: [
         TextField(
           controller: _instruction,
+          textInputAction: TextInputAction.send,
+          onSubmitted: (_) => _generate(),
           readOnly: _busy,
           maxLength: 100,
           decoration: InputDecoration(

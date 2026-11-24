@@ -4,6 +4,7 @@ Updated at the user's request on 2026-11-17 (Asia/Seoul).
 
 - Default: build the web app and deploy to DOGPOO nginx at `/home/ocaptain/www/weaver`.
 - Reload nginx after deployment using systemctl.
+- When backend changes are pending, build and deploy the backend with the web release.
 - Do not perform HTTP response probes after deployment (user preference).
 - Android APK/AAB and other native app builds require an explicit user request.
 - Play Console uploads/releases require an explicit user request; do not automatically run them after frontend changes.

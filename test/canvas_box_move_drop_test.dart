@@ -70,6 +70,36 @@ void main(){
   expect(child.elementIds, contains(memo.id));
   await tester.pumpWidget(const SizedBox());
  });
+ for (final boxed in [true, false]) {
+  testWidgets('ordinary drag stops at adjacent object, boxed=$boxed', (tester) async {
+    elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); memoBoxFolderParents.clear();
+    pageGraphLayout = GraphLayout();
+    final moving = elements.add('내 생각'), blocker = elements.add('이웃');
+    final owner = MemoBox('내 상자', ids: [moving.id]);
+    memoBoxes.add(owner);
+    if (boxed) memoBoxes.add(MemoBox('옆 상자', ids: [blocker.id]));
+    final layout = pageGraphLayout.blockLayout;
+    layout.positions.addAll({moving.id: const Offset(500,500), blocker.id: const Offset(1100,500)});
+    await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {})));
+    await tester.pumpAndSettle();
+    final finder = find.byKey(ValueKey('canvas-thought-${moving.id}'));
+    final node = tester.widget<ThoughtInteraction>(finder);
+    final obstacle = boxed ? find.byKey(const ValueKey('box-region-옆 상자')) : find.byKey(ValueKey('canvas-thought-${blocker.id}'));
+    final drop = tester.getCenter(obstacle);
+    node.onActiveChanged!(true);
+    node.onMove(const Offset(1200,0));
+    node.onDrop(drop);
+    node.onActiveChanged!(false);
+    node.onEnd();
+    await tester.pumpAndSettle();
+    expect(owner.elementIds, contains(moving.id));
+    expect(layout.positions[moving.id]!.dx, greaterThan(500));
+    expect(layout.positions[blocker.id], const Offset(1100,500));
+    expect(tester.getRect(find.byKey(const ValueKey('box-region-내 상자'))).right,
+      lessThanOrEqualTo(tester.getRect(obstacle).left));
+    await tester.pumpWidget(const SizedBox());
+  });
+ }
  for(final scenario in [(false,250.0),(true,250.0),(true,40.0)]){
  final (lifted,distance)=scenario;
  final rejected=lifted&&distance==250;

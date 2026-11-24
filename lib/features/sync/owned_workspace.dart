@@ -542,6 +542,7 @@ class WorkspaceSync extends ChangeNotifier {
     final entry=local.entries.where((e)=>e.value['kind']=='list:notes'&&editResource(e.value)==id).firstOrNull;
     if(entry==null)throw const EmailAuthFailure('저장할 문서를 찾지 못했습니다.');
     var candidate=Map<String,dynamic>.from(entry.value['value'] as Map);
+    if (candidate['videoIds'] != null) await uploadMedia(joinWorkspace({entry.key: entry.value}));
     var expected=storage.documentSaveBases.containsKey(id)?storage.documentSaveBases[id]:base[entry.key];
     final unacknowledged = _unacknowledgedDocuments[id];
     for(var attempt=0;attempt<5;attempt++){

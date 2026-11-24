@@ -10,27 +10,18 @@ import 'package:weaver/features/capture/capture_models.dart';
 
 void main() {
  setUp(elements.clear);
- testWidgets('selected words retain alias while filter searches memo and document bodies', (tester) async {
+ testWidgets('selected words retain their title without opening assistance', (tester) async {
   tester.view.physicalSize=const Size(1200,800);tester.view.devicePixelRatio=1;
   addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
   final memo=elements.add('본문에서 찾는 바나나')..indexLabel='메모 제목';
   final doc=WritingProject([],[],name:'문서 제목')..document='======문서 제목======\n사과 내용';elements.indexProject(doc);
   final c=LabelTextController('선택한 글자'),focus=FocusNode();
-  await tester.pumpWidget(MaterialApp(home:Scaffold(body:CaretAssist(controller:c,focus:focus,words:labelAssistTargets(),onWord:c.insertTarget,useThoughtLabels:true,selectionAssist:true,showWhenEmpty:false,child:TextField(controller:c,focusNode:focus)))));
+  await tester.pumpWidget(MaterialApp(home:Scaffold(body:CaretAssist(controller:c,focus:focus,words:labelAssistTargets(),onWord:c.insertTarget,useThoughtLabels:true,showWhenEmpty:false,child:TextField(controller:c,focusNode:focus)))));
   focus.requestFocus();c.selection=const TextSelection(baseOffset:0,extentOffset:6);await tester.pumpAndSettle();
-  final filter=find.byKey(const ValueKey('selection-link-filter'));expect(filter,findsOneWidget);
-  expect(find.byKey(ValueKey('suggestion-${memo.text}')),findsOneWidget);
-  expect(tester.widget<WordBadge>(find.byKey(ValueKey('suggestion-${memo.text}'))).labelTarget,isTrue);
-  expect(find.byKey(ValueKey('suggestion-project:${doc.id}')),findsOneWidget);
-  await tester.enterText(filter,'없는 검색');await tester.pumpAndSettle();expect(filter,findsOneWidget);expect(find.text('검색 결과가 없습니다.'),findsOneWidget);
-  await tester.enterText(filter,'바나나');await tester.pumpAndSettle();
-  expect(find.byKey(ValueKey('suggestion-project:${doc.id}')),findsNothing);
-  await tester.tap(find.byKey(ValueKey('suggestion-${memo.text}')));await tester.pumpAndSettle();
-  expect(c.text,'선택한 글자');expect(c.bindings.single.id,'label:${memo.id}');
-  focus.requestFocus();c.selection=const TextSelection(baseOffset:6,extentOffset:0);await tester.pumpAndSettle();
-  await tester.enterText(filter,'사과');await tester.pumpAndSettle();
-  await tester.tap(find.byKey(ValueKey('suggestion-project:${doc.id}')));await tester.pumpAndSettle();
-  expect(c.text,'선택한 글자');expect(c.bindings.single.id,'project:${doc.id}');
+  expect(find.byKey(const ValueKey('assist-popup')), findsNothing);
+  c.insertTarget(memo.text, complete: false);
+  expect(c.text, '선택한 글자');
+  expect(c.bindings.single.id, 'label:${memo.id}');
   await tester.pumpWidget(const SizedBox());c.dispose();focus.dispose();
  });
  testWidgets('completed link boundary never reopens assistance on Space or Enter', (tester) async {
@@ -39,7 +30,7 @@ void main() {
   final memo=elements.add('메모 제목');
   final c=LabelTextController(),focus=FocusNode();var chosen=0;
   await tester.pumpWidget(MaterialApp(home:Scaffold(body:CaretAssist(controller:c,focus:focus,
-    words:labelAssistTargets(),onWord:(_)=>chosen++,useThoughtLabels:true,selectionAssist:true,
+    words:labelAssistTargets(),onWord:(_)=>chosen++,useThoughtLabels:true,
     enterSelectsVisible:true,showWhenEmpty:false,child:TextField(controller:c,focusNode:focus,maxLines:null)))));
   focus.requestFocus();c.bind(0,0,'label:${memo.id}',memo.text);await tester.pumpAndSettle();
   for(final revisit in [false,true]) {

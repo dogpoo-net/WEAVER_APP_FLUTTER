@@ -8,6 +8,7 @@ import '../sync/workspace_events.dart';
 import 'overview_collections.dart';
 import 'memo_comments.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'label_links.dart';
 import '../auth/google_auth.dart';
 import '../sync/workspace_backup.dart';
@@ -397,6 +398,21 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     if(!storage.canvasWritable)throw StateError('읽기 전용 워크스페이스입니다.');
     await storage.writable();await storage.flush();
     final record=elements.trash[id];
+    if (record?.archivedDocument case final document?) {
+      final note = WorkspaceSnapshot.decode(jsonEncode({'version':1,'elements':[],'notes':[document],'colors':{}})).notes.single;
+      if (_notes.any((item) => item.id == note.id || item.project?.id == note.project!.id)) {
+        throw StateError('같은 문서가 이미 있습니다.');
+      }
+      elements.trash.remove(id);
+      _notes.add(note);
+      try { await storage.write(WorkspaceSnapshot.encode(_notes)); }
+      catch (_) { _notes.remove(note); elements.trash[id] = record!; rethrow; }
+      elements.indexProject(note.project!);
+      elements.refreshVisibility();
+      if (mounted) setState(() {});
+      await storage.syncNow?.call();
+      return;
+    }
     if(record!=null){
       final existing=elements.records[record.text];
       if(existing!=null && existing.id!=id)throw StateError('같은 내용의 생각이 이미 있습니다. 기존 생각의 내용을 수정한 후 다시 복구해주세요.');
@@ -413,22 +429,37 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     try{await _saveAndSync();if(!elements.records.values.any((r)=>r.id==id))throw StateError('서버의 최신 변경으로 복구가 적용되지 않았습니다. 자료를 확인해주세요.');}
     catch(e){if(!elements.records.values.any((r)=>r.id==id))rethrow;throw StateError('복구 내용은 이 기기에 보관했습니다. 서버 동기화를 다시 시도해주세요. $e');}
   }
-  Future<void> _purgeThought(String id) async {
+  Future<void> _purgeThoughts(List<String> ids) async {
     final storage = widget.storage;
-    if (storage == null || _restoreBlocked) throw StateError('Storage unavailable');
-    final record = elements.trash[id];
-    if (record == null) return;
+    if (storage == null || _restoreBlocked || !storage.canvasWritable) throw StateError('Storage unavailable');
+    final targets = ids.toSet();
+    final records = elements.trash.values.where((r) => targets.contains(r.id)).toList();
+    if (records.isEmpty) return;
     final files = {...(storage.preferences.getStringList(_mediaCleanupKey) ?? []),
-      ...record.photos.map((p) => p.id), ...record.recordings.map((c) => c.id)};
-    if (!await storage.preferences.setStringList(_mediaCleanupKey, files.toList())) throw StateError('Cleanup save failed');
-    elements.trash.remove(id);
-    if (![...elements.records.values, ...elements.trash.values].any((r) => r.text == record.text)) forgetWordColor(record.text);
-    final boxes = [for (final box in memoBoxes) if (box.elementIds.remove(id)) box];
-    try { await storage.write(WorkspaceSnapshot.encode(_notes)); }
-    catch (_) { elements.trash[id] = record; for (final box in boxes) { box.elementIds.add(id); } rethrow; }
+      for (final record in records) ...record.photos.map((p) => p.id),
+      for (final record in records) ...record.recordings.map((c) => c.id)};
+    if (files.isNotEmpty && !await storage.preferences.setStringList(_mediaCleanupKey, files.toList())) {
+      throw StateError('Cleanup save failed');
+    }
+    if (!mounted || widget.storage != storage) throw StateError('Workspace changed');
+    targets.retainAll(elements.trash.keys);
+    final snapshot = WorkspaceSnapshot.data(_notes);
+    (snapshot['trash'] as List).removeWhere((row) => targets.contains(row['id']));
+    for (final box in snapshot['memoBoxes'] as List) {
+      (box['ids'] as List).removeWhere(targets.contains);
+    }
+    final retainedWords = {for (final r in elements.records.values) r.text,
+      for (final r in elements.trash.values) if (!targets.contains(r.id)) r.text};
+    final unusedWords = records.map((r) => r.text).toSet().difference(retainedWords);
+    for (final word in unusedWords) { (snapshot['colors'] as Map).remove(word); }
+    await storage.write(jsonEncode(snapshot));
+    await storage.syncDeleted?.call();
+    if (!mounted || widget.storage != storage) return;
+    elements.trash.removeWhere((id, _) => targets.contains(id));
+    for (final box in memoBoxes) { box.elementIds.removeAll(targets); }
+    for (final word in unusedWords) { if (!elements.records.containsKey(word)) forgetWordColor(word); }
     elements.refreshVisibility();
     await _cleanupDeletedMedia();
-    await storage.syncDeleted?.call();
   }
   Future<bool> _confirmTransfer(String title, String message) async => await showDialog<bool>(
     context: context, builder: (context) => AlertDialog(title: Text(title), content: Text(message),
@@ -728,13 +759,18 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
     final index = _notes.indexWhere((note) => note.project?.id == id);
     if (index < 0) return;
     final note = _notes[index];
+    final archive = ElementRecord.restored('document-trash:${note.id}', note.project!.title, note.createdAt, tags: note.project!.tags)
+      ..deletedAt = DateTime.now()
+      ..archivedDocument = WorkspaceSnapshot.noteJson(note);
     setState(() {
+      elements.trash[archive.id] = archive;
       _notes.removeAt(index);
       elements.sources.remove(note.project);
     });
     await _persist();
     if (_storageError != null) {
       if (mounted) setState(() {
+        elements.trash.remove(archive.id);
         _notes.insert(index.clamp(0, _notes.length), note);
         elements.indexProject(note.project!);
       });
@@ -1057,7 +1093,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
       return;
     }
     if (choice == WorkspaceMenu.trash) {
-      await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => TrashPage(onDelete: _purgeThought,onRestore:widget.storage?.canvasWritable==false?null:_restoreThought)));
+      await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => TrashPage(onDelete: _purgeThoughts,onRestore:widget.storage?.canvasWritable==false?null:_restoreThought)));
       return;
     }
     if (choice == WorkspaceMenu.createFolder) {

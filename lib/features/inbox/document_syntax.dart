@@ -76,6 +76,14 @@ final documentFootnoteReference = RegExp(r'\[\^([a-zA-Z0-9_-]+)\]');
 final documentPhoto = RegExp(
   r'^<photo id="([a-zA-Z0-9_-]+)"(?: width="(\d{1,3})%")?>$',
 );
+final documentVideo = RegExp(r'^<video src="(youtube:[a-zA-Z0-9_-]{11}|vimeo:[0-9]+(?:/[a-zA-Z0-9]+)?|file:video-[a-zA-Z0-9_-]+\.(?:mp4|webm|mov))"(?: width="(\d{1,3})%")?>$');
+Iterable<String> documentVideoIds(String? source) sync* {
+  if (source == null || !source.contains('<video')) return;
+  for (final line in source.split('\n')) {
+    final video = parseDocumentVisualBlock(line)?.video;
+    if (video != null && video.startsWith('file:')) yield video.substring(5);
+  }
+}
 const documentDivider = '-----';
 final _sizedDivider = RegExp(r'^-----(\d{1,3})-----$');
 final _legacySizedDivider = RegExp(r'^----- \{width[=:](\d{1,3})%\}$');
@@ -85,6 +93,7 @@ enum DocumentBlockAlignment { left, center, right }
 typedef DocumentVisualBlock = ({
   String markup,
   String? photoId,
+  String? video,
   int widthPercent,
   DocumentBlockAlignment alignment,
 });
@@ -94,11 +103,12 @@ DocumentVisualBlock? parseDocumentVisualBlock(String line) {
   final inner = wrapped ? line.substring(1, line.length - 1) : line;
   final markup = inner.trim();
   final photo = documentPhoto.firstMatch(markup);
+  final video = documentVideo.firstMatch(markup);
   final sizedDivider = _sizedDivider.firstMatch(markup) ?? _legacySizedDivider.firstMatch(markup);
-  if (photo == null && markup != documentDivider && sizedDivider == null)
+  if (photo == null && video == null && markup != documentDivider && sizedDivider == null)
     return null;
-  final defaultWidth = photo == null ? 60 : 100;
-  final width = int.tryParse(photo?.group(2) ?? sizedDivider?.group(1) ?? '');
+  final defaultWidth = photo == null && video == null ? 60 : 100;
+  final width = int.tryParse(video?.group(2) ?? photo?.group(2) ?? sizedDivider?.group(1) ?? '');
 
   final alignment = !wrapped || !inner.startsWith(' ')
       ? DocumentBlockAlignment.left
@@ -107,6 +117,7 @@ DocumentVisualBlock? parseDocumentVisualBlock(String line) {
       : DocumentBlockAlignment.right;
   return (
     markup: sizedDivider == null ? markup : '$documentDivider${width!.clamp(10, 100)}$documentDivider',
+    video: video?.group(1),
     photoId: photo?.group(1),
     widthPercent: (width ?? defaultWidth).clamp(10, 100),
     alignment: alignment,
@@ -125,7 +136,9 @@ String alignDocumentVisualBlock(
 String resizeDocumentVisualBlock(DocumentVisualBlock block, int width) {
   final id = block.photoId;
   final percent = width.clamp(10, 100);
-  final markup = id == null
+  final markup = block.video != null
+      ? '<video src="${block.video}"${percent == 100 ? '' : ' width="$percent%"'}>'
+      : id == null
       ? '$documentDivider$percent$documentDivider'
       : (percent == 100
             ? '<photo id="$id">'

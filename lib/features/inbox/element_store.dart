@@ -1,5 +1,7 @@
+import 'graph_layout.dart';
+import 'memo_boxes.dart';
+import 'canvas_geometry.dart' show alignedStackMembers;
 import '../capture/location_capture.dart';
-import '../capture/attachment_indicators.dart';
 import '../capture/voice_transcription.dart';
 import 'dart:collection';
 import 'thought_colors.dart';
@@ -49,6 +51,7 @@ class ElementRecord {
   }
   final Set<String> tags = {};
   List<ElementBinding> inlineLinks = [];
+  Map<String, dynamic>? archivedDocument;
   List<ThoughtPageData> extraPages = [];
   String? folder;
   ThoughtLocation? location;
@@ -266,19 +269,39 @@ class ElementStore extends ChangeNotifier {
 
 final elements = ElementStore();
 
-Future<void> showElementMetadata(BuildContext context, String word, {VoidCallback? onSaved}) async {
+Future<void> showElementMetadata(BuildContext context, String word, {VoidCallback? onSaved, GraphLayout? canvasLayout}) async {
   // Live workspace sync already maintains the local snapshot. Opening a
   // detail must not wait for an extra save/refresh round trip.
   if (!context.mounted) return;
-  final record = elements.records[word];
-  if (record == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('다른 기기에서 삭제된 생각입니다.'))); return; }
-  final editPage = await showDialog<int>(context: context, builder: (_) => _ThoughtReading(record));
-  if (editPage == null || !context.mounted || elements.byId(record.id) != record) return;
+  final selected = elements.records[word];
+  if (selected == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('다른 기기에서 삭제된 생각입니다.'))); return; }
+  var members = [selected];
+  final layouts = canvasLayout != null ? [canvasLayout] : [
+    pageGraphLayout.blockLayout,
+    for (final box in memoBoxes.where((box) => box.elementIds.contains(selected.id))) box.layout.blockLayout,
+  ];
+  for (final layout in layouts) {
+    final ids = alignedStackMembers(selected.id, layout.positions, groups: layout.stackGroups);
+    final ordered = ids.map(elements.byId).nonNulls.toList();
+    if (ordered.length < 2) continue;
+    ordered.sort((a,b) {
+      final layer = layout.layers.indexOf(b.id).compareTo(layout.layers.indexOf(a.id));
+      return layer != 0 ? layer : layout.positions[b.id]!.dy.compareTo(layout.positions[a.id]!.dy);
+    });
+    members = ordered;
+    break;
+  }
+  final pages = [for (final member in members)
+    (record: member, page: ThoughtPageData.first(member))];
+  final selectedPage = await showDialog<int>(context: context, builder: (_) => _ThoughtReading(pages, pages.indexWhere((p) => p.record == selected)));
+  if (selectedPage == null || !context.mounted) return;
+  final record = pages[selectedPage].record;
+  if (elements.byId(record.id) != record) return;
   word = record.text;
   final owner=MediaStorage.activeOwner;
   voiceBodyEditors.update(record.id,(n)=>n+1,ifAbsent:()=>1);
   try{
-    await showDialog<void>(context:context,builder:(_)=>_ElementMetadata(word:word,onSaved:onSaved, initialPage:editPage));
+    await showDialog<void>(context:context,builder:(_)=>_ElementMetadata(word:word,onSaved:onSaved, initialPage:0));
   }finally{
     final remaining=(voiceBodyEditors[record.id]??1)-1;
     if(remaining==0){voiceBodyEditors.remove(record.id);}else{voiceBodyEditors[record.id]=remaining;}
@@ -387,9 +410,6 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   void _turn(int index) {
     setState(() {
       _capturePage();
-      if (index == _pages.length) _pages.add(const ThoughtPageData(''));
-      final discard = _pages[_page].text.isEmpty && _page == _pages.length - 1 && index < _page;
-      if (discard) _pages.removeLast();
       _loadPage(index);
     });
   }
@@ -494,7 +514,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                   onPressed: () => setState(() => _labelOnLeft = left), icon: Icon(left ? Icons.west : Icons.east)),
               ])),
               const SizedBox(height: 8),
-              CaretAssist(controller: _editor, focus: _editorFocus, useThoughtLabels: true, selectionAssist: true,
+              CaretAssist(controller: _editor, focus: _editorFocus, useThoughtLabels: true,
                 words: labelAssistTargets().where((word) => word != _word).toList(), tags: {...elements.tags, ..._tags}.toList(),
                 showWhenEmpty: false, explicitSelectionOnly: true,
                 onWord: (word) async { await insertAssistedLink(context, _editor, word, useCaretTitle: true); if (mounted) _editorFocus.requestFocus(); },
@@ -531,13 +551,13 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                 },
               )),
               const SizedBox(height: 8),
-              Row(children: [
+              if (_pages.length > 1) Row(children: [
                 Text('${_page + 1} / ${_pages.length}'),
                 const Spacer(),
                 IconButton(tooltip: '이전 페이지', icon: const Icon(Icons.chevron_left),
                   onPressed: _page == 0 ? null : () => _turn(_page - 1)),
                 IconButton(tooltip: '다음 페이지', icon: const Icon(Icons.chevron_right),
-                  onPressed: _page >= 99 || cleanLinkedInput(_editor).text.isEmpty ? null : () => _turn(_page + 1)),
+                  onPressed: _page + 1 >= _pages.length || cleanLinkedInput(_editor).text.isEmpty ? null : () => _turn(_page + 1)),
               ]),
               const Divider(key:ValueKey('element-attachments-divider'),height:9,thickness:1),
               Row(children:[

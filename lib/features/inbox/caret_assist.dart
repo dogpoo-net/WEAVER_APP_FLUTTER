@@ -65,10 +65,9 @@ class CaretAssist extends StatefulWidget {
     this.externalSuggestions = false,
     this.showShortcutHint = false,
     this.useThoughtLabels = false,
-    this.selectionAssist = false,
     this.documentSyntax = false,
   });
-  final bool useThoughtLabels, selectionAssist, documentSyntax;
+  final bool useThoughtLabels, documentSyntax;
   final TextEditingController controller;
   final FocusNode focus;
   final List<String> words;
@@ -91,16 +90,6 @@ class CaretAssist extends StatefulWidget {
 
 class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   final _anchor = GlobalKey();
-  final _selectionFilter = TextEditingController();
-  final _filterFocus = FocusNode();
-  TextEditingValue? _selectionValue;
-  bool get _selectionMode => _selectionValue != null;
-  void _filterSelected() {
-    _query = _selectionFilter.text;
-    _tagMode = false;
-    _selected = 0;
-    _matches = widget.words.where((word) => assistTargetMatches(word, _query)).toList();
-  }
   final _suggestionScroll = ScrollController();
   OverlayEntry? _entry;
   WidgetBuilder? _overlayBuilder;
@@ -125,11 +114,6 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   void _choose(String word) async {
     _controlling = false;
     _manualSelection = null; _manualValue = null;
-    final selected = _selectionValue;
-    if (selected != null) {
-      if (selected.text != widget.controller.text) { _hide(); return; }
-      widget.controller.selection = selected.selection;
-    }
     if (_syntaxMatches.containsKey(word)) {
       final value = widget.controller.value;
       final prefix = _syntaxPrefix(value);
@@ -150,8 +134,6 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     }
     final FutureOr<void> result;
     if (_tagMode) { widget.onTag?.call(word.substring(1)); result = null; } else { result = widget.onWord(word); }
-    _selectionValue = null;
-    _filterFocus.unfocus();
     _dismissed = widget.controller.text;
     _hide();
     if (result is Future) {
@@ -404,7 +386,6 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
     widget.focus.onKeyEvent = _inputKey;
     widget.controller.addListener(_update);
     widget.focus.addListener(_update);
-    _filterFocus.addListener(_update);
   }
 
   void _hide({bool immediate = false}) {
@@ -424,18 +405,6 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
 
   void _refreshMatches(TextEditingValue value, {bool autoSelect = true}) {
     _syntaxMatches.clear();
-    if (widget.selectionAssist && value.selection.isValid && !value.selection.isCollapsed &&
-        (!value.composing.isValid || value.composing.isCollapsed) &&
-        !caretInsideCode(value.text, value.selection.start)) {
-      if (_selectionValue?.selection != value.selection || _selectionValue?.text != value.text) {
-        _selectionFilter.clear();
-      }
-      _selectionValue = value;
-      _filterSelected();
-      _controlling = false;
-      return;
-    }
-    _selectionValue = null;
     final manualValue = _manualValue;
     if (manualValue != null && value.text == manualValue.text &&
         (value.selection == manualValue.selection ||
@@ -512,18 +481,11 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   }
 
   void _update({bool refreshMatches = true}) {
-    final selection = widget.controller.selection;
-    _syntaxMatches.clear();
-    if (widget.selectionAssist && selection.isValid && !selection.isCollapsed && selection != _selectionValue?.selection) _dismissed = null;
+
     if (_dismissed != null && _dismissed != widget.controller.text) _dismissed = null;
     if (_explicitOpenText != widget.controller.text) _explicitOpenText = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_filterFocus.hasFocus && _selectionValue?.text == widget.controller.text) {
-        _filterSelected();
-        _entry?.markNeedsBuild();
-        return;
-      }
       if (!widget.focus.hasFocus || _dismissed == widget.controller.text) {
         if (!widget.focus.hasFocus) _acceptEnterHeld = false;
         _controlling = false;
@@ -545,9 +507,15 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
         _hide();
         return;
       }
-      final value = widget.controller.value;
+      final input = widget.controller.value;
+      final composition = input.composing;
+      final selectedComposition = input.isComposingRangeValid && !composition.isCollapsed &&
+          input.selection.start == composition.start && input.selection.end == composition.end;
+      final value = selectedComposition
+          ? input.copyWith(selection: TextSelection.collapsed(offset: composition.end))
+          : input;
       if (refreshMatches) _refreshMatches(value);
-      if (!_selectionMode && (_matches.isEmpty || (!widget.showWhenEmpty && !_tagMode && _query.isEmpty && _syntaxMatches.isEmpty && pendingLabelLink(widget.controller.value) == null && _explicitOpenText == null))) {
+      if (!value.selection.isCollapsed || (_matches.isEmpty || (!widget.showWhenEmpty && !_tagMode && _query.isEmpty && _syntaxMatches.isEmpty && pendingLabelLink(widget.controller.value) == null && _explicitOpenText == null))) {
         _controlling = false;
         _controlValue = null;
         _hide();
@@ -651,15 +619,6 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: height),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          if (_selectionMode) Padding(padding: const EdgeInsets.fromLTRB(8, 8, 8, 0), child: TextField(
-            key: const ValueKey('selection-link-filter'), controller: _selectionFilter, focusNode: _filterFocus,
-            style: const TextStyle(fontSize: 12),
-            decoration: const InputDecoration(isDense: true, hintText: '메모·문서 검색', prefixIcon: Icon(Icons.search, size: 16),
-              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
-            onChanged: (_) { _filterSelected(); _entry?.markNeedsBuild(); },
-            onSubmitted: (_) { if (_matches.isNotEmpty) _choose(_matches.first); },
-          )),
-          if (_selectionMode && _matches.isEmpty) const Padding(padding: EdgeInsets.all(12), child: Text('검색 결과가 없습니다.')),
           if (_desktop && widget.showShortcutHint) Padding(
             padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
             child: Align(alignment: Alignment.centerRight, child: Text('ctrl + space',
@@ -716,7 +675,6 @@ class CaretAssistState extends State<CaretAssist> with WidgetsBindingObserver {
   void dispose() {
     widget.focus.onKeyEvent = _previousKeyHandler;
     _suggestionScroll.dispose();
-    _filterFocus.removeListener(_update); _filterFocus.dispose(); _selectionFilter.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _scrollObserver?.removeListener(_scrolled);
     widget.controller.removeListener(_update);

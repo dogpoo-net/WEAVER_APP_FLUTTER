@@ -7,6 +7,7 @@ import 'document_merge_dialog.dart';
 import 'element_binding.dart';
 import 'memo_boxes.dart';
 import 'document_table.dart';
+import 'document_video.dart';
 import 'document_ai_panel.dart';
 import 'document_line_numbers.dart';
 import 'document_footnote_dialog.dart';
@@ -141,6 +142,13 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
     final photo = await chooseWorkspacePhoto(context, widget.storage);
     if (!mounted || !_canEdit || _saving || photo == null || before != _body.text) return;
     _insertVisualBlock(offset, '<photo id="${photo.id}">');
+  }
+
+  Future<void> _insertVideo(int offset) async {
+    final before = _body.text;
+    final source = await chooseDocumentVideo(context);
+    if (!mounted || !_canEdit || _saving || source == null || before != _body.text) return;
+    _insertVisualBlock(offset, '<video src="$source">');
   }
 
   void _insertVisualBlock(int offset, String block) {
@@ -668,6 +676,11 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
   }
   Future<void> _dropLink(DragTargetDetails<Object> details) async {
     final key = _dragKey(details.data); if (key == null || !_canEdit || _saving) return;
+    if (_body.selection.isValid && !_body.selection.isCollapsed) {
+      _body.insertTarget(key, complete: false);
+      _bodyFocus.requestFocus();
+      return;
+    }
     EditableTextState? editor;
     void visit(Element element) {
       if (element is StatefulElement && element.state is EditableTextState) { editor = element.state as EditableTextState; return; }
@@ -750,8 +763,8 @@ class _ProjectDocumentEditorState extends State<ProjectDocumentEditor> {
         ? SingleChildScrollView(child:SelectableText(_body.text))
 
         : _rich
-        ? DocumentRichEditor(key: ValueKey(_richInsertionRevision), readOnly: _saving, onInsertFootnote: _saving ? null : _insertFootnote, onInsertTable: _saving ? null : (offset) => _insertTable(richOffset: offset), onInsertPhoto: _saving ? null : _insertPhoto, onInsertDivider: _saving ? null : (offset) => _insertVisualBlock(offset, documentDivider), onEditLines: _editLines, sourceSelection: _richLineSelection, onCaretChanged: (offset) => _richAiCaret = offset, source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty, diagnostics: _body.syntaxDiagnostics, onSyntaxDiagnostic: _showSyntaxDiagnostic)
-        : DocumentLineNumbers(controller: _body, scroll: _documentScroll, child: CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, selectionAssist: true, documentSyntax: !_saving,
+        ? DocumentRichEditor(key: ValueKey(_richInsertionRevision), readOnly: _saving, onInsertFootnote: _saving ? null : _insertFootnote, onInsertTable: _saving ? null : (offset) => _insertTable(richOffset: offset), onInsertVideo: _saving ? null : _insertVideo, onInsertPhoto: _saving ? null : _insertPhoto, onInsertDivider: _saving ? null : (offset) => _insertVisualBlock(offset, documentDivider), onEditLines: _editLines, sourceSelection: _richLineSelection, onCaretChanged: (offset) => _richAiCaret = offset, source: _body.text, links: _body.bindings, onPatch: _applyRichPatch, onLinkHover: _highlightReference, modeSwitch: modeSwitch, dirty: _dirty, diagnostics: _body.syntaxDiagnostics, onSyntaxDiagnostic: _showSyntaxDiagnostic)
+        : DocumentLineNumbers(controller: _body, scroll: _documentScroll, child: CaretAssist(controller: _body, focus: _bodyFocus, useThoughtLabels: true, documentSyntax: !_saving,
           words: labelAssistTargets(excludeProject: widget.project), onWord: _insertLabel,
           tags: elements.tags.toList(), onTag: _insertTag,
           showWhenEmpty: false, explicitSelectionOnly: true, showShortcutHint: true,

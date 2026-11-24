@@ -6,7 +6,7 @@ import 'workspace_routes.dart';
 
 class TrashPage extends StatefulWidget {
   const TrashPage({super.key, required this.onDelete,this.onRestore});
-  final Future<void> Function(String id) onDelete;
+  final Future<void> Function(List<String> ids) onDelete;
   final Future<void> Function(String id)? onRestore;
   @override
   State<TrashPage> createState() => _TrashPageState();
@@ -19,14 +19,13 @@ class _TrashPageState extends State<TrashPage> {
     final ids = elements.trash.keys.toList();
     final yes = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
       title: const Text('휴지통을 비울까요?'),
-      content: Text('검색 결과와 관계없이 휴지통의 생각 ${ids.length}개와 첨부파일을 영구 삭제합니다. 로그인 상태에서는 서버에도 반영됩니다.'),
+      content: Text('검색 결과와 관계없이 휴지통의 항목 ${ids.length}개와 첨부파일을 영구 삭제합니다. 로그인 상태에서는 서버에도 반영됩니다.'),
       actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
         TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('모두 삭제'))]));
     if (yes != true || !mounted) return;
     setState(() => _emptying = true);
-    final delete = widget.onDelete;
     try {
-      for (final id in ids) { await delete(id); }
+      await widget.onDelete(ids);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('휴지통을 비웠습니다.')));
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('일부 항목을 삭제하지 못했습니다. 남은 항목을 다시 삭제해주세요.')));
@@ -37,7 +36,7 @@ class _TrashPageState extends State<TrashPage> {
     var busy = false;
     await showDialog<void>(context: context, builder: (dialogContext) => StatefulBuilder(
       builder: (context, update) => PopScope(canPop: !busy, child: AlertDialog(
-        title: const Text('휴지통의 생각'),
+        title: Text(record.archivedDocument == null ? '휴지통의 생각' : '휴지통의 문서'),
         content: SingleChildScrollView(child: Text(record.text)),
         actions: [
           TextButton(onPressed: busy ? null : () => Navigator.pop(dialogContext), child: const Text('닫기')),
@@ -46,19 +45,19 @@ class _TrashPageState extends State<TrashPage> {
             try{
               await widget.onRestore!(record.id);
               if(dialogContext.mounted)Navigator.pop(dialogContext);
-              if(mounted){setState((){});ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(content:Text('생각을 복구했습니다.')));}
+              if(mounted){setState((){});ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(content:Text('복구했습니다.')));}
             }catch(e){if(dialogContext.mounted){update(()=>busy=false);ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content:Text('복구를 완료하지 못했습니다. $e')));}}
           }),
           TextButton(onPressed: busy ? null : () async {
             final yes = await showDialog<bool>(context: dialogContext, builder: (context) => AlertDialog(
               title: const Text('완전히 삭제할까요?'),
-              content: const Text('생각과 첨부파일을 영구 삭제합니다. 로그인 상태에서는 서버에도 반영되며 되돌릴 수 없습니다.'),
+              content: const Text('이 항목을 영구 삭제합니다. 로그인 상태에서는 서버에도 반영되며 되돌릴 수 없습니다.'),
               actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
                 TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('영구 삭제'))]));
             if (yes != true || !dialogContext.mounted) return;
             update(() => busy = true);
             try {
-              await widget.onDelete(record.id);
+              await widget.onDelete([record.id]);
               if (dialogContext.mounted) Navigator.pop(dialogContext);
               if (mounted) setState(() {});
             } catch (_) {
@@ -81,7 +80,7 @@ class _TrashPageState extends State<TrashPage> {
     body: DesktopMenuBody(child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 960),
       child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
         TextField(key: const ValueKey('trash-search'), onChanged: (value) => setState(() => _query = value.trim().toLowerCase()),
-          style: const TextStyle(fontSize: 13), decoration: const InputDecoration(hintText: '생각·해시태그 찾기',
+          style: const TextStyle(fontSize: 13), decoration: const InputDecoration(hintText: '생각·문서·해시태그 찾기',
             prefixIcon: Icon(Icons.search, size: 18), prefixIconConstraints: BoxConstraints(minWidth: 36, minHeight: 32),
             isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8))),
         const SizedBox(height: 8),
@@ -91,8 +90,16 @@ class _TrashPageState extends State<TrashPage> {
             r.tags.any((tag) => tag.toLowerCase().contains(_query.replaceFirst('#', '')))).toList()
             ..sort((a, b) => (b.deletedAt ?? b.createdAt).compareTo(a.deletedAt ?? a.createdAt));
           if (records.isEmpty) return Center(child: Text(_query.isEmpty ? '휴지통이 비어 있습니다.' : '검색 결과가 없습니다.'));
-          return SingleChildScrollView(child: SizedBox(width: double.infinity, child: Wrap(spacing: 6, runSpacing: 6,
-            children: [for (final record in records) WordBadge(word: record.text, query: _query, onTap: () => _open(record))])));
+          return ListView(children: [
+            for (final documents in [false, true]) ...[
+              Padding(padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(documents ? '문서' : '생각', style: Theme.of(context).textTheme.titleSmall)),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                for (final record in records.where((r) => (r.archivedDocument != null) == documents))
+                  WordBadge(word: record.text, project: documents, query: _query, onTap: () => _open(record)),
+              ]),
+            ],
+          ]);
         })),
       ])),
     ))),

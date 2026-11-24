@@ -76,9 +76,12 @@ void main() {
       );
       await tester.tap(label);
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('생성'));
-      await tester.tap(find.text('생성'));
+      final prompt = find.widgetWithText(TextField, '프롬프트');
+      await tester.ensureVisible(prompt);
+      await tester.enterText(prompt, '일기장');
+      await tester.testTextInput.receiveAction(TextInputAction.send);
       await tester.pumpAndSettle();
+      expect(sent!['instruction'], '일기장');
       expect(sent!['material'], '담을 생각');
       expect(sent!['length'], 'medium');
       expect(find.text('정리한 문장'), findsOneWidget);

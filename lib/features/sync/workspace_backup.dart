@@ -90,7 +90,13 @@ class WorkspaceBackup {
     var index = 0;
     final standalone = (data['workspacePhotos'] as List?) ?? [];
     final photoIds = standalone.map((photo) => photo['id'] as String).toSet();
+    final videoIds = WorkspaceSnapshot.decode(workspace).attachmentTypes.entries.where((e) => e.value == 'video').map((e) => e.key).toSet();
+    final random = Random.secure();
     for (final id in media.keys) {
+      if (videoIds.contains(id)) {
+        names[id] = 'video-${List.generate(24, (_) => random.nextInt(16).toRadixString(16)).join()}.${id.split('.').last}';
+        continue;
+      }
       names[id] = '${photoIds.contains(id) ? 'workspace-photo-' : ''}$prefix-${index++}';
     }
     for (final photo in standalone) {
@@ -127,6 +133,14 @@ class WorkspaceBackup {
       for (final file in [...(r['photos'] as List? ?? []), ...(r['recordings'] as List? ?? [])]) {
         file['id'] = names[file['id']]!;
       }
+    }
+    for (final note in [...data['notes'], for (final record in data['trash'] ?? []) if (record['archivedDocument'] != null) record['archivedDocument']]) {
+      final project = note['project'];
+      if (project == null || project['document'] == null) continue;
+      for (final id in videoIds) {
+        project['document'] = (project['document'] as String).replaceAll('<video src="file:$id"', '<video src="file:${names[id]}"');
+      }
+      if (note['videoIds'] is List) note['videoIds'] = [for (final id in note['videoIds']) names[id] ?? id];
     }
     final written = <String>[];
     try {

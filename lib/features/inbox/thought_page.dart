@@ -116,6 +116,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   late final GraphLayout _layout;
   GraphLayout get _targetLayout{final base=widget.box?.layout??pageGraphLayout;return base.blockLayout;}
   late GraphLayout _publishedLayout;
+  bool _remoteLayoutPending = false;
   static const _historyLimit = 50;
   final _undo = <({_CanvasState before, _CanvasState after})>[];
   final _redo = <({_CanvasState before, _CanvasState after})>[];
@@ -134,6 +135,24 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     final positions = Map<String, Offset>.of(_positions);
     final origin = _thoughtDragOrigins[moving];
     if (origin != null) {
+      final before = {...positions, moving: origin};
+      final original = alignedStackMembers(moving, before, groups: _layout.stackGroups).toList()
+        ..sort((a, b) => before[a]!.dy.compareTo(before[b]!.dy));
+      if (original.length > 1 && (card.left - origin.dx).abs() < _size(moving).width / 2) {
+        final slots = [for (final id in original) before[id]!];
+        if (card.top >= slots.first.dy - 32 && card.top <= slots.last.dy + 32) {
+          var nearest = 0;
+          for (var i = 1; i < slots.length; i++) {
+            if ((slots[i].dy - card.top).abs() < (slots[nearest].dy - card.top).abs()) nearest = i;
+          }
+          original.remove(moving);
+          final neighbor = original[nearest.clamp(0, original.length - 1)];
+          original.insert(nearest, moving);
+          for (var i = 0; i < slots.length; i++) { positions[original[i]] = slots[i]; }
+          return (moving: moving, target: neighbor, members: original, positions: positions,
+            left: slots[nearest].dx, top: slots[nearest].dy, width: _size(moving).width);
+        }
+      }
       closeVacatedStackSlots(positions, {...positions, moving: origin}, {moving},
         groups: _layout.stackGroups);
     }
@@ -162,6 +181,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     const step = 32.0;
     final top = positions[members.last]!.dy + step;
     positions[moving] = Offset(first.dx, top);
+    final stackShift = positions[moving]! - _positions[moving]!;
+    if ((_limitThoughtDrag({moving}, stackShift) - stackShift).distance > .001) return null;
     members.add(moving);
     return (moving: moving, target: target, members: members, positions: positions,
       left: first.dx, top: top, width: _size(target).width);
@@ -772,7 +793,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     _layout.query = _query;
     _layout.hideTags = _hideTags;
     if(widget.storage!=null){
-      if (mergeRemote) _layout.mergeRemote(_targetLayout,_publishedLayout);
+      if (mergeRemote && _remoteLayoutPending) {
+        _layout.mergeRemote(_targetLayout, _publishedLayout);
+        _publishedLayout = GraphLayout.fromJson(_targetLayout.toJson());
+      }
+      _remoteLayoutPending = false;
       _positions..clear()..addAll(_layout.positions);
       _tagPositions..clear()..addAll(_layout.tags);
       _targetLayout.copyFrom(_layout,includeBlocks:false);
@@ -927,11 +952,48 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     return targets.firstOrNull?.box;
   }
 
+  Offset _limitThoughtDrag(Set<String> moving, Offset delta) {
+    if (delta == Offset.zero || _selectionLifted || _liftedThought != null) return delta;
+    final owners = _allRegionBoxes.where((box) => box.elementIds.any(moving.contains)).toList();
+    if (owners.isEmpty) return delta;
+    var shift = delta;
+    for (final box in _allRegionBoxes.where((box) => owners.any((owner) => memoBoxContains(box, owner)))) {
+      final start = _boxBounds(box);
+      if (start == null) continue;
+      final proposed = {..._positions, for (final id in moving.where(_positions.containsKey)) id: _positions[id]! + shift};
+      final requested = _regionBounds(box, proposed);
+      if (requested == null) continue;
+      final enclosedIds = {for (final child in _allRegionBoxes.where((other) => memoBoxContains(box, other))) ...child.elementIds};
+      final obstacles = <Rect>[
+        for (final other in _allRegionBoxes)
+          if (!memoBoxContains(box, other) && !memoBoxContains(other, box)) ?_boxBounds(other),
+        for (final id in _positions.keys)
+          if (!moving.contains(id) && !enclosedIds.contains(id)) _bounds(id),
+        if (!_hideTags)
+          for (final tag in _records.expand((record) => record.tags).toSet())
+            if (_tagPositions.containsKey('tag:$tag') && !moving.contains('tag:$tag')) _tagBounds('tag:$tag'),
+        if (memoBoxFolders.isNotEmpty)
+          for (final folder in _folderGeometry().entries)
+            if (box.folder == null || !memoFolderContains(folder.key, box.folder!)) folder.value,
+      ];
+      final limited = _limitContainerResize(start, start.expandToInclude(requested), obstacles);
+      shift = Offset(
+        shift.dx > 0 ? math.max(0, shift.dx - math.max(0, requested.right - limited.right))
+            : math.min(0, shift.dx + math.max(0, limited.left - requested.left)),
+        shift.dy > 0 ? math.max(0, shift.dy - math.max(0, requested.bottom - limited.bottom))
+            : math.min(0, shift.dy + math.max(0, limited.top - requested.top)),
+      );
+    }
+    return shift;
+  }
+
   bool _dropIntoBox(Offset point, Iterable<String> ids) {
     final moving = ids.where(_positions.containsKey).toList();
     if (moving.isEmpty) return false;
     final box = _boxAt(point, where: (_) => true);
     if (box == null || moving.every(box.elementIds.contains)) return false;
+    if (!_selectionLifted && _liftedThought == null &&
+        _allRegionBoxes.any((owner) => !memoBoxContains(owner, box) && owner.elementIds.any(moving.contains))) return false;
     _joinStack(moving, null);
     for (final id in moving) {
       final old = memoBoxes.where((box) => !box.isUnclassified && box.elementIds.contains(id)).firstOrNull;
@@ -1259,7 +1321,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
 
   void _remoteLayoutChanged(){
-    if(!mounted || !tabActive || _activeCanvasPointers.isNotEmpty)return;
+    if (!mounted) return;
+    _remoteLayoutPending = true;
+    if (!tabActive || _activeCanvasPointers.isNotEmpty) return;
+    _remoteLayoutPending = false;
     _layout.positions..clear()..addAll(_positions);
     _layout.tags..clear()..addAll(_tagPositions);
     _layout.mergeRemote(_targetLayout,_publishedLayout);
@@ -1461,8 +1526,18 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     if (target == null) {
       final shift = snapThought(_bounds(anchor), others.map((r) => _bounds(r.id)), tolerance: tolerance);
       if (_selected.any((id) => (_selectionPoint(id) + shift).dx < 32 || (_selectionPoint(id) + shift).dy < 32)) return;
-      for (final id in _selected) { _setSelectionPoint(id, _selectionPoint(id) + shift); }
+      final allowed = _limitThoughtDrag(_selected, shift);
+      for (final id in _selected) { _setSelectionPoint(id, _selectionPoint(id) + allowed); }
     } else {
+      if (!_selectionLifted && _allRegionBoxes.any((box) => box.elementIds.any(_selected.contains))) {
+        final stack = alignedStackMembers(target.id, Map.of(_positions)..removeWhere((id, _) => _selected.contains(id)), groups: _layout.stackGroups);
+        var y = stack.map((id) => _positions[id]!.dy).reduce(math.max);
+        for (final id in {..._layout.layers.where(_selected.contains), ..._selected}.where(_positions.containsKey)) {
+          y += 32;
+          final shift = Offset(_positions[target.id]!.dx, y) - _positions[id]!;
+          if ((_limitThoughtDrag({id}, shift) - shift).distance > .001) return;
+        }
+      }
       _closeMovedSlots(_selectionDragOrigins, compactSelection: false);
       _selectionDragOrigins.clear();
       final stationary = Map.of(_positions)..removeWhere((id, _) => _selected.contains(id));
@@ -1889,12 +1964,12 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                     if (workspacePhotos.containsKey(record.id)) {
                       await openWorkspacePhoto(context, record.id, widget.storage);
                     } else {
-                      await showElementMetadata(context, record.text);
+                      await showElementMetadata(context, record.text, canvasLayout: _layout);
                     }
                   }
                   finally { _detailOpen=false; }
                 },
-                onMove: (delta) => _updateCanvas(() { final previous = _positions[record.id]!; final p = previous + delta; _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
+                onMove: (delta) => _updateCanvas(() { final previous = _positions[record.id]!; final p = previous + _limitThoughtDrag({record.id}, delta); _positions[record.id] = Offset(math.max(32, p.dx), math.max(32, p.dy));
                   _stackPreview = _findStackInsertion(record.id, records);
                   _dropHighlights.clear();
                   if (_stackPreview case final preview?) {
@@ -1954,7 +2029,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                       ? snapThought(_bounds(record.id), records.where((r) => !workspacePhotos.containsKey(r.id) && r.id != record.id).map((r) => _bounds(r.id)),
                           tolerance: (24 / _view.value.storage[0].abs()).clamp(12, 48))
                       : nextStackSlot(targetId, record.id, _positions) - _positions[record.id]!;
-                    final snapped = _positions[record.id]! + snap;
+                    final snapped = _positions[record.id]! + _limitThoughtDrag({record.id}, snap);
                     if (snapped.dx >= 32 && snapped.dy >= 32) _positions[record.id] = snapped;
                   }
                   _joinStack([record.id], targetId);
@@ -2008,8 +2083,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                       if(AttachmentIndicators.hasAttachments(record)||commentCount>0)...[FittedBox(fit:BoxFit.scaleDown,child:AttachmentIndicators(record:record,commentCount:commentCount)),const SizedBox(width:4)],
                       Expanded(child:CanvasLinkText(text:record.text,links:record.inlineLinks,onLinkHover:(link)=>_hoverMemoLink(record.id,link),enabled:MediaQuery.sizeOf(context).width >= 760 && !_rangeSelection && _selected.isEmpty,style:TextStyle(color:wordColor(context,record.text)))),
                     ])))),
-                    if (record.tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 8, 8), child: Align(alignment: Alignment.centerLeft,
-                      child: Text(record.tags.map((tag) => '#$tag').join('  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)))),
+                    if (record.tags.isNotEmpty)
+                      Padding(padding: const EdgeInsets.fromLTRB(12, 0, 8, 8), child: Text(record.tags.map((tag) => '#$tag').join('  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10))),
                     if (_layout.stacked && record.tags.isEmpty) const SizedBox(height: 24),
                   ])))),
             ),
@@ -2143,7 +2218,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 final left = _selectionDragOrigins.values.map((p) => p.dx).reduce(math.min);
                 final top = _selectionDragOrigins.values.map((p) => p.dy).reduce(math.min);
                 final shift = Offset(math.max(delta.dx, 32 - left), math.max(delta.dy, 32 - top));
-                for (final entry in _selectionDragOrigins.entries) { _setSelectionPoint(entry.key, entry.value + shift); }
+                final anchor = _selectionDragOrigins.entries.first;
+                final allowed = _limitThoughtDrag(_selected, anchor.value + shift - _selectionPoint(anchor.key));
+                for (final id in _selectionDragOrigins.keys) { _setSelectionPoint(id, _selectionPoint(id) + allowed); }
                 final target = _selectionHasPhoto ? null : records.where((r) => !workspacePhotos.containsKey(r.id) && !_selected.contains(r.id) && _selectionAnchor != null && _bounds(r.id).overlaps(_selectionBounds(_selectionAnchor!))).lastOrNull;
                 _dropHighlights..clear()..addAll(target == null ? <String>{} : alignedStackMembers(target.id, _positions,groups:_layout.stackGroups).difference(_selected));
               } else {
@@ -2246,24 +2323,6 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               }),
           ])),
         )),
-        if (_canEdit && _selectionChecked && _selected.length >= 2 &&
-            _selected.every((id) => !workspacePhotos.containsKey(id) && elements.byId(id) != null))
-          Positioned(top: 46, left: 4, child: TextButton.icon(
-            style: TextButton.styleFrom(backgroundColor: color.surface),
-            icon: const Icon(Icons.library_books_outlined, size: 16), label: const Text('엮기'),
-            onPressed: () async {
-              final thoughts = [for (final id in _selected) elements.byId(id)!];
-              final pages = [for (final thought in thoughts.skip(1)) ...[ThoughtPageData.first(thought), ...thought.extraPages]];
-              if (thoughts.first.extraPages.length + pages.length >= 100) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('최대 100페이지까지 엮을 수 있어요.')));
-                return;
-              }
-              thoughts.first.extraPages.addAll(pages);
-              elements.refreshVisibility();
-              _toggleSelection(false);
-              await (widget.onSave ?? saveWorkspaceContent)?.call();
-            },
-          )),
         if (_canEdit) Positioned(top: 8, left: 4, child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: Row(mainAxisSize: MainAxisSize.min, children: [

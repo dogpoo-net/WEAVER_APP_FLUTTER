@@ -126,9 +126,36 @@ void main() {
     expect(storage.read(), next);
     expect(jsonDecode(prefs.getString('${WorkspaceStorage.key}.beforeImport')!)[WorkspaceStorage.key], old);
   });
+  testWidgets('empty sends all confirmed ids in one call even with a search filter', (tester) async {
+    final first = elements.add('첫 번째'), second = elements.add('두 번째');
+    elements.remove(first.text);
+    elements.remove(second.text);
+    final calls = <List<String>>[];
+    await tester.pumpWidget(MaterialApp(home: TrashPage(onDelete: (ids) async { calls.add(ids); })));
+    await tester.enterText(find.byKey(const ValueKey('trash-search')), first.text);
+    await tester.tap(find.text('휴지통 비우기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('모두 삭제'));
+    await tester.pumpAndSettle();
+    expect(calls.single, unorderedEquals([first.id, second.id]));
+  });
+  testWidgets('archived documents appear below thoughts after reload', (tester) async {
+    elements.remove(elements.add('생각 하나').text);
+    final archived = ElementRecord.restored('document-trash:1', '문서 하나', DateTime.now())
+      ..deletedAt = DateTime.now()
+      ..archivedDocument = {'id': '1', 'content': '본문'};
+    elements.trash[archived.id] = archived;
+    WorkspaceSnapshot.decode(WorkspaceSnapshot.encode([])).apply();
+    expect(elements.trash[archived.id]!.archivedDocument?['content'], '본문');
+    await tester.pumpWidget(MaterialApp(home: TrashPage(onDelete: (_) async {})));
+    expect(tester.getTopLeft(find.text('문서')).dy, greaterThan(tester.getTopLeft(find.text('생각 하나')).dy));
+    await tester.tap(find.byWidgetPredicate((w) => w is WordBadge && w.word == '문서 하나'));
+    await tester.pumpAndSettle();
+    expect(find.text('휴지통의 문서'), findsOneWidget);
+  });
   testWidgets('trash search and permanent delete confirmation', (tester) async {
     final a = elements.add('버릴 생각 #자료'); elements.remove(a.text);
-    await tester.pumpWidget(MaterialApp(home: TrashPage(onDelete: (id) async { elements.trash.remove(id); elements.refreshVisibility(); })));
+    await tester.pumpWidget(MaterialApp(home: TrashPage(onDelete: (ids) async { elements.trash.removeWhere((id, _) => ids.contains(id)); elements.refreshVisibility(); })));
     await tester.enterText(find.byKey(const ValueKey('trash-search')), '#자료'); await tester.pumpAndSettle();
     await tester.tap(find.text('버릴 생각').first); await tester.pumpAndSettle();
     await tester.tap(find.text('영구 삭제')); await tester.pumpAndSettle();
