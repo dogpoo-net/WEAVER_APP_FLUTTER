@@ -32,6 +32,9 @@ void main(){
   api.disconnected=true;await expectLater(sync.request('status',{}),throwsA(isA<EmailAuthFailure>()));
   expect(storage.offlineMode,true);await storage.write(snapshot(['original','local']));await sync.flush();
   api.disconnected=false;await api.workspace('save',{'changes':[{'kind':'list:folders','id':'remote','value':'remote','deleted':false}]});
+  storage.hasUnsavedInput = () => true;
+  await sync.recoverNetwork();expect(storage.offlineMode,false);expect(sync.networkPending,true);
+  storage.hasUnsavedInput = () => false;
   await sync.recoverNetwork();expect(sync.networkPending,false);expect(storage.offlineMode,false);
   expect(jsonDecode(storage.read()!)['folders'],containsAll(['original','local','remote']));
  });

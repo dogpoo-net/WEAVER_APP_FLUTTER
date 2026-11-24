@@ -347,11 +347,22 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     if (widget.canMoveBoxes) yield _createRow('문서 생성', WorkspaceMenu.createProject);
   }
 
+  Color get _menuBackground {
+    final theme = Theme.of(context);
+    if (widget.embedded) return theme.canvasColor;
+    return DialogTheme.of(context).backgroundColor ??
+        (theme.useMaterial3 ? theme.colorScheme.surfaceContainerHigh : theme.dialogBackgroundColor);
+  }
+
   Widget _treeSection(Widget header, List<Widget> rows) =>
       SliverMainAxisGroup(slivers: [
         PinnedHeaderSliver(child: Material(
-          color: Theme.of(context).colorScheme.surface,
-          child: header,
+          color: _menuBackground,
+          child: ListTileTheme.merge(
+            textColor: Theme.of(context).colorScheme.onSurface,
+            iconColor: Theme.of(context).colorScheme.onSurface,
+            child: header,
+          ),
         )),
         SliverList.list(children: rows),
       ]);
@@ -455,6 +466,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     ]);
     if (widget.embedded) return Material(child: SizedBox(width: 280, child: content));
     return Dialog(
+      backgroundColor: _menuBackground,
       alignment: AlignmentDirectional.topStart,
       insetPadding: EdgeInsets.fromLTRB(16, narrowMenu ? 48 : 64, 16, 12),
       child: SizedBox(

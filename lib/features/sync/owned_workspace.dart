@@ -246,12 +246,21 @@ class WorkspaceSync extends ChangeNotifier {
     _networkTimer?.cancel();_networkTimer=null;error=null;storage.canvasSaveState.value='저장됨';changed();schedule();
   }
   Future<void> recoverNetwork()async{
-    if(_disposed||!isCurrent()||!networkPending||_recovering||manualReview||storage.canvasInteracting||storage.hasUnsavedInput?.call()==true)return;
+    if(_disposed||!isCurrent()||!networkPending||_recovering||manualReview)return;
 
     _recovering=true;
     try{
+      if (storage.canvasInteracting || storage.hasUnsavedInput?.call() == true) {
+        if (storage.offlineMode) {
+          await request('status', {});
+          if (!_disposed && isCurrent()) storage.offlineMode = false;
+        }
+        return;
+      }
       await settle();await storage.flush();
       final result=await request('read',{'since':0});
+      if (_disposed || !isCurrent()) return;
+      storage.offlineMode = false;
       if(_disposed||!isCurrent()||storage.canvasInteracting||storage.hasUnsavedInput?.call()==true)return;
       await storage.flush();final snapshot=storage.read();final local=splitWorkspace(snapshot);
       final remote=<String,Map<String,dynamic>>{};
@@ -270,7 +279,7 @@ class WorkspaceSync extends ChangeNotifier {
       await storage.flush();final current=splitWorkspace(storage.read());
       final displayed=NetworkRecoveryPlan(local,current,remote).merged;
       if(storage.canvasInteracting||storage.hasUnsavedInput?.call()==true)return;
-      await ensureMedia(joinWorkspace(remote));
+      // Online attachments load on demand through the workspace media reader.
       await storage.flush();
       if(storage.read()!=joinWorkspace(current)&&!const DeepCollectionEquality().equals(splitWorkspace(storage.read()),current))return;
       if(storage.canvasInteracting||storage.hasUnsavedInput?.call()==true)return;
