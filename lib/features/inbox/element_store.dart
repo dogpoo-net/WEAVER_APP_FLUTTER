@@ -1,4 +1,5 @@
 import '../capture/location_capture.dart';
+import '../capture/attachment_indicators.dart';
 import '../capture/voice_transcription.dart';
 import 'dart:collection';
 import 'thought_colors.dart';
@@ -29,6 +30,8 @@ import 'project_page.dart';
 import 'word_badge.dart';
 import 'hashtags.dart';
 
+part 'thought_reading.dart';
+
 const noticeBoardLimit = 10;
 const noticeBoardFullMessage = '알림판에는 생각을 최대 10개까지 등록할 수 있습니다.';
 
@@ -46,6 +49,7 @@ class ElementRecord {
   }
   final Set<String> tags = {};
   List<ElementBinding> inlineLinks = [];
+  List<ThoughtPageData> extraPages = [];
   String? folder;
   ThoughtLocation? location;
   final List<VoiceAttachment> recordings = [];
@@ -268,11 +272,13 @@ Future<void> showElementMetadata(BuildContext context, String word, {VoidCallbac
   if (!context.mounted) return;
   final record = elements.records[word];
   if (record == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('다른 기기에서 삭제된 생각입니다.'))); return; }
+  final editPage = await showDialog<int>(context: context, builder: (_) => _ThoughtReading(record));
+  if (editPage == null || !context.mounted || elements.byId(record.id) != record) return;
   word = record.text;
   final owner=MediaStorage.activeOwner;
   voiceBodyEditors.update(record.id,(n)=>n+1,ifAbsent:()=>1);
   try{
-    await showDialog<void>(context:context,builder:(_)=>_ElementMetadata(word:word,onSaved:onSaved));
+    await showDialog<void>(context:context,builder:(_)=>_ElementMetadata(word:word,onSaved:onSaved, initialPage:editPage));
   }finally{
     final remaining=(voiceBodyEditors[record.id]??1)-1;
     if(remaining==0){voiceBodyEditors.remove(record.id);}else{voiceBodyEditors[record.id]=remaining;}
@@ -284,8 +290,9 @@ Future<void> showElementMetadata(BuildContext context, String word, {VoidCallbac
 }
 
 class _ElementMetadata extends StatefulWidget {
-  const _ElementMetadata({required this.word, this.onSaved});
+  const _ElementMetadata({required this.word, required this.initialPage, this.onSaved});
   final VoidCallback? onSaved;
+  final int initialPage;
   final String word;
   @override
   State<_ElementMetadata> createState() => _ElementMetadataState();
@@ -355,6 +362,36 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     _tags = Set.of(record.tags);
     _labelColor = record.labelColor; _closed = record.hiddenFromSearch;
     _editor = LabelTextController(record.text, record.inlineLinks)..addListener(_extractTags);
+    _pages = [ThoughtPageData.first(record), ...record.extraPages];
+    _loadPage(widget.initialPage.clamp(0, _pages.length - 1));
+  }
+
+  late final List<ThoughtPageData> _pages;
+  int _page = 0;
+  void _capturePage() {
+    final clean = cleanLinkedInput(_editor);
+    _tags.addAll(clean.tags);
+    _pages[_page] = ThoughtPageData(clean.text, _labelEditor.text.trim(), _labelOnLeft, _indexLabelColor, clean.links);
+  }
+  void _loadPage(int index) {
+    _page = index;
+    final page = _pages[index];
+    _movingTags = true;
+    _editor.loadDocument(page.text, page.links);
+    _movingTags = false;
+    _labelEditor.text = page.label;
+    _labelOnLeft = page.left;
+    _indexLabelColor = page.color;
+    _error = null;
+  }
+  void _turn(int index) {
+    setState(() {
+      _capturePage();
+      if (index == _pages.length) _pages.add(const ThoughtPageData(''));
+      final discard = _pages[_page].text.isEmpty && _page == _pages.length - 1 && index < _page;
+      if (discard) _pages.removeLast();
+      _loadPage(index);
+    });
   }
 
   void _extractTags() {
@@ -490,23 +527,26 @@ class _ElementMetadataState extends State<_ElementMetadata> {
                   errorText: _error,
                 ),
                 onChanged: (_) {
-                  if (_error != null) setState(() => _error = null);
+                  setState(() => _error = null);
                 },
               )),
               const SizedBox(height: 8),
-              MergeSemantics(child: ListTile(
-                dense: true, visualDensity: const VisualDensity(vertical: -3), contentPadding: EdgeInsets.zero,
-                title: const Text('생각 닫기'),
-                onTap: () => setState(() => _closed = !_closed),
-                trailing: SizedBox(width: 44, height: 32, child: Transform.scale(scale: .8,
-                  child: Switch.adaptive(value: _closed,
-                    onChanged: (hidden) => setState(() => _closed = hidden)))),
-              )),
+              Row(children: [
+                Text('${_page + 1} / ${_pages.length}'),
+                const Spacer(),
+                IconButton(tooltip: '이전 페이지', icon: const Icon(Icons.chevron_left),
+                  onPressed: _page == 0 ? null : () => _turn(_page - 1)),
+                IconButton(tooltip: '다음 페이지', icon: const Icon(Icons.chevron_right),
+                  onPressed: _page >= 99 || cleanLinkedInput(_editor).text.isEmpty ? null : () => _turn(_page + 1)),
+              ]),
               const Divider(key:ValueKey('element-attachments-divider'),height:9,thickness:1),
               Row(children:[
                 IconButton(tooltip:locationOffline && _locationFor(element)!=null ? '위치 수정은 온라인에서 가능해요' : '위치 기록',style:captureStyle,onPressed:_attachmentBusy||!_canAttach||(locationOffline && _locationFor(element)!=null)?null:()=>_attach(element,'location'),icon:const Icon(Icons.location_on_outlined,size:20)),
                 IconButton(tooltip:'음성 녹음',style:captureStyle,onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const Icon(Icons.mic_none,size:20)),
                 IconButton(tooltip:'사진 업로드',style:captureStyle,onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'photo'),icon:const Icon(Icons.add_photo_alternate_outlined,size:20)),
+                IconButton(tooltip: '생각 닫기', style: captureStyle, isSelected: _closed,
+                  icon: const Icon(Icons.task_alt_outlined), selectedIcon: const Icon(Icons.check_circle),
+                  onPressed: () => setState(() => _closed = !_closed)),
                 const Spacer(),
                 ValueListenableBuilder<Map<String,int>>(
                   valueListenable:memoCommentCounts,
@@ -583,7 +623,11 @@ class _ElementMetadataState extends State<_ElementMetadata> {
           style: compact,
           onPressed: _attachmentBusy ? null : () async {
             if(_mediaOwner!=MediaStorage.activeOwner){setState(()=>_error='워크스페이스가 변경되었습니다. 다시 열어주세요.');return;}
-            final cleaned = cleanLinkedInput(_editor);
+            _capturePage();
+            final cleaned = _pages.first;
+            if (_pages.take(_pages.length - 1).any((page) => page.text.isEmpty)) {
+              setState(() => _error = '빈 페이지에 내용을 입력해주세요.');return;
+            }
             if(cleaned.text.trim().isEmpty || cleaned.text!=word && elements.records.containsKey(cleaned.text)){
               setState(()=>_error='생각 내용을 확인해주세요. 같은 내용의 생각은 중복 저장할 수 없습니다.');return;
             }
@@ -617,13 +661,14 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               for(final id in written){try{await MediaStorage.delete(id,owner:_mediaOwner);}catch(_){}}
               if(mounted)setState((){_attachmentBusy=false;_error='첨부 저장에 실패했습니다. $e';});return;
             }
-            final error = elements.update(word, cleaned.text, inlineLinks: cleaned.links, tags: {..._tags, ...cleaned.tags}, labelColor: _labelColor, hiddenFromSearch: _closed, onNoticeBoard: _noticeBoardChange, indexLabel: _labelEditor.text, labelOnLeft: _labelOnLeft, indexLabelColor: _indexLabelColor);
+            final error = elements.update(word, cleaned.text, inlineLinks: cleaned.links, tags: _tags, labelColor: _labelColor, hiddenFromSearch: _closed, onNoticeBoard: _noticeBoardChange, indexLabel: cleaned.label, labelOnLeft: cleaned.left, indexLabelColor: cleaned.color);
             if (error != null) {
               for(final id in written){await MediaStorage.delete(id,owner:_mediaOwner);}
               if(mounted)setState(() { _attachmentBusy=false;_error = error; });
               return;
             }
             final savedRecord=elements.records[cleaned.text]!;
+            savedRecord.extraPages = _pages.skip(1).where((page) => page.text.isNotEmpty).toList();
             final removedIds=<String>{...?_removedPhotos[element.id],...?_removedAudio[element.id],if(voices.isNotEmpty)...savedRecord.recordings.map((a)=>a.id)};
             savedRecord.photos.removeWhere((p)=>removedIds.contains(p.id));
             savedRecord.recordings.removeWhere((a)=>removedIds.contains(a.id));
@@ -670,7 +715,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               Navigator.pop(context);
             }
           },
-          child: const Text('생각 삭제'),
+          child: const Text('삭제'),
         ),
         TextButton(
           style: compact,

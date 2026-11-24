@@ -11,11 +11,12 @@ export 'document_syntax.dart' show documentTitle;
 import 'document_syntax.dart';
 
 class DocumentMarkup extends StatefulWidget {
-  const DocumentMarkup({super.key, required this.text, this.links = const [], this.style, this.formatting = true});
+  const DocumentMarkup({super.key, required this.text, this.links = const [], this.style, this.formatting = true, this.bodyBuilder});
   final String text;
   final List<ElementBinding> links;
   final TextStyle? style;
   final bool formatting;
+  final Widget Function(Widget body)? bodyBuilder;
   @override
   State<DocumentMarkup> createState() => _DocumentMarkupState();
 }
@@ -289,6 +290,18 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
       if (headingKey != null && headingPrefix.isEmpty) lines.add(const SizedBox(height: 16));
       offset += line.length + 1;
     }
+    final body = Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      ...lines,
+      if (_numbers.isNotEmpty) ...[
+        const Divider(),
+        const Text('각주'),
+        for (final entry in _numbers.entries) Padding(
+            key: _noteKeys[entry.key],
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text('[${entry.value}] ${_footnotes[entry.key]}'),
+          ),
+      ],
+    ]);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       if (headings.isNotEmpty) ...[
         Align(alignment: AlignmentDirectional.topStart, child: Container(
@@ -319,16 +332,7 @@ class _DocumentMarkupState extends State<DocumentMarkup> {
         ]))),
         const SizedBox(height: 16),
       ],
-      ...lines,
-      if (_numbers.isNotEmpty) ...[
-        const Divider(),
-        const Text('각주'),
-        for (final entry in _numbers.entries) Padding(
-            key: _noteKeys[entry.key],
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Text('[${entry.value}] ${_footnotes[entry.key]}'),
-          ),
-      ],
+      widget.bodyBuilder?.call(body) ?? body,
     ]);
   }
 }

@@ -94,6 +94,7 @@ class WorkspaceSnapshot {
             if (r.noticeBoardOrder case final order?) 'noticeBoardOrder': order,
             if(r.voiceTextPending)'voiceTextPending':true,
             if (r.labelColor != null) 'labelColor': r.labelColor,
+            if (r.extraPages.isNotEmpty) 'thoughtPages': [for (final page in r.extraPages) page.toJson()],
             'indexLabel': r.indexLabel, 'labelOnLeft': r.labelOnLeft, 'indexLabelColor': r.indexLabelColor,
             'location': r.location?.toJson(),
             'recordings': r.recordings.map((clip) => clip.toJson()).toList(),
@@ -190,6 +191,9 @@ class WorkspaceSnapshot {
        ..noticeBoardOrder = r['noticeBoardOrder'] is int ? r['noticeBoardOrder'] as int : null
        ..voiceTextPending = r['voiceTextPending'] == true
        ..labelColor = r['labelColor'] is int ? r['labelColor'] as int : null
+       ..extraPages = [for (final page in (r['thoughtPages'] as List? ?? []).whereType<Map>().take(99))
+         ThoughtPageData(page['text'] as String, page['label'] as String, page['left'] == true, page['color'] as int,
+           bindings({'text': page['text'], 'bindings': page['links']}))]
        ..indexLabel = (r['indexLabel'] as String? ?? '').replaceAll(RegExp(r'\s+'), ' ').trim()
        ..labelOnLeft = r['labelOnLeft'] == true
        ..indexLabelColor = r['indexLabelColor'] is int ? r['indexLabelColor'] as int : 0xFFFFF59D

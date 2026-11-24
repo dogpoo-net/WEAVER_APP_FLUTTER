@@ -33,11 +33,13 @@ void main(){
   final childHeader = find.byKey(const ValueKey('box-drag-header-하위 상자'));
   final parentHeader = find.byKey(const ValueKey('box-drag-header-상위 상자'));
   final insideParent = tester.getCenter(parentHeader) + const Offset(0, 110);
-  final childDrag = tester.widget<GestureDetector>(childHeader);
-  childDrag.onPanUpdate!(DragUpdateDetails(
-    globalPosition: insideParent, delta: insideParent - tester.getCenter(childHeader),
-  ));
-  childDrag.onPanEnd!(DragEndDetails(globalPosition: insideParent));
+  final grab = tester.getCenter(childHeader);
+  final drag = await tester.startGesture(grab);
+  await drag.moveTo(Offset.lerp(grab, insideParent, .5)!);
+  await tester.pump();
+  await drag.moveTo(insideParent);
+  await tester.pump();
+  await drag.up();
   await tester.pumpAndSettle();
   expect(parentMemoBox(child), parent);
 

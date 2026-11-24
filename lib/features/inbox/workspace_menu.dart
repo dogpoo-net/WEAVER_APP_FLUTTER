@@ -304,8 +304,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     );
   }
 
-  Iterable<Widget> _documents() sync* {
-    yield _documentTarget(null, ListTile(contentPadding: _treePadding(0), dense: true, minTileHeight: 34,
+  Widget _documentHeader() => _documentTarget(null, ListTile(contentPadding: _treePadding(0), dense: true, minTileHeight: 34,
       leading: const Icon(Icons.description_outlined, size: 22), title: const Text('문서'),
       onTap: () => _select(WorkspaceMenu.documents),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -313,6 +312,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           onPressed: () => _select(WorkspaceMenu.createFolder)),
         _treeToggle('document-tree', '문서'),
       ])));
+  Iterable<Widget> _documents() sync* {
     if (!_expanded.contains('document-tree')) return;
     String? folderAt(int i) => i < widget.projectFolderNames.length ? widget.projectFolderNames[i] : null;
     for (final folder in widget.folders) {
@@ -346,6 +346,15 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
     }
     if (widget.canMoveBoxes) yield _createRow('문서 생성', WorkspaceMenu.createProject);
   }
+
+  Widget _treeSection(Widget header, List<Widget> rows) =>
+      SliverMainAxisGroup(slivers: [
+        PinnedHeaderSliver(child: Material(
+          color: Theme.of(context).colorScheme.surface,
+          child: header,
+        )),
+        SliverList.list(children: rows),
+      ]);
 
   void _select(int choice) {
     if (widget.onSelected case final callback?) {
@@ -404,10 +413,9 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
       navigationButton('지오로그', Icons.location_on_outlined, WorkspaceMenu.geolog),
       navigationButton('해시태그', Icons.tag, WorkspaceMenu.hashtags),
       const Divider(indent: 16, endIndent: 16),
-      Expanded(child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          DragTarget<MemoBox>(
+      Expanded(child: CustomScrollView(
+        slivers: [
+          _treeSection(DragTarget<MemoBox>(
             onWillAcceptWithDetails: (details) => widget.canMoveBoxes &&
                 memoBoxes.contains(details.data) && details.data.folder != null &&
                 canMoveMemoBox(details.data, null),
@@ -432,11 +440,11 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
             ]),
             onTap: () => _select(WorkspaceMenu.memoBoxTab),
           ))),
-          if (_expanded.contains('memo-box-tree')) ...[
+          [if (_expanded.contains('memo-box-tree')) ...[
             ..._boxTree(null, 0),
             if (widget.canMoveBoxes) _createRow('메모상자 만들기', WorkspaceMenu.createBox),
-          ],
-          ..._documents(),
+          ]]),
+          _treeSection(_documentHeader(), _documents().toList()),
         ],
       )),
       const Divider(indent: 16, endIndent: 16),

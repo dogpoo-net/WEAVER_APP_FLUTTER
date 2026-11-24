@@ -142,7 +142,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     String? target;
     var bestDistance = double.infinity;
     for (final id in visible) {
-      final position = positions[id];
+      if (id == moving) continue;
+      final position = _positions[id];
       if (position == null) continue;
       final bounds = position & _size(id);
       if (card.left >= bounds.right || card.right <= bounds.left ||
@@ -159,27 +160,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         .toList()..sort((a, b) => positions[a]!.dy.compareTo(positions[b]!.dy));
     final first = positions[members.first]!;
     const step = 32.0;
-    final index = members.indexWhere((id) => card.top < positions[id]!.dy + step / 2);
-    final slot = index < 0 ? members.length : index;
-    var top = slot < members.length ? positions[members[slot]]!.dy : first.dy;
-    if (slot > 0) {
-      final previous = members[slot - 1];
-      final base = positions[previous]!.dy;
-      // Keep a visible overlap even when snapping near the card's bottom edge.
-      final lastStep = math.max(1, (_size(previous).height / step).ceil() - 1);
-      final steps = ((card.top - base) / step).round().clamp(1, lastStep);
-      final candidate = base + step * steps;
-      if (slot == members.length || candidate < top) top = candidate;
-    }
-    var nextTop = top + step;
-    for (final id in members.skip(slot)) {
-      final point = positions[id]!;
-      if (point.dy >= nextTop) break;
-      positions[id] = Offset(point.dx, nextTop);
-      nextTop += step;
-    }
+    final top = positions[members.last]!.dy + step;
     positions[moving] = Offset(first.dx, top);
-    members.insert(slot, moving);
+    members.add(moving);
     return (moving: moving, target: target, members: members, positions: positions,
       left: first.dx, top: top, width: _size(target).width);
   }
@@ -211,8 +194,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   bool _centered = false;
   bool _detailOpen = false;
   String? _liftedThought;
-  bool _selectionMode = false, _movingSelection = false, _ctrlPressed = false, _shiftPressed = false;
-  bool get _rangeSelection => _selectionMode || _ctrlPressed || _shiftPressed || _selectionStart != null;
+  bool _selectionPinned = false, _movingSelection = false, _ctrlPressed = false, _shiftPressed = false;
+  bool get _selectionMode => _selectionPinned || _ctrlPressed;
+  bool get _selectionChecked => _selectionMode || _selected.isNotEmpty;
+  bool get _rangeSelection => _selectionMode || _shiftPressed || _selectionStart != null;
   bool _controlSelection(KeyEvent event) {
     if(!tabActive || !_routeVisible)return false;
     if (_canEdit && !_searchFocus.hasFocus &&
@@ -236,7 +221,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         if (_movingSelection) {
           for (final e in _selectionDragOrigins.entries) { _setSelectionPoint(e.key, e.value); }
         }
-        _clearSelectionLift(); _selected.clear(); _selectionMode=false; _ctrlPressed=false; _shiftPressed=false;
+        _clearSelectionLift(); _selected.clear(); _selectionPinned=false; _ctrlPressed=false; _shiftPressed=false;
         _rangeAnchor=null; _rangeAnchorPoint=null; _selectionBeforeGesture.clear();
         _selectionPointers.clear(); _selectionZoomBase=null; _selectionZoomDistance=null;
         _selectionZoomAnchor=null; _selectionPinched=false;
@@ -295,7 +280,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
   void _endPinch() { _pinchBase = null; _pinchAnchor = null; _saveLayout(flush: true); }
   void _toggleSelection(bool value) => setState(() {
-    _selectionMode = value; _selected.clear(); _rangeAnchor = null; _selectionStart = null; _selectionEnd = null;
+    _selectionPinned = value; if (!value) _ctrlPressed = false; _selected.clear(); _rangeAnchor = null; _selectionStart = null; _selectionEnd = null;
     _selectionPointers.clear(); _selectionZoomBase = null; _selectionZoomDistance = null; _selectionZoomAnchor = null; _selectionPinched = false;
   });
   Rect _boxHeaderBounds(Rect bounds) {
@@ -1364,9 +1349,30 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     }
     return records.where((r) => _bounds(r.id).contains(point)).lastOrNull?.id;
   }
-  void _closeMovedSlots(Map<String, Offset> origins) {
+  void _closeMovedSlots(Map<String, Offset> origins, {bool compactSelection = true}) {
     final before = {..._positions, ...Map.fromEntries(origins.entries.where((e) => _positions.containsKey(e.key)))};
     final moved = origins.keys.where((id) => _positions.containsKey(id) && (_positions[id]!-origins[id]!).distance > .5).toSet();
+    final groups = _stacksBeforeDrop ?? _layout.stackGroups;
+    if (compactSelection && moved.length > 1) {
+      final visited = <String>{};
+      for (final id in moved) {
+        if (visited.contains(id)) continue;
+        final members = alignedStackMembers(id, before, groups: groups).toList()
+          ..sort((a, b) => before[a]!.dy.compareTo(before[b]!.dy));
+        visited.addAll(members);
+        int? previous;
+        for (var index = 0; index < members.length; index++) {
+          final member = members[index];
+          if (!moved.contains(member)) continue;
+          if (previous != null) {
+            final above = members[previous];
+            final gap = index == previous + 1 ? before[member]!.dy - before[above]!.dy : 32.0;
+            _positions[member] = Offset(_positions[member]!.dx, _positions[above]!.dy + gap);
+          }
+          previous = index;
+        }
+      }
+    }
     closeVacatedStackSlots(_positions, before, moved, groups:_stacksBeforeDrop??_layout.stackGroups);
     _stacksBeforeDrop=null;
   }
@@ -1427,6 +1433,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       }else{
         final shift=_selectionHasPhoto ? Offset.zero : snapThought(_bounds(anchor),records.where((r)=>!workspacePhotos.containsKey(r.id)&&!_selected.contains(r.id)).map((r)=>_bounds(r.id)),tolerance:(24/_view.value.storage[0].abs()).clamp(12,48));
         if(_selected.every((id)=>(_selectionPoint(id)+shift).dx>=32&&(_selectionPoint(id)+shift).dy>=32)){for(final id in _selected){_setSelectionPoint(id,_selectionPoint(id)+shift);}}
+        _joinStack(_selected, null);
         var changed=false;final detached=<MemoBox>{};
         for(final entry in _liftBoxes.entries){
           if(!_inside(entry.value,point)){
@@ -1447,23 +1454,26 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void _snapSelection(List<ElementRecord> records) {
     final anchor = _selectionAnchor;
     if (_selectionHasPhoto || !_movingSelection || _selectionStart == null || anchor == null || !_positions.containsKey(anchor)) return;
-    final origin = _selectionDragOrigins[anchor];
     final tolerance = (24 / _view.value.storage[0].abs()).clamp(12, 48).toDouble();
-    final before = {..._positions, ...Map.fromEntries(_selectionDragOrigins.entries.where((e) => _positions.containsKey(e.key)))};
-    final oldStack = alignedStackMembers(anchor, before, groups:_layout.stackGroups);
-    if (origin != null && (_positions[anchor]! - origin).distance <= tolerance * 2 && oldStack.length > 1) {
-      for (final e in _selectionDragOrigins.entries) { _setSelectionPoint(e.key,e.value); }
-      return;
-    }
     _rememberStacks();
     final others = records.where((r) => !workspacePhotos.containsKey(r.id) && !_selected.contains(r.id)).toList();
     final target = others.where((r) => _bounds(r.id).overlaps(_bounds(anchor))).lastOrNull;
-    final shift = target == null
-      ? snapThought(_bounds(anchor), others.map((r) => _bounds(r.id)), tolerance: tolerance)
-      : nextStackSlot(target.id, anchor, {for (final e in _positions.entries) if (!_selected.contains(e.key)) e.key: e.value}) -
-          Offset(_positions[anchor]!.dx, _selected.where(_positions.containsKey).map((id) => _selectionPoint(id).dy).reduce(math.min));
-    if (_selected.any((id) => (_selectionPoint(id) + shift).dx < 32 || (_selectionPoint(id) + shift).dy < 32)) return;
-    for (final id in _selected) { _setSelectionPoint(id, _selectionPoint(id) + shift); }
+    if (target == null) {
+      final shift = snapThought(_bounds(anchor), others.map((r) => _bounds(r.id)), tolerance: tolerance);
+      if (_selected.any((id) => (_selectionPoint(id) + shift).dx < 32 || (_selectionPoint(id) + shift).dy < 32)) return;
+      for (final id in _selected) { _setSelectionPoint(id, _selectionPoint(id) + shift); }
+    } else {
+      _closeMovedSlots(_selectionDragOrigins, compactSelection: false);
+      _selectionDragOrigins.clear();
+      final stationary = Map.of(_positions)..removeWhere((id, _) => _selected.contains(id));
+      final members = alignedStackMembers(target.id, stationary, groups: _layout.stackGroups);
+      var top = members.map((id) => stationary[id]!.dy).reduce(math.max);
+      final ordered = {..._layout.layers.where(_selected.contains), ..._selected};
+      for (final id in ordered.where(_positions.containsKey)) {
+        top += 32;
+        _positions[id] = Offset(stationary[target.id]!.dx, top);
+      }
+    }
     _joinStack(_selected,target?.id);
     if (target != null) {
       final moved = _layout.layers.where(_selected.contains).toList();
@@ -1519,12 +1529,19 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     finally {_savingCanvas=false;}
   }
   final _canvasUpdates = ValueNotifier<int>(0);
+  bool _canvasFrameScheduled = false;
+  Offset? _boxDragPointer;
 
   // Gesture state is applied synchronously for hit testing and the final drop.
   // Only the canvas subtree needs to render these intermediate positions.
   void _updateCanvas(VoidCallback update) {
     update();
-    _canvasUpdates.value++;
+    if (_canvasFrameScheduled) return;
+    _canvasFrameScheduled = true;
+    WidgetsBinding.instance.scheduleFrameCallback((_) {
+      _canvasFrameScheduled = false;
+      if (mounted) _canvasUpdates.value++;
+    });
   }
 
   Offset? _containerResizeOrigin;
@@ -2008,17 +2025,32 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               active: _frontThought == record.id,
               onHold: (held) => setState(() { if (held) { _frontThought = record.id; } else if (_frontThought == record.id) { _frontThought = null; } })))),
           for (final region in regions) Positioned.fromRect(
+            key: ValueKey('box-header-slot-${region.box.name}'),
             rect: _boxHeaderBounds(region.bounds),
-            child: GestureDetector(key: ValueKey('box-drag-header-${region.box.name}'), behavior: HitTestBehavior.opaque,
+            child: Listener(
+              onPointerDown: (event) => _boxDragPointer = event.position,
+              child: GestureDetector(key: ValueKey('box-drag-header-${region.box.name}'), behavior: HitTestBehavior.opaque,
               onLongPressStart: (d) => _liftBox(region.box, d.globalPosition),
               onLongPressMoveUpdate: (d) => _moveLiftedBox(region.box, d.globalPosition),
               onLongPressEnd: (d) => _finishBoxDrag(region.box, d.globalPosition),
-              onPanUpdate: (d) => _updateCanvas(() => _dragBox(region.box, d.delta)),
-              onPanEnd: (details) => _finishBoxDrag(region.box, details.globalPosition),
-              onPanCancel: () { if (!identical(_liftedBox, region.box)) _finishBoxDrag(region.box); },
+              onScaleStart: (details) => _boxDragPointer ??= details.focalPoint,
+              onScaleUpdate: (details) {
+                final previous = _boxDragPointer;
+                _boxDragPointer = details.focalPoint;
+                if (previous == null || details.pointerCount != 1) return;
+                final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
+                if (scene == null) return;
+                final delta = scene.globalToLocal(details.focalPoint) - scene.globalToLocal(previous);
+                if (delta != Offset.zero) _updateCanvas(() => _dragBox(region.box, delta));
+              },
+              onScaleEnd: (details) {
+                final pointer = _boxDragPointer;
+                _boxDragPointer = null;
+                if (pointer != null) _finishBoxDrag(region.box, pointer);
+              },
               child:Row(mainAxisAlignment:MainAxisAlignment.center,children:[Flexible(child:Text(region.box.name,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:Color(region.box.color),fontSize:13,fontWeight:FontWeight.w600))),
                 if(_canEdit&&!region.box.isUnclassified)IconButton(tooltip:'${region.box.name} 상자 삭제',onPressed:()=>_deleteCanvasBox(region.box),style:IconButton.styleFrom(minimumSize:const Size.square(24),padding:EdgeInsets.zero,tapTargetSize:MaterialTapTargetSize.shrinkWrap),icon:const Icon(Icons.close,size:16)),
-              ]))),
+              ])))),
           for (final tag in tags) Positioned(left: _tagBounds('tag:$tag').left, top: _tagBounds('tag:$tag').top,
             width: _tagBounds('tag:$tag').width, height: _tagBounds('tag:$tag').height,
             child: GestureDetector(key: ValueKey('graph-tag-$tag'), behavior: HitTestBehavior.opaque,
@@ -2064,7 +2096,10 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             onLongPressCancel:_cancelSelectionLift,
             onTapUp: (d) => setState(() {
               final hit = _hitSelection(d.localPosition, records);
-              if (!_selectionMode && !_ctrlPressed && !_shiftPressed && _selected.isNotEmpty) {
+              if (hit != null && !_shiftPressed && _selected.contains(hit)) {
+                _toggleThoughtSelection(hit); return;
+              }
+              if (!_selectionMode && !_shiftPressed && _selected.isNotEmpty) {
                 _toggleSelection(false); return;
               }
               if (hit == null) { _selected.clear(); _rangeAnchor=null; _rangeAnchorPoint=null; }
@@ -2075,7 +2110,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                 }
                 for(final id in tagPositions.keys){if(range.overlaps(nodeRects[id]!))_selected.add(id);}
               } else {
-                if(_ctrlPressed||_selectionMode){_toggleThoughtSelection(hit);}
+                if(_selectionMode){_toggleThoughtSelection(hit);}
                 else{_selected..clear()..add(hit);}
                 _rangeAnchor=hit; _rangeAnchorPoint=d.localPosition;
               }
@@ -2211,13 +2246,31 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               }),
           ])),
         )),
+        if (_canEdit && _selectionChecked && _selected.length >= 2 &&
+            _selected.every((id) => !workspacePhotos.containsKey(id) && elements.byId(id) != null))
+          Positioned(top: 46, left: 4, child: TextButton.icon(
+            style: TextButton.styleFrom(backgroundColor: color.surface),
+            icon: const Icon(Icons.library_books_outlined, size: 16), label: const Text('엮기'),
+            onPressed: () async {
+              final thoughts = [for (final id in _selected) elements.byId(id)!];
+              final pages = [for (final thought in thoughts.skip(1)) ...[ThoughtPageData.first(thought), ...thought.extraPages]];
+              if (thoughts.first.extraPages.length + pages.length >= 100) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('최대 100페이지까지 엮을 수 있어요.')));
+                return;
+              }
+              thoughts.first.extraPages.addAll(pages);
+              elements.refreshVisibility();
+              _toggleSelection(false);
+              await (widget.onSave ?? saveWorkspaceContent)?.call();
+            },
+          )),
         if (_canEdit) Positioned(top: 8, left: 4, child: Material(
           color: color.surface.withValues(alpha: .9), borderRadius: BorderRadius.circular(8),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             SizedBox(width: 32, height: 36, child: Checkbox(
               visualDensity: VisualDensity.compact, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              value: _selectionMode, onChanged: (value) => _toggleSelection(value ?? false))),
-            InkWell(onTap: () => _toggleSelection(!_selectionMode), child: Padding(
+              value: _selectionChecked, onChanged: (value) => _toggleSelection(value ?? false))),
+            InkWell(onTap: () => _toggleSelection(!_selectionChecked), child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 const Text('선택', style: TextStyle(fontSize: 13)), const SizedBox(width: 4),
