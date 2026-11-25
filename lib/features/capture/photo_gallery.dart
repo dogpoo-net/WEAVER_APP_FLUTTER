@@ -1,3 +1,4 @@
+import '../capture/photo_image.dart';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -64,7 +65,7 @@ Future<void> showPhoto(
                     minScale: .5,
                     maxScale: 5,
                     child: SizedBox.expand(
-                      child: Image.memory(
+                      child: photoImage(
                         bytes,
                         fit: BoxFit.contain,
                         errorBuilder: (_, error, stack) =>
@@ -146,7 +147,7 @@ class _StoredPhotoState extends State<_StoredPhoto> {
                 onTap: () => showPhoto(context, bytes),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(
+                  child: photoImage(
                     bytes,
                     cacheWidth: 264,
                     fit: BoxFit.cover,

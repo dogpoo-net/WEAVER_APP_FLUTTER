@@ -1,3 +1,6 @@
+import 'calendar_page.dart';
+import '../capture/sketch_dialog.dart';
+import '../capture/photo_image.dart';
 import '../sync/startup_recovery.dart';
 import '../capture/workspace_map_surface.dart';
 import 'workspace_photo.dart';
@@ -1512,6 +1515,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
                                   ],
                                 ),
                         ),
+                        HomeCalendar(open: () => _allThoughts(null, ThoughtView.calendar)),
                         if (_storageError != null) ...[
                           const SizedBox(height: 16),
                           Text(_storageError!, style: TextStyle(color: colors.error, fontSize: 12)),

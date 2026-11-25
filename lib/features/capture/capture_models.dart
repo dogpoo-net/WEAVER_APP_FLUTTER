@@ -89,13 +89,14 @@ class PcmClipBuilder {
 }
 
 class PhotoAttachment {
-  const PhotoAttachment(this.id, this.name);
+  const PhotoAttachment(this.id, this.name, {this.canvasSize});
+  final double? canvasSize;
   final String id, name;
-  Map<String, dynamic> toJson() => {'id': id, 'name': name};
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, if (canvasSize != null) 'canvasSize': canvasSize};
   factory PhotoAttachment.fromJson(dynamic json) {
     final id = json['id'] as String;
     if (id.isEmpty) throw const FormatException('Invalid photo attachment');
-    return PhotoAttachment(id, json['name'] as String? ?? '사진');
+    return PhotoAttachment(id, json['name'] as String? ?? '사진', canvasSize: (json['canvasSize'] as num?)?.toDouble().clamp(24.0, 120.0));
   }
 }
 class PhotoDraft {

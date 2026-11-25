@@ -1,3 +1,5 @@
+import '../capture/sketch_dialog.dart';
+import '../capture/photo_image.dart';
 import 'graph_layout.dart';
 import 'memo_boxes.dart';
 import 'canvas_geometry.dart' show alignedStackMembers;
@@ -52,6 +54,7 @@ class ElementRecord {
   final Set<String> tags = {};
   List<ElementBinding> inlineLinks = [];
   Map<String, dynamic>? archivedDocument;
+  final calendar = <String, int?>{};
   List<ThoughtPageData> extraPages = [];
   String? folder;
   ThoughtLocation? location;
@@ -344,14 +347,21 @@ class _ElementMetadataState extends State<_ElementMetadata> {
   ThoughtLocation? _locationFor(ElementRecord r)=>_locationEdits.containsKey(r.id)?_locationEdits[r.id]:r.location;
   List<PhotoAttachment> _photosFor(ElementRecord r)=>r.photos.where((p)=>!(_removedPhotos[r.id]?.contains(p.id)??false)).toList();
   List<VoiceAttachment> _audioFor(ElementRecord r)=>(_audioUploads[r.id]?.isNotEmpty??false)?[]:r.recordings.where((a)=>!(_removedAudio[r.id]?.contains(a.id)??false)).toList();
+  String? _pinnedPhoto;
+  double _pinSize = 48;
+  bool _pinChanged = false;
   bool _attachmentBusy=false,_captureModalOpen=false;
   bool get _canAttach=>memoCommentRequest==null||memoCommentsWritable;
   late final String? _mediaOwner;
   Future<void> _attach(ElementRecord record,String type) async {
     if(_attachmentBusy||!_canAttach)return;
-    setState((){_attachmentBusy=true;_captureModalOpen=type=='location'||type=='audio';});
+    setState((){_attachmentBusy=true;_captureModalOpen=type!='photo';});
     try {
-      if(type=='photo'){
+      if(type=='sketch'){
+        if (_photosFor(record).length + (_photoUploads[record.id]?.length ?? 0) >= 5) throw StateError('사진은 최대 5장까지 저장할 수 있습니다.');
+        final sketch = await showSketchDialog(context);
+        if(mounted && sketch!=null)setState(()=>_photoUploads.putIfAbsent(record.id,()=>[]).add(sketch));
+      }else if(type=='photo'){
         final drafts=await pickPhotoUploads(5-_photosFor(record).length-(_photoUploads[record.id]?.length??0));
         if(mounted)setState(()=>_photoUploads.putIfAbsent(record.id,()=>[]).addAll(drafts));
       }else if(type=='audio'){
@@ -381,6 +391,8 @@ class _ElementMetadataState extends State<_ElementMetadata> {
     _mediaOwner=MediaStorage.activeOwner;
     _word = widget.word;
     final record = elements.records[_word]!;
+    final pin = record.photos.where((p) => p.canvasSize != null).firstOrNull;
+    _pinnedPhoto = pin?.id; _pinSize = pin?.canvasSize ?? 48;
     _labelEditor = TextEditingController(text: record.indexLabel);
     _labelOnLeft = record.labelOnLeft; _indexLabelColor = record.indexLabelColor;
     _tags = Set.of(record.tags);
@@ -564,6 +576,7 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               Row(children:[
                 IconButton(tooltip:locationOffline && _locationFor(element)!=null ? '위치 수정은 온라인에서 가능해요' : '위치 기록',style:captureStyle,onPressed:_attachmentBusy||!_canAttach||(locationOffline && _locationFor(element)!=null)?null:()=>_attach(element,'location'),icon:const Icon(Icons.location_on_outlined,size:20)),
                 IconButton(tooltip:'음성 녹음',style:captureStyle,onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'audio'),icon:const Icon(Icons.mic_none,size:20)),
+                IconButton(tooltip:'스케치',style:captureStyle,onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'sketch'),icon:const Icon(Icons.draw_outlined,size:20)),
                 IconButton(tooltip:'사진 업로드',style:captureStyle,onPressed:_attachmentBusy||!_canAttach?null:()=>_attach(element,'photo'),icon:const Icon(Icons.add_photo_alternate_outlined,size:20)),
                 IconButton(tooltip: '생각 닫기', style: captureStyle, isSelected: _closed,
                   icon: const Icon(Icons.task_alt_outlined), selectedIcon: const Icon(Icons.check_circle),
@@ -593,12 +606,25 @@ class _ElementMetadataState extends State<_ElementMetadata> {
               for(final clip in _audioFor(element))VoicePlayer(key:ValueKey(clip.id),load:()=>MediaStorage.read(clip.id),durationMs:clip.durationMs,transcript:clip.transcript,transcription:clip.transcription,textStyle:Theme.of(context).textTheme.labelLarge,actionStyle:attachmentActionStyle,
                 onTranscribe:_canAttach && voiceAudioRequest!=null?()async{try{await retrySavedVoice(element.id,clip.id);}finally{if(mounted)setState((){});}}:null,
                 trailing:IconButton(style:attachmentActionStyle,tooltip:'음성 삭제',onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_removedAudio.putIfAbsent(element.id,()=>{}).add(clip.id)),icon:const Icon(Icons.delete_outline))),
+              if (_photosFor(element).isNotEmpty) Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
+                PopupMenuButton<String>(tooltip: '사진붙이기', child: const Padding(padding: EdgeInsets.all(8),child: Text('사진붙이기')),
+                  enabled: _canAttach && !_attachmentBusy,
+                  itemBuilder: (_) => [
+                    for (final p in _photosFor(element)) CheckedPopupMenuItem(value: p.id,
+                        checked: p.id == _pinnedPhoto, child: Text(p.name)),
+                    const PopupMenuItem(value: '', child: Text('표시 해제')),
+                  ], onSelected: (id) => setState(() { _pinChanged = true; _pinnedPhoto = id; })),
+                if (_photosFor(element).any((p) => p.id == _pinnedPhoto))
+                  SizedBox(width: 130, child: Slider(min: 24, max: 120, value: _pinSize,
+                    semanticFormatterCallback: (v) => '사진 크기 ${v.round()}',
+                    onChanged: !_canAttach ? null : (v) => setState(() { _pinChanged = true; _pinSize = v; }))),
+              ]),
               if(_photosFor(element).isNotEmpty||(_photoUploads[element.id]?.isNotEmpty??false))Padding(padding:const EdgeInsets.symmetric(vertical:8),child:PhotoGallery(
                 photos:_photosFor(element),
                 onDelete:_attachmentBusy||!_canAttach?null:(photo)=>setState(()=>_removedPhotos.putIfAbsent(element.id,()=>{}).add(photo.id)),
                 trailing:[
                 for(final photo in _photoUploads[element.id]??<PhotoDraft>[])SizedBox.square(dimension:88,child:Stack(fit:StackFit.expand,children:[
-                  Image.memory(photo.bytes,fit:BoxFit.cover,errorBuilder:(_,error,stack)=>const Icon(Icons.broken_image)),
+                  photoImage(photo.bytes,fit:BoxFit.cover,errorBuilder:(_,error,stack)=>const Icon(Icons.broken_image)),
                   Positioned(top:2,right:2,child:PhotoRemoveButton(onPressed:_attachmentBusy||!_canAttach?null:()=>setState(()=>_photoUploads[element.id]!.remove(photo)))),
                 ])),
               ])),
@@ -693,6 +719,12 @@ class _ElementMetadataState extends State<_ElementMetadata> {
             final removedIds=<String>{...?_removedPhotos[element.id],...?_removedAudio[element.id],if(voices.isNotEmpty)...savedRecord.recordings.map((a)=>a.id)};
             savedRecord.photos.removeWhere((p)=>removedIds.contains(p.id));
             savedRecord.recordings.removeWhere((a)=>removedIds.contains(a.id));
+            if (_pinChanged) {
+              for (var i = 0; i < savedRecord.photos.length; i++) {
+                final p = savedRecord.photos[i];
+                savedRecord.photos[i] = PhotoAttachment(p.id, p.name, canvasSize: p.id == _pinnedPhoto ? _pinSize : null);
+              }
+            }
             savedRecord.photos.addAll(photos);savedRecord.recordings.addAll(voices);
             for(final id in removedIds){
               final referenced=[...elements.records.values,...elements.trash.values].any((r)=>r.photos.any((p)=>p.id==id)||r.recordings.any((a)=>a.id==id));

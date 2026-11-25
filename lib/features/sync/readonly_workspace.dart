@@ -1,3 +1,4 @@
+import '../capture/photo_image.dart';
 import 'dart:typed_data';
 
 import '../capture/media_storage.dart';
@@ -169,7 +170,7 @@ class ReadonlyWorkspace extends StatelessWidget {
     future: MediaStorage.read(id, owner: storage.owner),
     builder: (context, snapshot) => snapshot.data == null
         ? const SizedBox.shrink()
-        : Image.memory(snapshot.data!, height: 200, fit: BoxFit.contain),
+        : photoImage(snapshot.data!, height: 200, fit: BoxFit.contain),
   );
 
   Widget _recordCard(BuildContext context, ElementRecord record) => Card(

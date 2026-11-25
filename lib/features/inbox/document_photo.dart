@@ -1,3 +1,4 @@
+import '../capture/photo_image.dart';
 import 'package:flutter/material.dart';
 
 import '../capture/media_storage.dart';
@@ -26,7 +27,7 @@ class _DocumentPhotoState extends State<DocumentPhoto> {
     builder: (context, snapshot) {
       final bytes = snapshot.data;
       if (bytes != null) {
-        return Image.memory(
+        return photoImage(
           bytes,
           width: double.infinity,
           fit: BoxFit.fitWidth,

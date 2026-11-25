@@ -1,3 +1,4 @@
+import '../capture/photo_image.dart';
 import 'workspace_photo.dart';
 import 'workspace_photo_actions.dart';
 import '../capture/photo_gallery.dart' show PhotoRemoveButton;
@@ -178,11 +179,12 @@ class _AttachmentCollectionState extends State<AttachmentCollection> with Retain
  }
 }
 class StoredThumbnail extends StatefulWidget {
- const StoredThumbnail({super.key,required this.id,required this.owner,required this.name});
+ const StoredThumbnail({super.key,required this.id,required this.owner,required this.name,this.fit=BoxFit.cover});
+ final BoxFit fit;
  final String id,name;final String? owner;
  @override State<StoredThumbnail> createState()=>_StoredThumbnailState();
 }
 class _StoredThumbnailState extends State<StoredThumbnail>{
  late final Future<Uint8List?> bytes=MediaStorage.read(widget.id,owner:widget.owner);
- @override Widget build(BuildContext context)=>FutureBuilder<Uint8List?>(future:bytes,builder:(context,snapshot){if(snapshot.data==null)return Center(child:snapshot.connectionState==ConnectionState.waiting?const SizedBox.square(dimension:20,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.broken_image_outlined));return Image.memory(snapshot.data!,fit:BoxFit.cover,cacheWidth:400,semanticLabel:widget.name,errorBuilder:(_,error,stack)=>const Icon(Icons.broken_image_outlined));});
+ @override Widget build(BuildContext context)=>FutureBuilder<Uint8List?>(future:bytes,builder:(context,snapshot){if(snapshot.data==null)return Center(child:snapshot.connectionState==ConnectionState.waiting?const SizedBox.square(dimension:20,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.broken_image_outlined));return photoImage(snapshot.data!,fit:widget.fit,cacheWidth:400,semanticLabel:widget.name,errorBuilder:(_,error,stack)=>const Icon(Icons.broken_image_outlined));});
 }

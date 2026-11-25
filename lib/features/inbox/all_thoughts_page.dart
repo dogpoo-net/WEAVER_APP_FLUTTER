@@ -1,3 +1,4 @@
+import 'calendar_page.dart';
 import 'dart:async';
 import 'overview_tab_activity.dart';
 import 'workspace_search.dart';
@@ -233,8 +234,8 @@ class _AllThoughtsPageState extends State<ThoughtBoxView> with RouteAware, Retai
   }
 }
 
-enum ThoughtView { search, documents, boxes, page, photos, audio, geolog }
-const activeThoughtViews = [ThoughtView.search, ThoughtView.documents, ThoughtView.boxes, ThoughtView.page, ThoughtView.photos, ThoughtView.audio, ThoughtView.geolog];
+enum ThoughtView { search, documents, boxes, page, photos, audio, geolog, calendar }
+const activeThoughtViews = [ThoughtView.search, ThoughtView.documents, ThoughtView.boxes, ThoughtView.page, ThoughtView.photos, ThoughtView.audio, ThoughtView.geolog, ThoughtView.calendar];
 
 class AllThoughtsPage extends StatefulWidget {
   const AllThoughtsPage({super.key, required this.notes, this.onChanged, this.onLayoutChanged, this.onSave, this.storage, this.onDocument, this.onCreateDocument, this.onRefresh, this.onReloadResource, this.onDeleteBoxes, this.initialBox, this.initialView});
@@ -401,6 +402,7 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
         }
         _selectTab(ThoughtView.page);
       }));
+    if(view==ThoughtView.calendar)return DesktopMenuFrame(child: CalendarPage(selector:selector, filters:_filters, writable:widget.storage?.canvasWritable ?? true, changed:()=>widget.onChanged?.call()));
     if(view==ThoughtView.documents)return DesktopMenuFrame(child:DocumentCollection(notes:widget.notes,selector:selector,storage:widget.storage,onOpen:widget.onDocument,onCreate:widget.onCreateDocument));
     if(view==ThoughtView.photos || view==ThoughtView.audio)return DesktopMenuFrame(child:AttachmentCollection(key:ValueKey(view),audio:view==ThoughtView.audio,selector:selector,filters:_filters,storage:widget.storage,onChanged:widget.onChanged));
     if (view == ThoughtView.geolog) { return DeferredScreen(
@@ -435,4 +437,4 @@ class _ThoughtViewsState extends State<AllThoughtsPage> with SingleTickerProvide
   }
 }
 
-String thoughtViewLabel(String name) => switch (ThoughtView.values.byName(name)) { ThoughtView.search=>'검색', ThoughtView.documents=>'문서', ThoughtView.boxes=>'생각', ThoughtView.page=>'메모상자', ThoughtView.photos=>'사진', ThoughtView.audio=>'음성', ThoughtView.geolog=>'지오로그' };
+String thoughtViewLabel(String name) => switch (ThoughtView.values.byName(name)) { ThoughtView.search=>'검색', ThoughtView.documents=>'문서', ThoughtView.boxes=>'생각', ThoughtView.page=>'메모상자', ThoughtView.photos=>'사진', ThoughtView.audio=>'음성', ThoughtView.geolog=>'지오로그', ThoughtView.calendar=>'캘린더' };

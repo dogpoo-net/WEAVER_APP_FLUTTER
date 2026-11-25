@@ -1,4 +1,5 @@
 import 'workspace_photo.dart';
+import '../capture/capture_models.dart' show PhotoAttachment;
 import 'workspace_photo_actions.dart';
 import 'overview_collections.dart' show StoredThumbnail;
 import 'overview_tab_activity.dart';
@@ -153,7 +154,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             left: slots[nearest].dx, top: slots[nearest].dy, width: _size(moving).width);
         }
       }
-      if (selectionOrigin != null) return null;
+
       closeVacatedStackSlots(positions, {...positions, moving: origin}, {moving},
         groups: _layout.stackGroups);
     }
@@ -179,11 +180,16 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         .toList()..sort((a, b) => positions[a]!.dy.compareTo(positions[b]!.dy));
     final first = positions[members.first]!;
     const step = 32.0;
-    final top = positions[members.last]!.dy + step;
+    final slot = members.length == 1 ? (card.top < first.dy ? 0 : 1)
+        : ((card.top - first.dy) / step).round().clamp(0, members.length);
+    final top = first.dy + slot * step;
     positions[moving] = Offset(first.dx, top);
     final stackShift = positions[moving]! - _positions[moving]!;
     if ((_limitThoughtDrag({moving}, stackShift) - stackShift).distance > .001) return null;
-    members.add(moving);
+    members.insert(slot, moving);
+    for (var i = slot + 1; i < members.length; i++) {
+      positions[members[i]] = first + Offset(0, i * step);
+    }
     return (moving: moving, target: target, members: members, positions: positions,
       left: first.dx, top: top, width: _size(target).width);
   }
@@ -1042,6 +1048,33 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
     return shift;
   }
 
+  bool _attachDroppedPhoto(String id, Offset point, List<ElementRecord> records) {
+    final photo = workspacePhotos[id];
+    if (photo == null) return false;
+    final target = records.reversed.where((r) =>
+        !workspacePhotos.containsKey(r.id) && _bounds(r.id).contains(point)).firstOrNull;
+    if (target == null) return false;
+    if (target.photos.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('사진은 최대 5장까지 저장할 수 있습니다.')));
+      return false;
+    }
+    for (var i = 0; i < target.photos.length; i++) {
+      final p = target.photos[i];
+      if (p.canvasSize != null) target.photos[i] = PhotoAttachment(p.id, p.name);
+    }
+    target.photos.add(PhotoAttachment(id, photo.attachment.name, canvasSize: 48));
+    workspacePhotos.remove(id);
+    for (final box in memoBoxes) { box.elementIds.remove(id); }
+    _positions.remove(id);
+    _layout.sizes.remove(id);
+    _layout.layers.remove(id);
+    _thoughtDragOrigins.remove(id);
+    _selectionDragOrigins.remove(id);
+    _selected.remove(id);
+    _changed();
+    return true;
+  }
+
   bool _dropIntoBox(Offset point, Iterable<String> ids) {
     final moving = ids.where(_positions.containsKey).toList();
     if (moving.isEmpty) return false;
@@ -1565,6 +1598,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       _positions[id] = insertion.positions[id]!;
     }
     _orderSelectionLayers(_layout.layers, insertion.members);
+    if (_selected.length == 1) _joinStack(_selected, insertion.target);
     _selectionDragOrigins.clear();
     _stackPreview = null;
     return true;
@@ -1607,7 +1641,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
         return;
       }
       final target=_selectionHasPhoto ? null : records.where((r)=>!workspacePhotos.containsKey(r.id)&&!_selected.contains(r.id)&&canDockThought(_bounds(anchor), _bounds(r.id))).lastOrNull;
-      if (_dropIntoBox(point, _selected) || _finishSelectionLayer()) {
+      if ((_selected.length == 1 && _attachDroppedPhoto(anchor, point, records)) || _dropIntoBox(point, _selected) || _finishSelectionLayer()) {
         // The layer or box drop has already been applied.
       } else if(target!=null){_snapSelection(records, destination: destination);}
       else if(folders.values.any((bounds)=>bounds.contains(point))&&!regions.any((r)=>_inside(r.bounds,point))){
@@ -2000,12 +2034,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       emptyX += 340;
     }
     regions.sort((a, b) => (b.bounds.width * b.bounds.height).compareTo(a.bounds.width * a.bounds.height));
-    final focusedBox = _filters.boxes.singleOrNull;
-    final focusBounds = regions.where((r) => r.box == focusedBox).firstOrNull?.bounds;
+    final focusedRegions = regions.where((region) => _filters.boxes.contains(region.box)).toList();
     final hiddenBounds = [
-      if (focusBounds != null)
+      if (focusedRegions.isNotEmpty)
         for (final box in _allRegionBoxes)
-          if (!regionBoxes.contains(box) && !memoBoxContains(box, focusedBox!))
+          if (!regionBoxes.contains(box) && !focusedRegions.any((region) => memoBoxContains(box, region.box)))
             ?_boxBounds(box),
     ];
     sceneWidth = regions.map((r) => r.bounds.right + 100).fold(sceneWidth, math.max);
@@ -2124,10 +2157,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               final shift = Offset(math.max(delta.dx, 32 - folder.value.left), math.max(delta.dy, 32 - folder.value.top));
               _moveFolder(folder.key, shift); _moveSelectedTags(shift); _saveLayout();
             })),
-          if (focusBounds != null && hiddenBounds.isNotEmpty)
+          if (hiddenBounds.isNotEmpty)
+            for (final region in focusedRegions)
             Positioned.fill(child: IgnorePointer(child: AnimatedBuilder(animation: _view,
               builder: (context, _) => CustomPaint(painter: NearbyBoxPainter(
-                focusBounds, hiddenBounds, color.onSurface.withValues(alpha: .20),
+                region.bounds, hiddenBounds, color.onSurface.withValues(alpha: .20),
                 64 / _view.value.getMaxScaleOnAxis()))))),
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds,showLabel:false, highlighted: identical(_hoverBox, region.box) || identical(_liftedBox, region.box)),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
@@ -2208,7 +2242,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                     _saveLayout(flush: true);
                     return;
                   }
-                  if (_dropIntoBox(center, [record.id])) {
+                  if (_attachDroppedPhoto(record.id, center, records) || _dropIntoBox(center, [record.id])) {
                     _saveLayout(flush: true);
                     return;
                   }
@@ -2268,6 +2302,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
                   : SizedBox(width: _size(record.id).width - 8, height: _size(record.id).height - 8, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Expanded(child: Padding(padding: const EdgeInsets.all(8), child: MemoCommentCount(id:record.id,builder:(context,commentCount)=>Row(crossAxisAlignment:coveredThoughts.contains(record.id)?CrossAxisAlignment.start:CrossAxisAlignment.center,children:[
                       if(AttachmentIndicators.hasAttachments(record)||commentCount>0)...[FittedBox(fit:BoxFit.scaleDown,child:AttachmentIndicators(record:record,commentCount:commentCount)),const SizedBox(width:4)],
+                      if (record.photos.where((p) => p.canvasSize != null).firstOrNull case final photo?)
+                        Flexible(fit: FlexFit.loose, child: SizedBox.square(dimension: photo.canvasSize!,
+                          child: StoredThumbnail(key: ValueKey(photo.id), id: photo.id, owner: widget.storage?.owner, name: photo.name, fit: BoxFit.contain))),
                       Expanded(child:CanvasLinkText(text:record.text,links:record.inlineLinks,onLinkHover:(link)=>_hoverMemoLink(record.id,link),enabled:MediaQuery.sizeOf(context).width >= 760 && !_rangeSelection && _selected.isEmpty,style:TextStyle(color:wordColor(context,record.text)))),
                     ])))),
                     if (record.tags.isNotEmpty)
@@ -2435,7 +2472,9 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
             }),
             onScaleEnd: (_) { setState(() {
               final drop = _selectionEnd;
-              if (!_selectionPinched && !_finishSelectionLayer() &&
+              final photoAttached = !_selectionPinched && _movingSelection && drop != null && drop != _selectionStart &&
+                  _selected.length == 1 && _attachDroppedPhoto(_selected.single, drop, records);
+              if (!photoAttached && !_selectionPinched && !_finishSelectionLayer() &&
                   (!_movingSelection || drop == null || drop == _selectionStart || !_dropIntoBox(drop, _selected))) {
                 _snapSelection(records);
               }

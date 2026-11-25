@@ -11,6 +11,7 @@ void main(){
   await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(onPressed:()=>showElementMetadata(context,record.text),child:const Text('상세'))))));
   Future<void> remove()async{
    await tester.tap(find.text('상세'));await tester.pump();await tester.pump(const Duration(milliseconds:300));
+   await tester.tap(find.byTooltip('수정'));await tester.pump();await tester.pump(const Duration(milliseconds:300));
    for(final label in ['위치 삭제','음성 삭제','사진 삭제']){
     await tester.ensureVisible(find.byTooltip(label));await tester.tap(find.byTooltip(label));await tester.pump();await tester.pump(const Duration(milliseconds:300));
    }

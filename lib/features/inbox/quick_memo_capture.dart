@@ -783,6 +783,20 @@ mixin _QuickMemoCapture<T extends StatefulWidget> on State<T> {
                       size: 19,
                     ),
                   ),
+                  IconButton(
+                    tooltip: '스케치', icon: const Icon(Icons.draw_outlined, size: 19),
+                    constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                    padding: EdgeInsets.zero,
+                    onPressed: _captureSaving || _photoBusy || _photoDrafts.length >= 5 ? null : () async {
+                      setState(() => _photoBusy = true);
+                      try {
+                        final sketch = await showSketchDialog(context);
+                        if (mounted && sketch != null) setState(() => _photoDrafts.add(sketch));
+                      } finally {
+                        if (mounted) setState(() => _photoBusy = false);
+                      }
+                    },
+                  ),
                 ],
               ],
             ),
@@ -885,7 +899,7 @@ mixin _QuickMemoCapture<T extends StatefulWidget> on State<T> {
                                 onTap: () => showPhoto(context, photo.bytes),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(6),
-                                  child: Image.memory(
+                                  child: photoImage(
                                     photo.bytes,
                                     fit: BoxFit.cover,
                                     cacheWidth: 180,

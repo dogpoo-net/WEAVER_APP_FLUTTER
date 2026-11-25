@@ -5,7 +5,33 @@ import 'package:weaver/features/inbox/graph_layout.dart';
 import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/thought_interaction.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
+import 'package:weaver/features/inbox/canvas_geometry.dart';
+import 'package:weaver/features/inbox/thought_filters.dart';
+
 void main(){
+ testWidgets('each selected box shows hidden neighbors when filtering multiple boxes', (tester) async {
+   elements.clear(); memoBoxes.clear(); memoBoxFolders.clear(); memoBoxFolderParents.clear();
+   pageGraphLayout = GraphLayout();
+   final a = MemoBox('A'), b = MemoBox('B'), neighbor = MemoBox('C');
+   memoBoxes.addAll([a, b, neighbor]);
+   final bounds = pageGraphLayout.blockLayout.containerBounds;
+   bounds.addAll({
+     'box:A': const Rect.fromLTWH(300, 300, 180, 180),
+     'box:B': const Rect.fromLTWH(708, 300, 180, 180),
+     'box:C': const Rect.fromLTWH(504, 300, 180, 180),
+   });
+   final filters = ThoughtFilterSelection(initialBox: a)..toggle(b, null);
+   await tester.pumpWidget(MaterialApp(home: ThoughtPage(onChanged: () {}, filters: filters)));
+   await tester.pumpAndSettle();
+   final painters = tester.widgetList<CustomPaint>(find.byType(CustomPaint))
+       .map((widget) => widget.painter).whereType<NearbyBoxPainter>();
+   expect(painters.map((p) => p.focus), unorderedEquals([bounds['box:A'], bounds['box:B']]));
+   for (final painter in painters) {
+     expect(painter.neighbors, [bounds['box:C']]);
+   }
+   await tester.pumpWidget(const SizedBox());
+   filters.dispose();
+ });
  testWidgets('box drag stops at a neighbor and a lifted box can nest', (tester) async {
   tester.view.physicalSize = const Size(1400, 1000);
   tester.view.devicePixelRatio = 1;

@@ -98,6 +98,7 @@ class WorkspaceSnapshot {
             if (r.noticeBoardOrder case final order?) 'noticeBoardOrder': order,
             if(r.voiceTextPending)'voiceTextPending':true,
             if (r.labelColor != null) 'labelColor': r.labelColor,
+            if (r.calendar.isNotEmpty) 'calendar': r.calendar,
             if (r.extraPages.isNotEmpty) 'thoughtPages': [for (final page in r.extraPages) page.toJson()],
             'indexLabel': r.indexLabel, 'labelOnLeft': r.labelOnLeft, 'indexLabelColor': r.indexLabelColor,
             'location': r.location?.toJson(),
@@ -194,6 +195,7 @@ class WorkspaceSnapshot {
        ..noticeBoardOrder = r['noticeBoardOrder'] is int ? r['noticeBoardOrder'] as int : null
        ..voiceTextPending = r['voiceTextPending'] == true
        ..labelColor = r['labelColor'] is int ? r['labelColor'] as int : null
+       ..calendar.addAll(Map<String,int?>.from(r['calendar'] as Map? ?? {}))
        ..extraPages = [for (final page in (r['thoughtPages'] as List? ?? []).whereType<Map>().take(99))
          ThoughtPageData(page['text'] as String, page['label'] as String, page['left'] == true, page['color'] as int,
            bindings({'text': page['text'], 'bindings': page['links']}))]
