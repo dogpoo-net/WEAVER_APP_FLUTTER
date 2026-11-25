@@ -31,7 +31,7 @@ void main() {
     expect(find.byType(AllThoughtsPage), findsNothing);
     final all = find.byKey(const ValueKey('thoughts-all'));
     await tester.ensureVisible(all); await tester.tap(all); await tester.pumpAndSettle();
-    expect(find.byType(AllThoughtsPage), findsOneWidget);
+    expect(tester.widget<AllThoughtsPage>(find.byType(AllThoughtsPage)).initialView, ThoughtView.boxes);
     expect(tester.takeException(), isNull);
   });
   testWidgets('main shows five newest paragraphs and projects but searches older entries', (tester) async {

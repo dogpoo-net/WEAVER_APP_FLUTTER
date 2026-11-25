@@ -27,6 +27,13 @@ void main() {
       await gesture.moveTo(overlay.localToGlobal(const Offset(1060, 650))); await tester.pump();
       await gesture.up(); await tester.pumpAndSettle();
       expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data, '2');
+      await tester.longPressAt(overlay.localToGlobal(const Offset(780, 680)));
+      await tester.pumpAndSettle();
+      expect(find.text('배치'), findsOneWidget);
+      expect(find.text('레이어'), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(const ValueKey('selection-count'))).data, '2');
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
       final layerButtonX = tester.getCenter(find.byTooltip('순서 위로')).dx;
       expect(tester.getRect(find.byKey(const ValueKey('canvas-layer-panel'))).right, 1200 - 12);
       final move = await tester.startGesture(overlay.localToGlobal(const Offset(550, 540)));

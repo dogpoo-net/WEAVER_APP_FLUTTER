@@ -1307,7 +1307,7 @@ class _InboxPageState extends State<InboxPage> with WidgetsBindingObserver, _Qui
           if (_query.isEmpty && _memoHasMore) TextButton(key: const ValueKey('thoughts-more'), style: moreStyle,
             onPressed: () => setState(() => _memoRows += 5), child: const Text('+더보기')),
           TextButton(key: const ValueKey('thoughts-all'), style: moreStyle,
-            onPressed: () => _allThoughts(null, ThoughtView.page), child: const Text('모두보기')),
+            onPressed: () => _allThoughts(null, ThoughtView.boxes), child: const Text('모두보기')),
         ]),
         if (projects.isNotEmpty) ...[
           _homeSectionDivider(key: const ValueKey('main-project-divider')),

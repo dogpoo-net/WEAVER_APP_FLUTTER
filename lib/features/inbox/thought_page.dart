@@ -1986,6 +1986,14 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       emptyX += 340;
     }
     regions.sort((a, b) => (b.bounds.width * b.bounds.height).compareTo(a.bounds.width * a.bounds.height));
+    final focusedBox = _filters.boxes.singleOrNull;
+    final focusBounds = regions.where((r) => r.box == focusedBox).firstOrNull?.bounds;
+    final hiddenBounds = [
+      if (focusBounds != null)
+        for (final box in _allRegionBoxes)
+          if (!regionBoxes.contains(box) && !memoBoxContains(box, focusedBox!))
+            ?_boxBounds(box),
+    ];
     sceneWidth = regions.map((r) => r.bounds.right + 100).fold(sceneWidth, math.max);
     sceneHeight = regions.map((r) => r.bounds.bottom + 100).fold(sceneHeight, math.max);
     final folders = memoFolderRegions({for (final r in regions) r.box: r.bounds}, _layout.folderPositions, manualBounds: _layout.containerBounds);
@@ -2031,7 +2039,8 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
           _canvasMenu.close();
           _canvasTapDown = null;
           setState(() {
-            _canvasMenuOnThought = onThought;
+            _canvasMenuOnThought = onThought || (hit == null && _selectionMode &&
+                _selected.length > 1 && _selected.any(_positions.containsKey));
             if (onThought && !_selected.contains(hit)) {
               _selected..clear()..add(hit);
             }
@@ -2101,6 +2110,11 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               final shift = Offset(math.max(delta.dx, 32 - folder.value.left), math.max(delta.dy, 32 - folder.value.top));
               _moveFolder(folder.key, shift); _moveSelectedTags(shift); _saveLayout();
             })),
+          if (focusBounds != null && hiddenBounds.isNotEmpty)
+            Positioned.fill(child: IgnorePointer(child: AnimatedBuilder(animation: _view,
+              builder: (context, _) => CustomPaint(painter: NearbyBoxPainter(
+                focusBounds, hiddenBounds, color.onSurface.withValues(alpha: .20),
+                64 / _view.value.getMaxScaleOnAxis()))))),
           for (final region in regions) MemoBoxRegion(key: ValueKey('box-region-${region.box.name}'), box: region.box, bounds: region.bounds,showLabel:false, highlighted: identical(_hoverBox, region.box) || identical(_liftedBox, region.box)),
           Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _Connections(
             nodeRects,
@@ -2326,7 +2340,15 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
               data: MediaQuery.of(context).copyWith(gestureSettings: const DeviceGestureSettings(touchSlop: 6)),
               child: GestureDetector(
             key: const ValueKey('canvas-selection'), behavior: HitTestBehavior.deferToChild, dragStartBehavior: DragStartBehavior.down,
-            onLongPressStart:(d)=>_startSelectionLift(d.globalPosition,records,regions),
+            onLongPressStart: (details) {
+              if (_selectionPointers.length != 1) return;
+              if (_selectionMode && _selected.length > 1 &&
+                  _hitSelection(details.localPosition, records) == null) {
+                openCanvasMenu(details.globalPosition);
+                return;
+              }
+              _startSelectionLift(details.globalPosition, records, regions);
+            },
             onLongPressMoveUpdate:(d)=>_moveLiftedSelection(d.globalPosition,records),
             onLongPressEnd:(d)=>_finishSelectionLift(d.globalPosition,records,regions,folders),
             onLongPressCancel:_cancelSelectionLift,

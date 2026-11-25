@@ -294,3 +294,49 @@ void alignStackLayers(List<String> layers, Map<String, Offset> positions,
     }
   }
 }
+
+/// Paint hidden box silhouettes within a screen-sized band around the focus.
+class NearbyBoxPainter extends CustomPainter {
+  const NearbyBoxPainter(this.focus, this.neighbors, this.color, this.extent);
+
+  final Rect focus;
+  final List<Rect> neighbors;
+  final Color color;
+  final double extent;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final outer = focus.inflate(extent);
+    final mask = Path();
+    for (final bounds in neighbors) {
+      if (outer.overlaps(bounds)) mask.addRect(bounds.intersect(outer));
+    }
+    canvas.save();
+    canvas.clipPath(mask);
+    final colors = [color, color.withValues(alpha: 0)];
+    void edge(Rect strip, Alignment from, Alignment to) {
+      final gradient = LinearGradient(begin: from, end: to, colors: colors);
+      canvas.drawRect(strip, Paint()..shader = gradient.createShader(strip));
+    }
+    edge(Rect.fromLTWH(focus.left, outer.top, focus.width, extent),
+        Alignment.bottomCenter, Alignment.topCenter);
+    edge(Rect.fromLTWH(focus.left, focus.bottom, focus.width, extent),
+        Alignment.topCenter, Alignment.bottomCenter);
+    edge(Rect.fromLTWH(outer.left, focus.top, extent, focus.height),
+        Alignment.centerRight, Alignment.centerLeft);
+    edge(Rect.fromLTWH(focus.right, focus.top, extent, focus.height),
+        Alignment.centerLeft, Alignment.centerRight);
+    for (final (corner, far) in [(focus.topLeft, outer.topLeft),
+        (focus.topRight, outer.topRight), (focus.bottomLeft, outer.bottomLeft),
+        (focus.bottomRight, outer.bottomRight)]) {
+      final shader = RadialGradient(colors: colors).createShader(
+        Rect.fromCircle(center: corner, radius: extent));
+      canvas.drawRect(Rect.fromPoints(corner, far), Paint()..shader = shader);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(NearbyBoxPainter old) => focus != old.focus ||
+      extent != old.extent || color != old.color || !listEquals(neighbors, old.neighbors);
+}
