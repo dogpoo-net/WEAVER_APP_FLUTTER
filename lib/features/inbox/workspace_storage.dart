@@ -385,9 +385,12 @@ class WorkspaceStorage {
   bool _canvasInteracting = false;
   int _canvasGestureRevision = 0;
   int get canvasGestureRevision => _canvasGestureRevision;
+  // Menu actions run outside the canvas pointer listener but also invalidate
+  // a browse refresh that started against the previous layout.
+  void markCanvasEdit() => _canvasGestureRevision++;
   bool get canvasInteracting => _canvasInteracting;
   set canvasInteracting(bool value) {
-    if (value && !_canvasInteracting) _canvasGestureRevision++;
+    if (value && !_canvasInteracting) markCanvasEdit();
     _canvasInteracting = value;
   }
   final canvasSaveState=ValueNotifier<String>('저장됨');

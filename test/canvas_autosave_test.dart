@@ -92,6 +92,30 @@ void main(){
   expect(jsonDecode(api.items[itemKey('layout','["page","positions","a"]')]!['payload']),[30,40]);
   sync.dispose();api.dispose();
  });
+ test('refresh spanning repeated menu arrangements cannot restore an older stack',() async {
+   final api = ReceiptApi();
+   final storage = WorkspaceStorage(await SharedPreferences.getInstance(), owner:'a');
+   final sync = WorkspaceSync(storage, api, isCurrent:()=>true);
+   await sync.initialize();
+   final grid = snapshot({'a':[100,100], 'b':[300,100]});
+   final stack = snapshot({'a':[100,100], 'b':[100,132]});
+   await storage.write(grid);
+   await sync.flushCanvas();
+   final b = itemKey('layout','["page","positions","b"]');
+   api.items[b]!['payload'] = '[100,132]';
+   api.items[b]!['revision'] = ++api.rev;
+   api.readEntered = Completer(); api.readRelease = Completer();
+   final refresh = sync.refreshFromServer();
+   await api.readEntered!.future;
+   for (final layout in [stack, grid, stack, grid]) {
+     storage.markCanvasEdit();
+     await storage.write(layout);
+   }
+   api.readRelease!.complete();
+   await refresh;
+   expect(jsonDecode(storage.read()!)['graphLayout']['positions']['b'], [300,100]);
+   sync.dispose(); api.dispose();
+ });
  test('acknowledging our own canvas move does not rebuild or replace the workspace',()async{
   final api=ReceiptApi();final storage=WorkspaceStorage(await SharedPreferences.getInstance(),owner:'a');final sync=WorkspaceSync(storage,api,isCurrent:()=>true);await sync.initialize();
   var applied=0;storage.applyServerSnapshot=()=>applied++;

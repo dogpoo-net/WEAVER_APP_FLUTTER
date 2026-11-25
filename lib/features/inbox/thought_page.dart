@@ -749,6 +749,7 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   }
 
   void _editCanvasLayout(VoidCallback edit) {
+    widget.storage?.markCanvasEdit();
     final before = _captureCanvas();
     setState(edit);
     _rememberEdit(before);
