@@ -6,7 +6,7 @@ import 'package:weaver/features/inbox/memo_boxes.dart';
 import 'package:weaver/features/inbox/thought_interaction.dart';
 import 'package:weaver/features/inbox/thought_page.dart';
 void main(){
- testWidgets('ordinary pointer drops nest boxes and move thoughts into boxes', (tester) async {
+ testWidgets('box drag stops at a neighbor and a lifted box can nest', (tester) async {
   tester.view.physicalSize = const Size(1400, 1000);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -39,7 +39,18 @@ void main(){
   await tester.pump();
   await drag.moveTo(insideParent);
   await tester.pump();
+  final stopped = tester.getRect(find.byKey(const ValueKey('box-region-하위 상자')));
+  final wall = tester.getRect(find.byKey(const ValueKey('box-region-상위 상자')));
+  expect(stopped.left - wall.right, closeTo(24, .01));
   await drag.up();
+  await tester.pumpAndSettle();
+  expect(parentMemoBox(child), isNull);
+  expect(tester.getRect(find.byKey(const ValueKey('box-region-하위 상자'))), stopped);
+  final lift = await tester.startGesture(tester.getCenter(childHeader));
+  await tester.pump(const Duration(milliseconds: 650));
+  await lift.moveTo(insideParent);
+  await tester.pump();
+  await lift.up();
   await tester.pumpAndSettle();
   expect(parentMemoBox(child), parent);
 

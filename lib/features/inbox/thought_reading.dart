@@ -123,7 +123,7 @@ class _ThoughtReadingState extends State<_ThoughtReading> {
                     color: paper,
                     borderRadius: BorderRadius.circular(8),
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 4, 4, 12),
+                      padding: const EdgeInsets.fromLTRB(8, 4, 4, 6),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -289,8 +289,10 @@ class _ThoughtReadingState extends State<_ThoughtReading> {
                               ),
                             ),
                           ),
+                          const SizedBox(height: 6),
                           Row(
                             children: [
+                              Text('${index + 1} / ${pages.length}'),
                               Expanded(
                                 child: Center(
                                   child: _moreBelow[index] == true
@@ -302,7 +304,6 @@ class _ThoughtReadingState extends State<_ThoughtReading> {
                                       : null,
                                 ),
                               ),
-                              Text('${index + 1} / ${pages.length}'),
                               IconButton(
                                 style: buttonStyle,
                                 tooltip: '수정',

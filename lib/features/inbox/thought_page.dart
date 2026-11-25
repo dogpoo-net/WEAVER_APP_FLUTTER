@@ -613,13 +613,13 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
       final oldFolder = box.folder;
       final scene = _sceneKey.currentContext?.findRenderObject() as RenderBox?;
       final lifted = identical(_liftedBox, box);
-      if (pointer != null && scene != null) {
+      if (lifted && pointer != null && scene != null) {
         final point = scene.globalToLocal(pointer);
         final targetBox = _boxAt(point, where: (target) => canMoveMemoBox(box, target));
         final legacyTargets = _folderGeometry().entries
             .where((entry) => entry.value.contains(point)).toList()
           ..sort((a, b) => memoFolderDepth(b.key).compareTo(memoFolderDepth(a.key)));
-        final target = targetBox?.name ?? (lifted ? legacyTargets.firstOrNull?.key : oldFolder);
+        final target = targetBox?.name ?? legacyTargets.firstOrNull?.key;
         if (oldFolder != target) {
           if (oldFolder != null && _frozenFolders.containsKey(oldFolder)) {
             _layout.folderPositions[oldFolder] = _frozenFolders[oldFolder]!.topLeft + const Offset(28, 44);
@@ -647,16 +647,29 @@ class _ThoughtPageState extends State<ThoughtPage> with WidgetsBindingObserver, 
   void _releaseBox(MemoBox box) {
     final bounds = _boxBounds(box);
     if (bounds == null) return;
-    _moveBox(box, releaseBox(bounds, [
+    _moveBox(box, releaseBox(bounds, _boxDragObstacles(box)));
+  }
+  List<Rect> _boxDragObstacles(MemoBox box) => [
       for (final other in _allRegionBoxes) if (!memoBoxContains(box, other) && !memoBoxContains(other, box)) ?_boxBounds(other),
       for (final folder in _folderGeometry().entries)
         if (box.folder == null || !memoFolderContains(folder.key, box.folder!)) folder.value,
-    ]));
-  }
+    ];
   void _dragBox(MemoBox box, Offset delta) {
     final bounds = _boxBounds(box);
     if (bounds == null) return;
-    final shift = Offset(math.max(delta.dx, 32 - bounds.left), math.max(delta.dy, 32 - bounds.top));
+    var shift = Offset(math.max(delta.dx, 32 - bounds.left), math.max(delta.dy, 32 - bounds.top));
+    if (_liftedBox != box) {
+      final obstacles = _boxDragObstacles(box);
+      // Sweep each axis so even a large pointer delta stops at the near edge.
+      final horizontal = _limitContainerResize(bounds,
+          bounds.expandToInclude(bounds.shift(Offset(shift.dx, 0))), obstacles);
+      final dx = shift.dx < 0 ? horizontal.left - bounds.left : horizontal.right - bounds.right;
+      final slid = bounds.shift(Offset(dx, 0));
+      final vertical = _limitContainerResize(slid,
+          slid.expandToInclude(slid.shift(Offset(0, shift.dy))), obstacles);
+      shift = Offset(dx, shift.dy < 0 ? vertical.top - slid.top : vertical.bottom - slid.bottom);
+    }
+    if (shift == Offset.zero) return;
     _moveBox(box, shift); _moveSelectedTags(shift);
     _saveLayout();
   }
